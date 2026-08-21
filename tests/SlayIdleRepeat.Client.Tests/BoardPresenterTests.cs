@@ -43,6 +43,19 @@ public sealed class BoardPresenterTests
     /// <summary>A Minigame tile — the other one.</summary>
     private const int MinigameTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Minigame;
 
+    /// <summary>
+    /// A mini-boss tile — the node a move may not carry past, and a FIGHT tile.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Read off the rules layer's enum for <c>TreasureTileKind</c>'s reason and one that has
+    /// already bitten: this kind was added to the fight family in the rules layer while the client's
+    /// list of which kinds are fights still named three, so the board sent <c>RESOLVE_TILE</c> — which
+    /// the rules ACCEPT for a fight tile and which clears nothing — and every run parked on a node it
+    /// cannot roll past. A transcribed number would not have caught it either, but a case over this
+    /// one does.
+    /// </remarks>
+    private const int MiniBossTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.MiniBoss;
+
     /// <summary>The card a case's event tile has drawn.</summary>
     private const string DrawnCard = "EVT_FIXTURE";
 
@@ -142,6 +155,14 @@ public sealed class BoardPresenterTests
             BoardContent.BlockedTileStatusKey
         },
         {
+            // 🔴 The same block as the row above, told apart by WHICH tile is pending. A barred node
+            // has just shortened a move and refused an armed escape, and "resolve this tile before
+            // rolling again" says nothing about either.
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: MiniBossTileKind),
+            BoardRollBlock.TilePending,
+            BoardContent.BlockedGateStatusKey
+        },
+        {
             PlayerState.Run(
                 Run, Player, RunPhase.InProgress,
                 position: 5, pendingForkJunctionPosition: 5, pendingForkRemainingSteps: 2),
@@ -161,18 +182,18 @@ public sealed class BoardPresenterTests
     };
 
     /// <summary>
-    /// 🔒 The four sentences are four DIFFERENT sentences, <b>as authored</b>.
+    /// 🔒 Every block sentence is a DIFFERENT sentence, <b>as authored</b>.
     /// </summary>
     /// <remarks>
     /// 🔴 Stated over the shipped locale, not over a fixture, and the distinction is the whole
-    /// value of the case. Every fixture string in this suite is derived from its own key, so four
-    /// distinct keys give four distinct values by construction and a fixture-based version of this
-    /// case could never fail whatever anyone wrote in <c>en.json</c>. The claim being made is about
-    /// what a player reads — four instructions that send them to four different places — and only
-    /// the authored strings are that.
+    /// value of the case. Every fixture string in this suite is derived from its own key, so distinct
+    /// keys give distinct values by construction and a fixture-based version of this case could never
+    /// fail whatever anyone wrote in <c>en.json</c>. The claim being made is about what a player
+    /// reads — instructions that send them to different places — and only the authored strings are
+    /// that.
     /// </remarks>
     [Fact]
-    public async Task The_four_block_sentences_are_four_different_authored_sentences()
+    public async Task Every_block_sentence_is_a_different_authored_sentence()
     {
         var keys = new List<string>();
 
@@ -185,7 +206,9 @@ public sealed class BoardPresenterTests
             keys.Add((string)row[2]);
         }
 
-        keys.Count.ShouldBe(4);
+        // Pinned so a row added to the theory without a sentence of its own is visible here rather
+        // than silently making this case weaker by one.
+        keys.Count.ShouldBe(5);
 
         var authored = keys.Select(key =>
         {
@@ -949,6 +972,96 @@ public sealed class BoardPresenterTests
             "12/14/16 puts the last node of stage 1 at 11 and of stage 2 at 25.");
         miniBosses.Select(node => BoardTileKinds.NameKeyFor((int)node.Tile))
                   .ShouldAllBe(key => key != null);
+    }
+
+    /// <summary>
+    /// 🔴 <b>A mini-boss tile is left by FIGHTING it, and the run is parked on it for ever if the
+    /// board thinks otherwise.</b>
+    /// </summary>
+    /// <remarks>
+    /// The same defect the enemy tile's case describes, on a node no run can avoid: the rules layer
+    /// accepts <c>RESOLVE_TILE</c> on every fight tile and clears nothing, so a board that sent it
+    /// would redraw the identical state after every press, on a node every run has to cross twice.
+    /// Asserted through the command actually submitted rather than through the resulting run, because
+    /// the fake lets a fixture declare the run by hand and would agree with the test instead of with
+    /// the domain.
+    /// </remarks>
+    [Fact]
+    public async Task A_mini_boss_tile_submits_START_BATTLE_rather_than_RESOLVE_TILE()
+    {
+        var host = RecordingGameHost
+            .Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: MiniBossTileKind))
+            .AcceptingInto(
+                PlayerState.Run(
+                    Run, Player, RunPhase.BattlePending, pendingTileKind: MiniBossTileKind));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTileOpensAFight.ShouldBeTrue(
+            "a mini-boss is an elite-power fight, so the tile is left by fighting it.");
+        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
+            .ShouldBe(BoardSubmission.Submitted);
+
+        host.SubmitCommand.ShouldBeOfType<StartBattleCommand>(
+            "a mini-boss tile was sent RESOLVE_TILE, which the rules ACCEPT and which clears nothing " +
+            "— so the board redraws the identical state after every press and the run is stuck on a " +
+            "node it cannot roll past and cannot skip. Its only way out is abandoning the run.");
+
+        presenter.RollBlock.ShouldBe(BoardRollBlock.BattleOpen);
+    }
+
+    /// <summary>
+    /// 🔴 <b>The board states the rule the mark on a barred node stands for, and states it while a
+    /// barred node is still ahead.</b>
+    /// </summary>
+    /// <remarks>
+    /// A move that would carry the run past a mini-boss stops on it and the steps it did not spend
+    /// are gone, so a player who rolled a 5 two nodes out and moved 2 has had three pips taken by a
+    /// rule nothing on the screen stated. The mark says which node; only words can say what a shape
+    /// means. The second half of the case is the half that can fail quietly: the line has to GO once
+    /// there is nothing left for it to describe, or it is a permanent rule about nodes behind the
+    /// player.
+    /// </remarks>
+    [Fact]
+    public async Task The_board_states_the_rule_while_a_barred_node_is_still_ahead()
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, chapterId: 7, position: 3)),
+            content: BoardContent.Authoring(chapterId: 7, 12, 14, 16));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Track.ShouldContain(
+            node => node.Tile == SlayIdleRepeat.Core.Rules.Board.TileKind.MiniBoss,
+            "the premise: the board carries a node the run may not walk past.");
+
+        presenter.GateRuleText.ShouldBe(
+            BoardContent.EnglishValueOf(BoardContent.GateRuleLabelKey),
+            "a barred node is ahead and the screen says nothing about what the bars mean, so the " +
+            "player learns the rule by losing a roll to it.");
+
+        var past = Build(
+            RecordingGameHost.Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, chapterId: 7, position: 30)),
+            content: BoardContent.Authoring(chapterId: 7, 12, 14, 16));
+
+        await past.StartAsync(CancellationToken.None);
+
+        past.Track.Where(node => node.Tile == SlayIdleRepeat.Core.Rules.Board.TileKind.MiniBoss)
+            .ShouldAllBe(
+                node => node.LinearIndex < 30,
+                "the premise of the second half: both barred nodes are behind this run.");
+
+        past.GateRuleText.ShouldBeEmpty(
+            "every barred node is behind the run, so the line is a rule about nothing and is holding " +
+            "a line of a handset screen for the rest of the chapter.");
     }
 
     /// <summary>

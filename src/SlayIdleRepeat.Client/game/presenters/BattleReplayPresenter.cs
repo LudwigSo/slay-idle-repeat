@@ -611,7 +611,7 @@ public sealed class BattleReplayPresenter
 
     /// <summary>Reads the run this screen is about and settles the fight it will animate.</summary>
     /// <param name="ct">Cancellation.</param>
-    /// <summary>The three tile kinds that open a fight, as the run reports them.</summary>
+    /// <summary>The four tile kinds that open a fight, as the run reports them.</summary>
     /// <remarks>
     /// <para>
     /// 🔒 Read off the rules layer's own enum and NOT transcribed, for the reason
@@ -621,29 +621,41 @@ public sealed class BattleReplayPresenter
     /// </para>
     /// <para>
     /// 🔴 <b>They live on THIS screen because a fight is how these tiles are left, and until M7-10z
-    /// nothing in the client knew that.</b> <c>RESOLVE_TILE</c> says of Enemy, Elite and Boss that they
-    /// are *"acknowledged and not cleared"* — so the board's Resolve control submitted a command that
+    /// nothing in the client knew that.</b> <c>RESOLVE_TILE</c> says of every fight tile that it is
+    /// *"acknowledged and not cleared"* — so the board's Resolve control submitted a command that
     /// succeeded and changed nothing, and a run standing on an enemy was stuck there for good. The way
     /// out is <c>START_BATTLE</c>, which moves the run to <c>BattlePending</c>, which is the state the
     /// board already opens this screen on.
     /// </para>
+    /// <para>
+    /// 🔴 <b>A kind added to the fight family upstream and not added here parks the run on it for
+    /// good</b>, and the mini-boss is why that is stated rather than left to be rediscovered: it
+    /// arrived as a fight kind the rules layer accepts <c>START_BATTLE</c> for while this list still
+    /// named three, so the board sent <c>RESOLVE_TILE</c>, the rules layer accepted it, nothing
+    /// cleared, and every run stopped on a node it cannot roll past — the M7-10z dead end again, on a
+    /// node no run can avoid. The list is not derivable from the enum, so it is the one that has to be
+    /// re-read whenever the enum grows.
+    /// </para>
     /// </remarks>
     public const int EnemyTileKind = (int)TileKind.Enemy;
 
-    /// <summary>The elite fight's tile kind. Read with the two beside it.</summary>
+    /// <summary>The elite fight's tile kind. Read with the three beside it.</summary>
     public const int EliteTileKind = (int)TileKind.Elite;
 
-    /// <summary>The Boss fight's tile kind. Read with the two beside it.</summary>
+    /// <summary>The mini-boss fight's tile kind. Read with the three beside it.</summary>
+    public const int MiniBossTileKind = (int)TileKind.MiniBoss;
+
+    /// <summary>The Boss fight's tile kind. Read with the three beside it.</summary>
     public const int BossTileKind = (int)TileKind.Boss;
 
     /// <summary>Whether a pending tile of this kind is left by fighting it.</summary>
     /// <remarks>
-    /// 🔒 Asked rather than restated, so the board holds no fourth copy of the three numbers. The
+    /// 🔒 Asked rather than restated, so the board holds no fifth copy of the four numbers. The
     /// board already asks <c>ShopPresenter</c> and <c>CampfirePresenter</c> the same way.
     /// </remarks>
     /// <param name="tileKind">The kind the run reports for its pending tile.</param>
     public static bool OpensAFight(int tileKind) =>
-        tileKind is EnemyTileKind or EliteTileKind or BossTileKind;
+        tileKind is EnemyTileKind or EliteTileKind or MiniBossTileKind or BossTileKind;
 
     public async Task StartAsync(CancellationToken ct)
     {

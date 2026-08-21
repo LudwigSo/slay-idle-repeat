@@ -26,7 +26,8 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// <para>
 /// 🔒 <b>The board is re-READ, not merely un-hidden.</b> A replay that reached its end submitted the
 /// confirmation that closes the battle, so the run behind the hidden board is a different row from
-/// the one it drew: the phase has moved, the HP has moved, and a won fight has opened a draft. Making
+/// the one it drew: the phase has moved, the HP has moved, and a won fight MAY have opened a draft —
+/// every fight but the run's last one does, and that one ends the run instead. Making
 /// the screen visible without reading again would put a pre-battle board in front of a post-battle
 /// run, which reads as though the fight had not happened.
 /// </para>

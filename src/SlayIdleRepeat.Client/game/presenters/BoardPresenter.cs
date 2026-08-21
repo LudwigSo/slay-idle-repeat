@@ -191,6 +191,7 @@ public sealed class BoardPresenter
     private const string StageLabelKey = "loc.board.stage.label";
     private const string RolledLabelKey = "loc.board.rolled.label";
     private const string StandingOnLabelKey = "loc.board.standing_on.label";
+    private const string GateRuleLabelKey = "loc.board.gate.label";
     private const string RollActionKey = "loc.board.roll.action";
     private const string ResolveActionKey = "loc.board.resolve.action";
     private const string AbandonActionKey = "loc.board.abandon.action";
@@ -210,6 +211,7 @@ public sealed class BoardPresenter
     private const string UnavailableStatusKey = "loc.board.unavailable.status";
     private const string RefusedStatusKey = "loc.board.refused.status";
     private const string BlockedTileStatusKey = "loc.board.blocked_tile.status";
+    private const string BlockedGateStatusKey = "loc.board.blocked_gate.status";
     private const string UnbuiltScreenStatusKey = "loc.board.unbuilt_screen.status";
     private const string SkipUnbuiltActionKey = "loc.board.skip_unbuilt.action";
     private const string BlockedForkStatusKey = "loc.board.blocked_fork.status";
@@ -432,6 +434,38 @@ public sealed class BoardPresenter
     /// <summary>The caption over the tile being stood on, resolved.</summary>
     public string StandingOnLabel => _strings.Resolve(StandingOnLabelKey);
 
+    /// <summary>
+    /// The sentence saying what the mark on a barred node means, resolved — and empty once every
+    /// marked node is behind the run.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>It is here so the rule is read BEFORE it costs anything, which is the whole reason the
+    /// line exists.</b> A move that would carry the run past a mini-boss stops on it and the steps it
+    /// did not spend are gone — so a player who rolled a 5 two nodes out and moved 2 has had three
+    /// pips taken by a rule nothing on the screen ever stated, and a lost roll reads as a cheat or a
+    /// bug rather than as a rule. The mark on the pip says WHICH node; nothing on a screen with no
+    /// icon set and no tooltip can say what a shape MEANS, so it is said in words, once, above the
+    /// caption naming the tile the run stands on.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Read off the projected board's tile kinds, and NOT off a second field saying a node
+    /// cannot be walked past.</b> The mark is drawn from the kind the projection already carries and
+    /// so is this: what the screen asks is whether the sentence still has a subject, which is a
+    /// question about the line rather than about any node.
+    /// </para>
+    /// <para>
+    /// ⚠️ Empty rather than permanent. A rule about nodes the run has already passed is a line of a
+    /// handset screen spent on nothing, and a run past both marked nodes is in the last stage, where
+    /// the only node the movement rule still touches is the boss — which wears no mark and needs no
+    /// explanation, being the end of the track.
+    /// </para>
+    /// </remarks>
+    public string GateRuleText =>
+        Stage == BoardStage.Ready && Track.Any(IsAMarkedNodeNotYetPassed)
+            ? _strings.Resolve(GateRuleLabelKey)
+            : NothingLeftToSay;
+
     /// <summary>The roll control's caption, resolved.</summary>
     public string RollText => _strings.Resolve(RollActionKey);
 
@@ -549,10 +583,12 @@ public sealed class BoardPresenter
     /// screen has already said the same thing in <see cref="StatusText"/>.
     /// </summary>
     /// <remarks>
-    /// 🔒 Four sentences for the four blocks that share one wire value, because each is escaped by
-    /// doing a different thing. The two that do NOT get a sentence here are the two the status line
-    /// above already covers — a read that has not answered, and a run that has ended — and repeating
-    /// either would put two lines on screen saying one thing.
+    /// 🔒 One sentence per block that shares one wire value, because each is escaped by doing a
+    /// different thing — and two of them are one pending tile told apart by which tile it is, because
+    /// a tile with no screen and a tile that may not be walked past are escaped differently again.
+    /// The two blocks that do NOT get a sentence here are the two the status line above already
+    /// covers — a read that has not answered, and a run that has ended — and repeating either would
+    /// put two lines on screen saying one thing.
     /// </remarks>
     public string BlockText => RollBlock switch
     {
@@ -563,6 +599,16 @@ public sealed class BoardPresenter
         // the tile reads as a hole in the build rather than as a control the player cannot find.
         BoardRollBlock.TilePending when PendingTileHasNoScreen =>
             _strings.Resolve(UnbuiltScreenStatusKey),
+
+        // 🔴 A SIXTH sentence, and the one a player reads at the moment the rule has just cost them
+        // something. "Resolve this tile before rolling again" is true of a barred node and says
+        // nothing about why the roll moved fewer steps than it came up, or about why an armed escape
+        // does not fire here — and this is the only moment on the screen where either can be
+        // explained where it happened.
+        BoardRollBlock.TilePending
+            when PendingTile is { Kind: BattleReplayPresenter.MiniBossTileKind } =>
+            _strings.Resolve(BlockedGateStatusKey),
+
         BoardRollBlock.TilePending => _strings.Resolve(BlockedTileStatusKey),
         BoardRollBlock.ForkOpen => _strings.Resolve(BlockedForkStatusKey),
         BoardRollBlock.BattleOpen => _strings.Resolve(BlockedBattleStatusKey),
@@ -876,6 +922,17 @@ public sealed class BoardPresenter
             ? BoardRollBlock.TilePending
             : BoardRollBlock.None;
     }
+
+    /// <summary>
+    /// Whether one node of the track wears the mark and is not already behind the run.
+    /// </summary>
+    /// <remarks>
+    /// The node the run STANDS on counts as not passed, which is deliberate: that is the moment the
+    /// rule has just been applied, and the sentence explaining it is worth most there. A run at the
+    /// trailhead stands on no node at all, and every marked node is ahead of it.
+    /// </remarks>
+    private bool IsAMarkedNodeNotYetPassed(BoardTrackNode node) =>
+        node.Tile == TileKind.MiniBoss && node.LinearIndex >= (TrackIndex ?? 0);
 
     private async Task<BoardSubmission> SubmitAsync(GameCommand command, CancellationToken ct)
     {

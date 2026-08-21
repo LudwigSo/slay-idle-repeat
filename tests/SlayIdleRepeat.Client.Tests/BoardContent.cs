@@ -31,6 +31,7 @@ internal static class BoardContent
     internal const string StageLabelKey = "loc.board.stage.label";
     internal const string RolledLabelKey = "loc.board.rolled.label";
     internal const string StandingOnLabelKey = "loc.board.standing_on.label";
+    internal const string GateRuleLabelKey = "loc.board.gate.label";
     internal const string RollActionKey = "loc.board.roll.action";
     internal const string ResolveActionKey = "loc.board.resolve.action";
     internal const string AbandonActionKey = "loc.board.abandon.action";
@@ -44,6 +45,7 @@ internal static class BoardContent
     internal const string UnavailableStatusKey = "loc.board.unavailable.status";
     internal const string RefusedStatusKey = "loc.board.refused.status";
     internal const string BlockedTileStatusKey = "loc.board.blocked_tile.status";
+    internal const string BlockedGateStatusKey = "loc.board.blocked_gate.status";
     internal const string UnbuiltScreenStatusKey = "loc.board.unbuilt_screen.status";
     internal const string SkipUnbuiltActionKey = "loc.board.skip_unbuilt.action";
     internal const string BlockedForkStatusKey = "loc.board.blocked_fork.status";
@@ -70,12 +72,13 @@ internal static class BoardContent
     internal static IReadOnlyList<string> BoardKeys { get; } =
     [
         HpLabelKey, GoldLabelKey, StageLabelKey, RolledLabelKey, StandingOnLabelKey,
+        GateRuleLabelKey,
         RollActionKey, ResolveActionKey, SkipUnbuiltActionKey,
         AbandonActionKey, AbandonConfirmActionKey,
         ForkNameKey, ForkContinueActionKey, ForkBranchActionKey,
         LoadingStatusKey, RunMissingStatusKey, RunEndedStatusKey, UnavailableStatusKey,
         RefusedStatusKey,
-        BlockedTileStatusKey, UnbuiltScreenStatusKey,
+        BlockedTileStatusKey, UnbuiltScreenStatusKey, BlockedGateStatusKey,
         BlockedForkStatusKey, BlockedBattleStatusKey, BlockedDraftStatusKey,
         ForkPerilousLabelKey, ForkShelteredLabelKey, ForkArcaneLabelKey, ForkFeralLabelKey,
         FixedDiceHeldLabelKey, FixedDiceChooseLabelKey,

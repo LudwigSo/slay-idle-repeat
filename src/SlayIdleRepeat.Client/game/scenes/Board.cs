@@ -37,7 +37,10 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// what the player is on. <b>One node is the exception, and it is an exception on purpose:</b> a
 /// node the run may not walk past wears the collar and bars of <c>TrackNode.tscn</c> — a light frame
 /// around its pip and two dark bars across it — because a rule the player cannot see coming may not
-/// be signalled by a colour. See <see cref="RenderTrack"/> and <see cref="TrackNodeGatePath"/>.
+/// be signalled by a colour. <b>And the mark is NAMED, in a line of its own under the track</b>: a
+/// shape is only a rule to somebody who has already been told what it means, so the shape says which
+/// node and <see cref="GateLabelPath"/> says what it does. See <see cref="RenderTrack"/> and
+/// <see cref="TrackNodeGatePath"/>.
 /// The die tumble, the dust puff and the floating result number the design
 /// asks for are not built: they are procedural in-engine work by ruling, never a sprite sheet, and
 /// this task adds no asset row for them.
@@ -198,6 +201,17 @@ public partial class Board : Control
     /// </para>
     /// </remarks>
     private const string TrackNodeGatePath = "Gate";
+
+    /// <summary>Where the sentence saying what the gate mark means is written.</summary>
+    /// <remarks>
+    /// 🔴 <b>It sits directly under the track, above the caption naming the tile the run stands
+    /// on.</b> The mark is a shape, and a shape on a screen with no icon set, no legend and no
+    /// tooltip is a rule the player can see and cannot read — so the one thing this row is for is
+    /// naming it in words while it still matters, rather than after a roll has been shortened. It is
+    /// in the track's own frame rather than among the status lines below because it describes the
+    /// track: those lines report the run's state, and this one is a standing fact about the board.
+    /// </remarks>
+    private const string GateLabelPath = "%GateLabel";
     private const string StandingOnRowPath = "%StandingOnRow";
     private const string StandingOnLabelPath = "%StandingOnLabel";
     private const string PendingTileLabelPath = "%PendingTileLabel";
@@ -366,6 +380,7 @@ public partial class Board : Control
     private Label? _stageValue;
     private Control? _trackFrame;
     private HFlowContainer? _track;
+    private Label? _gateLabel;
     private Control? _standingOnRow;
     private Label? _standingOnLabel;
     private Label? _pendingTileLabel;
@@ -422,7 +437,8 @@ public partial class Board : Control
     /// <remarks>
     /// 🔒 The read is the point, not the showing. A replay that reached its end submitted the
     /// confirmation that closes the battle, so the run behind this screen is a different row from the
-    /// one it drew: the phase has moved, the health has moved, and a won fight has opened a draft.
+    /// one it drew: the phase has moved, the health has moved, and a won fight MAY have opened a
+    /// draft — every fight but the last one does, and the run's last fight ends the run instead.
     /// Un-hiding without reading again would put a pre-battle board in front of a post-battle run.
     /// </remarks>
     public void Resume()
@@ -513,6 +529,7 @@ public partial class Board : Control
         _stageValue = GetNode<Label>(StageValuePath);
         _trackFrame = GetNode<Control>(TrackFramePath);
         _track = GetNode<HFlowContainer>(TrackPath);
+        _gateLabel = GetNode<Label>(GateLabelPath);
         _standingOnRow = GetNode<Control>(StandingOnRowPath);
         _standingOnLabel = GetNode<Label>(StandingOnLabelPath);
         _pendingTileLabel = GetNode<Label>(PendingTileLabelPath);
@@ -623,7 +640,7 @@ public partial class Board : Control
         if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
             _hud is null || _hpLabel is null || _hpValue is null || _hpBar is null ||
             _goldLabel is null || _goldValue is null || _stageLabel is null || _stageValue is null ||
-            _trackFrame is null || _track is null || _standingOnRow is null ||
+            _trackFrame is null || _track is null || _gateLabel is null || _standingOnRow is null ||
             _standingOnLabel is null || _pendingTileLabel is null ||
             _statusLabel is null || _blockLabel is null || _rejectionLabel is null ||
             _forkPanel is null || _forkTitleLabel is null || _forkButtons is null ||
@@ -674,6 +691,13 @@ public partial class Board : Control
         }
 
         RenderTrack(presenter);
+
+        // 🔴 Read AFTER the track is built, and hidden with it. The sentence is about a mark on a pip,
+        // so on the one path where no pip is drawn at all — a node template that would not load — it
+        // would be a rule stated about a board that is not on the screen. Hidden rather than blanked,
+        // like every other sentence here: an empty label still claims its line of height.
+        _gateLabel.Text = presenter.GateRuleText;
+        _gateLabel.Visible = _gateLabel.Text.Length > 0 && _track.Visible;
 
         _standingOnLabel.Text = presenter.StandingOnLabel;
         _pendingTileLabel.Text = presenter.PendingTileName;
