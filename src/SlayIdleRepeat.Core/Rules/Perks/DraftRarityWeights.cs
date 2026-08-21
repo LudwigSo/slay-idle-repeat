@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content.Perks;
+using SlayIdleRepeat.Core.Rules.Board;
 
 namespace SlayIdleRepeat.Core.Rules.Perks;
 
@@ -46,20 +47,20 @@ internal static class DraftRarityWeights
     /// mini-boss's band is the same on both stages a mini-boss stands on.
     /// </param>
     /// <param name="battleKind">
-    /// The tile kind of the battle that opened the draft, or <see cref="Board.TileKind.Empty"/> for
+    /// The tile kind of the battle that opened the draft, or <see cref="TileKind.Empty"/> for
     /// the run's opening draft, which no battle caused.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="battleKind"/> is <see cref="Board.TileKind.Boss"/>, which opens no draft at
+    /// <paramref name="battleKind"/> is <see cref="TileKind.Boss"/>, which opens no draft at
     /// all, or <paramref name="stage"/> is not 1, 2 or 3.
     /// </exception>
     internal static IReadOnlyList<(PerkRarity Rarity, double Weight)> For(
-        int stage, Board.TileKind battleKind)
+        int stage, TileKind battleKind)
     {
         // Refused rather than answered with a stage table: the last fight of the run leaves no run
         // to spend a perk in, so a caller asking for its band is a caller that has resurrected a
         // reward the game no longer pays — and a silent fallthrough would pay it a Common-heavy one.
-        if (battleKind == Board.TileKind.Boss)
+        if (battleKind == TileKind.Boss)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(battleKind), battleKind,
@@ -67,7 +68,7 @@ internal static class DraftRarityWeights
                 "epic+ band.");
         }
 
-        if (battleKind == Board.TileKind.MiniBoss)
+        if (battleKind == TileKind.MiniBoss)
         {
             return MiniBoss;
         }
@@ -83,7 +84,7 @@ internal static class DraftRarityWeights
                 "the one that carries no stage of its own."),
         };
 
-        return battleKind == Board.TileKind.Elite ? Shifted(baseTable) : baseTable;
+        return battleKind == TileKind.Elite ? Shifted(baseTable) : baseTable;
     }
 
     private static IReadOnlyList<(PerkRarity Rarity, double Weight)> Shifted(

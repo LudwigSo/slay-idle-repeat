@@ -741,9 +741,9 @@ public partial class Board : Control
             // Load answers null rather than throwing when the resource is missing or its import
             // cannot be read, so an unnamed null reference is all a caller gets unless it says so.
             GD.PushError(
-                "The board cannot draw its track: node template loaded from " +
-                $"'{TrackNodeScenePath}'=false. The whole board goes with it, including the mark on " +
-                "the nodes the run may not walk past.");
+                "The board cannot draw its track: no node template could be loaded from " +
+                $"'{TrackNodeScenePath}'. The whole board goes with it, including the mark on the " +
+                "nodes the run may not walk past.");
 
             track.Visible = false;
 

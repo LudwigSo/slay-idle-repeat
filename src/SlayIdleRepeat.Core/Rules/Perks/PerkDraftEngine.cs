@@ -375,18 +375,21 @@ internal static class PerkDraftEngine
     /// not already at its max tier, every prerequisite owned, and nothing it is exclusive with owned.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔒 <b><see cref="StandardPoolTag"/> is a row's own statement that this draft may offer it.</b>
     /// A catalogue can legitimately hold a row the engine is not yet able to honour — an effect whose
     /// value reads state no fight composition supplies yet — and such a row is authored, schema-valid
     /// and unplayable: offering it ends the run at the next battle. Withholding it is one tag on the
     /// row rather than a branch in here, so a row becomes draftable again by being retagged on the
     /// day the engine grows into it, with nothing to unpick in this file.
-    /// </remarks>
+    /// </para>
+    /// <para>
     /// 🔒 <b><c>requires</c> is what makes a category's base perk a gate rather than a label.</b>
     /// The catalogue opens each element behind one entry perk, so a run that has not taken Ignite is
     /// never offered a Burn upgrade — an offer it could take and feel nothing from. Enforced by
     /// narrowing the pool, like every other draft rule, so an unsatisfiable narrowing falls through
     /// to the wider pool instead of emptying the draft.
+    /// </para>
     /// <para>
     /// The prerequisite is "owned at all", not "owned at some tier": 06 §1.1 numbers tiers from 1 and
     /// the gate is about having the mechanic, not about how far it has been upgraded.

@@ -42,6 +42,9 @@ internal static class BoardGenerator
     private const int MinTreasureAcrossRun = 2;
     private const int MinCacheAcrossRun = 1;
 
+    /// <summary>No index of a healing window may be overwritten — see <see cref="FindLatestReplaceable"/>.</summary>
+    private const int NoReplaceableIndex = -1;
+
     private static readonly ForkLabel[] AllForkLabels =
     {
         ForkLabel.Perilous, ForkLabel.Sheltered, ForkLabel.Arcane, ForkLabel.Feral,
@@ -373,6 +376,15 @@ internal static class BoardGenerator
             }
 
             var target = FindLatestReplaceable(tiles, windowStart, windowEnd, stageNumber);
+
+            if (target == NoReplaceableIndex)
+            {
+                // The window holds nothing but the stage's own gate. Leaving one window short of a
+                // healing tile costs the run a shrine; taking the gate costs it the stage's
+                // structure, so the window is left alone rather than repaired at that price.
+                continue;
+            }
+
             tiles[target] = TileKind.Shrine;
         }
     }
@@ -380,11 +392,17 @@ internal static class BoardGenerator
     private static bool IsHealing(TileKind tile) =>
         tile is TileKind.Shrine or TileKind.Campfire or TileKind.Shop;
 
-    /// <summary>Latest Empty in range, else latest Enemy in range, else the range's last index — never index 0 of stage 1 (C6), never a mini-boss.</summary>
+    /// <summary>
+    /// Latest Empty in range, else latest Enemy in range, else the range's latest index holding
+    /// anything but a mini-boss — never index 0 of stage 1 (C6), and
+    /// <see cref="NoReplaceableIndex"/> when the range offers nothing else at all.
+    /// </summary>
     /// <remarks>
     /// The last resort overwrites whatever stands there, so it has to step over the mini-boss: a
     /// stage that healed itself by replacing its own gate would end the run's structure, not soften
-    /// its difficulty.
+    /// its difficulty. A window can consist of the gate alone — a stage whose length leaves one node
+    /// over after the whole windows — and then there is no replaceable index in it at all, which is
+    /// why this answers a sentinel instead of falling back on the range's own floor.
     /// </remarks>
     private static int FindLatestReplaceable(TileKind[] tiles, int start, int end, int stageNumber)
     {
@@ -406,7 +424,7 @@ internal static class BoardGenerator
             }
         }
 
-        for (var i = end - 1; i > floor; i--)
+        for (var i = end - 1; i >= floor; i--)
         {
             if (tiles[i] != TileKind.MiniBoss)
             {
@@ -414,7 +432,7 @@ internal static class BoardGenerator
             }
         }
 
-        return floor;
+        return NoReplaceableIndex;
     }
 
     // ----------------------------------------------------------------------------------------

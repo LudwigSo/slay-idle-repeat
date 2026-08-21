@@ -12,6 +12,12 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 /// </summary>
 public sealed class MiniBossPlacementTests
 {
+    /// <summary>
+    /// C3's window width, transcribed from <c>BoardGenerator</c> because one case below is about a
+    /// stage length that divides against it — a stage of <c>8k + 1</c> nodes ends on a window of one.
+    /// </summary>
+    private const int HealingWindowSize = 8;
+
     /// <summary>A spread of seeds, so the two position claims are about the arithmetic, not one draw.</summary>
     public static IEnumerable<object[]> Seeds() => new[]
     {
@@ -70,6 +76,56 @@ public sealed class MiniBossPlacementTests
         MiniBossLinearIndices(board, config).ShouldBe(new[] { 12, 23 });
         SpineTile(board, 11).ShouldNotBe(TileKind.MiniBoss, "11 is mid-stage-1 for a 13-node first stage.");
         SpineTile(board, 25).ShouldNotBe(TileKind.MiniBoss, "25 is mid-stage-3 here, not a stage end.");
+    }
+
+    /// <summary>
+    /// 🔴 <b>A stage whose last healing window is one node wide — and that one node is the gate.</b>
+    /// C3 repairs a window with no healing tile in it by overwriting the latest replaceable index it
+    /// holds, and a stage of length 9, 17 or 25 leaves a final window of exactly one node: the
+    /// mini-boss's own. The repair has to leave that window unhealed rather than take the gate, and
+    /// nothing about the shipped 12/14/16 lengths exercises it.
+    /// </summary>
+    /// <remarks>
+    /// Lengths are authored content — <c>stageLengths</c> only requires a positive integer — so this
+    /// is a reachable board, not a hypothetical. Every seed in the sweep, not a sample: the window's
+    /// contents are fixed by the stage's length, so if the repair reaches the gate at all it reaches
+    /// it on every board.
+    /// </remarks>
+    [Fact]
+    public void A_stage_whose_final_healing_window_is_only_the_gate_keeps_its_MiniBoss()
+    {
+        var config = ChapterBoardConfig.From(
+            chapterId: 42,
+            stageLengths: new[] { 9, 17, 12 },
+            eliteCount: new[] { 1, 1, 1 },
+            tileWeights: new[]
+            {
+                BoardFixtures.DefaultWeights(),
+                BoardFixtures.DefaultWeights(),
+                BoardFixtures.DefaultWeights(),
+            },
+            bossId: "BOSS_TEST");
+
+        (config.StageLengths[0] % HealingWindowSize).ShouldBe(
+            1, "the premise: stage 1's whole windows leave exactly one node over.");
+        (config.StageLengths[1] % HealingWindowSize).ShouldBe(
+            1, "and stage 2's do too, so both gates are in the line of fire.");
+
+        var lost = Sweep
+            .Select(seed => (seed, board: Generate(config, seed)))
+            .SelectMany(entry => new[] { 0, 1 }
+                .Select(stageIndex => (entry.seed, stageIndex, index: StageEndLinearIndex(config, stageIndex)))
+                .Where(gate => SpineTile(entry.board, gate.index) != TileKind.MiniBoss)
+                .Select(gate =>
+                    "seed " + gate.seed + " stage " + (gate.stageIndex + 1) + ": index " +
+                    gate.index + " holds " + SpineTile(entry.board, gate.index)))
+            .ToArray();
+
+        lost.ShouldBeEmpty(
+            "the C3 healing repair overwrote a stage's gate. Its window held nothing else to " +
+            "replace, and a stage that heals itself by deleting its own mini-boss has no gate at " +
+            "all — AC1's 'exactly two MiniBoss nodes' and AC2's 'derived from StageLengths' both go " +
+            "with it.");
     }
 
     /// <summary>

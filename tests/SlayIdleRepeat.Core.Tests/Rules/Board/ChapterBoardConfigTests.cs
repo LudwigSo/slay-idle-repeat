@@ -55,6 +55,25 @@ public sealed class ChapterBoardConfigTests
         ex.Message.ShouldContain("TILE_BOSS");
     }
 
+    /// <summary>
+    /// The mini-boss is refused for the same reason the boss is, and the schema cannot refuse it: a
+    /// chapter's <c>tileWeights</c> keys are an open <c>TILE_*</c> pattern, so a drawable weight for
+    /// it is authorable content. It would scatter mini-bosses mid-stage, where the stage-end clamp
+    /// that makes the authored one unmissable does not apply — a gate a roll can be carried past.
+    /// </summary>
+    [Fact]
+    public void A_weight_table_stating_TILE_MINIBOSS_is_rejected()
+    {
+        var withMiniBoss = new Dictionary<TileKind, double>(ValidWeights) { [TileKind.MiniBoss] = 1 };
+
+        var ex = Should.Throw<ArgumentException>(() => ChapterBoardConfig.From(
+            1, new[] { 12, 14, 16 }, new[] { 1, 1, 1 },
+            new[] { withMiniBoss, ValidWeights, ValidWeights }, "BOSS_X"));
+
+        ex.ParamName.ShouldBe("tileWeights");
+        ex.Message.ShouldContain("TILE_MINIBOSS");
+    }
+
     [Fact]
     public void An_all_zero_weight_table_is_rejected()
     {
