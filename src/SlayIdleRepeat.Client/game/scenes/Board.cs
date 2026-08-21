@@ -172,16 +172,29 @@ public partial class Board : Control
     /// the node the run is standing on being repainted in the token colour.
     /// </para>
     /// <para>
-    /// 🔒 <b>Square corners and a 6-unit stroke, where a panel of this screen would take a wide
-    /// radius and a heavier one.</b> This is the small-mark language the perk card's rarity gem
-    /// already uses, not the panel language: a rounded frame at 52 units across is a lozenge, and a
-    /// lozenge on a track whose pips ignore the mouse would read as a button the player can press.
+    /// 🔒 <b>Square corners, a 6-unit stroke and NO drop shadow, where a panel of this screen would
+    /// take a wide radius, a heavier stroke and a shadow.</b> This is the small-mark language the
+    /// perk card's rarity gem already uses, not the panel language: a rounded frame at 52 units
+    /// across is a lozenge, and a lozenge on a track whose pips ignore the mouse would read as a
+    /// button the player can press. The gem carries no shadow either, and the reason a mark this
+    /// size cannot is below.
     /// </para>
     /// <para>
     /// 🔴 <b>The collar draws OUTSIDE its pip's rect</b> — 6 units on each side, into a container
     /// separation of 8 — so that marking a node costs the row no width and the wrap stays where it
     /// was. The cost is that clipping either the pip or the row cuts the collar off, which is why
-    /// <see cref="RenderTrack"/> pins the row's clipping rather than trusting the scene.
+    /// <see cref="RenderTrack"/> pins the row's clipping rather than trusting the scene. It is also
+    /// why the collar carries no shadow: a shadow grows the drawn extent past the separation and
+    /// onto the neighbouring pips, and because the row draws its children in order it would darken
+    /// only the neighbours BEFORE this one — a lopsided smudge, on a mark whose symmetry is what
+    /// left-handed mirroring rests on. Against this screen's near-black ground it would render
+    /// nothing anyway.
+    /// </para>
+    /// <para>
+    /// ⚠️ The collar's grey and the bars' near-black are authored in the scene, not read from the
+    /// colours below, so retuning <c>UnavailableColour</c> or the ground does not move them: the
+    /// collar was chosen to be the caption grey and the bars the ground's own dark, and only this
+    /// note keeps that pairing true.
     /// </para>
     /// </remarks>
     private const string TrackNodeGatePath = "Gate";

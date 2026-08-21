@@ -35,7 +35,7 @@ public static class BoardTileKinds
     /// The value the run carries while it stands on no unresolved tile.
     /// </summary>
     /// <remarks>
-    /// Transcribed with the rest of the table and for the same reason. It is not a fifteenth kind:
+    /// Transcribed with the rest of the table and for the same reason. It is not a sixteenth kind:
     /// the rules layer picked it precisely because it can never collide with one.
     /// </remarks>
     public const int NoPendingTile = -1;
