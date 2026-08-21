@@ -96,6 +96,33 @@ internal static class PerkDraftEngine
     /// <summary>A draft always offers three options.</summary>
     internal const int OptionCount = 3;
 
+    /// <summary>
+    /// The pool tag a perk row carries to say the game may offer it.
+    /// </summary>
+    /// <remarks>
+    /// Named here rather than read from tuning because it is a vocabulary token the catalogue and
+    /// this engine share, not a dial. A row without it is withheld — see <see cref="IsOfferable"/>.
+    /// </remarks>
+    internal const string StandardPoolTag = "standard";
+
+    /// <summary>
+    /// Whether the game may hand this row to a player at all.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>The rule is "a row the engine cannot evaluate is never offered", not "the draft skips
+    /// it".</b> A catalogue can legitimately hold a row whose effect reads state no fight
+    /// composition supplies yet; such a row is authored, schema-valid and unplayable — acquiring it
+    /// ends the run at the next battle. So it has to be withheld wherever the game hands a perk
+    /// over, and there are two such places: the draft, and the run shop's perk row. Both ask here,
+    /// because a rule stated at one of two doors is a rule with a door left open.
+    /// </remarks>
+    internal static bool IsOfferable(PerkCatalogueEntry perk)
+    {
+        ArgumentNullException.ThrowIfNull(perk);
+
+        return Contains(perk.PoolTags, StandardPoolTag);
+    }
+
     /// <summary>The weight a candidate carries before the Codex bias touches it.</summary>
     private const double UnbiasedWeight = 1.0;
 
@@ -137,11 +164,11 @@ internal static class PerkDraftEngine
         if (draft.Draftable.Count == 0)
         {
             throw new InvalidOperationException(
-                "Every perk the loaded content version authors is already owned at its max tier, so " +
-                "06 §1.1's removal of maxed perks has emptied the draft pool. Reachable only against " +
-                "a catalogue small enough for one run to exhaust — a hermetic fixture, or a truncated " +
-                "content version — never against the shipped one, which M3-07b only widens further. " +
-                "Refused before anything is drawn, so the stream is left where it stood.");
+                "This content version's draft pool is empty. Either every perk it authors is already " +
+                "owned at its max tier — 06 §1.1's removal of maxed perks, reachable only against a " +
+                "catalogue small enough for one run to exhaust — or no row of it carries the '" +
+                StandardPoolTag + "' pool tag at all, which is what a renamed tag looks like from " +
+                "here. Refused before anything is drawn, so the stream is left where it stood.");
         }
 
         // How many of this draft's options the Codex bias is still allowed to select. Without the
@@ -361,15 +388,24 @@ internal static class PerkDraftEngine
     }
 
     /// <summary>
-    /// Every perk this run may still be offered, in the catalogue's own order: not already at its
-    /// max tier, every prerequisite owned, and nothing it is exclusive with owned.
+    /// Every perk this run may still be offered, in the catalogue's own order: in the standard pool,
+    /// not already at its max tier, every prerequisite owned, and nothing it is exclusive with owned.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// 🔒 <b><see cref="IsOfferable"/> is the row's own statement that it may be offered at all.</b>
+    /// Withholding is one tag on the row rather than a branch in here, so a row becomes draftable
+    /// again by being retagged on the day the engine grows into it, with nothing to unpick in this
+    /// file — and the run shop's perk row asks the same question, so a withheld row cannot be
+    /// reached through the other door.
+    /// </para>
+    /// <para>
     /// 🔒 <b><c>requires</c> is what makes a category's base perk a gate rather than a label.</b>
     /// The catalogue opens each element behind one entry perk, so a run that has not taken Ignite is
     /// never offered a Burn upgrade — an offer it could take and feel nothing from. Enforced by
     /// narrowing the pool, like every other draft rule, so an unsatisfiable narrowing falls through
     /// to the wider pool instead of emptying the draft.
+    /// </para>
     /// <para>
     /// The prerequisite is "owned at all", not "owned at some tier": 06 §1.1 numbers tiers from 1 and
     /// the gate is about having the mechanic, not about how far it has been upgraded.
@@ -379,7 +415,8 @@ internal static class PerkDraftEngine
         PerkCatalogue catalogue, DraftedPerks owned) =>
         Matching(
             catalogue.All,
-            perk => owned.TierOf(perk.Id) < perk.TierCount &&
+            perk => IsOfferable(perk) &&
+                owned.TierOf(perk.Id) < perk.TierCount &&
                 AllOwned(perk.Requires, owned) &&
                 NoneOwned(perk.Excludes, owned));
 

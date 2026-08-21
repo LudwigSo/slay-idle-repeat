@@ -71,7 +71,14 @@ internal static class EncounterFight
     /// instance id is minted a battle-local one, so an <c>ON_KILL</c> effect must arrive with the id
     /// the run layer holds for it (see <see cref="BattlePlan.Validated"/>).
     /// </param>
-    /// <exception cref="ArgumentException"><paramref name="enemyPowers"/> is empty, or the roster breaks a rule.</exception>
+    /// <param name="eliteIdentities">
+    /// The identities the Elite slot may be, or <c>null</c> for the chapter's own elite pool. A
+    /// single-entry list is how a predetermined elite is composed: the draw is a uniform pick over
+    /// one item, so it costs the same one draw index the chapter pool costs and the combat stream
+    /// stays byte-identical in shape to an ordinary elite's. An empty list is refused by the draw
+    /// itself, before it spends an index — a weighted table with no row is a content error.
+    /// </param>
+    /// <exception cref="ArgumentException"><paramref name="enemyPowers"/> is empty, <paramref name="eliteIdentities"/> is empty, or the roster breaks a rule.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="eliteIndex"/> is out of range for <paramref name="enemyPowers"/>.</exception>
     /// <exception cref="KeyNotFoundException"><paramref name="chapter"/> has no authored pool/level row.</exception>
     /// <exception cref="MissingContentException">A document or pointer the fight needs is absent.</exception>
@@ -86,7 +93,8 @@ internal static class EncounterFight
         int eliteIndex,
         ContentSnapshot content,
         IReadOnlyList<HeldEffect>? heroEffects,
-        double? heroStartingHp = null)
+        double? heroStartingHp = null,
+        IReadOnlyList<string>? eliteIdentities = null)
     {
         ArgumentNullException.ThrowIfNull(hero);
         ArgumentNullException.ThrowIfNull(enemyPowers);
@@ -143,8 +151,9 @@ internal static class EncounterFight
 
             if (isElite)
             {
-                var identities = new List<(string item, double weight)>(pool.ElitePool.Count);
-                foreach (var id in pool.ElitePool)
+                var elitePool = eliteIdentities ?? pool.ElitePool;
+                var identities = new List<(string item, double weight)>(elitePool.Count);
+                foreach (var id in elitePool)
                 {
                     identities.Add((id, EliteModifierDraw.UniformWeight));
                 }
@@ -154,8 +163,8 @@ internal static class EncounterFight
                 archetype = enemies.EliteIdentities.TryGetValue(eliteId, out var identity)
                     ? identity
                     : throw new KeyNotFoundException(
-                        $"content/enemies/enemies.json's chapter {chapter} elitePool names " +
-                        $"'{eliteId}', which has no row under elites/identities. `05` §6.2's chapter " +
+                        $"chapter {chapter}'s elite identities name '{eliteId}', which has no row " +
+                        "under content/enemies/enemies.json#/elites/identities. `05` §6.2's chapter " +
                         "pool and identity table have to name the same ids.");
 
                 power = EnemyDerivation.ElitePower(power, enemies.ElitePowerMultiplier);

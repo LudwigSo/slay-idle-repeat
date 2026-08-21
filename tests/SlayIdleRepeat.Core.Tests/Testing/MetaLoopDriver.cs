@@ -455,7 +455,8 @@ internal sealed class MetaLoopDriver
 
         var next = kind switch
         {
-            TileKind.Enemy or TileKind.Elite or TileKind.Boss => (GameCommand)new StartBattleCommand(),
+            TileKind.Enemy or TileKind.Elite or TileKind.MiniBoss or TileKind.Boss =>
+                (GameCommand)new StartBattleCommand(),
             TileKind.Minigame when !run.HasResolvedMinigameAt(run.Position) =>
                 new MinigameSubmitCommand(ChestPick, 0),
             TileKind.Campfire => new CampfireChooseCommand(_choice),

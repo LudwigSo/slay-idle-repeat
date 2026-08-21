@@ -25,6 +25,7 @@ public sealed class ConfirmBattleResultTests
     [InlineData(TileKind.Enemy)]
     [InlineData(TileKind.Elite)]
     [InlineData(TileKind.Boss)]
+    [InlineData(TileKind.MiniBoss)]
     public void The_fixture_hero_wins_every_fight_this_suite_pays_out_for(TileKind kind)
     {
         var opened = TileWorlds.OnTile(kind, gold: 0, phase: RunPhase.BattlePending);
@@ -117,6 +118,55 @@ public sealed class ConfirmBattleResultTests
 
         result.NewState.Run!.ToSnapshot().DraftPending.ShouldBeTrue();
     }
+
+    /// <summary>
+    /// The boss is the exception, and the only one: it is the last fight of the run, so there is no
+    /// run left to spend a perk in. A draft left pending here also gates every other run command,
+    /// so the run would end behind an offer nobody wants.
+    /// </summary>
+    [Fact]
+    public void Killing_the_boss_opens_no_draft()
+    {
+        var opened = TileWorlds.OnTile(TileKind.Boss, phase: RunPhase.BattlePending);
+
+        var result = Confirm(opened, "1");
+
+        result.NewState.Run!.BossDefeated.ShouldBeTrue("the premise: the boss actually died.");
+        result.NewState.Run!.ToSnapshot().DraftPending.ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// A mini-boss pays an elite's rewards exactly — no new payout numbers. Stated against the
+    /// elite arm rather than against literals, so an M6 retune of the elite row moves both together
+    /// instead of turning this into a transcription of today's tuning.
+    /// </summary>
+    [Fact]
+    public void A_miniboss_win_pays_exactly_what_an_elite_win_pays()
+    {
+        var miniBoss = Confirm(
+            TileWorlds.OnTile(TileKind.MiniBoss, gold: 0, phase: RunPhase.BattlePending), "1");
+        var elite = Confirm(
+            TileWorlds.OnTile(TileKind.Elite, gold: 0, phase: RunPhase.BattlePending), "1");
+
+        elite.NewState.Run!.Gold.ShouldBeGreaterThan(
+            0L, "the elite arm is the reference; a reference that paid nothing compares nothing.");
+        elite.NewState.Run!.BankedLegendXp.ShouldBeGreaterThan(
+            0L, "same reason: two zeroes agree about nothing.");
+        GearGrants(elite).ShouldBeGreaterThan(
+            0, "and a reference that granted no gear would compare no gear.");
+
+        miniBoss.NewState.Run!.Gold.ShouldBe(
+            elite.NewState.Run!.Gold, "elite Gold-per-kill, scaled by the same run modifiers.");
+        miniBoss.NewState.Run!.BankedLegendXp.ShouldBe(
+            elite.NewState.Run!.BankedLegendXp, "the elite Legend XP source, not the normal one.");
+        miniBoss.NewState.Run!.BankedSoulShards.ShouldBe(
+            0L, "Soul Shards are the boss kill's alone.");
+        GearGrants(miniBoss).ShouldBe(
+            GearGrants(elite), "the elite guaranteed gear drop, at the elite count.");
+    }
+
+    private static int GearGrants(CommandResult result) =>
+        result.Events.Count(domainEvent => domainEvent is SlayIdleRepeat.Core.Events.GearGranted);
 
     /// <summary>
     /// Chapter 1, NORMAL tier, a normal Enemy kill: Gold = 40 * G(1) = 40; Legend XP =

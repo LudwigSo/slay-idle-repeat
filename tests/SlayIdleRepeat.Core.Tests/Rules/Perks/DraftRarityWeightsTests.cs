@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Shouldly;
 using SlayIdleRepeat.Core.Content.Perks;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Perks;
 using Xunit;
 
@@ -22,7 +23,7 @@ public sealed class DraftRarityWeightsTests
     [Fact]
     public void Stage_1_normal_matches_06_SS4_exactly()
     {
-        var table = DraftRarityWeights.For(stage: 1, isElite: false, isBoss: false);
+        var table = DraftRarityWeights.For(stage: 1, TileKind.Enemy);
 
         table.Count.ShouldBe(4);
         WeightOf(PerkRarity.Common, table).ShouldBe(62.0);
@@ -34,7 +35,7 @@ public sealed class DraftRarityWeightsTests
     [Fact]
     public void Stage_2_normal_matches_06_SS4_exactly()
     {
-        var table = DraftRarityWeights.For(stage: 2, isElite: false, isBoss: false);
+        var table = DraftRarityWeights.For(stage: 2, TileKind.Enemy);
 
         WeightOf(PerkRarity.Common, table).ShouldBe(48.0);
         WeightOf(PerkRarity.Rare, table).ShouldBe(36.0);
@@ -45,7 +46,7 @@ public sealed class DraftRarityWeightsTests
     [Fact]
     public void Stage_3_normal_matches_06_SS4_exactly()
     {
-        var table = DraftRarityWeights.For(stage: 3, isElite: false, isBoss: false);
+        var table = DraftRarityWeights.For(stage: 3, TileKind.Enemy);
 
         WeightOf(PerkRarity.Common, table).ShouldBe(34.0);
         WeightOf(PerkRarity.Rare, table).ShouldBe(40.0);
@@ -61,8 +62,8 @@ public sealed class DraftRarityWeightsTests
     [InlineData(3)]
     public void Elite_halves_Common_and_doubles_Legendary_leaving_Rare_and_Epic_at_the_stage_base(int stage)
     {
-        var normal = DraftRarityWeights.For(stage, isElite: false, isBoss: false);
-        var elite = DraftRarityWeights.For(stage, isElite: true, isBoss: false);
+        var normal = DraftRarityWeights.For(stage, TileKind.Enemy);
+        var elite = DraftRarityWeights.For(stage, TileKind.Elite);
 
         WeightOf(PerkRarity.Common, elite).ShouldBe(WeightOf(PerkRarity.Common, normal) / 2.0);
         WeightOf(PerkRarity.Legendary, elite).ShouldBe(WeightOf(PerkRarity.Legendary, normal) * 2.0);
@@ -70,28 +71,40 @@ public sealed class DraftRarityWeightsTests
         WeightOf(PerkRarity.Epic, elite).ShouldBe(WeightOf(PerkRarity.Epic, normal));
     }
 
-    // ------------------------------------------------------------------ the boss table
+    // ------------------------------------------------------------------ the epic+ table, keyed on the mini-boss
 
+    /// <summary>
+    /// The epic+ band is the mini-boss's, at both of the stages a mini-boss stands on, and it holds
+    /// two rows: a table with four would let a mini-boss draft a Common.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void A_miniboss_draws_Epic_60_and_Legendary_40_with_no_Common_or_Rare(int stage)
+    {
+        var table = DraftRarityWeights.For(stage, TileKind.MiniBoss);
+
+        table.Count.ShouldBe(2);
+        WeightOf(PerkRarity.Epic, table).ShouldBe(60.0);
+        WeightOf(PerkRarity.Legendary, table).ShouldBe(40.0);
+    }
+
+    /// <summary>
+    /// A boss opens no draft at all, so there is no boss table to fall through to. Refused rather
+    /// than answered with a stage table: a silent fallthrough would hand a boss kill a Common-heavy
+    /// offer the moment some caller asked for one again.
+    /// </summary>
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
-    public void Boss_is_Epic_55_Legendary_45_with_no_Common_or_Rare_regardless_of_stage(int stage)
+    public void A_boss_battle_has_no_table_at_all(int stage)
     {
-        var table = DraftRarityWeights.For(stage, isElite: false, isBoss: true);
-
-        table.Count.ShouldBe(2, "no Commons or Rares — a boss table with four rows would let a boss draft a Common");
-        WeightOf(PerkRarity.Epic, table).ShouldBe(55.0);
-        WeightOf(PerkRarity.Legendary, table).ShouldBe(45.0);
-    }
-
-    [Fact]
-    public void Boss_ignores_isElite_and_stage_alike()
-    {
-        var plainBoss = DraftRarityWeights.For(stage: 1, isElite: false, isBoss: true);
-        var eliteBoss = DraftRarityWeights.For(stage: 3, isElite: true, isBoss: true);
-
-        plainBoss.ShouldBe(eliteBoss);
+        Should.Throw<ArgumentOutOfRangeException>(() => DraftRarityWeights.For(stage, TileKind.Boss))
+              .ParamName.ShouldBe(
+                  "battleKind",
+                  "every stage passed here is a real stage, so a refusal naming the stage instead " +
+                  "would be a different rule firing and this case would stop being about the boss.");
     }
 
     // ------------------------------------------------------------------ the guard, mutated on purpose (S1)
@@ -102,6 +115,6 @@ public sealed class DraftRarityWeightsTests
     [InlineData(-1)]
     public void A_stage_outside_1_2_3_is_refused_when_not_a_boss_draw(int stage)
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => DraftRarityWeights.For(stage, isElite: false, isBoss: false));
+        Should.Throw<ArgumentOutOfRangeException>(() => DraftRarityWeights.For(stage, TileKind.Enemy));
     }
 }

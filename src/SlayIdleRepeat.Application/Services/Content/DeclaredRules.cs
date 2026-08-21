@@ -439,6 +439,14 @@ internal static class DeclaredRules
         // from. Vacuous for chapters whose file has not landed yet — the only moment a pair can
         // start to disagree.
         ChapterFilesAgreeWithTheProducerSideEnemyPool,
+
+        // A chapter's two mini-bosses are drawn from its own elitePool. A mini-boss is a
+        // predetermined elite, so an id from outside the pool names an elite that chapter's biome
+        // never otherwise presents. Stated here rather than in the schema because no JSON Schema
+        // keyword can compare one property of an object against another, and stated over EVERY
+        // chapter document because a rule spelled per chapter is a rule the next chapter is
+        // authored without.
+        ChapterMiniBossesAreDrawnFromItsOwnElitePool,
     ];
 
     // ------------------------------------------------------------------- rules with a body
@@ -1215,6 +1223,46 @@ internal static class DeclaredRules
                 ContentIssueCode.DuplicateId, EnemiesDocument + "#/chapterPools",
                 $"05 §6.2: '{id}' is in {count.ToString(CultureInfo.InvariantCulture)} chapters' " +
                 "elitePools. Each chapter's pool is exactly its own two biome elites."));
+        }
+    }
+
+    /// <summary>Each chapter's <c>miniBossIds</c> name elites of that chapter's own <c>elitePool</c>.</summary>
+    /// <remarks>
+    /// Vacuous for a chapter document carrying neither member — the schema's <c>required</c> list
+    /// owns that, and this rule reporting it too would report one fault twice.
+    /// </remarks>
+    private static void ChapterMiniBossesAreDrawnFromItsOwnElitePool(
+        IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
+    {
+        foreach (var (path, root) in documents
+                     .Where(d => d.Key.StartsWith(ChaptersDirectory, StringComparison.Ordinal))
+                     .OrderBy(d => d.Key, StringComparer.Ordinal))
+        {
+            if (!root.TryGetMember("miniBossIds", out var miniBosses) ||
+                miniBosses!.Kind != ContentValueKind.Array ||
+                !root.TryGetMember("elitePool", out var elitePool) ||
+                elitePool!.Kind != ContentValueKind.Array)
+            {
+                continue;
+            }
+
+            var pool = elitePool.Items
+                .Where(e => e.Kind == ContentValueKind.Text)
+                .Select(e => e.AsText())
+                .ToHashSet(StringComparer.Ordinal);
+
+            foreach (var id in miniBosses.Items
+                         .Where(e => e.Kind == ContentValueKind.Text)
+                         .Select(e => e.AsText())
+                         .Where(id => !pool.Contains(id))
+                         .OrderBy(id => id, StringComparer.Ordinal))
+            {
+                issues.Add(new ContentIssue(
+                    ContentIssueCode.OrphanedReference, $"{path}#/miniBossIds",
+                    $"'{id}' is not in this chapter's own elitePool. A mini-boss is a predetermined " +
+                    "elite of the chapter it stands in, so an id from outside the pool names an " +
+                    "elite this biome never otherwise presents."));
+            }
         }
     }
 

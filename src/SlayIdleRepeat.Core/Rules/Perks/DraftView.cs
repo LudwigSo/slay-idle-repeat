@@ -49,9 +49,11 @@ public sealed class DraftView
 {
     /// <summary>The effect member two perks sharing one names is read as interacting through.</summary>
     /// <remarks>
-    /// The one link the authored effect data supports. <c>excludes</c>, <c>requires</c> and
-    /// <c>poolTags</c> are uniform across every shipped row and would make every hint empty; a shared
-    /// <c>stat</c> would make almost every pair of Offense perks a synergy and mean nothing.
+    /// The one link the authored effect data supports. <c>excludes</c> is empty on every shipped row,
+    /// <c>requires</c> names a category's base perk rather than a partner, and <c>poolTags</c> carries
+    /// the same token on every row a draft can offer at all — so all three would make every hint
+    /// empty; a shared <c>stat</c> would make almost every pair of Offense perks a synergy and mean
+    /// nothing.
     /// </remarks>
     private const string StatusMember = "statusId";
 

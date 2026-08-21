@@ -153,6 +153,15 @@ internal sealed class ChapterBoardConfig
                 throw new ArgumentException($"stage {stageNumber}'s weight table states a weight for TILE_BOSS, which is never drawn — the boss is placed once, structurally.", nameof(tileWeights));
             }
 
+            // The same rule as TILE_BOSS above, for the same reason and it is the reason the
+            // mini-boss works at all: it is placed on a stage's LAST node so the stage-end clamp
+            // makes it unmissable. A drawable weight would scatter more of them mid-stage, where
+            // nothing stops a roll carrying past one, and a run would meet a gate it can skip.
+            if (weights.ContainsKey(TileKind.MiniBoss))
+            {
+                throw new ArgumentException($"stage {stageNumber}'s weight table states a weight for TILE_MINIBOSS, which is never drawn — a stage's mini-boss is placed once, structurally, on its last node.", nameof(tileWeights));
+            }
+
             if (weights.Values.All(w => w <= 0.0))
             {
                 throw new ArgumentException($"stage {stageNumber}'s weight table has no positive weight — the weighted draw of 03 §3 could never pick anything.", nameof(tileWeights));

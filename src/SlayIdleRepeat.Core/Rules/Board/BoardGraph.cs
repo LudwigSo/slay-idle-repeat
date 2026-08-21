@@ -286,8 +286,9 @@ internal sealed class BoardGraph
         // even when the boss tile sits at a lower index.
         foreach (var node in nodes)
         {
-            // Matches TileKind.Boss and nothing else. A boss-tier kind added to the tile set later —
-            // a mini-boss, a dungeon Guardian — is NOT closed here and must be added to this test.
+            // 🔒 Matches TileKind.Boss and nothing else, and the narrowness is the rule. A mini-boss
+            // is a boss-tier fight that stands mid-board by design, so widening this to "any
+            // boss-tier kind" would refuse every generated board.
             if (node.Tile != TileKind.Boss || node.Id.Equals(bossNodeId))
             {
                 continue;

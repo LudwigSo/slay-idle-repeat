@@ -799,7 +799,8 @@ public sealed class BoardViewTests
 
         var next = (TileKind)run.PendingTileKindValue switch
         {
-            TileKind.Enemy or TileKind.Elite or TileKind.Boss => (GameCommand)new StartBattleCommand(),
+            TileKind.Enemy or TileKind.Elite or TileKind.MiniBoss or TileKind.Boss =>
+                (GameCommand)new StartBattleCommand(),
             TileKind.Minigame when !run.HasResolvedMinigameAt(run.Position) =>
                 new MinigameSubmitCommand(MinigameCatalogue.ChestPick, 0),
             TileKind.Campfire => new CampfireChooseCommand(choice),

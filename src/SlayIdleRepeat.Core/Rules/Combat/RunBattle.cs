@@ -180,6 +180,8 @@ public static class RunBattle
                 heroStartingHp);
         }
 
+        var isEliteFight = kind is TileKind.Elite or TileKind.MiniBoss;
+
         // One power, because a normal battle is one draw from the chapter's pool. The Elite
         // multiplier is the encounter's to apply, so what is handed over is the pre-multiplier figure.
         return EncounterFight.Run(
@@ -189,11 +191,26 @@ public static class RunBattle
             run.ChapterId,
             tierOrdinal,
             new[] { power },
-            kind == TileKind.Elite ? EliteSlot : NoElite,
+            isEliteFight ? EliteSlot : NoElite,
             content,
             holdings,
-            heroStartingHp);
+            heroStartingHp,
+            MiniBossIdentity(kind, run, content));
     }
+
+    /// <summary>
+    /// The one elite a mini-boss fight may be, or <c>null</c> for every other fight.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A predetermined identity is a pool of one, not a parameter that skips the draw. The
+    /// encounter still spends its identity draw index, so a mini-boss's combat stream has exactly the
+    /// shape an elite's does and no fight of either kind moves because the other was added.
+    /// </remarks>
+    private static IReadOnlyList<string>? MiniBossIdentity(
+        TileKind kind, RunAggregate run, ContentSnapshot content) =>
+        kind == TileKind.MiniBoss
+            ? new[] { ChapterBoardTuning.MiniBossId(content, run.ChapterId, run.PendingTileStage) }
+            : null;
 
     /// <summary>
     /// The build's effects as the roster's holdings, each keeping the instance id it was collected
@@ -265,12 +282,12 @@ public static class RunBattle
 
         var pending = (TileKind)run.PendingTileKindValue;
 
-        if (pending is not (TileKind.Enemy or TileKind.Elite or TileKind.Boss))
+        if (pending is not (TileKind.Enemy or TileKind.Elite or TileKind.MiniBoss or TileKind.Boss))
         {
             refusal =
-                "This run's pending tile is " + pending + ", which is not a fight. Only Enemy, Elite and " +
-                "Boss tiles open a battle, so a run standing in one over any other kind is a state no " +
-                "command can produce.";
+                "This run's pending tile is " + pending + ", which is not a fight. Only Enemy, Elite, " +
+                "MiniBoss and Boss tiles open a battle, so a run standing in one over any other kind " +
+                "is a state no command can produce.";
 
             return false;
         }

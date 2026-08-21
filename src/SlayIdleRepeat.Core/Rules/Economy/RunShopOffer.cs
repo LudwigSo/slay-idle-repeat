@@ -2,6 +2,7 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Perks;
 
 namespace SlayIdleRepeat.Core.Rules.Economy;
@@ -169,7 +170,9 @@ internal static class RunShopOffer
     {
         // The rarity is drawn first and ALWAYS, so the number of draws is fixed regardless of what
         // the catalogue holds — see the type remarks.
-        var weights = DraftRarityWeights.For(shop.StageIndex + 1, isElite: false, isBoss: false);
+        // TileKind.Empty is the "no battle caused this draw" spelling the run's opening draft already
+        // uses: a shop row is priced off the stage's own band with no battle bonus of any kind.
+        var weights = DraftRarityWeights.For(shop.StageIndex + 1, TileKind.Empty);
         var rarity = WeightedPick(weights, stream);
         var rows = Buyable(PerkCatalogue.Read(content), rarity, shop);
 
@@ -235,9 +238,15 @@ internal static class RunShopOffer
             ShopPricing.Price(kind, key, rarity, shop.StageIndex, shop.ChapterId, tuning));
 
     /// <summary>
-    /// The catalogue rows of one rarity this run could still benefit from: everything it does not
-    /// already own at the top tier that perk authors.
+    /// The catalogue rows of one rarity this run could still benefit from: everything the game may
+    /// offer at all that the run does not already own at the top tier that perk authors.
     /// </summary>
+    /// <remarks>
+    /// 🔒 The offerable check is <see cref="PerkDraftEngine.IsOfferable"/>, the same question the
+    /// draft asks, and it is asked here for the same reason: a row the engine cannot evaluate ends
+    /// the run at the next battle whether it was drafted or bought. A shelf is a way to acquire a
+    /// perk, so it is a door the rule has to hold.
+    /// </remarks>
     private static IReadOnlyList<PerkCatalogueEntry> Buyable(
         PerkCatalogue catalogue, PerkRarity rarity, RunShopContext shop)
     {
@@ -245,7 +254,8 @@ internal static class RunShopOffer
 
         foreach (var row in catalogue.OfRarity(rarity))
         {
-            if (shop.OwnedPerkTiers.TierOf(row.Id) < row.TierCount)
+            if (PerkDraftEngine.IsOfferable(row) &&
+                shop.OwnedPerkTiers.TierOf(row.Id) < row.TierCount)
             {
                 rows.Add(row);
             }

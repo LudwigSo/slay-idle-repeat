@@ -1,0 +1,47 @@
+[gd_scene format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gate_collar"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.66, 0.67, 0.73, 1)
+
+[node name="TrackNode" type="ColorRect"]
+custom_minimum_size = Vector2(40, 40)
+mouse_filter = 2
+
+[node name="Gate" type="PanelContainer" parent="."]
+visible = false
+mouse_filter = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -6.0
+offset_top = -6.0
+offset_right = 6.0
+offset_bottom = 6.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_gate_collar")
+
+[node name="Bars" type="HBoxContainer" parent="Gate"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="LeftBar" type="ColorRect" parent="Gate/Bars"]
+custom_minimum_size = Vector2(8, 0)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="RightBar" type="ColorRect" parent="Gate/Bars"]
+custom_minimum_size = Vector2(8, 0)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+color = Color(0.07, 0.07, 0.09, 1)

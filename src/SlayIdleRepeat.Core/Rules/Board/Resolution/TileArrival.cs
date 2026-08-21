@@ -15,11 +15,11 @@ namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
 /// indistinguishable from a bug in the rope.
 /// </para>
 /// <para>
-/// 🔒 <b>The rope never skips the boss</b> (`03` §7.1): if the next landing is the boss node, the
-/// boss resolves normally and the rope simply does not fire — it stays armed for a landing it is
-/// allowed to skip, which for a run that has reached the boss means it never fires at all. Written
-/// as "does not fire" rather than "is consumed and does nothing", because the document says the rope
-/// is consumed WHEN IT FIRES.
+/// 🔒 <b>The rope never skips a fight the board makes mandatory</b> — see
+/// <see cref="IsMandatoryFight"/>. If the landing is one of those, its fight resolves normally and
+/// the rope simply does not fire: it stays armed for a landing it is allowed to skip, which for a
+/// run standing on the boss means it never fires at all. Written as "does not fire" rather than "is
+/// consumed and does nothing", because a rope is consumed WHEN IT FIRES.
 /// </para>
 /// <para>
 /// ⚠️ <b>The Stage Gate is positional, not tile content</b>, so it is deliberately NOT this type's
@@ -45,7 +45,7 @@ internal static class TileArrival
     {
         ArgumentNullException.ThrowIfNull(run);
 
-        if (run.EscapeRopeArmed && node.Tile != TileKind.Boss)
+        if (run.EscapeRopeArmed && !IsMandatoryFight(node.Tile))
         {
             // Consumed here, on the fire, and nothing is paid: 03 §7.1 is explicit that a skipped
             // tile "pays nothing", so there is deliberately no reward branch to skip past.
@@ -58,4 +58,24 @@ internal static class TileArrival
 
         return false;
     }
+
+    /// <summary>
+    /// Whether the board refuses to let a run past this node's fight, so an armed rope may not skip
+    /// it either.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>The rule is "movement cannot carry a run past this fight", not a list of tile kinds
+    /// that happen to be boss-tier.</b> Two nodes are reached under a movement rule that refuses to
+    /// carry a roll beyond them — the boss terminus, and the gate on the last node of stages 1 and 2
+    /// — and a rope that skipped the fight standing on one would undo that rule one step later, for
+    /// the price of a consumable. Any tile kind added under the same movement rule belongs in here;
+    /// one a roll can be carried past does not, however boss-like it looks.
+    /// <para>
+    /// ⚠️ <b>Add to this the day such a kind is added, not after.</b> Reading a rope's exemption off
+    /// a single kind is what let a gate be skippable in the first place — the kind was appended and
+    /// this condition was not re-read.
+    /// </para>
+    /// </remarks>
+    private static bool IsMandatoryFight(TileKind tile) =>
+        tile is TileKind.Boss or TileKind.MiniBoss;
 }

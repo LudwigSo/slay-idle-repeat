@@ -48,11 +48,12 @@ public sealed class StartBattleTests
 
     // ------------------------------------------------------------------ opening the fight
 
-    /// <summary>Each of the three fight kinds opens a battle: Phase moves to BattlePending.</summary>
+    /// <summary>Each fight kind opens a battle: Phase moves to BattlePending.</summary>
     [Theory]
     [InlineData((int)TileKind.Enemy)]
     [InlineData((int)TileKind.Elite)]
     [InlineData((int)TileKind.Boss)]
+    [InlineData((int)TileKind.MiniBoss)]
     public void A_pending_fight_tile_opens_the_battle(int kind)
     {
         var result = Start(TileWorlds.OnTile((TileKind)kind));

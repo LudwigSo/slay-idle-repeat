@@ -1,6 +1,10 @@
 namespace SlayIdleRepeat.Core.Rules.Board;
 
-/// <summary>The closed set of 14 tile kinds a board node can hold, including the boss.</summary>
+/// <summary>The closed set of 15 tile kinds a board node can hold, including the boss.</summary>
+/// <remarks>
+/// 🔒 The numbering is a contract, not an accident: the run reports its pending tile as a bare int
+/// and the client's own name table is indexed by it, so a new kind is APPENDED and never inserted.
+/// </remarks>
 public enum TileKind
 {
     Enemy,
@@ -17,6 +21,7 @@ public enum TileKind
     Cache,
     DiceForge,
     Empty,
+    MiniBoss,
 }
 
 /// <summary>
@@ -42,8 +47,9 @@ internal static class TileKindIds
         TileKind.Cache => "TILE_CACHE",
         TileKind.DiceForge => "TILE_DICE_FORGE",
         TileKind.Empty => "TILE_EMPTY",
+        TileKind.MiniBoss => "TILE_MINIBOSS",
         _ => throw new ArgumentOutOfRangeException(
-            nameof(kind), kind, "not one of 03 §2's 14 tile kinds."),
+            nameof(kind), kind, "not one of 03 §2's 15 tile kinds."),
     };
 
     /// <summary>Attempts to parse a <c>TILE_*</c> id. False for anything outside the set.</summary>
@@ -65,12 +71,13 @@ internal static class TileKindIds
             case "TILE_CACHE": kind = TileKind.Cache; return true;
             case "TILE_DICE_FORGE": kind = TileKind.DiceForge; return true;
             case "TILE_EMPTY": kind = TileKind.Empty; return true;
+            case "TILE_MINIBOSS": kind = TileKind.MiniBoss; return true;
             default: kind = default; return false;
         }
     }
 
     /// <summary>Parses a <c>TILE_*</c> id.</summary>
-    /// <exception cref="ArgumentException">The id is not one of the 14 ids.</exception>
+    /// <exception cref="ArgumentException">The id is not one of the 15 ids.</exception>
     public static TileKind Parse(string id)
     {
         ArgumentNullException.ThrowIfNull(id);

@@ -34,7 +34,14 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// rectangles the engine already provides. ⚠️ So a node's tile kind is drawn as a COLOUR, from the
 /// table below, and the name of the one the run stands on is the only tile named in words. That is
 /// the honest limit of a screen with no icon set: the colours tell nodes apart and the caption says
-/// what the player is on. The die tumble, the dust puff and the floating result number the design
+/// what the player is on. <b>One node is the exception, and it is an exception on purpose:</b> a
+/// node the run may not walk past wears the collar and bars of <c>TrackNode.tscn</c> — a light frame
+/// around its pip and two dark bars across it — because a rule the player cannot see coming may not
+/// be signalled by a colour. <b>And the mark is NAMED, in a line of its own under the track</b>: a
+/// shape is only a rule to somebody who has already been told what it means, so the shape says which
+/// node and <see cref="GateLabelPath"/> says what it does. See <see cref="RenderTrack"/> and
+/// <see cref="TrackNodeGatePath"/>.
+/// The die tumble, the dust puff and the floating result number the design
 /// asks for are not built: they are procedural in-engine work by ruling, never a sprite sheet, and
 /// this task adds no asset row for them.
 /// </para>
@@ -145,6 +152,66 @@ public partial class Board : Control
     private const string StageValuePath = "%StageValue";
     private const string TrackFramePath = "%TrackFrame";
     private const string TrackPath = "%Track";
+
+    /// <summary>The scene one node of the track is drawn from.</summary>
+    /// <remarks>
+    /// 🔒 A scene rather than a rectangle built here, because a node now carries a MARK as well as a
+    /// colour, and its size and shape belong with it: the pip is a FIXED size, and fixed rather than
+    /// divided, because the row it fills draws the whole board — 43 nodes on the shipped chapters and
+    /// authored content on any other — so dividing one row between them would shrink each node as the
+    /// board grew and eventually draw a board too fine to read. A fixed size and a wrapping container
+    /// means a longer board takes another line instead.
+    /// </remarks>
+    private const string TrackNodeScenePath = "res://game/scenes/TrackNode.tscn";
+
+    /// <summary>The gate mark on one track node, hidden on every node that may be walked past.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Each of its two channels is drawn against a different background, and that is what
+    /// decides their colours.</b> The collar sits in the gap BETWEEN pips, so it is read against the
+    /// screen's ground and is drawn in the quiet caption grey — the dark iron a gate wants is the
+    /// ground's own colour and would be invisible there. The bars cross the pip, so they are read
+    /// against the fill and are drawn dark. Neither is drawn in the fill itself, so the mark survives
+    /// the node the run is standing on being repainted in the token colour.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Square corners, a 6-unit stroke and NO drop shadow, where a panel of this screen would
+    /// take a wide radius, a heavier stroke and a shadow.</b> This is the small-mark language the
+    /// perk card's rarity gem already uses, not the panel language: a rounded frame at 52 units
+    /// across is a lozenge, and a lozenge on a track whose pips ignore the mouse would read as a
+    /// button the player can press. The gem carries no shadow either, and the reason a mark this
+    /// size cannot is below.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The collar draws OUTSIDE its pip's rect</b> — 6 units on each side, into a container
+    /// separation of 8 — so that marking a node costs the row no width and the wrap stays where it
+    /// was. The cost is that clipping either the pip or the row cuts the collar off, which is why
+    /// <see cref="RenderTrack"/> pins the row's clipping rather than trusting the scene. It is also
+    /// why the collar carries no shadow: a shadow grows the drawn extent past the separation and
+    /// onto the neighbouring pips, and because the row draws its children in order it would darken
+    /// only the neighbours BEFORE this one — a lopsided smudge, on a mark whose symmetry is what
+    /// left-handed mirroring rests on. Against this screen's near-black ground it would render
+    /// nothing anyway.
+    /// </para>
+    /// <para>
+    /// ⚠️ The collar's grey and the bars' near-black are authored in the scene, not read from the
+    /// colours below, so retuning <c>UnavailableColour</c> or the ground does not move them: the
+    /// collar was chosen to be the caption grey and the bars the ground's own dark, and only this
+    /// note keeps that pairing true.
+    /// </para>
+    /// </remarks>
+    private const string TrackNodeGatePath = "Gate";
+
+    /// <summary>Where the sentence saying what the gate mark means is written.</summary>
+    /// <remarks>
+    /// 🔴 <b>It sits directly under the track, above the caption naming the tile the run stands
+    /// on.</b> The mark is a shape, and a shape on a screen with no icon set, no legend and no
+    /// tooltip is a rule the player can see and cannot read — so the one thing this row is for is
+    /// naming it in words while it still matters, rather than after a roll has been shortened. It is
+    /// in the track's own frame rather than among the status lines below because it describes the
+    /// track: those lines report the run's state, and this one is a standing fact about the board.
+    /// </remarks>
+    private const string GateLabelPath = "%GateLabel";
     private const string StandingOnRowPath = "%StandingOnRow";
     private const string StandingOnLabelPath = "%StandingOnLabel";
     private const string PendingTileLabelPath = "%PendingTileLabel";
@@ -192,24 +259,30 @@ public partial class Board : Control
 
     /// <summary>The pip a node whose tile kind this build has no colour for is drawn as.</summary>
     /// <remarks>
-    /// Reachable only for a tile number outside `03` §2's fourteen, which is a board generated by a
+    /// Reachable only for a tile number outside `03` §2's fifteen, which is a board generated by a
     /// newer rules layer than this scene. Drawn as the quiet grey rather than skipped, so the node is
     /// still counted and the track still measures the board.
     /// </remarks>
     private static readonly Color UnvisitedNodeColour = new(0.24f, 0.25f, 0.30f);
 
     /// <summary>
-    /// What each of `03` §2's fourteen tile kinds is drawn as, with no icon set to draw instead.
+    /// What each of `03` §2's fifteen tile kinds is drawn as, with no icon set to draw instead.
     /// </summary>
     /// <remarks>
     /// <para>
     /// ⚠️ <b>Presentation, and debt owed to M8-03 exactly like every font size in the scene.</b>
-    /// Colour is the only channel a container-and-rectangle screen has for fourteen kinds, so these
-    /// are grouped by what a tile DOES to the player rather than chosen individually: the three
+    /// Colour is the only channel a container-and-rectangle screen has for fifteen kinds, so these
+    /// are grouped by what a tile DOES to the player rather than chosen individually: the four
     /// fights are one red, the four payouts one gold, the three that open a choice one blue, the
     /// curse its own warning colour, and the empty node the quiet grey. Two tiles sharing a colour
     /// is deliberate — the player reads the group at a glance and the caption names the one they are
     /// standing on.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The mini-boss shares the boss's red rather than being given a fifteenth colour, and that
+    /// is the point.</b> The two are told apart by the barred frame one of them wears and the other
+    /// does not, so the distinction survives a player who cannot separate two reds — which a
+    /// fifteenth red would not. Colour groups these tiles; it never carries a rule on its own.
     /// </para>
     /// <para>
     /// 🔒 Keyed on <see cref="TileKind"/> rather than on the run's bare integer, so a kind added
@@ -223,6 +296,7 @@ public partial class Board : Control
             [TileKind.Enemy] = new(0.78f, 0.31f, 0.28f),
             [TileKind.Elite] = new(0.78f, 0.31f, 0.28f),
             [TileKind.Boss] = new(0.91f, 0.45f, 0.38f),
+            [TileKind.MiniBoss] = new(0.91f, 0.45f, 0.38f),
             [TileKind.Treasure] = new(0.85f, 0.72f, 0.34f),
             [TileKind.Cache] = new(0.85f, 0.72f, 0.34f),
             [TileKind.Shop] = new(0.85f, 0.72f, 0.34f),
@@ -254,29 +328,6 @@ public partial class Board : Control
     /// is the same off-white.
     /// </remarks>
     private static readonly Color ArmedColour = new(0.91f, 0.45f, 0.38f);
-
-    /// <summary>
-    /// How tall one node pip is drawn — and only how tall.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 The width is left to the container and each pip is told to expand, so the strip divides
-    /// the row it is given however many nodes the stage has. A fixed width would be a number chosen
-    /// against the two shipped chapters, and stage lengths are authored content: a chapter with
-    /// twice as many nodes would push the strip straight through the safe area on both sides.
-    /// </remarks>
-    private static readonly Vector2 NodePipSize = new(0, 24);
-
-    /// <summary>
-    /// One node of the track, now that a node has a tile kind worth telling apart.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 A fixed WIDTH, unlike the strip this replaced. The strip divided one row between the
-    /// nodes of one stage; this draws the whole board, which is 43 nodes on the shipped chapters and
-    /// authored content on any other — so dividing a row between them would shrink each node as the
-    /// board grew and eventually draw a board too fine to read. A fixed size and a wrapping
-    /// container means a longer board takes another line instead.
-    /// </remarks>
-    private static readonly Vector2 TrackNodeSize = new(40, 40);
 
     /// <summary>What a die of the tray, and a number on the choice prompt, is drawn at.</summary>
     /// <remarks>
@@ -329,6 +380,7 @@ public partial class Board : Control
     private Label? _stageValue;
     private Control? _trackFrame;
     private HFlowContainer? _track;
+    private Label? _gateLabel;
     private Control? _standingOnRow;
     private Label? _standingOnLabel;
     private Label? _pendingTileLabel;
@@ -385,7 +437,8 @@ public partial class Board : Control
     /// <remarks>
     /// 🔒 The read is the point, not the showing. A replay that reached its end submitted the
     /// confirmation that closes the battle, so the run behind this screen is a different row from the
-    /// one it drew: the phase has moved, the health has moved, and a won fight has opened a draft.
+    /// one it drew: the phase has moved, the health has moved, and a won fight MAY have opened a
+    /// draft — every fight but the last one does, and the run's last fight ends the run instead.
     /// Un-hiding without reading again would put a pre-battle board in front of a post-battle run.
     /// </remarks>
     public void Resume()
@@ -476,6 +529,7 @@ public partial class Board : Control
         _stageValue = GetNode<Label>(StageValuePath);
         _trackFrame = GetNode<Control>(TrackFramePath);
         _track = GetNode<HFlowContainer>(TrackPath);
+        _gateLabel = GetNode<Label>(GateLabelPath);
         _standingOnRow = GetNode<Control>(StandingOnRowPath);
         _standingOnLabel = GetNode<Label>(StandingOnLabelPath);
         _pendingTileLabel = GetNode<Label>(PendingTileLabelPath);
@@ -586,7 +640,7 @@ public partial class Board : Control
         if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
             _hud is null || _hpLabel is null || _hpValue is null || _hpBar is null ||
             _goldLabel is null || _goldValue is null || _stageLabel is null || _stageValue is null ||
-            _trackFrame is null || _track is null || _standingOnRow is null ||
+            _trackFrame is null || _track is null || _gateLabel is null || _standingOnRow is null ||
             _standingOnLabel is null || _pendingTileLabel is null ||
             _statusLabel is null || _blockLabel is null || _rejectionLabel is null ||
             _forkPanel is null || _forkTitleLabel is null || _forkButtons is null ||
@@ -637,6 +691,13 @@ public partial class Board : Control
         }
 
         RenderTrack(presenter);
+
+        // 🔴 Read AFTER the track is built, and hidden with it. The sentence is about a mark on a pip,
+        // so on the one path where no pip is drawn at all — a node template that would not load — it
+        // would be a rule stated about a board that is not on the screen. Hidden rather than blanked,
+        // like every other sentence here: an empty label still claims its line of height.
+        _gateLabel.Text = presenter.GateRuleText;
+        _gateLabel.Visible = _gateLabel.Text.Length > 0 && _track.Visible;
 
         _standingOnLabel.Text = presenter.StandingOnLabel;
         _pendingTileLabel.Text = presenter.PendingTileName;
@@ -705,6 +766,16 @@ public partial class Board : Control
     /// the caption below the track names that tile in words anyway.
     /// </para>
     /// <para>
+    /// 🔴 <b>A node the run may not walk past wears the gate mark, and that mark is not a
+    /// colour.</b> A roll that would carry over a mini-boss stops on it instead, so the player who
+    /// cannot see which node does that loses steps to a rule nothing on the screen stated. A light
+    /// collar stands around the pip and two dark bars cross it, which reads as a barred gate at pip
+    /// size and reads the same to a player who cannot separate the two reds this screen draws
+    /// boss-tier fights in — the accessibility rule is frame and mark, never colour on its own. The
+    /// boss keeps a plain pip on purpose: the mark has to tell the two APART, and the boss is the
+    /// terminus of the last row, which no other node can be mistaken for.
+    /// </para>
+    /// <para>
     /// ⚠️ Hidden rather than empty when the board could not be projected — a chapter this build does
     /// not ship. An empty container still claims its separation, so an invisible one is the
     /// difference between "no board" and "a board with nothing on it".
@@ -726,17 +797,61 @@ public partial class Board : Control
             return;
         }
 
+        var template = GD.Load<PackedScene>(TrackNodeScenePath);
+
+        if (template is null)
+        {
+            // Load answers null rather than throwing when the resource is missing or its import
+            // cannot be read, so an unnamed null reference is all a caller gets unless it says so.
+            GD.PushError(
+                "The board cannot draw its track: no node template could be loaded from " +
+                $"'{TrackNodeScenePath}'. The whole board goes with it, including the mark on the " +
+                "nodes the run may not walk past.");
+
+            track.Visible = false;
+
+            return;
+        }
+
         track.Visible = true;
+
+        // Pinned here rather than left to the scene, because the gate mark is the one thing on this
+        // row that draws outside its own pip: a row that clipped its children would cut the collar
+        // off the top and bottom rows and leave the mark half there, with nothing to say so.
+        track.ClipContents = false;
 
         var standingOn = presenter.StandingOn?.NodeId;
 
         foreach (var node in nodes)
         {
-            track.AddChild(new ColorRect
+            var pip = template.Instantiate<ColorRect>();
+
+            pip.Color = node.NodeId == standingOn ? TokenColour : ColourOf(node.Tile);
+
+            var gate = pip.GetNodeOrNull<Control>(TrackNodeGatePath);
+
+            if (gate is null)
             {
-                CustomMinimumSize = TrackNodeSize,
-                Color = node.NodeId == standingOn ? TokenColour : ColourOf(node.Tile),
-            });
+                // Named for the same reason the missing template is: a renamed or deleted child
+                // would otherwise be an unattributed null reference, and what is lost is not the
+                // pip but the only thing on the screen that says a node cannot be walked past.
+                GD.PushError(
+                    $"The board's node template '{TrackNodeScenePath}' carries no '" +
+                    TrackNodeGatePath + "' child, so no node can be marked as one the run may not " +
+                    "walk past. The track is drawn without the mark.");
+
+                track.AddChild(pip);
+
+                continue;
+            }
+
+            // The mark comes off the tile kind the projection already carries. There is no flag
+            // beside it saying the node cannot be walked past: a second field derived from this one
+            // is a second thing to keep true, and the run's own movement rule is stated where the
+            // stop happens rather than mirrored here.
+            gate.Visible = node.Tile == TileKind.MiniBoss;
+
+            track.AddChild(pip);
         }
     }
 

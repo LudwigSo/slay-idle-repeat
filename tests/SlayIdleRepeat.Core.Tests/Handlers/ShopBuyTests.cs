@@ -235,6 +235,76 @@ public sealed class ShopBuyTests
         }
     }
 
+    /// <summary>A row the draft withholds is never on the shelf either.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The shelf is the second door a perk reaches a player through, and it was open.</b> A row
+    /// whose effect reads run state no fight composition supplies is authored, schema-valid and
+    /// unplayable: acquiring it ends the run at the next battle with an effect-context failure out of
+    /// <c>GameRules.Apply</c>. The draft withholds such rows on their own pool tag; for a while the
+    /// shop did not, so the crash was one purchase away with nothing red anywhere.
+    /// </para>
+    /// <para>
+    /// 🔒 The withheld id is named, but the rule is not keyed on it: production asks
+    /// <c>PerkDraftEngine.IsOfferable</c>, which reads the row's tag. This case names the id only
+    /// because a test has to look for something specific — the day the row is retagged, this case is
+    /// what says so, and it should then be pointed at whatever row is withheld instead.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Both floors are load-bearing.</b> "The shelf never held it" is satisfied perfectly by a
+    /// shelf that held nothing at all, and equally by a sweep that never reached the band it is
+    /// authored in — the withheld row is a Legendary, and a stage's Legendary weight is a twentieth
+    /// of the table. So the sweep asserts it stocked perks at all, and that it stocked a
+    /// <b>Legendary</b> one. The second floor reads the slot's own rarity rather than naming a row
+    /// believed to be Legendary: the first draft of this case named a row that turned out to be a
+    /// COMMON base perk, and the floor was worthless while reading as if it were not.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_shelf_never_stocks_a_row_withheld_from_the_draft()
+    {
+        // The withheld row today. Production keys on the row's pool tag, never on this id — the
+        // name is here only because a test has to look for something specific.
+        const string withheld = "PK_ENDLESS_BLIGHT";
+
+        var (state, _) = AtAShop();
+
+        var stocked = new List<string>();
+        var legendaries = 0;
+
+        // One offer per block of draws, walked forward over the shop stream rather than sampled at
+        // one position: a single offer draws one perk row, so a single position could not reach a
+        // band at all.
+        for (ulong position = 0; position < 4000; position += RunShopOffer.DrawsPerOffer)
+        {
+            foreach (var slot in RunShopOffer.DrawAt(state.Run!, TileWorlds.Context.Content, position))
+            {
+                if (slot.Kind != ShopItemKind.PERK || slot.ItemId is not { } id)
+                {
+                    continue;
+                }
+
+                stocked.Add(id);
+
+                if (slot.Rarity == ShopRarity.LEGENDARY)
+                {
+                    legendaries++;
+                }
+            }
+        }
+
+        stocked.Count.ShouldBeGreaterThan(
+            100, "floor: a sweep that stocked no perk at all proves nothing about which it stocks");
+        legendaries.ShouldBeGreaterThan(
+            0,
+            "floor: no Legendary row was stocked, so the band the withheld row lives in was never " +
+            "drawn and its absence is not evidence");
+        stocked.ShouldNotContain(
+            withheld,
+            "the row the draft withholds was on the shelf, and buying it ends the run at the next " +
+            "battle — see PerkDraftEngine.IsOfferable");
+    }
+
     /// <summary>A run-less slice still throws, the same guard every other run command hits.</summary>
     [Fact]
     public void A_run_less_slice_throws_rather_than_rejects()

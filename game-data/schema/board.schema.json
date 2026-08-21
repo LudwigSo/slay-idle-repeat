@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/board.schema.json",
   "title": "content/board/board.json",
-  "description": "M7-05 — the loc keys the Board screen (S05) renders. What is fixed here is that the screen labels HP, Gold, the stage, the number last rolled and the tile it stands on; offers a roll, a tile acknowledgement and the two fork branches; carries one status line per state the read can be in and one per reason a roll is refused; and names all fourteen tile kinds. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. The `forkLabel` group is what that absence turned into: BoardView.Project exports the bias label each branch's tiles were actually drawn under, so the four labels are named here and the two branch buttons say where they go. The `dice` group is the fixed dice (`04` §6) — a tray heading, and the prompt asking the player to name a granted die's number. Neither group carries a numeral: a die's number and a fork branch's icons are drawn from values the run and the board already carry, and a number needs no translation.",
+  "description": "M7-05 — the loc keys the Board screen (S05) renders. What is fixed here is that the screen labels HP, Gold, the stage, the number last rolled and the tile it stands on; offers a roll, a tile acknowledgement and the two fork branches; carries one status line per state the read can be in and one per reason a roll is refused; and names all fifteen tile kinds. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. The `forkLabel` group is what that absence turned into: BoardView.Project exports the bias label each branch's tiles were actually drawn under, so the four labels are named here and the two branch buttons say where they go. The `dice` group is the fixed dice (`04` §6) — a tray heading, and the prompt asking the player to name a granted die's number. Neither group carries a numeral: a die's number and a fork branch's icons are drawn from values the run and the board already carry, and a number needs no translation.",
   "type": "object",
   "additionalProperties": false,
   "required": ["$schema", "_doc", "label", "action", "name", "forkLabel", "dice", "status", "block", "tile"],
@@ -20,13 +20,17 @@
       "description": "The captions beside the values the run row literally carries. HP and Gold are on the run; the stage is derived from the run's pending tile against the chapter's own stage list; 'rolled' captions the number the last accepted roll came up, and 'standing on' the tile that has not been resolved yet.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["hp", "gold", "stage", "rolled", "standingOn"],
+      "required": ["hp", "gold", "stage", "rolled", "standingOn", "gate"],
       "properties": {
         "hp": { "$ref": "#/$defs/locKey" },
         "gold": { "$ref": "#/$defs/locKey" },
         "stage": { "$ref": "#/$defs/locKey" },
         "rolled": { "$ref": "#/$defs/locKey" },
-        "standingOn": { "$ref": "#/$defs/locKey" }
+        "standingOn": { "$ref": "#/$defs/locKey" },
+        "gate": {
+          "description": "🔴 What the mark on a barred node MEANS, in words, under the track. Required, and required from this screen in particular: a node a move may not carry past is drawn as a shape, and a shape on a screen with no icon set, no legend and no tooltip is a rule the player can see and cannot read — so a roll of 5 that moves 2 reads as a cheat rather than as a rule. The shape says which node; this says what it does, and it is on screen BEFORE the rule costs anything rather than arriving with the stop. It also states the one thing no mark can: nothing skips the fight, an armed escape included.",
+          "$ref": "#/$defs/locKey"
+        }
       }
     },
     "action": {
@@ -101,14 +105,18 @@
       }
     },
     "block": {
-      "description": "🔒 One sentence per reason the roll is not live, and the reason this object exists at all: a tile left unresolved, a fork left unchosen, a battle left unfought and a draft left untaken all refuse a roll with the SAME wire value. A screen that showed one sentence for all four would tell the player the roll failed and not one thing they could do about it — and each of the four is escaped by doing something different. The screen therefore decides the cause from the run's own state before submitting anything, and these are the four things it can then say.",
+      "description": "🔒 One sentence per reason the roll is not live, and the reason this object exists at all: a tile left unresolved, a fork left unchosen, a battle left unfought and a draft left untaken all refuse a roll with the SAME wire value. A screen that showed one sentence for all four would tell the player the roll failed and not one thing they could do about it — and each of the four is escaped by doing something different. The screen therefore decides the cause from the run's own state before submitting anything, and these are the sentences it can then say.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["tile", "unbuiltScreen", "fork", "battle", "draft"],
+      "required": ["tile", "unbuiltScreen", "gate", "fork", "battle", "draft"],
       "properties": {
         "tile": { "$ref": "#/$defs/locKey" },
         "unbuiltScreen": {
-          "description": "🔴 A FIFTH sentence, and the only one that admits a gap in the build rather than naming a state of the run. Two of the fourteen tile kinds — Event and Minigame — are left by a command only their own screen submits, and neither screen exists, so `tile`'s `resolve this tile before rolling again` told a player standing on one to do something no control on the screen could do. This says the screen is missing and what the skip does instead.",
+          "description": "🔴 A FIFTH sentence, and the only one that admits a gap in the build rather than naming a state of the run. Two of the fifteen tile kinds — Event and Minigame — are left by a command only their own screen submits, and neither screen exists, so `tile`'s `resolve this tile before rolling again` told a player standing on one to do something no control on the screen could do. This says the screen is missing and what the skip does instead.",
+          "$ref": "#/$defs/locKey"
+        },
+        "gate": {
+          "description": "🔴 A SIXTH sentence, and the one read at the moment the rule has already cost something. `tile` — `resolve this tile before rolling again` — is true of a mini-boss node and explains neither why the move stopped short of the number rolled nor why an armed escape did not fire, and this is the only place on the screen where either can be said where it happened.",
           "$ref": "#/$defs/locKey"
         },
         "fork": { "$ref": "#/$defs/locKey" },
@@ -117,12 +125,13 @@
       }
     },
     "tile": {
-      "description": "All fourteen tile kinds by name. Required in full rather than as an open map: the run reports the tile it stands on as a bare integer, the enum that gives that integer a name is internal to the rules, and the client's own integer-to-name table is therefore a transcription. Requiring every member here is what makes a kind added to the game fail this document rather than render as a number.",
+      "description": "All fifteen tile kinds by name. Required in full rather than as an open map: the run reports the tile it stands on as a bare integer, the enum that gives that integer a name is internal to the rules, and the client's own integer-to-name table is therefore a transcription. Requiring every member here is what makes a kind added to the game fail this document rather than render as a number.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "enemy", "elite", "boss", "shrine", "curse", "treasure", "shop",
-        "campfire", "minigame", "event", "portal", "cache", "diceForge", "empty"
+        "campfire", "minigame", "event", "portal", "cache", "diceForge", "empty",
+        "miniBoss"
       ],
       "properties": {
         "enemy": { "$ref": "#/$defs/locKey" },
@@ -138,7 +147,8 @@
         "portal": { "$ref": "#/$defs/locKey" },
         "cache": { "$ref": "#/$defs/locKey" },
         "diceForge": { "$ref": "#/$defs/locKey" },
-        "empty": { "$ref": "#/$defs/locKey" }
+        "empty": { "$ref": "#/$defs/locKey" },
+        "miniBoss": { "$ref": "#/$defs/locKey" }
       }
     }
   }
