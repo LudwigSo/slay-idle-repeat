@@ -17,7 +17,7 @@ namespace SlayIdleRepeat.Client.Game.Presenters;
 /// cannot ask for: transcribe it, say so, and pin the literal shape in a case so it breaks loudly
 /// here rather than quietly on a screen. What makes the pin possible at all is that the numbering is
 /// a documented contract rather than an accident — the rules layer states in two places that the
-/// kinds run 0..13 with no explicit values, because its own "no tile is pending" sentinel of -1
+/// kinds run 0..14 with no explicit values, because its own "no tile is pending" sentinel of -1
 /// depends on no legal kind ever colliding with it.
 /// </para>
 /// <para>
@@ -35,7 +35,7 @@ public static class BoardTileKinds
     /// The value the run carries while it stands on no unresolved tile.
     /// </summary>
     /// <remarks>
-    /// Transcribed with the rest of the table and for the same reason. It is not a fourteenth kind:
+    /// Transcribed with the rest of the table and for the same reason. It is not a sixteenth kind:
     /// the rules layer picked it precisely because it can never collide with one.
     /// </remarks>
     public const int NoPendingTile = -1;
@@ -63,6 +63,11 @@ public static class BoardTileKinds
         "loc.tile.cache.name",
         "loc.tile.dice_forge.name",
         "loc.tile.empty.name",
+
+        // 🔒 APPENDED, never inserted, and the enum it transcribes appended its own member for this
+        // same reason: an insertion renumbers every kind after it and this table would go on
+        // answering each number with the name that used to sit there.
+        "loc.tile.miniboss.name",
     ];
 
     /// <summary>How many tile kinds this table claims the game has.</summary>
