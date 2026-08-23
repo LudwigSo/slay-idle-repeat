@@ -47,24 +47,6 @@ public enum ContentIssueCode
 
     /// <summary>The locale files do not carry an identical key set.</summary>
     LocalisationMismatch = 13,
-
-    /// <summary>A tunable marker in the docs that no schema key claims.</summary>
-    TunableMarkerUnmatched = 14,
-
-    /// <summary>A tuning schema key whose cited doc section carries no tunable marker.</summary>
-    TunableKeyUnmarked = 15,
-
-    /// <summary>
-    /// An economy-affecting tunable number that names a data file outside <c>tuning/</c>.
-    /// Non-economy files are allow-listed explicitly; see <c>TunableMarkerAudit.NonEconomyDataFiles</c>.
-    /// </summary>
-    TunableOutsideTuningDirectory = 16,
-
-    /// <summary>
-    /// A baseline entry that no longer describes a real mismatch. Removing it is forced rather
-    /// than remembered — the same mechanism <c>build/ci/test-suites.json</c> uses for empty suites.
-    /// </summary>
-    StaleBaselineEntry = 17,
 }
 
 /// <summary>One finding from the content validator.</summary>

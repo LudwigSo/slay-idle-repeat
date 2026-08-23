@@ -1,17 +1,20 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Validates every JSON file under game-data, and audits the 📐 TUNABLE
-    markers in game-design/ against the schema keys.
+    Validates every JSON file under game-data against its schema.
 
 .DESCRIPTION
     14 §6 🔒: "JSON is validated at build time against schemas in
     game-data/schema/. The build fails on unknown IDs, missing icons,
     out-of-range values, orphaned references or duplicate IDs."
 
-    14 §6 🔒: "a build-time check enumerates every 📐 marker in the documentation
-    set against the schema keys and fails on a mismatch. That check is what stops
-    the tuning surface eroding over eighteen months."
+    ⚠️ 14 §6 also asks for a second check: "a build-time check enumerates every
+    📐 marker in the documentation set against the schema keys and fails on a
+    mismatch. That check is what stops the tuning surface eroding over eighteen
+    months." IT WAS BUILT, AND IT HAS BEEN REMOVED — the 📐 markers in game-design/
+    are unchecked prose again, and nothing now notices a tuning number that loses
+    its schema key or a schema key that loses its marker. Recorded here rather
+    than quietly dropped, because the requirement it answered has not gone away.
 
     M0-02 authored this script as a structural floor (strict parse, duplicate-key
     detection, schema<->data orphan pairing) with the instruction:
@@ -22,7 +25,7 @@
 
     That is exactly what happened. The body is now a call into tools/ContentValidator,
     which runs the SAME code the game loads content with - the loader, the JSON Schema
-    validator, the cross-file invariants and the 📐 audit all live in
+    validator and the cross-file invariants all live in
     SlayIdleRepeat.Application/Services/Content/ and are unit-tested in
     SlayIdleRepeat.Application.Tests against the in-memory fake. A CI-only validator
     written a second time in PowerShell would drift from the runtime one, and the day
@@ -35,11 +38,6 @@
       unpaired schemas, and any JSON Schema keyword the validator does not implement
       (a hard failure, never a silent pass).
 
-      The 📐 audit, in three directions: every marker must be claimed by a schema key,
-      every numeric key in a tuning/ schema must carry a marker, and an economy-affecting
-      📐 number must name a file under tuning/. Known mismatches are recorded, dated and
-      reasoned in build/content/tunable-marker-baseline.json; the check fails on anything
-      that file does not record, and equally on an entry it records that is no longer real.
 
     The one change this needed in .github/workflows/ci.yml is an actions/setup-dotnet
     step on the content-validation job: the check is now .NET rather than PowerShell.
@@ -82,22 +80,16 @@ $PSNativeCommandUseErrorActionPreference = $false
 $root = Get-RepositoryRoot -Override $RepositoryRoot
 if (-not $DataRoot) { $DataRoot = Join-Path $root 'game-data' }
 
-$designDocs = Join-Path $root 'game-design'
-$baseline = Join-Path $root 'build/content/tunable-marker-baseline.json'
 $project = Join-Path $root 'tools/ContentValidator/SlayIdleRepeat.ContentValidator.csproj'
 
 Write-Section 'Content validation (14 §6, §13)'
 Write-Host "Data root   : $DataRoot"
-Write-Host "Design docs : $designDocs"
-Write-Host "Baseline    : $baseline"
 Write-Host "Validator   : $project"
 
 $failures = [System.Collections.Generic.List[string]]::new()
 
 foreach ($required in @(
         @{ Path = $DataRoot;    What = 'the data root' },
-        @{ Path = $designDocs;  What = 'the design-doc set the 📐 audit reads' },
-        @{ Path = $baseline;    What = 'the 📐 baseline (a missing one is not the same as a clean run)' },
         @{ Path = $project;     What = 'the validator project' })) {
     if (-not (Test-Path -LiteralPath $required.Path)) {
         $failures.Add("'$($required.Path)' does not exist - $($required.What).")
@@ -115,9 +107,7 @@ if ($NoBuild) { $arguments += '--no-build' }
 $arguments += @(
     '--',
     '--repository-root', $root,
-    '--data-root', $DataRoot,
-    '--design-docs', $designDocs,
-    '--baseline', $baseline
+    '--data-root', $DataRoot
 )
 
 Write-Section 'Running the validator'
