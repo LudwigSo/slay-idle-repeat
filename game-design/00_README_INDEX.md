@@ -86,7 +86,7 @@ Four markers appear throughout:
 22. `23_PORTS_AND_ADAPTERS.md` — **the architectural constraint that shapes the whole codebase**: port catalogue, adapter rules, enforcement
 23. `18_EFFECT_DSL.md` — the one language every game effect is written in
 24. `19_CONTENT_TABLES.md` — 30 events, 20 quests, 14 modifiers, FTUE, curses, the Lucky Wheel, the 28-day login calendar
-25. `15_ART_DIRECTION_AND_ASSET_MANIFEST.md` — **975 art assets**
+25. `15_ART_DIRECTION_AND_ASSET_MANIFEST.md` — **949 art assets, produced as real-time 3D.** ⚠️ Re-authored 2026-08-23 by `16` D60: the medium is toon-shaded `.glb` meshes, plus 2D rendered from them, plus flat 2D. **No art tool is locked.** All output is work in progress and is **not published**
 26. `22_ICON_PROMPT_TABLES.md` — per-icon prompts for the perk and talent icons (138; ⚠️ Part A is owed a re-section against the nine perk categories)
 27. `20_AUDIO_MANIFEST.md` — **106 audio assets**
 28. `29_POWER_MODEL.md` — **`PlayerPower`, and the three authored tables that say what it should be.** The product owner's primary dial.
@@ -95,6 +95,7 @@ Four markers appear throughout:
 **Governance**
 
 30. `16_DECISION_LOG.md` — every decision made, and everything still open
+31. `31_ASSET_LICENCE_RISKS.md` — 🔴 **a register, not a gate.** Licence risk per tool and the six items that must be resolved *before* anything is published. Blocks nothing (`16` D60b)
 
 ---
 
@@ -106,7 +107,7 @@ Four markers appear throughout:
 | D2 | Core session shape | 🔒 **Run-based only** — no idle income, no AFK stage. *Energy regeneration is the single exception: it accrues server-side while the player is away.* |
 | D3 | Combat interactivity | 🔒 **Full auto-battle + perk drafting.** No taps during combat, ever. |
 | D4 | Party | 🔒 **Single hero + pet/mount companions.** No roster. |
-| D5 | Art direction | 🔒 **Chibi cartoon fantasy, bold outlines**, generated with **Midjourney** |
+| D5 | Art direction | 🔒 **Chibi cartoon fantasy, bold outlines.** The look is locked; the **medium is real-time 3D** and 🔓 **no tool is locked** — amended 2026-08-23 by `16` D60/D60a, which supersedes D5b (Midjourney is now concept/reference only) |
 | D6 | Meta systems | 🔒 Gear + merging, talent tree, pets + mounts. **No ascension in v1.** |
 | D7 | Content generation | 🔒 **Procedural boards inside authored chapters** |
 | D8 | PvP | 🔒 **Async Ghost Duel**, one mode, global ladder with every player ranked |

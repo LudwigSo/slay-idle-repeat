@@ -36,7 +36,8 @@ The draw is **uniform** over the six sides, straight off the run's `dice` RNG st
 
 ## 3. Presentation
 
-- The die is a chunky 3D-look 2D sprite rendered with a squash-and-stretch tumble, **0.8 s**, landing with a bounce and a small dust puff.
+- The die is a chunky **real 3D die** with a squash-and-stretch tumble, **0.8 s**, landing with a bounce and a small dust puff.
+  - ⚠️ **Amended 2026-08-23 by `16` D60.** This read *"a chunky 3D-look 2D sprite"*. The art medium became real-time 3D, so the 3D-look fake is retired: the die is genuine geometry with its six face artworks in the albedo (`15` E16, kind **M**) and the tumble is a real 3D animation. The five retired special-face artworks (§3 below) stay retired.
 - The result is echoed as a large floating number above the hero token before movement begins.
 - Haptics: light tap on roll start, medium on land.
 - The board screen shows the number the last roll came up, until the next roll replaces it.
