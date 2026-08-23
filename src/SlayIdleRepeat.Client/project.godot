@@ -62,6 +62,13 @@ window/handheld/orientation=1
 ; stays sharp at any device resolution. "expand" rather than "keep": across
 ; 9:16 to 9:20 the extra room appears as height, which is what safe-area padding
 ; is there to absorb — "keep" would spend it on black bars instead.
+;
+; 🔒 It is also what makes the 3D basis and the UI overlay cost each other
+; nothing, which was not true of the alternative. canvas_items scales the CANVAS
+; transform and leaves the root viewport at the window's own size, so the 3D
+; world renders at the device's real resolution while the overlay is laid out in
+; 1080x1920 canvas units. "viewport" mode would have rendered both through one
+; 1080x1920 framebuffer — soft 3D on a 1440p handset, and upscaled text with it.
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
@@ -82,15 +89,29 @@ application/bundle_identifier="de.ludwigso.slayidlerepeat"
 ; The mobile renderer, on every platform including the desktop one this is
 ; developed on — a desktop-only forward+ preview would flatter the look of a
 ; build no player gets.
+;
+; ⚠️ It is now carrying 3D, which it was not when this line was written. The
+; mobile renderer draws 3D on every target this game ships to, but it is the
+; renderer that DROPS features rather than degrading them — no SDFGI, no SSAO,
+; no SSR, no volumetric fog, and one directional shadow map. Nothing in this
+; build uses any of those, and nothing may start to: a 3D screen authored
+; against a forward+ editor preview is a screen no player sees.
 renderer/rendering_method="mobile"
 renderer/rendering_method.mobile="mobile"
 ; ⚠️ Mandatory. Without it the Android export refuses outright: "ETC2/ASTC
 ; texture compression is required for Android export." The iOS exporter checks
 ; the same setting.
 textures/vram_compression/import_etc2_astc=true
-; The third of the three grounds, and the one that covers the gap: the engine's
-; splash colour is shown until the first scene draws, Boot.tscn paints from its
-; first frame on, and this is what shows anywhere neither does. All three are
-; the same colour on purpose — the goal is that nothing flashes, not that three
-; settings each look reasonable alone.
+; The last of the FOUR grounds, and the one that covers the gap: the engine's
+; splash colour is shown until the first scene draws, AppRoot.tscn's
+; WorldEnvironment paints the 3D background from the first composed frame on,
+; each screen's own Ground plane sits in front of that, and this is what shows
+; anywhere none of them does. All four are the same colour on purpose — the goal
+; is that nothing flashes, not that four settings each look reasonable alone.
+;
+; 🔴 This one is no longer only a fallback. Under the mobile renderer the clear
+; colour is what a viewport with no current Camera3D shows, and this build has
+; exactly one moment like that: between the root composing and the boot screen's
+; _Ready claiming the viewport. A different value here is a visible flash at the
+; same instant the old 2D build had none.
 environment/defaults/default_clear_color=Color(0.07, 0.07, 0.09, 1)

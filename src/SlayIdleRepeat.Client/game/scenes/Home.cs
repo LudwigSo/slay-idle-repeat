@@ -39,7 +39,7 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// guessed at. See <see cref="TheRunToResumeWasNotNamed"/>.
 /// </para>
 /// </remarks>
-public partial class Home : Control
+public partial class Home : Node3D
 {
     /// <summary>Where this scene lives, for the screen that instantiates it.</summary>
     public const string ScenePath = "res://game/scenes/Home.tscn";
@@ -182,7 +182,7 @@ public partial class Home : Control
             return;
         }
 
-        Visible = true;
+        ScreenStage.Show(this);
 
         _ = StartAsync();
     }
@@ -216,7 +216,13 @@ public partial class Home : Control
         ButtonTextColours.ApplyTo(_actionButton, LiveColour, UnavailableColour);
         ButtonTextColours.ApplyTo(_gearButton, LiveColour, UnavailableColour);
 
-        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
+        // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
+        // does this on the way in, because every handover in this build leaves the outgoing screen
+        // in the tree — hidden, or freed only on the frame after — so two cameras and two overlays
+        // are alive at the moment this one becomes the visible screen.
+        ScreenStage.Show(this);
+
+        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewport().GetVisibleRect().Size);
         Render();
 
         _ = StartAsync();
@@ -350,7 +356,7 @@ public partial class Home : Control
     /// M7's exit criterion reads *"gear banked and equipped between runs"*, and the equipping half had
     /// nowhere to happen: a run freezes its loadout at <c>START_RUN</c> (`07` §4), so a bag opened
     /// mid-run could change nothing about the fight in progress. ⚠️ `13` §1.1 also reaches S16 from the
-    /// Hero screen, which is M9's — <c>InventoryHandover</c> takes a <c>Control</c> rather than a named
+    /// Hero screen, which is M9's — <c>InventoryHandover</c> takes a <c>Node3D</c> rather than a named
     /// screen so that arrival is a caller rather than a change here.
     /// </remarks>
     private void OnGearPressed()
@@ -470,7 +476,7 @@ public partial class Home : Control
 
         picked.Drive(picker, _board!, this, _lifetime);
 
-        Visible = false;
+        ScreenStage.Hide(this);
 
         parent.AddChild(picked);
     }

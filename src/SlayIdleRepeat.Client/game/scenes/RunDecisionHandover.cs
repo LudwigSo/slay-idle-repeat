@@ -55,7 +55,7 @@ internal static class RunDecisionHandover
     /// </returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     internal static bool Show<TScreen>(Board from, string scenePath, Action<TScreen> drive)
-        where TScreen : Control
+        where TScreen : Node3D
     {
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(scenePath);
@@ -85,7 +85,7 @@ internal static class RunDecisionHandover
 
         drive(screen);
 
-        from.Visible = false;
+        ScreenStage.Hide(from);
 
         parent.AddChild(screen);
 
@@ -101,7 +101,7 @@ internal static class RunDecisionHandover
     /// <param name="screen">The decision screen standing down, which is queued for freeing.</param>
     /// <param name="to">The board the decision was entered from, which is shown and read again.</param>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
-    internal static void Return(Control screen, Board to)
+    internal static void Return(Node3D screen, Board to)
     {
         ArgumentNullException.ThrowIfNull(screen);
         ArgumentNullException.ThrowIfNull(to);

@@ -83,7 +83,7 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// answer to a question that already has one owner.
 /// </para>
 /// </remarks>
-public partial class ChapterSelect : Control
+public partial class ChapterSelect : Node3D
 {
     /// <summary>Where this scene lives, for the screen that instantiates it.</summary>
     public const string ScenePath = "res://game/scenes/ChapterSelect.tscn";
@@ -321,7 +321,13 @@ public partial class ChapterSelect : Control
         BuildTiers();
         BuildChapters();
 
-        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
+        // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
+        // does this on the way in, because every handover in this build leaves the outgoing screen
+        // in the tree — hidden, or freed only on the frame after — so two cameras and two overlays
+        // are alive at the moment this one becomes the visible screen.
+        ScreenStage.Show(this);
+
+        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewport().GetVisibleRect().Size);
         Render();
 
         _ = StartAsync();
@@ -446,7 +452,7 @@ public partial class ChapterSelect : Control
     {
         var button = new Button
         {
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             CustomMinimumSize = new Vector2(0, TouchTargetHeight),
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         };

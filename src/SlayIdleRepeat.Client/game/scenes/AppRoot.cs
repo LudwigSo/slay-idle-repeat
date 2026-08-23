@@ -34,7 +34,7 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// if it were.
 /// </para>
 /// </remarks>
-public partial class AppRoot : Node
+public partial class AppRoot : Node3D
 {
     /// <summary>The scene-unique label the root reports its phase through.</summary>
     private const string StatusLabelPath = "%StatusLabel";

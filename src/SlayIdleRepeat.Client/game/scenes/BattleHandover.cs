@@ -85,7 +85,7 @@ public static class BattleHandover
 
         replay.Drive(screen.Battle, screen.ReducedMotion, from, lifetime);
 
-        from.Visible = false;
+        ScreenStage.Hide(from);
 
         parent.AddChild(replay);
 

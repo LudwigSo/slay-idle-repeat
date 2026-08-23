@@ -1,25 +1,42 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/Board.cs" id="1_board"]
 
-[node name="Board" type="Control"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[sub_resource type="QuadMesh" id="QuadMesh_ground"]
+size = Vector2(24, 42)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+shading_mode = 0
+albedo_color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="Board" type="Node3D"]
 script = ExtResource("1_board")
 
-[node name="Ground" type="ColorRect" parent="."]
+[node name="World" type="Node3D" parent="."]
 unique_name_in_owner = true
+
+[node name="Camera" type="Camera3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
+fov = 60.0
+
+[node name="Ground" type="MeshInstance3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+mesh = SubResource("QuadMesh_ground")
+material_override = SubResource("StandardMaterial3D_ground")
+
+[node name="Ui" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="Screen" type="Control" parent="Ui"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.07, 0.07, 0.09, 1)
 
-[node name="SafeArea" type="MarginContainer" parent="."]
+[node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
 unique_name_in_owner = true
 mouse_filter = 2
 anchors_preset = 15
@@ -32,21 +49,21 @@ theme_override_constants/margin_top = 128
 theme_override_constants/margin_right = 64
 theme_override_constants/margin_bottom = 128
 
-[node name="Column" type="VBoxContainer" parent="SafeArea"]
+[node name="Column" type="VBoxContainer" parent="Ui/Screen/SafeArea"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 32
 
-[node name="Hud" type="VBoxContainer" parent="SafeArea/Column"]
+[node name="Hud" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="HpRow" type="HBoxContainer" parent="SafeArea/Column/Hud"]
+[node name="HpRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Hud"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="HpLabel" type="Label" parent="SafeArea/Column/Hud/HpRow"]
+[node name="HpLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Hud/HpRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -54,24 +71,24 @@ theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 44
 autowrap_mode = 3
 
-[node name="HpValue" type="Label" parent="SafeArea/Column/Hud/HpRow"]
+[node name="HpValue" type="Label" parent="Ui/Screen/SafeArea/Column/Hud/HpRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 44
 horizontal_alignment = 2
 
-[node name="HpBar" type="ProgressBar" parent="SafeArea/Column/Hud"]
+[node name="HpBar" type="ProgressBar" parent="Ui/Screen/SafeArea/Column/Hud"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 show_percentage = false
 
-[node name="GoldRow" type="HBoxContainer" parent="SafeArea/Column/Hud"]
+[node name="GoldRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Hud"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="GoldLabel" type="Label" parent="SafeArea/Column/Hud/GoldRow"]
+[node name="GoldLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Hud/GoldRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -79,19 +96,19 @@ theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 44
 autowrap_mode = 3
 
-[node name="GoldValue" type="Label" parent="SafeArea/Column/Hud/GoldRow"]
+[node name="GoldValue" type="Label" parent="Ui/Screen/SafeArea/Column/Hud/GoldRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 44
 horizontal_alignment = 2
 
-[node name="StageRow" type="HBoxContainer" parent="SafeArea/Column/Hud"]
+[node name="StageRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Hud"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="StageLabel" type="Label" parent="SafeArea/Column/Hud/StageRow"]
+[node name="StageLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Hud/StageRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -99,43 +116,43 @@ theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 44
 autowrap_mode = 3
 
-[node name="StageValue" type="Label" parent="SafeArea/Column/Hud/StageRow"]
+[node name="StageValue" type="Label" parent="Ui/Screen/SafeArea/Column/Hud/StageRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 44
 horizontal_alignment = 2
 
-[node name="TrackFrame" type="VBoxContainer" parent="SafeArea/Column"]
+[node name="TrackFrame" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Track" type="HFlowContainer" parent="SafeArea/Column/TrackFrame"]
+[node name="Track" type="HFlowContainer" parent="Ui/Screen/SafeArea/Column/TrackFrame"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
 
-[node name="GateLabel" type="Label" parent="SafeArea/Column/TrackFrame"]
+[node name="GateLabel" type="Label" parent="Ui/Screen/SafeArea/Column/TrackFrame"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 40
 autowrap_mode = 3
 
-[node name="StandingOnRow" type="HBoxContainer" parent="SafeArea/Column/TrackFrame"]
+[node name="StandingOnRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/TrackFrame"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="StandingOnLabel" type="Label" parent="SafeArea/Column/TrackFrame/StandingOnRow"]
+[node name="StandingOnLabel" type="Label" parent="Ui/Screen/SafeArea/Column/TrackFrame/StandingOnRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 44
 
-[node name="PendingTileLabel" type="Label" parent="SafeArea/Column/TrackFrame/StandingOnRow"]
+[node name="PendingTileLabel" type="Label" parent="Ui/Screen/SafeArea/Column/TrackFrame/StandingOnRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -144,20 +161,20 @@ theme_override_font_sizes/font_size = 52
 horizontal_alignment = 2
 autowrap_mode = 3
 
-[node name="MiddleScroll" type="ScrollContainer" parent="SafeArea/Column"]
+[node name="MiddleScroll" type="ScrollContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 1.0
 horizontal_scroll_mode = 0
 
-[node name="MiddleColumn" type="VBoxContainer" parent="SafeArea/Column/MiddleScroll"]
+[node name="MiddleColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/MiddleScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 24
 alignment = 2
 
-[node name="StatusLabel" type="Label" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
+[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column/MiddleScroll/MiddleColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
@@ -165,7 +182,7 @@ theme_override_font_sizes/font_size = 48
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="BlockLabel" type="Label" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
+[node name="BlockLabel" type="Label" parent="Ui/Screen/SafeArea/Column/MiddleScroll/MiddleColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
@@ -173,7 +190,7 @@ theme_override_font_sizes/font_size = 44
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="RejectionLabel" type="Label" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
+[node name="RejectionLabel" type="Label" parent="Ui/Screen/SafeArea/Column/MiddleScroll/MiddleColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.62, 0.58, 1)
@@ -181,26 +198,26 @@ theme_override_font_sizes/font_size = 44
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="ActionColumn" type="VBoxContainer" parent="SafeArea/Column"]
+[node name="ActionColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="PromptPanel" type="VBoxContainer" parent="SafeArea/Column/ActionColumn"]
+[node name="PromptPanel" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="RolledRow" type="HBoxContainer" parent="SafeArea/Column/ActionColumn/PromptPanel"]
+[node name="RolledRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn/PromptPanel"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="RolledLabel" type="Label" parent="SafeArea/Column/ActionColumn/PromptPanel/RolledRow"]
+[node name="RolledLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn/PromptPanel/RolledRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 44
 
-[node name="RolledValue" type="Label" parent="SafeArea/Column/ActionColumn/PromptPanel/RolledRow"]
+[node name="RolledValue" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn/PromptPanel/RolledRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -209,12 +226,12 @@ theme_override_font_sizes/font_size = 52
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
-[node name="ForkPanel" type="VBoxContainer" parent="SafeArea/Column/ActionColumn"]
+[node name="ForkPanel" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="ForkTitleLabel" type="Label" parent="SafeArea/Column/ActionColumn/ForkPanel"]
+[node name="ForkTitleLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn/ForkPanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
@@ -222,17 +239,17 @@ theme_override_font_sizes/font_size = 52
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="ForkButtons" type="HBoxContainer" parent="SafeArea/Column/ActionColumn/ForkPanel"]
+[node name="ForkButtons" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn/ForkPanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="DieChoicePanel" type="VBoxContainer" parent="SafeArea/Column/ActionColumn"]
+[node name="DieChoicePanel" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="DieChoiceLabel" type="Label" parent="SafeArea/Column/ActionColumn/DieChoicePanel"]
+[node name="DieChoiceLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn/DieChoicePanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
@@ -240,47 +257,46 @@ theme_override_font_sizes/font_size = 52
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="DieChoiceButtons" type="HFlowContainer" parent="SafeArea/Column/ActionColumn/DieChoicePanel"]
+[node name="DieChoiceButtons" type="HFlowContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn/DieChoicePanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 16
 
-[node name="DicePanel" type="VBoxContainer" parent="SafeArea/Column/ActionColumn"]
+[node name="DicePanel" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="DiceLabel" type="Label" parent="SafeArea/Column/ActionColumn/DicePanel"]
+[node name="DiceLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn/DicePanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 44
 
-[node name="DiceButtons" type="HFlowContainer" parent="SafeArea/Column/ActionColumn/DicePanel"]
+[node name="DiceButtons" type="HFlowContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn/DicePanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 16
 
-[node name="RollButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+[node name="RollButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 340)
 layout_mode = 2
 theme_override_font_sizes/font_size = 80
 autowrap_mode = 3
 
-[node name="ResolveButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+[node name="ResolveButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 340)
 layout_mode = 2
 theme_override_font_sizes/font_size = 80
 autowrap_mode = 3
 
-[node name="AbandonButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+[node name="AbandonButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 132)
 layout_mode = 2
 theme_override_font_sizes/font_size = 36
 autowrap_mode = 3
-

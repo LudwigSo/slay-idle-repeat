@@ -1,25 +1,42 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/BattleReplay.cs" id="1_battle"]
 
-[node name="BattleReplay" type="Control"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[sub_resource type="QuadMesh" id="QuadMesh_ground"]
+size = Vector2(24, 42)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+shading_mode = 0
+albedo_color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="BattleReplay" type="Node3D"]
 script = ExtResource("1_battle")
 
-[node name="Ground" type="ColorRect" parent="."]
+[node name="World" type="Node3D" parent="."]
 unique_name_in_owner = true
+
+[node name="Camera" type="Camera3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
+fov = 60.0
+
+[node name="Ground" type="MeshInstance3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+mesh = SubResource("QuadMesh_ground")
+material_override = SubResource("StandardMaterial3D_ground")
+
+[node name="Ui" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="Screen" type="Control" parent="Ui"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.07, 0.07, 0.09, 1)
 
-[node name="SafeArea" type="MarginContainer" parent="."]
+[node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
 unique_name_in_owner = true
 mouse_filter = 2
 anchors_preset = 15
@@ -32,16 +49,16 @@ theme_override_constants/margin_top = 128
 theme_override_constants/margin_right = 64
 theme_override_constants/margin_bottom = 128
 
-[node name="Column" type="VBoxContainer" parent="SafeArea"]
+[node name="Column" type="VBoxContainer" parent="Ui/Screen/SafeArea"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 32
 
-[node name="Banner" type="HBoxContainer" parent="SafeArea/Column"]
+[node name="Banner" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="TitleLabel" type="Label" parent="SafeArea/Column/Banner"]
+[node name="TitleLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Banner"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -50,7 +67,7 @@ theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 72
 autowrap_mode = 3
 
-[node name="OpponentLabel" type="Label" parent="SafeArea/Column/Banner"]
+[node name="OpponentLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Banner"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -61,7 +78,7 @@ theme_override_font_sizes/font_size = 44
 horizontal_alignment = 2
 autowrap_mode = 3
 
-[node name="Stage" type="Control" parent="SafeArea/Column"]
+[node name="Stage" type="Control" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 400)
 layout_mode = 2
@@ -69,7 +86,7 @@ size_flags_vertical = 3
 size_flags_stretch_ratio = 1.0
 mouse_filter = 2
 
-[node name="Arena" type="HBoxContainer" parent="SafeArea/Column/Stage"]
+[node name="Arena" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Stage"]
 mouse_filter = 2
 anchors_preset = 15
 anchor_right = 1.0
@@ -78,20 +95,20 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 48
 
-[node name="HeroSide" type="VBoxContainer" parent="SafeArea/Column/Stage/Arena"]
+[node name="HeroSide" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Stage/Arena"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
 theme_override_constants/separation = 16
 
-[node name="HeroToken" type="ColorRect" parent="SafeArea/Column/Stage/Arena/HeroSide"]
+[node name="HeroToken" type="ColorRect" parent="Ui/Screen/SafeArea/Column/Stage/Arena/HeroSide"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(280, 280)
 layout_mode = 2
 size_flags_horizontal = 4
 color = Color(0.36, 0.52, 0.82, 1)
 
-[node name="HeroName" type="Label" parent="SafeArea/Column/Stage/Arena/HeroSide"]
+[node name="HeroName" type="Label" parent="Ui/Screen/SafeArea/Column/Stage/Arena/HeroSide"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -100,20 +117,20 @@ theme_override_font_sizes/font_size = 44
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="EnemySide" type="VBoxContainer" parent="SafeArea/Column/Stage/Arena"]
+[node name="EnemySide" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Stage/Arena"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
 theme_override_constants/separation = 16
 
-[node name="EnemyToken" type="ColorRect" parent="SafeArea/Column/Stage/Arena/EnemySide"]
+[node name="EnemyToken" type="ColorRect" parent="Ui/Screen/SafeArea/Column/Stage/Arena/EnemySide"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(280, 280)
 layout_mode = 2
 size_flags_horizontal = 4
 color = Color(0.72, 0.34, 0.36, 1)
 
-[node name="EnemyName" type="Label" parent="SafeArea/Column/Stage/Arena/EnemySide"]
+[node name="EnemyName" type="Label" parent="Ui/Screen/SafeArea/Column/Stage/Arena/EnemySide"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -122,7 +139,7 @@ theme_override_font_sizes/font_size = 44
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="Effects" type="Control" parent="SafeArea/Column/Stage"]
+[node name="Effects" type="Control" parent="Ui/Screen/SafeArea/Column/Stage"]
 unique_name_in_owner = true
 mouse_filter = 2
 anchors_preset = 15
@@ -131,7 +148,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="HitSparks" type="CPUParticles2D" parent="SafeArea/Column/Stage/Effects"]
+[node name="HitSparks" type="CPUParticles2D" parent="Ui/Screen/SafeArea/Column/Stage/Effects"]
 unique_name_in_owner = true
 emitting = false
 amount = 16
@@ -147,7 +164,7 @@ scale_amount_min = 4.0
 scale_amount_max = 9.0
 color = Color(0.98, 0.86, 0.62, 1)
 
-[node name="CritPop" type="CPUParticles2D" parent="SafeArea/Column/Stage/Effects"]
+[node name="CritPop" type="CPUParticles2D" parent="Ui/Screen/SafeArea/Column/Stage/Effects"]
 unique_name_in_owner = true
 emitting = false
 amount = 28
@@ -163,7 +180,7 @@ scale_amount_min = 6.0
 scale_amount_max = 14.0
 color = Color(0.99, 0.84, 0.36, 1)
 
-[node name="DeathPuff" type="CPUParticles2D" parent="SafeArea/Column/Stage/Effects"]
+[node name="DeathPuff" type="CPUParticles2D" parent="Ui/Screen/SafeArea/Column/Stage/Effects"]
 unique_name_in_owner = true
 emitting = false
 amount = 24
@@ -179,7 +196,7 @@ scale_amount_min = 10.0
 scale_amount_max = 24.0
 color = Color(0.42, 0.42, 0.48, 1)
 
-[node name="FloatingText" type="Control" parent="SafeArea/Column/Stage/Effects"]
+[node name="FloatingText" type="Control" parent="Ui/Screen/SafeArea/Column/Stage/Effects"]
 unique_name_in_owner = true
 mouse_filter = 2
 anchors_preset = 15
@@ -188,25 +205,25 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="ReadoutScroll" type="ScrollContainer" parent="SafeArea/Column"]
+[node name="ReadoutScroll" type="ScrollContainer" parent="Ui/Screen/SafeArea/Column"]
 custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 0.8
 horizontal_scroll_mode = 0
 
-[node name="Readout" type="VBoxContainer" parent="SafeArea/Column/ReadoutScroll"]
+[node name="Readout" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/ReadoutScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 32
 
-[node name="Bars" type="VBoxContainer" parent="SafeArea/Column/ReadoutScroll/Readout"]
+[node name="Bars" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/ReadoutScroll/Readout"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="StatusLabel" type="Label" parent="SafeArea/Column/ReadoutScroll/Readout"]
+[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ReadoutScroll/Readout"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
@@ -214,11 +231,11 @@ theme_override_font_sizes/font_size = 48
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="ControlRow" type="HBoxContainer" parent="SafeArea/Column"]
+[node name="ControlRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="SpeedLabel" type="Label" parent="SafeArea/Column/ControlRow"]
+[node name="SpeedLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ControlRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -227,7 +244,7 @@ theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 44
 autowrap_mode = 3
 
-[node name="SpeedButton" type="Button" parent="SafeArea/Column/ControlRow"]
+[node name="SpeedButton" type="Button" parent="Ui/Screen/SafeArea/Column/ControlRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 168)
 layout_mode = 2
@@ -235,14 +252,14 @@ size_flags_vertical = 4
 theme_override_font_sizes/font_size = 48
 autowrap_mode = 3
 
-[node name="SkipButton" type="Button" parent="SafeArea/Column/ControlRow"]
+[node name="SkipButton" type="Button" parent="Ui/Screen/SafeArea/Column/ControlRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(380, 220)
 layout_mode = 2
 theme_override_font_sizes/font_size = 64
 autowrap_mode = 3
 
-[node name="PhaseBand" type="ColorRect" parent="."]
+[node name="PhaseBand" type="ColorRect" parent="Ui/Screen"]
 unique_name_in_owner = true
 visible = false
 mouse_filter = 2
@@ -253,7 +270,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.55, 0.18, 0.28, 0.88)
 
-[node name="PhaseBandLabel" type="Label" parent="PhaseBand"]
+[node name="PhaseBandLabel" type="Label" parent="Ui/Screen/PhaseBand"]
 unique_name_in_owner = true
 anchors_preset = 15
 anchor_right = 1.0

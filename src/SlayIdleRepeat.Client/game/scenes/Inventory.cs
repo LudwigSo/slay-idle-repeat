@@ -43,7 +43,7 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// copies of one button to reconcile rather than four unrelated buttons.
 /// </para>
 /// </remarks>
-public partial class Inventory : Control
+public partial class Inventory : Node3D
 {
     /// <summary>Where this scene lives, for the screen that instantiates it.</summary>
     public const string ScenePath = "res://game/scenes/Inventory.tscn";
@@ -104,7 +104,7 @@ public partial class Inventory : Control
     private static readonly Color UnknownMarkColour = new(0.36f, 0.38f, 0.45f);
 
     private InventoryPresenter? _presenter;
-    private Control? _returnTo;
+    private Node3D? _returnTo;
     private CancellationToken _lifetime;
 
     private Label? _titleLabel;
@@ -127,7 +127,7 @@ public partial class Inventory : Control
     /// <param name="returnTo">The screen shown again when this one closes.</param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
-    public void Drive(InventoryPresenter presenter, Control returnTo, CancellationToken lifetime)
+    public void Drive(InventoryPresenter presenter, Node3D returnTo, CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(presenter);
         ArgumentNullException.ThrowIfNull(returnTo);
@@ -152,7 +152,13 @@ public partial class Inventory : Control
 
         _closeButton.Pressed += OnClosePressed;
 
-        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
+        // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
+        // does this on the way in, because every handover in this build leaves the outgoing screen
+        // in the tree — hidden, or freed only on the frame after — so two cameras and two overlays
+        // are alive at the moment this one becomes the visible screen.
+        ScreenStage.Show(this);
+
+        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewport().GetVisibleRect().Size);
 
         _ = StartAsync();
     }

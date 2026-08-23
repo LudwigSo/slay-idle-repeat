@@ -36,7 +36,7 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// either, under a sentence that had just been translated for them.
 /// </para>
 /// </remarks>
-public partial class Boot : Control
+public partial class Boot : Node3D
 {
     /// <summary>Where this scene lives, for the root that instantiates it.</summary>
     public const string ScenePath = "res://game/scenes/Boot.tscn";
@@ -114,7 +114,13 @@ public partial class Boot : Control
         _titleLabel = GetNode<Label>(TitleLabelPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
 
-        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
+        // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
+        // does this on the way in, because every handover in this build leaves the outgoing screen
+        // in the tree — hidden, or freed only on the frame after — so two cameras and two overlays
+        // are alive at the moment this one becomes the visible screen.
+        ScreenStage.Show(this);
+
+        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewport().GetVisibleRect().Size);
         Render();
 
         _ = RunAsync();
@@ -224,7 +230,7 @@ public partial class Boot : Control
 
         home.Drive(screen.Home, screen.ChapterSelect, screen.Board, screen.Gear, _lifetime);
 
-        Visible = false;
+        ScreenStage.Hide(this);
 
         parent.AddChild(home);
     }

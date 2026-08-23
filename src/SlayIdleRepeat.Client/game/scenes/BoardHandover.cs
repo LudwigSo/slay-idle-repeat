@@ -56,7 +56,7 @@ public static class BoardHandover
     /// nothing.
     /// </returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    public static bool Show(Control from, Home home, ComposedBoardScreen screen, CancellationToken lifetime)
+    public static bool Show(Node3D from, Home home, ComposedBoardScreen screen, CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(home);
@@ -86,7 +86,7 @@ public static class BoardHandover
 
         board.Drive(screen, home, lifetime);
 
-        from.Visible = false;
+        ScreenStage.Hide(from);
 
         parent.AddChild(board);
 

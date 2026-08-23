@@ -48,9 +48,33 @@ public sealed class TrackNodeGateContrastTests
     private const string BoardScript = "src/SlayIdleRepeat.Client/game/scenes/Board.cs";
 
     private const string CollarStyleBox = "id=\"StyleBoxFlat_gate_collar\"";
-    private const string GroundRect = "name=\"Ground\"";
+
+    /// <summary>
+    /// Where the board's ground colour is authored, now that the ground is a 3D plane.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>This used to read <c>name="Ground"</c> and a <c>color</c> off a ColorRect.</b> The 3D
+    /// conversion replaced every screen's full-rect ColorRect with an unshaded backdrop plane in the
+    /// screen's own 3D world, because an opaque ColorRect in the UI overlay would have hidden the 3D
+    /// world it was put there to sit in front of. The colour is the same value it always was; what
+    /// moved is which block of the scene file states it. The <c>Ground</c> NODE is still there and
+    /// still named that, so a lookup by node name would have kept passing while reading nothing —
+    /// which is exactly why the extraction arm below is not optional.
+    /// </remarks>
+    private const string GroundMaterial = "id=\"StandardMaterial3D_ground\"";
+
     private const string BorderColourKey = "border_color";
     private const string ColourKey = "color";
+
+    /// <summary>The albedo of an unshaded 3D material — the ground's colour, as authored.</summary>
+    /// <remarks>
+    /// ⚠️ Read as authored rather than as rendered, and that is a real limit of this case. The plane
+    /// is unshaded, so no light touches it, and the app-wide environment does not tonemap — under
+    /// those two conditions the authored albedo IS what reaches the framebuffer. Give the ground a
+    /// lit material or the environment a tonemap and this stops being true, silently, with every
+    /// case here still green.
+    /// </remarks>
+    private const string AlbedoColourKey = "albedo_color";
 
     /// <summary>
     /// The two literals this file transcribes rather than reads, and the text they must still appear
@@ -185,7 +209,7 @@ public sealed class TrackNodeGateContrastTests
 
     private static Rgb Bar(string node) => Colour(TrackNodeScene, node, ColourKey);
 
-    private static Rgb Ground() => Colour(BoardScene, GroundRect, ColourKey);
+    private static Rgb Ground() => Colour(BoardScene, GroundMaterial, AlbedoColourKey);
 
     /// <summary>
     /// One colour property of one block of a scene file.

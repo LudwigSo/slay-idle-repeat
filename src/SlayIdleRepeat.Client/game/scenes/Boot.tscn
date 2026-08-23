@@ -1,24 +1,42 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/Boot.cs" id="1_boot"]
 
-[node name="Boot" type="Control"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[sub_resource type="QuadMesh" id="QuadMesh_ground"]
+size = Vector2(24, 42)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+shading_mode = 0
+albedo_color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="Boot" type="Node3D"]
 script = ExtResource("1_boot")
 
-[node name="Ground" type="ColorRect" parent="."]
+[node name="World" type="Node3D" parent="."]
+unique_name_in_owner = true
+
+[node name="Camera" type="Camera3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
+fov = 60.0
+
+[node name="Ground" type="MeshInstance3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+mesh = SubResource("QuadMesh_ground")
+material_override = SubResource("StandardMaterial3D_ground")
+
+[node name="Ui" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="Screen" type="Control" parent="Ui"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.07, 0.07, 0.09, 1)
 
-[node name="SafeArea" type="MarginContainer" parent="."]
+[node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
 unique_name_in_owner = true
 anchors_preset = 15
 anchor_right = 1.0
@@ -30,17 +48,17 @@ theme_override_constants/margin_top = 128
 theme_override_constants/margin_right = 64
 theme_override_constants/margin_bottom = 128
 
-[node name="Column" type="VBoxContainer" parent="SafeArea"]
+[node name="Column" type="VBoxContainer" parent="Ui/Screen/SafeArea"]
 layout_mode = 2
 theme_override_constants/separation = 48
 
-[node name="TitleFrame" type="VBoxContainer" parent="SafeArea/Column"]
+[node name="TitleFrame" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 2.0
 alignment = 1
 
-[node name="TitleLabel" type="Label" parent="SafeArea/Column/TitleFrame"]
+[node name="TitleLabel" type="Label" parent="Ui/Screen/SafeArea/Column/TitleFrame"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
@@ -48,13 +66,13 @@ theme_override_font_sizes/font_size = 88
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="StatusBlock" type="VBoxContainer" parent="SafeArea/Column"]
+[node name="StatusBlock" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 1.0
 theme_override_constants/separation = 24
 
-[node name="StatusLabel" type="Label" parent="SafeArea/Column/StatusBlock"]
+[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column/StatusBlock"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)

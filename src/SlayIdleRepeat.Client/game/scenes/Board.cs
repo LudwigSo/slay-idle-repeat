@@ -69,7 +69,7 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// <see cref="TheDecisionDidNotCloseWhenItsScreenHandedBack"/>.
 /// </para>
 /// </remarks>
-public partial class Board : Control
+public partial class Board : Node3D
 {
     /// <summary>Where this scene lives, for the screens that instantiate it.</summary>
     public const string ScenePath = "res://game/scenes/Board.tscn";
@@ -448,7 +448,7 @@ public partial class Board : Control
             return;
         }
 
-        Visible = true;
+        ScreenStage.Show(this);
 
         _ = StartAsync();
     }
@@ -565,7 +565,13 @@ public partial class Board : Control
             ButtonTextColours.ApplyTo(button, LiveColour, UnavailableColour);
         }
 
-        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
+        // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
+        // does this on the way in, because every handover in this build leaves the outgoing screen
+        // in the tree — hidden, or freed only on the frame after — so two cameras and two overlays
+        // are alive at the moment this one becomes the visible screen.
+        ScreenStage.Show(this);
+
+        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewport().GetVisibleRect().Size);
 
         Render();
 
@@ -902,7 +908,7 @@ public partial class Board : Control
                 Text = BranchCaption(presenter, branch),
                 Disabled = _busy,
                 CustomMinimumSize = new Vector2(0, 200),
-                SizeFlagsHorizontal = SizeFlags.ExpandFill,
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             };
 
