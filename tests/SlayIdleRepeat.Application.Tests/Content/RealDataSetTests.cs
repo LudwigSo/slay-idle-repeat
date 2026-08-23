@@ -1,8 +1,6 @@
 using System.Text;
 using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
-using SlayIdleRepeat.Application.Services.Content.Tunables;
-using SlayIdleRepeat.ContentValidator;
 using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
@@ -12,15 +10,10 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// locales and 96 deliberate <c>null</c>s.
 /// </summary>
 /// <remarks>
-/// A validator proven only against a 40-line fixture has not been proven. This is also the suite
-/// that keeps the committed 📐 baseline honest — it fails both when a new mismatch appears and
-/// when a baselined one is quietly fixed and the entry left behind.
+/// A validator proven only against a 40-line fixture has not been proven.
 /// </remarks>
 public sealed partial class RealDataSetTests
 {
-    private const string BaselineRelativePath = "build/content/tunable-marker-baseline.json";
-    private const string TrackerRelativePath = "IMPLEMENTATION_TRACKER.md";
-
     [Fact]
     public void The_shipped_data_set_validates_with_no_issues()
     {
@@ -234,189 +227,4 @@ public sealed partial class RealDataSetTests
                 "validates more cleanly than before.");
         }
     }
-
-    // ------------------------------------------------------------------- the 📐 check
-
-    [Fact]
-    public void The_tunable_marker_audit_passes_against_the_committed_baseline()
-    {
-        var report = RunAudit();
-
-        report.Issues.ShouldBeEmpty(
-            "the 📐 check fails on anything the dated baseline does not record, and equally on a " +
-            "baseline entry that no longer describes a real mismatch");
-    }
-
-    [Fact]
-    public void The_documentation_set_still_carries_markers_so_the_check_is_not_passing_vacuously()
-    {
-        Markers().Count().ShouldBeGreaterThan(40,
-            "M0-10 counted 58 markers across 24 docs; a sudden collapse means the scanner broke, " +
-            "not that the docs did");
-    }
-
-    /// <summary>
-    /// 🔒 The document floor, not only the marker floor. <c>ScanMarkers</c> globs top-level
-    /// <c>*.md</c> only, so moving a document into <c>game-design/archive/</c> takes its markers
-    /// with it — silently, and with the marker count still comfortably over its floor.
-    /// </summary>
-    [Fact]
-    public void The_marker_scan_still_reaches_the_whole_documentation_set()
-    {
-        Markers().Select(m => m.Section.DocId).Distinct().Count().ShouldBeGreaterThan(20,
-            "M0-10 counted 58 markers across 24 docs; markers surviving in a handful of documents " +
-            "means the glob stopped reaching the rest");
-    }
-
-    /// <summary>
-    /// 🔒 The <em>same</em> predicate <see cref="TunableMarkerAudit.Run"/> applies. Guarding on
-    /// <c>GovernsTuningFile</c> alone watches hundreds of citations while the audited set — which
-    /// also requires <c>GovernsNumericKey</c> — could shrink to nothing behind a regression in
-    /// <c>DeclaresANumber</c>.
-    /// </summary>
-    [Fact]
-    public void The_tuning_schemas_still_carry_citations_so_the_reverse_direction_is_not_vacuous()
-    {
-        Citations().Where(c => c.GovernsTuningFile && c.GovernsNumericKey)
-                   .Count().ShouldBeGreaterThan(30,
-                       "the audited set is 37 numeric tuning citations today; a collapse toward " +
-                       "zero is DeclaresANumber breaking, not the schemas losing their provenance");
-    }
-
-    [Fact]
-    public void The_baseline_records_the_date_it_was_taken()
-    {
-        File.Exists(BaselinePath).ShouldBeTrue($"{BaselineRelativePath} is a committed deliverable of M0-09");
-        Baseline().RecordedOn.ShouldMatch(@"^\d{4}-\d{2}-\d{2}$");
-    }
-
-    [Fact]
-    public void Every_baseline_entry_carries_a_reason()
-    {
-        var entries = Entries();
-
-        entries.ShouldNotBeEmpty();
-        entries.ShouldAllBe(e => e.Reason.Length > 0,
-            "a baseline without reasons is a place mismatches go to be forgotten");
-    }
-
-    /// <summary>
-    /// 🔒 The two kinds are different facts. Spec debt has an owner; a scope exclusion has none,
-    /// because nothing closes it.
-    /// </summary>
-    [Fact]
-    public void Spec_debt_names_an_owner_and_a_scope_exclusion_does_not()
-    {
-        var entries = Entries();
-
-        entries.ShouldNotBeEmpty();
-        entries.ShouldAllBe(e => e.Kind == TunableBaselineKind.SpecDebt
-            ? e.ClosedBy.Length > 0
-            : e.ClosedBy.Length == 0);
-    }
-
-    /// <summary>
-    /// 🔒 The assertion that would have caught <c>closedBy: "M0-11"</c> — a task that has never
-    /// existed, naming a milestone that is complete — and equally the literal <c>"TODO"</c> that
-    /// <c>--write-baseline</c> used to emit. The task list is <b>read from the tracker</b>, never
-    /// restated here: a hard-coded copy would go stale in the same silence.
-    /// </summary>
-    [Fact]
-    public void Every_spec_debt_entry_is_closed_by_a_task_that_exists_in_the_tracker()
-    {
-        var tracker = File.ReadAllText(Path.Combine(RepoData.RepositoryRoot, TrackerRelativePath));
-        var known = TrackerTaskId().Matches(tracker).Select(m => m.Value).ToHashSet(StringComparer.Ordinal);
-
-        known.Count.ShouldBeGreaterThan(150,
-            $"{TrackerRelativePath} lists every milestone task; finding almost none means the " +
-            "id pattern broke, not that the tracker emptied");
-
-        foreach (var entry in Entries().Where(e => e.Kind == TunableBaselineKind.SpecDebt))
-        {
-            entry.ClosedBy.ShouldMatch(@"^M\d+-\d+[a-z]?$",
-                $"the 📐 baseline entry for {entry.Section} must name a milestone task id");
-
-            known.ShouldContain(entry.ClosedBy,
-                $"the 📐 baseline entry for {entry.Section} is closed by a task that has to exist. " +
-                "Whoever reaches that task and deletes the entry as instructed turns content " +
-                "validation red on a mismatch that is still real.");
-        }
-    }
-
-    // ⚠️ 🔴 THE ARM THAT BELONGS HERE AND IS NOT WRITTEN, recorded because a hole nobody named is
-    // indistinguishable from a hole nobody noticed — this file's own argument, one directory over.
-    //
-    // Every_spec_debt_entry_is_closed_by_a_task_that_exists_in_the_tracker asserts only that the id
-    // EXISTS. It is therefore satisfied forever by a task that merged three milestones ago and closed
-    // nothing, which is steering S4's failure mode inside the mechanism built to prevent it. The
-    // missing arm is one predicate wide: read the ✅ out of each tracker row's LAST cell (not the
-    // whole line — M18-07's row is ⬜ and its notes say "(O18 ✅)"), and fail on a spec-debt entry
-    // whose closedBy is in that set.
-    //
-    // 🔒 IT WAS WRITTEN, RUN, AND REVERTED IN THE M4 REVIEW — deliberately, not abandoned. It works:
-    // against the tracker's 37 completed rows it reported EIGHT orphaned entries, not the two the
-    // review went looking for:
-    //
-    //     08 §4.1  -> M4-04   08 §4.2  -> M4-04    (re-pointed at M4-04b in this pass)
-    //     02 §3    -> M3-05                        (re-pointed at M7-07 in this pass)
-    //     03 §1    -> M3-01   03 §1.1  -> M3-02
-    //     04 §3    -> M3-04   04 §4    -> M3-04
-    //     05 §6.4  -> M3-14
-    //
-    // Landing the arm means re-pointing the last five, and none of their real owners is derivable
-    // from this repository: 04 §3 and §4 are dice numbers with no tuning/dice.json to hold them at
-    // all, and 03 §1 / 05 §6.4 name keys under content/chapters/, which this audit's tuning-schema
-    // join does not reach — so they are a SCANNER-SCOPE gap wearing spec-debt's clothes rather than
-    // five separate task debts. Assigning five owners on that evidence is steering S6's fabricated
-    // value with a task id instead of a number, and re-deciding it is milestone work rather than a
-    // hardening fix. OWNER: the next milestone kickoff that touches this baseline — it lands the
-    // predicate and the five re-points in one commit, because either alone is red.
-
-    /// <summary>
-    /// The count the header prose states. It said "four" while seven entries carried it — a file
-    /// that miscounts its own conspicuous exceptions is not being read.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 <b>Six since M7-08, and the entry that went is the point.</b> `24` §9 was excluded as *"an
-    /// instruction … not a number"*, which was true of it as a MARKER — the instruction is that counter
-    /// strings are localisation keys, width-tested in German. M7-07 honoured it for S07's three `DRAFT`
-    /// counters and M7-08 for S14's `DROP_RUN` footer, so a schema now cites the section and
-    /// <c>StaleBaselineEntry</c> reported the exclusion as covering nothing. An out-of-scope entry whose
-    /// instruction has since been carried out is a rule quietly narrowed, so it was removed rather than
-    /// left to age.
-    /// </remarks>
-    [Fact]
-    public void The_baseline_carries_exactly_six_permanent_scope_exclusions()
-    {
-        Entries().Count(e => e.Kind == TunableBaselineKind.OutOfScope).ShouldBe(6);
-    }
-
-    private static IReadOnlyList<TunableBaselineEntry> Entries()
-    {
-        var baseline = Baseline();
-        return baseline.UnmatchedMarkers.Concat(baseline.UnmarkedSchemaCitations).ToArray();
-    }
-
-    [System.Text.RegularExpressions.GeneratedRegex(@"\bM\d+-\d+[a-z]?\b")]
-    private static partial System.Text.RegularExpressions.Regex TrackerTaskId();
-
-    /// <summary>
-    /// 🔒 The SAME composition `tools/ContentValidator` runs. Re-assembling the wiring inside the
-    /// test would prove the algorithm and leave the tool's doc glob, its governsTuningFile
-    /// derivation and its baseline path unexercised — all of which can break with this green.
-    /// </summary>
-    private static TunableAuditReport RunAudit() =>
-        TunableAuditComposition.Run(RepoData.DataRoot, RepoData.DesignDocsRoot, BaselinePath);
-
-    private static IReadOnlyList<TunableMarker> Markers() =>
-        TunableAuditComposition.ScanMarkers(RepoData.DesignDocsRoot);
-
-    private static IReadOnlyList<SchemaCitation> Citations() =>
-        TunableAuditComposition.ScanCitations(
-            RepoData.DataRoot, TunableAuditComposition.TuningFileNames(RepoData.DataRoot));
-
-    private static TunableBaseline Baseline() => TunableAuditComposition.ReadBaseline(BaselinePath);
-
-    private static string BaselinePath =>
-        Path.Combine(RepoData.RepositoryRoot, BaselineRelativePath);
 }

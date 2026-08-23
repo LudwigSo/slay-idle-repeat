@@ -14,9 +14,10 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// lose whatever the player was looking at.
 /// </para>
 /// <para>
-/// ⚠️ It takes a <c>Control</c> rather than a named screen type, because S16 is reachable from more than
+/// ⚠️ It takes a <c>Node3D</c> rather than a named screen type, because S16 is reachable from more than
 /// one place — Home between runs today, and <c>13</c> §1.1's Hero screen when M9 lands. Naming one caller
-/// would make the second one a change to this file.
+/// would make the second one a change to this file. <c>Node3D</c> is what a screen IS since the 3D
+/// conversion, and it is the loosest thing <see cref="ScreenStage"/> can show and hide.
 /// </para>
 /// </remarks>
 public static class InventoryHandover
@@ -27,7 +28,7 @@ public static class InventoryHandover
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
     /// <returns>True when the screen is in the tree and the one behind it is hidden.</returns>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
-    public static bool Show(Control from, ComposedInventoryScreen screen, CancellationToken lifetime)
+    public static bool Show(Node3D from, ComposedInventoryScreen screen, CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(screen);
@@ -45,7 +46,7 @@ public static class InventoryHandover
         inventory.Drive(screen.Inventory, from, lifetime);
 
         from.GetParent().AddChild(inventory);
-        from.Visible = false;
+        ScreenStage.Hide(from);
 
         return true;
     }
@@ -54,12 +55,12 @@ public static class InventoryHandover
     /// <param name="screen">The inventory standing down, which is queued for freeing.</param>
     /// <param name="to">The screen it was entered from, which is shown again.</param>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
-    public static void Return(Inventory screen, Control to)
+    public static void Return(Inventory screen, Node3D to)
     {
         ArgumentNullException.ThrowIfNull(screen);
         ArgumentNullException.ThrowIfNull(to);
 
-        to.Visible = true;
+        ScreenStage.Show(to);
 
         screen.GetParent()?.RemoveChild(screen);
         screen.QueueFree();

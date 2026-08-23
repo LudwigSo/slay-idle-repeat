@@ -1,12 +1,29 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/AppRoot.cs" id="1_approot"]
 
-[node name="AppRoot" type="Node"]
+[sub_resource type="Environment" id="Environment_world"]
+background_mode = 1
+background_color = Color(0.07, 0.07, 0.09, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.55, 0.57, 0.66, 1)
+ambient_light_energy = 0.35
+
+[node name="AppRoot" type="Node3D"]
 script = ExtResource("1_approot")
+
+[node name="World" type="Node3D" parent="."]
+unique_name_in_owner = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="World"]
+environment = SubResource("Environment_world")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="World"]
+transform = Transform3D(0.819152, 0, 0.573576, 0.439385, 0.642788, -0.627507, -0.368687, 0.766044, 0.526541, 0, 4, 0)
 
 [node name="Ui" type="CanvasLayer" parent="."]
 unique_name_in_owner = true
+layer = 10
 
 [node name="SafeArea" type="MarginContainer" parent="Ui"]
 anchors_preset = 15

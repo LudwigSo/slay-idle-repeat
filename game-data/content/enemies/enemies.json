@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/enemies.schema.json",
-  "_doc": "05 §6-6.2 and §6.4 — enemy stat derivation from Power. Every stat of every enemy is computable from (power, archetype, chapter, tier) with no free variables. This file holds the coefficient rows, the enemy level table, the on-hit status parameters, the elite modifiers and identities, and the per-chapter draw weights. It lives under content/ rather than tuning/: doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug, and these are content identity and combat balance rather than economy dials. The same ruling is recorded in TunableMarkerAudit.NonEconomyDataFiles, which already names enemies.json.",
+  "_doc": "05 §6-6.2 and §6.4 — enemy stat derivation from Power. Every stat of every enemy is computable from (power, archetype, chapter, tier) with no free variables. This file holds the coefficient rows, the enemy level table, the on-hit status parameters, the elite modifiers and identities, and the per-chapter draw weights. It lives under content/ rather than tuning/: doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug, and these are content identity and combat balance rather than economy dials. The same ruling was enforced in code by TunableMarkerAudit.NonEconomyDataFiles until the 📐 audit was removed; it is now a convention this comment is the only record of.",
   "_status": "transcribed",
 
   "derivation": {

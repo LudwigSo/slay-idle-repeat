@@ -74,6 +74,14 @@ stub, not the real editor project yet (tracker notes it's replaced in M7).
 
 **UI, scenes, presentation logic, client-side wiring → here.**
 
+Every screen scene roots at `Node3D` and has the same two halves: a `World` holding that
+screen's 3D content (its own `Camera3D` and backdrop plane), and a `Ui` `CanvasLayer`
+holding the whole interface as an overlay above it. `AppRoot` owns the one thing there can
+only be one of — the `WorldEnvironment` — plus the app-wide key light. Screens are siblings
+under the root and are shown and hidden through `ScreenStage`, never through `Visible`:
+engine visibility does not cross the `Node3D`/`CanvasLayer` seam, so hiding a screen is two
+writes plus a camera claim, and every handover in `game/scenes/` goes through that one helper.
+
 ## Server (`src/SlayIdleRepeat.Server/`)
 
 Server host process for multiplayer/guild/PvP features.

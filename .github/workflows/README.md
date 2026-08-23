@@ -26,7 +26,7 @@ the gate is still there, that is a bug in the milestone, not a detail.
 | `build` | 🟢 live | `dotnet restore` + `dotnet build SlayIdleRepeat.sln -c Release`. Warnings are errors via `Directory.Build.props`, so a new warning fails here. NuGet cached on the project files. | `14` §14 |
 | `test` | 🟢 live | The unit and contract suites, discovered by glob. Fails on a suite that contains **zero** tests without a declared exemption — see [The empty-suite rule](#the-empty-suite-rule). | `14` §13 |
 | `architecture-tests` | 🟢 live | `SlayIdleRepeat.Architecture.Tests` alone, in its own job. `23` §6 says these fail the build, so they are not lumped in with `test` where an unrelated flake could mask them. | `23` §6, `30` §9 |
-| `content-validation` | 🟢 live | Every JSON under `game-data/` is validated against its schema and against the cross-file invariants: `14` §6's five failure classes (unknown IDs, missing icons, out-of-range values, orphaned references, duplicate IDs), plus malformed JSON, duplicate property names, unpaired schemas, and any JSON Schema keyword the validator does not implement. Then the 📐 audit, in three directions, against the dated baseline in `build/content/`. Runs the same code the game loads content with (M0-09). | `14` §6 🔒, `14` §13 |
+| `content-validation` | 🟢 live | Every JSON under `game-data/` is validated against its schema and against the cross-file invariants: `14` §6's five failure classes (unknown IDs, missing icons, out-of-range values, orphaned references, duplicate IDs), plus malformed JSON, duplicate property names, unpaired schemas, and any JSON Schema keyword the validator does not implement. Runs the same code the game loads content with (M0-09). ⚠️ The 📐 marker audit this job also used to run has been removed. | `14` §6 🔒, `14` §13 |
 | `asset-provenance` | 🟢 live *(since M8-01a)* | Bidirectional: **no delivered asset without a provenance record**, and **no provenance record for an unknown asset id**. A record for an asset a ruling has *cut* is its own failure. Plus the record's own fields, and `20` §6's *"commercial licence for each tool confirmed in writing"*. ⚠️ **Zero assets are delivered today**, so the forward direction quantifies over an empty set — what keeps it non-vacuous is the register floor (≥1,000 ids + five canary ids + one canary cut id), the reverse direction, and `DeliveryDeclaration`, which fails the build the moment one asset lands under `assets/`. It reports *"AWAITING FIRST DELIVERY — 0 of 1048 … 0 pairings verified"* rather than a bare pass. | `15` §B0, §G 🔒, `20` §2.1 🔒, §6 |
 | `vendor-package-uniqueness` | 🟢 live | Fails if a vendor `PackageReference` appears in more than one `.csproj` (**A9-UNIQUE**), or in a project that is not an adapter (**A9-LOCATION**). | `14` §1.1 🔒 |
 | `server-image` | 🟢 live | Builds `src/SlayIdleRepeat.Server/Dockerfile`, starts the container, asserts it is **not running as root**, and waits for `GET /health` → 200 `{"status":"ok"}`. Build and smoke only — **no registry login, no push**. | `14` §14 |
@@ -177,7 +177,7 @@ script path, same parameters, same exit codes.
 
 The body is now a call into `tools/ContentValidator`, which runs the **same code
 the game loads content with** — the loader, the JSON Schema validator, the
-cross-file invariants and the 📐 audit all live in
+cross-file invariants all live in
 `SlayIdleRepeat.Application/Services/Content/` and are unit-tested in
 `SlayIdleRepeat.Application.Tests` against the in-memory fake. A CI-only
 validator written a second time in PowerShell would drift from the runtime one,
@@ -193,10 +193,10 @@ exemption cannot outlive its milestone.
 The one edit `ci.yml` did need: an `actions/setup-dotnet` step on the job, since
 the check is .NET now rather than pure PowerShell.
 
-📐 mismatches that exist today are recorded in
-`build/content/tunable-marker-baseline.json` — dated, with a reason and a closing
-milestone each. The check fails on anything that file does not record, and
-equally on an entry it records that is no longer real.
+⚠️ **The 📐 marker audit has been removed**, together with its dated baseline at
+`build/content/tunable-marker-baseline.json`. `14` §6 still asks for it — "that
+check is what stops the tuning surface eroding over eighteen months" — so this
+job now delivers the schema half of that section and not the marker half.
 
 ### Deliberate overlap with the architecture tests
 

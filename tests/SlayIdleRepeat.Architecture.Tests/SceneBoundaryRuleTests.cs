@@ -117,11 +117,21 @@ public sealed class SceneBoundaryRuleTests
     /// well as itself, so a copy filed outside these rules would be the one transition that ends a
     /// run, in a place two screens are destroyed, governed by nothing.
     /// </para>
+    /// <para>
+    /// 🔴 The 3D conversion added the eleventh, and it is the one every other handover now goes
+    /// through. Screens root at <c>Node3D</c> and hang their interface off a <c>CanvasLayer</c>, and
+    /// engine visibility does not cross that seam — so showing or hiding a screen stopped being one
+    /// property write and became <c>ScreenStage</c>. It is not a formatter like the first two: it
+    /// reaches into a screen by scene-unique path, writes visibility on two nodes and claims the
+    /// viewport's camera. A copy of it filed outside these rules would be the mechanism EVERY screen
+    /// transition in the build stands on, one edit from holding a port, and nothing would say so.
+    /// </para>
     /// </remarks>
     private static readonly string[] SceneHelperNames =
     [
         "SafeAreaInsets",
         "ButtonTextColours",
+        "ScreenStage",
         "BoardHandover",
         "BattleHandover",
         "RunDecisionHandover",
@@ -134,10 +144,19 @@ public sealed class SceneBoundaryRuleTests
 
     /// <summary>An engine node reached only through intermediate engine types — the walk's control.</summary>
     /// <remarks>
-    /// <c>Godot.Control</c> is <c>CanvasItem</c> is <c>Node</c>. Every screen M7-03 onwards adds
-    /// will derive from this rather than from <c>Node</c> directly, so the classifier's ability to
-    /// walk THROUGH GodotSharp — resolving across an assembly boundary, not just comparing one
-    /// base-type name — is what decides whether this file governs the scenes still to be written.
+    /// <para>
+    /// <c>Godot.Control</c> is <c>CanvasItem</c> is <c>Node</c>. No screen derives from it any more —
+    /// the 3D conversion moved every one of them onto <c>Node3D</c> — and it stays here anyway,
+    /// because what this constant is for is the WALK rather than the screens. The classifier's
+    /// ability to resolve a base type across an assembly boundary, more than one hop out, is what
+    /// decides whether this file governs the scenes still to be written; a control that is only one
+    /// hop from <c>Node</c> would pass without exercising it.
+    /// </para>
+    /// <para>
+    /// 🔒 So it is deliberately NOT <c>Godot.Node3D</c>, which is what the screens actually derive
+    /// from now. Swapping it for the real base would turn a two-hop control into a one-hop one and
+    /// quietly stop testing the thing this constant exists to test.
+    /// </para>
     /// </remarks>
     private const string EngineIndirectNodeTypeName = "Godot.Control";
 

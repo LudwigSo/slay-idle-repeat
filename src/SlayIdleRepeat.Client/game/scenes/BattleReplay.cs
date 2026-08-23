@@ -67,7 +67,7 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// system and a tween. The reading of the log used to live here, where nothing can test it.
 /// </para>
 /// </remarks>
-public partial class BattleReplay : Control
+public partial class BattleReplay : Node3D
 {
     /// <summary>Where this scene lives, for the screens that instantiate it.</summary>
     public const string ScenePath = "res://game/scenes/BattleReplay.tscn";
@@ -467,7 +467,13 @@ public partial class BattleReplay : Control
         ButtonTextColours.ApplyTo(_speedButton, LiveColour, UnavailableColour);
         ButtonTextColours.ApplyTo(_skipButton, LiveColour, UnavailableColour);
 
-        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
+        // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
+        // does this on the way in, because every handover in this build leaves the outgoing screen
+        // in the tree — hidden, or freed only on the frame after — so two cameras and two overlays
+        // are alive at the moment this one becomes the visible screen.
+        ScreenStage.Show(this);
+
+        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewport().GetVisibleRect().Size);
 
         BuildFloaters();
         RenderCaptions();
@@ -712,7 +718,7 @@ public partial class BattleReplay : Control
             var floater = new Label
             {
                 Visible = false,
-                MouseFilter = MouseFilterEnum.Ignore,
+                MouseFilter = Control.MouseFilterEnum.Ignore,
                 HorizontalAlignment = HorizontalAlignment.Center,
             };
 
@@ -753,18 +759,18 @@ public partial class BattleReplay : Control
 
         foreach (var actor in presenter.Actors)
         {
-            var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            var row = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 
             row.AddThemeConstantOverride(SeparationConstant, TightGap);
 
-            var captionRow = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            var captionRow = new HBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 
             // 🔒 The wrapping half of the pair expands and the fixed half does not. An autowrapping
             // label in a row with no expand flag is measured as one character wide, which collapses
             // it to a sliver and pushes everything beside it off the far edge of the screen.
             var caption = Caption(presenter.CaptionOf(actor.ActorId), UnavailableColour, wrapping: true);
 
-            caption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+            caption.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
             var known = actor.MaxHp is not null;
 
@@ -798,7 +804,7 @@ public partial class BattleReplay : Control
             bar.AddThemeStyleboxOverride(
                 BarFillStyle, actor.Side == ReplaySide.Enemy ? enemyFill : heroFill);
 
-            var statuses = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            var statuses = new HBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 
             statuses.AddThemeConstantOverride(SeparationConstant, ChipGap);
 
@@ -1215,7 +1221,7 @@ public partial class BattleReplay : Control
                 // Shrunk to its own size and centred, because a control in a row fills that row's
                 // height by default: left alone the swatch stretches to whatever the number beside it
                 // measures and the chip stops reading as a chip.
-                SizeFlagsVertical = SizeFlags.ShrinkCenter,
+                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
                 Color = StatusChipColours[status % StatusChipColours.Length],
             });
 

@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/RunEnd.cs" id="1_run_end"]
 
@@ -76,25 +76,41 @@ corner_radius_bottom_right = 63
 corner_radius_bottom_left = 63
 corner_detail = 12
 
-[node name="RunEnd" type="Control"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[sub_resource type="QuadMesh" id="QuadMesh_ground"]
+size = Vector2(24, 42)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+shading_mode = 0
+albedo_color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="RunEnd" type="Node3D"]
 script = ExtResource("1_run_end")
 
-[node name="Ground" type="ColorRect" parent="."]
+[node name="World" type="Node3D" parent="."]
 unique_name_in_owner = true
+
+[node name="Camera" type="Camera3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
+fov = 60.0
+
+[node name="Ground" type="MeshInstance3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+mesh = SubResource("QuadMesh_ground")
+material_override = SubResource("StandardMaterial3D_ground")
+
+[node name="Ui" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="Screen" type="Control" parent="Ui"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 1
-color = Color(0.07, 0.07, 0.09, 1)
 
-[node name="SafeArea" type="MarginContainer" parent="."]
+[node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
 unique_name_in_owner = true
 anchors_preset = 15
 anchor_right = 1.0
@@ -107,44 +123,44 @@ theme_override_constants/margin_top = 128
 theme_override_constants/margin_right = 64
 theme_override_constants/margin_bottom = 128
 
-[node name="Column" type="VBoxContainer" parent="SafeArea"]
+[node name="Column" type="VBoxContainer" parent="Ui/Screen/SafeArea"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 32
 
-[node name="HeadingLabel" type="Label" parent="SafeArea/Column"]
+[node name="HeadingLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 72
 autowrap_mode = 3
 
-[node name="TallyScroll" type="ScrollContainer" parent="SafeArea/Column"]
+[node name="TallyScroll" type="ScrollContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="ScrollColumn" type="VBoxContainer" parent="SafeArea/Column/TallyScroll"]
+[node name="ScrollColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/TallyScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
 theme_override_constants/separation = 32
 
-[node name="RewardGrid" type="GridContainer" parent="SafeArea/Column/TallyScroll/ScrollColumn"]
+[node name="RewardGrid" type="GridContainer" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/h_separation = 24
 theme_override_constants/v_separation = 16
 columns = 3
 
-[node name="CurrencyHeader" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
+[node name="CurrencyHeader" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 36
 autowrap_mode = 3
 
-[node name="BankedHeader" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
+[node name="BankedHeader" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(220, 0)
 layout_mode = 2
@@ -153,7 +169,7 @@ theme_override_font_sizes/font_size = 36
 horizontal_alignment = 2
 autowrap_mode = 3
 
-[node name="PayoutHeader" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
+[node name="PayoutHeader" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(220, 0)
 layout_mode = 2
@@ -162,7 +178,7 @@ theme_override_font_sizes/font_size = 36
 horizontal_alignment = 2
 autowrap_mode = 3
 
-[node name="LegendXpLabel" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
+[node name="LegendXpLabel" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -170,7 +186,7 @@ theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 40
 autowrap_mode = 3
 
-[node name="BankedLegendXpValue" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
+[node name="BankedLegendXpValue" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
@@ -178,7 +194,7 @@ theme_override_font_sizes/font_size = 40
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
-[node name="PayoutLegendXpValue" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
+[node name="PayoutLegendXpValue" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
@@ -186,7 +202,7 @@ theme_override_font_sizes/font_size = 40
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
-[node name="SoulShardsLabel" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
+[node name="SoulShardsLabel" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -194,7 +210,7 @@ theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 40
 autowrap_mode = 3
 
-[node name="BankedSoulShardsValue" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
+[node name="BankedSoulShardsValue" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
@@ -202,7 +218,7 @@ theme_override_font_sizes/font_size = 40
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
-[node name="PayoutSoulShardsValue" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
+[node name="PayoutSoulShardsValue" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/RewardGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
@@ -210,19 +226,19 @@ theme_override_font_sizes/font_size = 40
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
-[node name="MultiplierLabel" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn"]
+[node name="MultiplierLabel" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
 theme_override_font_sizes/font_size = 36
 autowrap_mode = 3
 
-[node name="FloorItemsRow" type="HBoxContainer" parent="SafeArea/Column/TallyScroll/ScrollColumn"]
+[node name="FloorItemsRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 24
 
-[node name="FloorItemsLabel" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/FloorItemsRow"]
+[node name="FloorItemsLabel" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/FloorItemsRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -230,7 +246,7 @@ theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 40
 autowrap_mode = 3
 
-[node name="FloorItemsValue" type="Label" parent="SafeArea/Column/TallyScroll/ScrollColumn/FloorItemsRow"]
+[node name="FloorItemsValue" type="Label" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn/FloorItemsRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
@@ -240,13 +256,13 @@ vertical_alignment = 1
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
-[node name="CounterColumn" type="VBoxContainer" parent="SafeArea/Column/TallyScroll/ScrollColumn"]
+[node name="CounterColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/TallyScroll/ScrollColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 16
 
-[node name="StatusLabel" type="Label" parent="SafeArea/Column"]
+[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
@@ -254,7 +270,7 @@ theme_override_font_sizes/font_size = 44
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="RejectionLabel" type="Label" parent="SafeArea/Column"]
+[node name="RejectionLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.62, 0.58, 1)
@@ -262,11 +278,11 @@ theme_override_font_sizes/font_size = 44
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="ActionColumn" type="VBoxContainer" parent="SafeArea/Column"]
+[node name="ActionColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="ReviveBlockLabel" type="Label" parent="SafeArea/Column/ActionColumn"]
+[node name="ReviveBlockLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
@@ -274,7 +290,7 @@ theme_override_font_sizes/font_size = 40
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="ReviveButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+[node name="ReviveButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 340)
 layout_mode = 2
@@ -285,7 +301,7 @@ theme_override_styles/pressed = SubResource("StyleBoxFlat_primary_down")
 theme_override_styles/disabled = SubResource("StyleBoxFlat_primary_off")
 autowrap_mode = 3
 
-[node name="FinishButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+[node name="FinishButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 340)
 layout_mode = 2

@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/PerkDraft.cs" id="1_perk_draft"]
 
@@ -187,24 +187,41 @@ content_margin_top = 24.0
 content_margin_right = 40.0
 content_margin_bottom = 24.0
 
-[node name="PerkDraft" type="Control"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[sub_resource type="QuadMesh" id="QuadMesh_ground"]
+size = Vector2(24, 42)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+shading_mode = 0
+albedo_color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="PerkDraft" type="Node3D"]
 script = ExtResource("1_perk_draft")
 
-[node name="Ground" type="ColorRect" parent="."]
+[node name="World" type="Node3D" parent="."]
 unique_name_in_owner = true
+
+[node name="Camera" type="Camera3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
+fov = 60.0
+
+[node name="Ground" type="MeshInstance3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+mesh = SubResource("QuadMesh_ground")
+material_override = SubResource("StandardMaterial3D_ground")
+
+[node name="Ui" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="Screen" type="Control" parent="Ui"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.07, 0.07, 0.09, 1)
 
-[node name="SafeArea" type="MarginContainer" parent="."]
+[node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
 unique_name_in_owner = true
 mouse_filter = 2
 anchors_preset = 15
@@ -217,42 +234,42 @@ theme_override_constants/margin_top = 128
 theme_override_constants/margin_right = 64
 theme_override_constants/margin_bottom = 128
 
-[node name="Column" type="VBoxContainer" parent="SafeArea"]
+[node name="Column" type="VBoxContainer" parent="Ui/Screen/SafeArea"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 32
 
-[node name="TitleLabel" type="Label" parent="SafeArea/Column"]
+[node name="TitleLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 72
 autowrap_mode = 3
 
-[node name="CardScroll" type="ScrollContainer" parent="SafeArea/Column"]
+[node name="CardScroll" type="ScrollContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 1.0
 horizontal_scroll_mode = 0
 
-[node name="ScrollColumn" type="VBoxContainer" parent="SafeArea/Column/CardScroll"]
+[node name="ScrollColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
 theme_override_constants/separation = 24
 
-[node name="CardColumn" type="VBoxContainer" parent="SafeArea/Column/CardScroll/ScrollColumn"]
+[node name="CardColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 24
 
-[node name="AdFourthOptionCard" type="PanelContainer" parent="SafeArea/Column/CardScroll/ScrollColumn"]
+[node name="AdFourthOptionCard" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ad_slot")
 
-[node name="AdFourthOptionBody" type="MarginContainer" parent="SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard"]
+[node name="AdFourthOptionBody" type="MarginContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/margin_left = 40
@@ -260,26 +277,26 @@ theme_override_constants/margin_top = 40
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 40
 
-[node name="AdFourthOptionColumn" type="VBoxContainer" parent="SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody"]
+[node name="AdFourthOptionColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 16
 
-[node name="AdFourthOptionNameLabel" type="Label" parent="SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody/AdFourthOptionColumn"]
+[node name="AdFourthOptionNameLabel" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody/AdFourthOptionColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 48
 autowrap_mode = 3
 
-[node name="AdFourthOptionBlockLabel" type="Label" parent="SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody/AdFourthOptionColumn"]
+[node name="AdFourthOptionBlockLabel" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody/AdFourthOptionColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
 theme_override_font_sizes/font_size = 36
 autowrap_mode = 3
 
-[node name="AdRerollButton" type="Button" parent="SafeArea/Column/CardScroll/ScrollColumn"]
+[node name="AdRerollButton" type="Button" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
@@ -290,27 +307,27 @@ theme_override_styles/pressed = SubResource("StyleBoxFlat_quiet_down")
 theme_override_styles/disabled = SubResource("StyleBoxFlat_quiet_off")
 autowrap_mode = 3
 
-[node name="GuaranteeColumn" type="VBoxContainer" parent="SafeArea/Column/CardScroll/ScrollColumn"]
+[node name="GuaranteeColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 16
 
-[node name="GuaranteeNotDueBlockLabel" type="Label" parent="SafeArea/Column/CardScroll/ScrollColumn"]
+[node name="GuaranteeNotDueBlockLabel" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
 theme_override_font_sizes/font_size = 32
 autowrap_mode = 3
 
-[node name="AdRerollBlockLabel" type="Label" parent="SafeArea/Column/CardScroll/ScrollColumn"]
+[node name="AdRerollBlockLabel" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
 theme_override_font_sizes/font_size = 36
 autowrap_mode = 3
 
-[node name="StatusLabel" type="Label" parent="SafeArea/Column"]
+[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
@@ -318,7 +335,7 @@ theme_override_font_sizes/font_size = 44
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="RejectionLabel" type="Label" parent="SafeArea/Column"]
+[node name="RejectionLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.62, 0.58, 1)
@@ -326,16 +343,16 @@ theme_override_font_sizes/font_size = 44
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="ActionColumn" type="VBoxContainer" parent="SafeArea/Column"]
+[node name="ActionColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="RerollCostRow" type="HBoxContainer" parent="SafeArea/Column/ActionColumn"]
+[node name="RerollCostRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 24
 
-[node name="RerollCostLabel" type="Label" parent="SafeArea/Column/ActionColumn/RerollCostRow"]
+[node name="RerollCostLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn/RerollCostRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -343,7 +360,7 @@ theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 40
 autowrap_mode = 3
 
-[node name="RerollCostValue" type="Label" parent="SafeArea/Column/ActionColumn/RerollCostRow"]
+[node name="RerollCostValue" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn/RerollCostRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
@@ -354,7 +371,7 @@ vertical_alignment = 1
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
-[node name="RerollButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+[node name="RerollButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
@@ -365,19 +382,19 @@ theme_override_styles/pressed = SubResource("StyleBoxFlat_primary_down")
 theme_override_styles/disabled = SubResource("StyleBoxFlat_primary_off")
 autowrap_mode = 3
 
-[node name="FreeRerollBlockLabel" type="Label" parent="SafeArea/Column/ActionColumn"]
+[node name="FreeRerollBlockLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
 theme_override_font_sizes/font_size = 36
 autowrap_mode = 3
 
-[node name="SkipRewardRow" type="HBoxContainer" parent="SafeArea/Column/ActionColumn"]
+[node name="SkipRewardRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 24
 
-[node name="SkipRewardLabel" type="Label" parent="SafeArea/Column/ActionColumn/SkipRewardRow"]
+[node name="SkipRewardLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn/SkipRewardRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -385,7 +402,7 @@ theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 40
 autowrap_mode = 3
 
-[node name="SkipRewardValue" type="Label" parent="SafeArea/Column/ActionColumn/SkipRewardRow"]
+[node name="SkipRewardValue" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn/SkipRewardRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
@@ -396,7 +413,7 @@ vertical_alignment = 1
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
-[node name="SkipButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+[node name="SkipButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 144)
 layout_mode = 2

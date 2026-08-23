@@ -97,7 +97,7 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// a way out.
 /// </para>
 /// </remarks>
-public partial class PerkDraft : Control
+public partial class PerkDraft : Node3D
 {
     /// <summary>Where this scene lives, for the screen that instantiates it.</summary>
     public const string ScenePath = "res://game/scenes/PerkDraft.tscn";
@@ -442,7 +442,13 @@ public partial class PerkDraft : Control
             ButtonTextColours.ApplyTo(button, LiveColour, UnavailableColour);
         }
 
-        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
+        // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
+        // does this on the way in, because every handover in this build leaves the outgoing screen
+        // in the tree — hidden, or freed only on the frame after — so two cameras and two overlays
+        // are alive at the moment this one becomes the visible screen.
+        ScreenStage.Show(this);
+
+        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewport().GetVisibleRect().Size);
 
         Render();
 

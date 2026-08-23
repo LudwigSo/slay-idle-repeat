@@ -20,6 +20,11 @@ rules. They are below.
 > build-time check enumerates every 📐 marker in the documentation set against the schema keys and
 > **fails on a mismatch**.
 
+> ⚠️ **That build-time check no longer exists.** It was built (M0-09) and has since been removed
+> along with its dated baseline, so the rule above is still the rule and nothing enforces it: a
+> 📐 number that loses its schema key, or a schema key that loses its marker, now passes CI in
+> silence. Everything this file says about where numbers go is convention until it is rebuilt.
+
 **A 📐 number outside `tuning/` is a bug.** Not a style preference — a bug, and one the build is
 meant to catch. The reason is in `21` §3.2: a number in code cannot be swept by the economy
 simulator, and a number that cannot be swept will never be tuned. Eighteen months of small,
@@ -137,7 +142,8 @@ type with many instances:
 🔒 **`combat_caps.json` is deliberately not a seventeenth `tuning/` file.** `05` §1.1 and `11` §4.3
 name it `res://data/combat_caps.json`, and `21` §3.1's catalogue — the authority on what `tuning/`
 holds — does not list it. It is balance and simulator configuration, not an economic dial the
-simulator sweeps, and `TunableMarkerAudit.NonEconomyDataFiles` records exactly that in code. It pairs
+simulator sweeps. `TunableMarkerAudit.NonEconomyDataFiles` used to record exactly that in code, and
+was removed with the 📐 audit — this paragraph is now the only record. It pairs
 by **stem** (`content/combat_caps.json` → `schema/combat_caps.schema.json`), not by directory, so it
 needs no row in `ContentLayout.ContentTypeSchemas`.
 
