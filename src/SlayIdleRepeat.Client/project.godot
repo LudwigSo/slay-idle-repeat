@@ -45,6 +45,55 @@ boot_splash/bg_color=Color(0.07, 0.07, 0.09, 1)
 ; version string under src/.
 config/features=PackedStringArray("4.7", "C#", "Mobile")
 
+[autoload]
+
+; 🔴 A DEVELOPMENT TOOL, and the only entry in this file that is not part of the
+; game. It is the runtime half of the Godot MCP server
+; (github.com/tugcantopaloglu/godot-mcp, MIT, vendored at 3.1.0): a TCP listener
+; on 127.0.0.1:9090 that lets an AI agent take screenshots of a running build,
+; inspect the live scene tree, simulate input and evaluate code in-process.
+; Screenshots are the reason it is here — before it, seeing whether a change
+; actually drew anything meant hand-rolling a screen-capture harness.
+;
+; 🔴 IT IS GATED, AND THE GATE IS THE ONLY REASON THIS LINE IS ACCEPTABLE.
+; Upstream's _ready opens the port unconditionally. Shipped that way, every
+; Android and iOS build would carry a localhost port that accepts `eval` — which
+; on a handset is reachable by every other app installed on it. The vendored copy
+; returns from _ready unless OS.has_feature("editor"), which is true only when an
+; EDITOR binary runs the project (Run-Game.ps1, and the editor's play button) and
+; false in every exported template, debug and release alike. Verified by probe on
+; this engine: editor=true, template_debug=false, template_release=false.
+;
+; ⚠️ So this entry SHIPS and the behaviour does not. That is deliberate — Godot
+; has no per-build autoload list, and a dead autoload in the export is a smaller
+; hazard than a gate somebody has to remember to add back. The gate lives next to
+; the code it guards, marked 🔴 in the file, and must be re-applied whenever the
+; vendored copy is upgraded.
+;
+; ⚠️ It binds a fixed port. Two copies of the game running at once means the
+; second one logs a failed listen and carries on — the game is unaffected, but
+; the agent is talking to the first one.
+;
+; 🔴 THE NAME AND THE PATH ARE BOTH LOAD-BEARING, and neither is a preference.
+; The MCP server self-installs: on every run_project it reads this file, and if
+; it does not find the string "McpInteractionServer" it copies its OWN UNGATED
+; script to res://mcp_interaction_server.gd and writes an autoload line pointing
+; at it. Found the hard way — the first run_project on this project left exactly
+; that file behind, 193356 bytes with no gate in it. It did not touch this file
+; only because this entry was already here.
+;
+; So this entry is what disarms the self-install, and it disarms it completely
+; only at THIS path: the server also checks whether res://mcp_interaction_server.gd
+; exists and restores its ungated copy when it does not. Ours occupies that exact
+; filename, so the check finds a file, and it never writes one. Move this script
+; into a tidier directory and the root copy comes back on the next run — inert
+; today, one autoload line from live, and packed into every export.
+;
+; ⚠️ Which makes `git status` the tripwire. The script is TRACKED for that reason:
+; if a future version of the server overwrites it anyway, the gate disappears
+; from a committed file and the diff says so on the next commit.
+McpInteractionServer="*res://mcp_interaction_server.gd"
+
 [display]
 
 ; 1080x1920 design canvas, portrait only, supported from 9:16 to 9:20.
