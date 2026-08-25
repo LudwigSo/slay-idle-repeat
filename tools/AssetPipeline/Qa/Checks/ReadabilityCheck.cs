@@ -27,7 +27,7 @@ public sealed class ReadabilityCheck : IQaCheck
     public int ItemNumber => 2;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item2;
+    public string ChecklistText => Doc15PartF.SupersededItem2;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.Human;

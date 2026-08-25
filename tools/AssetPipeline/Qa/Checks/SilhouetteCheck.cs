@@ -28,7 +28,7 @@ public sealed class SilhouetteCheck : IQaCheck
     public int ItemNumber => 1;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item1;
+    public string ChecklistText => Doc15PartF.SupersededItem1;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.MechanicalUncalibratedThreshold;

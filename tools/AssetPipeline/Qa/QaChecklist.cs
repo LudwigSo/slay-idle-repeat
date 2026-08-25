@@ -42,12 +42,12 @@ public sealed class QaChecklist
         Items = [.. items];
 
         var numbers = Items.Select(item => item.ItemNumber).ToArray();
-        if (Items.Count != Doc15PartF.ItemCount
-            || !numbers.SequenceEqual(Enumerable.Range(1, Doc15PartF.ItemCount)))
+        if (Items.Count != Doc15PartF.SupersededItemCount
+            || !numbers.SequenceEqual(Enumerable.Range(1, Doc15PartF.SupersededItemCount)))
         {
             throw new InvalidOperationException(
-                $"`15` Part F lists {Doc15PartF.ItemCount} items, numbered 1 to " +
-                $"{Doc15PartF.ItemCount} in its own order, and this checklist holds " +
+                $"`15` Part F lists {Doc15PartF.SupersededItemCount} items, numbered 1 to " +
+                $"{Doc15PartF.SupersededItemCount} in its own order, and this checklist holds " +
                 $"[{string.Join(", ", numbers)}]. A checklist that can silently shrink or reorder " +
                 "passes forever (steering rule S3).");
         }

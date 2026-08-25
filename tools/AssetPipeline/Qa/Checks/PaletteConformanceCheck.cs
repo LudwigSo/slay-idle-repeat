@@ -33,7 +33,7 @@ public sealed class PaletteConformanceCheck : IQaCheck
     public int ItemNumber => 5;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item5;
+    public string ChecklistText => Doc15PartF.SupersededItem5;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.MechanicalUncalibratedThreshold;

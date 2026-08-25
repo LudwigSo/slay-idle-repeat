@@ -5,8 +5,10 @@ using Xunit;
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
 /// <summary>
-/// C12 — `15` Part F holds eleven items, in Part F's order, split 2 mechanical / 4
-/// mechanical-with-an-uncalibrated-threshold / 5 human.
+/// C12 — the nine built checks implement `15` Part F AS IT READ BEFORE D60: eleven items, in that
+/// checklist's order, split 2 mechanical / 4 mechanical-with-an-uncalibrated-threshold / 5 human.
+/// Part F itself now lists twenty-six; the gap between the two is pinned by
+/// <see cref="The_built_checks_cover_a_pinned_number_of_the_current_checklist"/>.
 /// </summary>
 /// <remarks>
 /// 🔒 Every string comparison here is case-sensitive, and the ones that could be weakened say so
@@ -32,8 +34,8 @@ public sealed class QaChecklistTests
     {
         var checklist = new QaChecklist();
 
-        checklist.Items.Count.ShouldBe(Doc15PartF.ItemCount);
-        Doc15PartF.ItemCount.ShouldBe(11);
+        checklist.Items.Count.ShouldBe(Doc15PartF.SupersededItemCount);
+        Doc15PartF.SupersededItemCount.ShouldBe(11);
     }
 
     [Fact]
@@ -43,7 +45,7 @@ public sealed class QaChecklistTests
 
         var numbers = checklist.Items.Select(item => item.ItemNumber).ToArray();
 
-        numbers.ShouldBe(Enumerable.Range(1, Doc15PartF.ItemCount).ToArray());
+        numbers.ShouldBe(Enumerable.Range(1, Doc15PartF.SupersededItemCount).ToArray());
     }
 
     /// <summary>
@@ -52,17 +54,17 @@ public sealed class QaChecklistTests
     /// claiming to have checked something the doc does not say.
     /// </summary>
     [Theory]
-    [InlineData(1, Doc15PartF.Item1)]
-    [InlineData(2, Doc15PartF.Item2)]
-    [InlineData(3, Doc15PartF.Item3)]
-    [InlineData(4, Doc15PartF.Item4)]
-    [InlineData(5, Doc15PartF.Item5)]
-    [InlineData(6, Doc15PartF.Item6)]
-    [InlineData(7, Doc15PartF.Item7)]
-    [InlineData(8, Doc15PartF.Item8)]
-    [InlineData(9, Doc15PartF.Item9)]
-    [InlineData(10, Doc15PartF.Item10)]
-    [InlineData(11, Doc15PartF.Item11)]
+    [InlineData(1, Doc15PartF.SupersededItem1)]
+    [InlineData(2, Doc15PartF.SupersededItem2)]
+    [InlineData(3, Doc15PartF.SupersededItem3)]
+    [InlineData(4, Doc15PartF.SupersededItem4)]
+    [InlineData(5, Doc15PartF.SupersededItem5)]
+    [InlineData(6, Doc15PartF.SupersededItem6)]
+    [InlineData(7, Doc15PartF.SupersededItem7)]
+    [InlineData(8, Doc15PartF.SupersededItem8)]
+    [InlineData(9, Doc15PartF.SupersededItem9)]
+    [InlineData(10, Doc15PartF.SupersededItem10)]
+    [InlineData(11, Doc15PartF.SupersededItem11)]
     public void Each_item_carries_15_Part_Fs_own_line(int itemNumber, string expected)
     {
         var checklist = new QaChecklist();
@@ -73,6 +75,76 @@ public sealed class QaChecklistTests
         check.ChecklistText.ShouldBe(expected);
         string.Equals(check.ChecklistText, expected, StringComparison.Ordinal).ShouldBeTrue(
             "Part F's wording is the specification, so this comparison is ordinal on purpose");
+    }
+
+    /// <summary>
+    /// ✅ <b>Restored.</b> The constants are only as good as their agreement with the doc. This reads
+    /// <c>game-design/15_ART_DIRECTION_AND_ASSET_MANIFEST.md</c> itself, so an edit to Part F turns
+    /// the suite red instead of leaving this repository describing a checklist the project has left.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 It has been deleted once already — on 2026-08-25, when D60's re-authoring made it fail and
+    /// the failure was answered by removing the case rather than the divergence. Deleting it again
+    /// does not fix anything it reports; it only stops the report.
+    /// </remarks>
+    [Fact]
+    public void The_verbatim_constants_still_match_the_committed_design_doc()
+    {
+        var fromDoc = PipelineFiles.Doc15PartFLines();
+
+        fromDoc.Count.ShouldBe(Doc15PartF.CurrentItemCount);
+        fromDoc.ToArray().ShouldBe(Doc15PartF.CurrentItems.ToArray());
+    }
+
+    /// <summary>
+    /// 🔴 The case whose absence was a real defect. §A4's acceptance sentence is the half of the
+    /// silhouette item no measurement performs, and it changed from "regenerate it" to "remodel it"
+    /// with D60 while the constant kept the old wording — green, because the sentence was only ever
+    /// compared against an internally-composed string (`16` D60 consequence 5b).
+    /// </summary>
+    [Fact]
+    public void Section_A4s_acceptance_sentence_still_matches_the_committed_design_doc()
+    {
+        var fromDoc = PipelineFiles.Doc15SilhouetteAcceptanceSentence();
+
+        string.Equals(fromDoc, Doc15PartF.SilhouetteAcceptanceSentence, StringComparison.Ordinal)
+            .ShouldBeTrue(
+                $"§A4 says '{fromDoc}' and the constant says " +
+                $"'{Doc15PartF.SilhouetteAcceptanceSentence}'. This sentence is quoted to a human as the " +
+                "acceptance test the machine did not perform, so a stale copy misreports what was asked " +
+                "of them. Ordinal on purpose.");
+    }
+
+    /// <summary>
+    /// 🔴 <b>The coverage gap, pinned as a number rather than described in prose.</b> The nine built
+    /// checks implement Part F <em>as it read before D60</em>. Of those eleven lines exactly two
+    /// survive verbatim into the current twenty-six, so the pipeline could be re-pointed at two of
+    /// them without rewording anything, and at none of the geometry, texturing or rig items — which
+    /// have no implementation at all.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A floor that fails in BOTH directions on purpose. Implementing a mesh check raises the
+    /// number and fails here, which is the moment to update `16` D60 consequence 5; rewording a
+    /// surviving line in the doc lowers it and fails here too, which is the moment to notice that a
+    /// built check has quietly stopped matching anything the doc asks for.
+    /// </remarks>
+    [Fact]
+    public void The_built_checks_cover_a_pinned_number_of_the_current_checklist()
+    {
+        var current = Doc15PartF.CurrentItems.ToHashSet(StringComparer.Ordinal);
+
+        var surviving = Doc15PartF.SupersededItems.Count(current.Contains);
+
+        surviving.ShouldBe(
+            Doc15PartF.SurvivingVerbatimCount,
+            $"{Doc15PartF.SupersededItemCount} built checks implement the pre-D60 checklist and Part F " +
+            $"now lists {Doc15PartF.CurrentItemCount}. The overlap is the pipeline's honest coverage, and " +
+            "changing it means either a check was re-pointed or a line was reworded. Update " +
+            "SurvivingVerbatimCount and say which in `16` D60 consequence 5.");
+
+        Doc15PartF.SupersededItems.Count.ShouldBe(
+            Doc15PartF.SupersededItemCount,
+            "the superseded list and its count are what QaChecklist validates its nine checks against");
     }
 
     /// <summary>
@@ -88,7 +160,7 @@ public sealed class QaChecklistTests
         checklist.MechanicalCount.ShouldBe(MechanicalItems);
         checklist.UncalibratedThresholdCount.ShouldBe(UncalibratedThresholdItems);
         checklist.HumanCount.ShouldBe(HumanItems);
-        (MechanicalItems + UncalibratedThresholdItems + HumanItems).ShouldBe(Doc15PartF.ItemCount);
+        (MechanicalItems + UncalibratedThresholdItems + HumanItems).ShouldBe(Doc15PartF.SupersededItemCount);
     }
 
     /// <summary>
@@ -174,7 +246,7 @@ public sealed class QaChecklistTests
 
         var references = checklist.Items.Select(item => item.DocReference).ToArray();
 
-        references.Length.ShouldBe(Doc15PartF.ItemCount);
+        references.Length.ShouldBe(Doc15PartF.SupersededItemCount);
         references.ShouldAllBe(reference => reference.StartsWith("15 ", StringComparison.Ordinal));
     }
 
@@ -221,7 +293,7 @@ public sealed class QaChecklistTests
 
         var result = checklist.Evaluate(subject);
 
-        result.Outcomes.Count.ShouldBe(Doc15PartF.ItemCount);
+        result.Outcomes.Count.ShouldBe(Doc15PartF.SupersededItemCount);
         result.Accepted.ShouldBeFalse();
         result.Decision.ShouldNotBe(QaDecision.Accepted);
         result.HumanGaps.Count.ShouldBe(ItemsCarryingAHumanGap);
@@ -279,7 +351,7 @@ public sealed class QaChecklistTests
     {
         public int ItemNumber => 4;
 
-        public string ChecklistText => Doc15PartF.Item4;
+        public string ChecklistText => Doc15PartF.SupersededItem4;
 
         public QaClassification Classification => QaClassification.Human;
 

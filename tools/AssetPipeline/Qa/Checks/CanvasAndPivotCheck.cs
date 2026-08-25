@@ -38,7 +38,7 @@ public sealed class CanvasAndPivotCheck : IQaCheck
     public int ItemNumber => 7;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item7;
+    public string ChecklistText => Doc15PartF.SupersededItem7;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.Mechanical;

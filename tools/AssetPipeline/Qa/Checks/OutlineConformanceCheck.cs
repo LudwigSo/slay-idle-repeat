@@ -48,7 +48,7 @@ public sealed class OutlineConformanceCheck : IQaCheck
     public int ItemNumber => 3;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item3;
+    public string ChecklistText => Doc15PartF.SupersededItem3;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.MechanicalUncalibratedThreshold;

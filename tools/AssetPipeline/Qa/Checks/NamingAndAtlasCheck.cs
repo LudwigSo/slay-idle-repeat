@@ -30,7 +30,7 @@ public sealed class NamingAndAtlasCheck : IQaCheck
     public int ItemNumber => 10;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item10;
+    public string ChecklistText => Doc15PartF.SupersededItem10;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.Mechanical;

@@ -32,7 +32,7 @@ public sealed class AlphaCleanlinessCheck : IQaCheck
     public int ItemNumber => 6;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item6;
+    public string ChecklistText => Doc15PartF.SupersededItem6;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.MechanicalUncalibratedThreshold;

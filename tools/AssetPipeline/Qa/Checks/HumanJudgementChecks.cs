@@ -20,7 +20,7 @@ public sealed class KeyLightCheck : IQaCheck
     public int ItemNumber => 4;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item4;
+    public string ChecklistText => Doc15PartF.SupersededItem4;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.Human;
@@ -66,7 +66,7 @@ public sealed class ProportionsCheck : IQaCheck
     public int ItemNumber => 9;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item9;
+    public string ChecklistText => Doc15PartF.SupersededItem9;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.Human;
@@ -113,7 +113,7 @@ public sealed class StyleDriftCheck : IQaCheck
     public int ItemNumber => 11;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item11;
+    public string ChecklistText => Doc15PartF.SupersededItem11;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.Human;

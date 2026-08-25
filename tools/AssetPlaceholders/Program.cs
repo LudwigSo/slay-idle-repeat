@@ -14,7 +14,7 @@ const string usage = """
       generate <repoRoot> <repoCommit> [--section <E-section>]
                                Draw a placeholder for every uncut art row that `15` §C gives a
                                delivery size AND a pivot, drive it through `15` §B4's seven steps,
-                               pack the `15` §D2 atlases and run Part F over the result.
+                               pack the `15` §D2 atlases and run the superseded Part F over the result.
                                Output goes to artifacts/placeholders/ and nowhere else.
 
       plan <repoRoot>          Report what a run WOULD do — how many rows are generatable, and how
@@ -204,15 +204,15 @@ static void Report(PlaceholderBatchReport report)
     if (report.Generated.Count == 0)
     {
         Console.WriteLine();
-        Console.WriteLine("No placeholder was generated, so `15` Part F graded nothing.");
+        Console.WriteLine("No placeholder was generated, so the checklist graded nothing.");
         return;
     }
 
     Console.WriteLine();
-    Console.WriteLine("── `15` Part F ─────────────────────────────────────────");
+    Console.WriteLine("── `15` Part F, as it read before D60 ────────────────");
     Console.WriteLine($"batch decision               : {report.Decision}");
 
-    foreach (var item in Enumerable.Range(1, Doc15PartF.ItemCount))
+    foreach (var item in Enumerable.Range(1, Doc15PartF.SupersededItemCount))
     {
         var verdicts = report.Generated
             .SelectMany(placeholder => placeholder.Qa.Outcomes)

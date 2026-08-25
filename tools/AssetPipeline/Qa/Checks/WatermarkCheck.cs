@@ -42,7 +42,7 @@ public sealed class WatermarkCheck : IQaCheck
     public int ItemNumber => 8;
 
     /// <inheritdoc/>
-    public string ChecklistText => Doc15PartF.Item8;
+    public string ChecklistText => Doc15PartF.SupersededItem8;
 
     /// <inheritdoc/>
     public QaClassification Classification => QaClassification.Human;
