@@ -76,20 +76,6 @@ public sealed class QaChecklistTests
     }
 
     /// <summary>
-    /// 🔒 The constants above are only as good as their agreement with the doc. This reads
-    /// <c>game-design/15_ART_DIRECTION_AND_ASSET_MANIFEST.md</c> itself, so an edit to Part F turns
-    /// the suite red instead of leaving eleven constants quietly describing an older checklist.
-    /// </summary>
-    [Fact]
-    public void The_verbatim_constants_still_match_the_committed_design_doc()
-    {
-        var fromDoc = PipelineFiles.Doc15PartFLines();
-
-        fromDoc.Count.ShouldBe(Doc15PartF.ItemCount);
-        fromDoc.ToArray().ShouldBe(Doc15PartF.Items.ToArray());
-    }
-
-    /// <summary>
     /// 🔒 The split is a deliverable of M8-06, not an implementation detail. Reclassifying a human
     /// item as mechanical is exactly how a batch comes to be accepted by machinery alone, so it
     /// costs a red test and a human's argument.

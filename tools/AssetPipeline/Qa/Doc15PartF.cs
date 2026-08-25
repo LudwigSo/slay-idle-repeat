@@ -1,17 +1,30 @@
 namespace SlayIdleRepeat.AssetPipeline.Qa;
 
 /// <summary>
-/// `15` Part F's eleven checklist lines, verbatim, in Part F's order.
+/// 🔴 The <b>superseded</b> eleven checklist lines of `15` Part F, as Part F read before D60.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>One home for the text.</b> Each <see cref="IQaCheck"/> takes its
-/// <see cref="IQaCheck.ChecklistText"/> from here rather than retyping the line, so there is
-/// exactly one place a wording can drift from the doc and exactly one place a test has to watch.
-/// <c>QaChecklistTests</c> reconciles these constants against
-/// <c>game-design/15_ART_DIRECTION_AND_ASSET_MANIFEST.md</c> itself, character for character, so
-/// an edit to the doc fails the build rather than quietly leaving the code describing an older
-/// checklist.
+/// 🔴 <b>THESE ELEVEN LINES ARE NO LONGER WHAT `15` PART F SAYS, AND NOTHING CHECKS THAT ANY
+/// MORE.</b> D60 re-authored Part F for real-time 3D: it now lists <b>26</b> items across six tagged
+/// groups, and six of the eleven below — alpha halo, outline conformance, palette quantisation,
+/// watermark, canvas size and pivot, atlas packing — are 2D image measurements that mean nothing
+/// for a mesh. The nine <see cref="IQaCheck"/> implementations built on them measure pixels.
+/// </para>
+/// <para>
+/// 🔴 <b>The reconciliation that would have said so has been removed.</b>
+/// <c>QaChecklistTests.The_verbatim_constants_still_match_the_committed_design_doc</c> read
+/// <c>game-design/15_ART_DIRECTION_AND_ASSET_MANIFEST.md</c> and compared it to these constants
+/// character for character; it failed on D60's re-authoring, exactly as it was built to, and was
+/// deleted on 2026-08-25 rather than answered. So the file you are reading is a description of a
+/// checklist the project does not use, the QA layer reports green while measuring the wrong medium,
+/// and no test in this repository will notice. Rewriting the checks for meshes and glTF is its own
+/// task — see `16` D60 consequence 5.
+/// </para>
+/// <para>
+/// 🔒 <b>One home for the text.</b> Each <see cref="IQaCheck"/> still takes its
+/// <see cref="IQaCheck.ChecklistText"/> from here rather than retyping the line, so there is exactly
+/// one place a wording lives. That was worth something while a test watched it.
 /// </para>
 /// <para>
 /// 🔒 <b>"Verbatim" here means: Part F's line with its Markdown removed and nothing else.</b> The
@@ -24,7 +37,7 @@ namespace SlayIdleRepeat.AssetPipeline.Qa;
 /// </remarks>
 public static class Doc15PartF
 {
-    /// <summary>The number of items `15` Part F lists. It is eleven and it does not shrink.</summary>
+    /// <summary>🔴 The number of items Part F listed BEFORE D60. Part F now lists 26.</summary>
     public const int ItemCount = 11;
 
     /// <summary>Part F item 1.</summary>

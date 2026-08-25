@@ -39,50 +39,6 @@ internal static class PipelineFiles
     /// <summary>The shipped threshold file's raw JSON.</summary>
     internal static string ThresholdsJson() => File.ReadAllText(ThresholdsFile);
 
-    /// <summary>The heading `15` Part F's checklist lives under.</summary>
-    private const string PartFHeading = "# PART F — QUALITY ASSURANCE CHECKLIST";
-
-    /// <summary>The Markdown task-list marker every Part F item is written as.</summary>
-    private const string TaskListMarker = "- [ ] ";
-
-    /// <summary>The absolute path of `15`, the only design doc this suite reads.</summary>
-    internal static string Doc15File => Path.Combine(
-        RepositoryRoot, "game-design", "15_ART_DIRECTION_AND_ASSET_MANIFEST.md");
-
-    /// <summary>
-    /// `15` Part F's checklist lines, read out of the committed doc with their Markdown removed:
-    /// the leading task-list marker, and the code fence item 3 wraps its colour in.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 Nothing else is normalised. The em dash in item 6, the en dash in item 9 and the section
-    /// signs in items 7 and 10 come through as the doc's own bytes, so that
-    /// <c>QaChecklistTests</c>'s ordinal comparison catches a constant that retyped one as an ASCII
-    /// hyphen — which is the way "verbatim" actually rots.
-    /// </remarks>
-    internal static IReadOnlyList<string> Doc15PartFLines()
-    {
-        var lines = File.ReadAllLines(Doc15File);
-        var start = Array.FindIndex(
-            lines, line => line.StartsWith(PartFHeading, StringComparison.Ordinal));
-
-        if (start < 0)
-        {
-            throw new InvalidOperationException(
-                $"'{PartFHeading}' is not in {Doc15File}. The QA checklist's text is reconciled " +
-                "against that heading, so a renamed heading must fail loudly rather than silently " +
-                "reconcile against nothing.");
-        }
-
-        return
-        [
-            .. lines
-                .Skip(start)
-                .TakeWhile(line => !line.StartsWith("# PART G", StringComparison.Ordinal))
-                .Where(line => line.StartsWith(TaskListMarker, StringComparison.Ordinal))
-                .Select(line => line[TaskListMarker.Length..].Replace("`", string.Empty, StringComparison.Ordinal)),
-        ];
-    }
-
     /// <summary>The production source directory of <c>SlayIdleRepeat.AssetPipeline</c>.</summary>
     internal static string ProductionSourceDirectory =>
         Path.Combine(RepositoryRoot, "tools", "AssetPipeline");

@@ -77,7 +77,7 @@ Every asset for a biome uses only these six hues plus neutrals. Locked into the 
 The game remains a **portrait, one-handed, 2D-UI mobile game**. 3D is confined to actor viewports and to the offline render rig. Specifically:
 
 * **The UI stays 2D.** No perspective UI, no 3D panels, no world-space menus, no camera move on a screen transition. `13`'s 37 screens are unaffected as layouts.
-* **The design canvas stays 1080×1920 `canvas_items`.** 3D content is composited *into* that canvas through a `SubViewport` at the canvas's scale. The stretch mode does not change.
+* **The design canvas stays 1080×1920 `canvas_items`, and the stretch mode does not change.** 🔓 **What changed is which way round the two are composited — see D61.** This bullet used to read "3D content is composited *into* that canvas through a `SubViewport` at the canvas's scale". It is the other way round: **every screen scene roots at `Node3D`, its 3D world renders to the main viewport, and the whole interface sits above it on a `CanvasLayer`.** Under `canvas_items` the root viewport stays at the window's own size and only the canvas transform is scaled, so the UI is still laid out in 1080×1920 units — the 2D half of this bullet is untouched. The 3D half is not: it renders at the device's real resolution rather than at the canvas's scale.
 * **Godot's Mobile renderer stays.** ⚠️ This is the load-bearing constraint behind every budget in Part C, and the reason the shading model is toon rather than PBR.
 * **Determinism is untouched.** Nothing in this document enters `Core`, the rules, or the replay hash. Rendering is a client concern and always was.
 
@@ -286,7 +286,7 @@ This is what makes §A3's lighting and perspective rules enforceable rather than
 
 | Property | Value |
 |---|---|
-| Host | A `SubViewport` composited into the 2D canvas as a `TextureRect`/`SubViewportContainer` |
+| Host 🔓 | **The screen's own `Node3D` world, rendered to the main viewport** (D61). A `SubViewport` is still the host for the **offline icon renderer**, which needs a fixed render size and a transparent background — see the 🔴 rulings below |
 | Background | **Transparent** |
 | Camera — actors | Perspective, **fixed 3/4 yaw, slight upward pitch** so the actor reads heroic. Identical for every actor |
 | Camera — rendered icons | **Orthographic**, straight-on, no convergence |
@@ -294,6 +294,14 @@ This is what makes §A3's lighting and perspective rules enforceable rather than
 | Contact shadow | A separate engine-drawn decal, never lighting-derived |
 | Render size ⚠️ PROVISIONAL | Sized to its 1080×1920-canvas footprint at 1×; the outline's 3–4 px width (§A3) is defined against *this* height, so it is fixed per viewport class, not per device |
 | MSAA ⚠️ PROVISIONAL | 2× — the inverted-hull outline aliases badly without it, and this is the cheapest place to spend on perceived quality |
+
+🔴 **D61 reopened three rulings in this table, and they are left open rather than guessed.** Per S6 a hole is written down absent and greppable, not filled with a plausible answer. Each needs a product decision before actor production starts:
+
+1. **The outline's reference height.** §A3 fixes the inverted-hull outline at 3–4 px "at the actor viewport's render height", and the Render size row calls that height "fixed per viewport class, not per device". With actors in the screen's own world that reference is gone — the 3D now renders at the device's resolution, so a constant pixel width is no longer constant across handsets. Either the width becomes a function of viewport height, or actors keep a `SubViewport` of their own inside the 3D world, or the width stops being screen-space.
+2. **Scene light versus the fixed rig.** The client currently has ONE `WorldEnvironment` and one app-wide key light on `AppRoot`, which is scene lighting — the thing the paragraph below calls non-negotiable to avoid. A per-actor fixed rig in a shared world needs either per-actor light culling, an unshaded toon material that ignores scene light, or actor `SubViewport`s.
+3. **Backdrops.** §E9 and the biome sections say backdrops stay 2D parallax layers composited behind the actors. Behind a root-level 3D world they are either a skybox, a 3D backdrop plane, or a `CanvasLayer` *below* the 3D — which `canvas_items` does not give for free.
+
+⚠️ Until these are ruled, the client's 3D basis is a **stage with no actors on it**: the conversion put every screen on `Node3D` with a camera and a backdrop plane, and no asset is loaded into any of them.
 
 ⚠️ **The light rig ignoring the scene is deliberate and non-negotiable** (§A3). A biome tints its backdrop. If biome light reached the key, 949 assets would each need to look right under eight lighting conditions, and the whole consistency argument in §B2 would collapse.
 
