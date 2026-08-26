@@ -262,21 +262,12 @@ internal static class PortCatalogue
 
         // ── 23 §4.2, server ────────────────────────────────────────────────────────────────────
 
-        new("IPlayerRepository", "M5-05",
-            "Its only real implementation is the Postgres adapter, which needs a live database, a " +
-            "schema and migrations — infrastructure this task is forbidden to stand up. Its " +
-            "signature also names a player profile aggregate and a device fingerprint, neither of " +
-            "which exists in Core."),
-
-        new("IRunStateStore", "M5-05",
-            "Its only real implementation is the Redis hot cache in front of the Postgres-" +
-            "authoritative row, which needs a live Redis. Its TTL semantics are only meaningful " +
-            "against a store that actually expires keys, so a fake pair would test nothing."),
-
-        new("IIdempotencyStore", "M5-05",
-            "Its only real implementation is the Redis-plus-Postgres pair that records a command " +
-            "outcome inside the accepted-command transaction. Both halves are infrastructure, and " +
-            "its signature names the command envelope M5-03 owns."),
+        // ⚠️ IPlayerRepository, IRunStateStore, IIdempotencyStore and IBattleLogStore were here,
+        // deferred to M5-05. M5-05 declared all four — each beside its InMemory fake and its shared
+        // contract suite — and this register FORCED the deletions in the declaring commit, exactly
+        // as it did for IPlatformInfoPort. Their real store-backed adapters carry no in-repo
+        // fixture; ContractSuiteCoverageTests' StoreBackedAdapterExemptions register is where that
+        // exception lives, owner-expiring on the CI probe that exercises each of them.
 
         new("IMessageRepository", "M5-08",
             "The inbox store. Its only real implementation is Postgres, and its signature names a " +
@@ -299,19 +290,10 @@ internal static class PortCatalogue
             "model that milestone defines. A fake alone would encode a ranking the database has " +
             "never computed."),
 
-        new("IBattleLogStore", "M5-05",
-            "Its only real implementation is the S3-compatible object store, which needs MinIO or a " +
-            "hosted bucket. 🔒 THE SHAPE RULING IS CARRIED FORWARD: when M5-05 declares this port it " +
-            "must expose NO object-store concept whatsoever — no bucket, no key, no presign, no " +
-            "content-type, no region — because the AzureBlob sibling lands at M18-06a and shares " +
-            "this exact port, and Azure Blob is not S3-wire-compatible. The port speaks a battle-log " +
-            "id and bytes. PortCatalogueTests.No_port_signature_names_an_infrastructure_or_vendor_" +
-            "concept enforces that ruling a milestone early, which is the cheap moment. ⚠️ THAT RULE " +
-            "IS A TRIPWIRE ON VENDOR SPELLING, NOT A PROOF OF SHAPE: it catches 'bucket', 'presign', " +
-            "'objectKey' and 'multipart', and it CANNOT catch the same concept spelled in ordinary " +
-            "English — a bare 'key', 'prefix', 'region' or 'endpoint' parameter, or a presigned URL " +
-            "returned as Task<Uri>. See InfrastructureVocabulary's remarks for why those terms are " +
-            "not bannable. M5-05 reads A4 and decides; the rule only stops the careless half."),
+        // 🔒 IBattleLogStore's shape ruling, now DISCHARGED rather than carried: M5-05 declared the
+        // port speaking a battle-log id and bytes and nothing else — no location, no naming scheme,
+        // no link, no Task<Uri>, no bare 'key'/'prefix'/'region'/'endpoint' parameter (23 §5 A4 was
+        // read, not just tripwired). The AzureBlob sibling at M18-06a inherits that surface as-is.
 
         new("IUnitOfWork", "M5-04",
             "It spans exactly one Postgres transaction — the aggregate snapshots, the idempotency " +
@@ -440,6 +422,36 @@ internal static class PortCatalogue
             "IsReady",
             "ShowAsync",
             "PreloadAsync",
+        }),
+
+        // 🔒 M5-05's four, transcribed in the commit that declared them. IIdempotencyStore declares
+        // two members beyond the section's pair (ReadLastSequenceAsync, OpenScopeAsync — the 16.3
+        // widening); extra members are the declaration's business, and only MISSING ones are what
+        // these directions can see.
+        new("23 §4.2", "IPlayerRepository", new[]
+        {
+            "GetAsync",
+            "SaveAsync",
+            "CreateAnonymousAsync",
+        }),
+
+        new("23 §4.2", "IRunStateStore", new[]
+        {
+            "GetAsync",
+            "SaveAsync",
+            "DeleteAsync",
+        }),
+
+        new("23 §4.2", "IIdempotencyStore", new[]
+        {
+            "GetRecordedOutcomeAsync",
+            "RecordAsync",
+        }),
+
+        new("23 §4.2", "IBattleLogStore", new[]
+        {
+            "PutAsync",
+            "GetAsync",
         }),
 
         new("23 §4.3", "IClockPort", new[]

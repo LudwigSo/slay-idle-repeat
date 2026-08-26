@@ -375,6 +375,28 @@ jobs:
         shell: pwsh
         run: ./build/ci/Wait-ForHttpOk.ps1 -Url http://127.0.0.1:9000/minio/health/live -TimeoutSeconds 120
 
+      # M5-05 — the store-backed adapter probes. Each is the OWNER a
+      # StoreBackedAdapterExemptions entry in SlayIdleRepeat.Contract.Tests names: the real
+      # Postgres/Redis/S3 adapters carry no in-repo contract fixture (no infrastructure test tier,
+      # by decision), so these steps are where those adapters are exercised against live stores.
+      # Deleting or renaming a step here without retiring its register entry fails the unit job.
+
+      - name: Probe — command round-trip persists in Postgres
+        shell: pwsh
+        run: ./build/ci/Invoke-CommandRoundTripProbe.ps1
+
+      - name: Probe — idempotent replay across an API restart
+        shell: pwsh
+        run: ./build/ci/Invoke-IdempotentReplayProbe.ps1
+
+      - name: Probe — Redis flush costs latency, never progress
+        shell: pwsh
+        run: ./build/ci/Invoke-RedisRebuildProbe.ps1
+
+      - name: Probe — the battle-log store is constructed and draining
+        shell: pwsh
+        run: ./build/ci/Invoke-ObjectStoreProbe.ps1
+
       - name: Assert every telemetry scrape target is up
         # 14 §10 — asserts the telemetry ROAD, not the traffic. The server emits
         # nothing of its own until M5-11, but a broken collector or a mistyped

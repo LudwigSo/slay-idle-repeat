@@ -94,6 +94,24 @@ public static class WireCommandCodec
         }
     }
 
+    /// <summary>The wire type name a command travels under — the dispatch registry's own index, read backwards.</summary>
+    /// <param name="command">The typed command.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="command"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The registry has no wire name for this type — a command that was never registered cannot have been decoded.</exception>
+    public static string WireNameOf(GameCommand command) =>
+        throw new NotImplementedException("M5-05 phase 3 implements the encode half.");
+
+    /// <summary>A command's payload as canonical JSON — the durable half of the record a duplicate is checked against.</summary>
+    /// <param name="command">The typed command.</param>
+    /// <remarks>
+    /// Symmetric with <see cref="Decode"/>'s own options: decoding these bytes yields a command
+    /// equal to <paramref name="command"/>, so payload identity stays the one decoded-record
+    /// equality rather than gaining a byte-level second definition.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="command"/> is null.</exception>
+    public static string EncodePayload(GameCommand command) =>
+        throw new NotImplementedException("M5-05 phase 3 implements the encode half.");
+
     private static void DisallowUnmappedMembers(JsonTypeInfo typeInfo)
     {
         if (typeInfo.Kind == JsonTypeInfoKind.Object)

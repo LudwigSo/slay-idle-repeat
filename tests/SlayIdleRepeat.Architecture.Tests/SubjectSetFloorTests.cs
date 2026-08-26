@@ -1403,8 +1403,9 @@ public sealed class SubjectSetFloorTests
     // port `23` §4 declares is carried by PortCatalogue.Deferred with the task that builds it.
     // 🔒 M7-01b raised this from 5 to 6 for IPlatformInfoPort, the first of `23` §4.1's three
     // platform ports to become declarable — with PortCatalogueTests.DeclaredPortFloor and
-    // ContractSuiteCoverageTests.PortFloor, the two other floors over this same set.
-    private const int PortFloor = 6;                 // IContentSourcePort (M0-09) + M5-01's four + M7-01b's one
+    // ContractSuiteCoverageTests.PortFloor, the two other floors over this same set. M5-05 raised
+    // it 6 → 10 for its four server persistence ports, moving all three together again.
+    private const int PortFloor = 10;                // M0-09's one + M5-01's four + M7-01b's one + M5-05's four
     private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 
     // 🔒 M1-12. The constants whose register row carries a citation THIS assembly can resolve, and
