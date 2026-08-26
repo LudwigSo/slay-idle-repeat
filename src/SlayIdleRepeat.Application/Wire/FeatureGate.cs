@@ -8,9 +8,10 @@ namespace SlayIdleRepeat.Application.Wire;
 /// <remarks>
 /// <para>
 /// Asked before dispatch, so a killed feature's command never reaches the domain — the value is
-/// transport-tier. It reads the four switches <c>FeatureFlags</c> declares and nothing else, and
+/// transport-tier. It reads the five switches <c>FeatureFlags</c> declares and nothing else, and
 /// each arm is the switch's own stated meaning: a killed chapter cannot be started, a killed
-/// placement cannot be claimed, PvP offline refuses the three PvP commands.
+/// placement cannot be claimed, PvP offline refuses the three PvP commands, mail offline refuses
+/// the inbox claim.
 /// </para>
 /// <para>
 /// ⚠️ <c>PlusOfferEnabled</c> gates no command here, and that is a named absence rather than a
@@ -34,6 +35,7 @@ public static class FeatureGate
         return command switch
         {
             UploadGhostCommand or StartDuelCommand or SubmitDuelCommand => !flags.PvpEnabled,
+            ClaimInboxCommand => !flags.MailEnabled,
             ClaimAdRewardCommand claim => !flags.IsAdPlacementEnabled(claim.PlacementId),
             StartRunCommand start =>
                 !flags.IsChapterEnabled(start.ChapterId.ToString(CultureInfo.InvariantCulture)),

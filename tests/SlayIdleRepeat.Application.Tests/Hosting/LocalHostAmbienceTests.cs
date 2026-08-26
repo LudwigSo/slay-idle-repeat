@@ -32,6 +32,7 @@ public sealed class LocalHostAmbienceTests
 
         flags.PvpEnabled.ShouldBeTrue("no config reached this host, so nothing has been taken offline.");
         flags.PlusOfferEnabled.ShouldBeTrue("…and nothing has withdrawn the offer either.");
+        flags.MailEnabled.ShouldBeTrue("…and no config has closed the inbox — nothing killed is the identity.");
         flags.DisabledAdPlacements.ShouldBeEmpty("a placement nobody named is not a placement anybody killed.");
         flags.DisabledChapters.ShouldBeEmpty("nor is a chapter.");
     }

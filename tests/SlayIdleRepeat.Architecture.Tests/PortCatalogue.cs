@@ -346,16 +346,17 @@ internal static class PortCatalogue
             "vendor SDKs needing a collector endpoint or a DSN. A span that goes nowhere and an " +
             "exception nobody receives both look identical to a fake."),
 
-        new("IRemoteConfigPort", "M5-10",
-            "Its only real implementation fetches JSON over HTTP from the config endpoint that " +
-            "milestone builds, so it needs a running server. 🔒 THE M1 CARRY-FORWARD 7 " +
-            "RECONCILIATION, recorded rather than silently resolved: 23 §4.2 gives this port an OPEN " +
-            "string-keyed surface, T Get<T>(string key, T fallback), plus a SINGULAR FeatureFlag " +
-            "type, and neither has a counterpart in Core's FeatureFlags — which is a deliberately " +
-            "CLOSED record of exactly four members taking ad placements as plain strings. M5-01 did " +
-            "NOT widen FeatureFlags and did not declare the open surface. M5-10 owns choosing " +
-            "between the two, and choosing is the point: an open Get<T> beside a closed flag record " +
-            "gives the repository two ways to ask the same question."),
+        new("IRemoteConfigPort", "M5-15",
+            "Its only real implementation fetches JSON over HTTP from GET /config, so it needs a " +
+            "running server. 🔒 THE M1 CARRY-FORWARD 7 RECONCILIATION IS CLOSED, AT M5-10: Core's " +
+            "deliberately CLOSED FeatureFlags won. 23 §4.2's open string-keyed surface, " +
+            "T Get<T>(string key, T fallback), and its SINGULAR FeatureFlag type are REFUSED — an " +
+            "open Get<T> beside a closed flag record is two ways to ask the same question. The " +
+            "SERVER half shipped PORTLESS as ops config: a server-disk JSON document (RemoteConfig:" +
+            "Path, reloaded periodically) behind GET /config, feeding the gateway's kill switches " +
+            "with no port declared anywhere. What stays deferred is the CLIENT side — consuming " +
+            "that endpoint over HTTP with 14 §10's 6 h cache — which lands with the composition-" +
+            "root swap at M5-15."),
     };
 
     /// <summary>

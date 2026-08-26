@@ -17,5 +17,6 @@ var app = builder.Build();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.MapGameCommandEndpoints();
+app.MapRemoteConfigEndpoint();
 
 app.Run();

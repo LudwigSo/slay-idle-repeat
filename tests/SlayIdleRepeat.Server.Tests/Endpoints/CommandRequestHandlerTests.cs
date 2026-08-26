@@ -135,7 +135,7 @@ public sealed class CommandRequestHandlerTests
         new SystemIdGenerator(),
         Content.Value,
         LocalHostAmbience.NoSubscriptionResolved(),
-        LocalHostAmbience.NoRemoteConfigResolved(),
+        LocalHostAmbience.NoRemoteConfigResolved,
         new VolatileCommandLedger(),
         new UnlimitedCommandThrottle());
 

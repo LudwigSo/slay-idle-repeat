@@ -3,8 +3,9 @@ using SlayIdleRepeat.Core;
 namespace SlayIdleRepeat.Application.Hosting;
 
 /// <summary>
-/// The two ambient values nothing in this build can resolve, spelled as the absence they are rather
-/// than as a plausible-looking guess.
+/// The two ambient values no in-process host can resolve, spelled as the absence they are rather
+/// than as a plausible-looking guess. (The server resolves its own flags from its reloading
+/// remote-config source since M5-10; these stay for the local host.)
 /// </summary>
 /// <remarks>
 /// Named factories rather than constructor defaults on purpose: a composition root has to state
@@ -30,5 +31,10 @@ public static class LocalHostAmbience
     /// nothing is killed. That is the identity element of the value, not a default chosen for it.
     /// </remarks>
     public static FeatureFlags NoRemoteConfigResolved() =>
-        new(pvpEnabled: true, plusOfferEnabled: true, disabledAdPlacements: [], disabledChapters: []);
+        new(
+            pvpEnabled: true,
+            plusOfferEnabled: true,
+            mailEnabled: true,
+            disabledAdPlacements: [],
+            disabledChapters: []);
 }

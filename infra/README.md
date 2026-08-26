@@ -249,13 +249,16 @@ up at a kickoff instead.
 config service."* Every deployment-varying value reaches the API as an
 environment variable, listed in the `api` service in `docker-compose.yml`.
 
-> ⚠️ **The server reads none of them yet.** They are defined now, with the names
-> M5 will bind to, so the wiring is a reviewable artefact instead of folklore.
-> `__` is ASP.NET Core's configuration separator: `ConnectionStrings__Postgres`
-> binds to the key `ConnectionStrings:Postgres`.
+> ⚠️ **The server reads only the two `RemoteConfig__*` variables so far**
+> (M5-10, the first consumed rows). The rest are defined ahead of the code, with
+> the names M5 will bind to, so the wiring is a reviewable artefact instead of
+> folklore. `__` is ASP.NET Core's configuration separator:
+> `ConnectionStrings__Postgres` binds to the key `ConnectionStrings:Postgres`.
 
 | Variable | Value in this stack | Consumed by |
 |---|---|---|
+| `RemoteConfig__Path` | `/app/remote-config/flags.json` (the committed identity document, mounted read-only) | **M5-10 — shipped, the server reads this** |
+| `RemoteConfig__ReloadSeconds` | `60` (an ops number, `14` §16.5 — not a tunable) | **M5-10 — shipped, the server reads this** |
 | `ConnectionStrings__Postgres` | `Host=postgres;Port=5432;Database=slayidlerepeat;Username=sir_app;…` | M5-05 |
 | `ConnectionStrings__Redis` | `redis:6379,abortConnect=false` | M5-05 |
 | `Cache__RunStateTtlHours` | `48` (`14` §7.1: "Run-state cache TTL 48 h") | M5-05 |
@@ -277,6 +280,13 @@ OTel SDK reads with no code at all — M5-11 registers the SDK and it picks thes
 up as they are.
 
 ### The M5 checklist
+
+**M5-10 shipped `GET /config` and the flags file.** The server serves
+[`infra/remote-config/flags.json`](remote-config/flags.json) verbatim on
+`GET /config` and gates commands on it. To throw a kill switch locally, edit the
+file — the server re-reads it every 60 s (`RemoteConfig__ReloadSeconds`), no
+restart needed. A document with a typo in it is refused whole and logged with a
+`[remote-config]` marker; the last good document stays in force.
 
 1. **M5-05** — Postgres schema and a migration runner. Decide how migrations run
    in this stack (an init container like `minio-init`, or at API startup) and add

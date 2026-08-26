@@ -67,9 +67,17 @@ internal sealed class GatewayWorld
     /// <summary>A world holding one starting player and nothing else.</summary>
     /// <param name="flags">The kill switches, defaulting to none thrown.</param>
     /// <param name="ledger">The ledger seam, defaulting to the placeholder — a case about the seam's failure shapes passes a decorated one.</param>
+    /// <param name="currentFlags">The live flags source — a reload case swaps what it answers between commands; defaults to a constant read of <paramref name="flags"/>.</param>
     internal static async Task<GatewayWorld> WithAStartingPlayerAsync(
-        FeatureFlags? flags = null, ICommandLedgerStore? ledger = null)
+        FeatureFlags? flags = null, ICommandLedgerStore? ledger = null, Func<FeatureFlags>? currentFlags = null)
     {
+        if (flags is not null && currentFlags is not null)
+        {
+            throw new ArgumentException(
+                "Pass flags or currentFlags, never both — a fixed value the live source contradicts tests nothing.",
+                nameof(currentFlags));
+        }
+
         var cache = new InMemoryLocalCache();
         var store = new WorldSliceStore(cache);
         var clock = new AdjustableClock();
@@ -93,7 +101,7 @@ internal sealed class GatewayWorld
             new CountingIdGenerator(),
             Worlds.Content,
             LocalHostAmbience.NoSubscriptionResolved(),
-            resolvedFlags,
+            currentFlags ?? (() => resolvedFlags),
             ledger ?? volatileLedger,
             throttle);
 
