@@ -137,12 +137,35 @@ public sealed class OpenTelemetryTelemetryTests
     }
 
     [Fact]
-    public void Bad_arguments_are_refused()
+    public void RecordException_refuses_a_null_error()
     {
         using var adapter = new OpenTelemetryTelemetry();
 
-        Should.Throw<ArgumentNullException>(() => adapter.RecordException(null!));
-        Should.Throw<ArgumentException>(() => adapter.BeginSpan(" "));
-        Should.Throw<ArgumentException>(() => adapter.RecordMetric("", 1));
+        Should.Throw<ArgumentNullException>(
+            () => adapter.RecordException(null!),
+            "argument guards are the adapter's own — 'record nothing' spelled as a call fails " +
+            "where it is made, not on some exporter thread later.");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void BeginSpan_refuses_a_blank_name(string? name)
+    {
+        using var adapter = new OpenTelemetryTelemetry();
+
+        Should.Throw<ArgumentException>(() => adapter.BeginSpan(name!));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void RecordMetric_refuses_a_blank_name(string? name)
+    {
+        using var adapter = new OpenTelemetryTelemetry();
+
+        Should.Throw<ArgumentException>(() => adapter.RecordMetric(name!, 1));
     }
 }

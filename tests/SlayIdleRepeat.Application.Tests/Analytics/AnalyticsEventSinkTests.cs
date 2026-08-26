@@ -34,10 +34,19 @@ public sealed class AnalyticsEventSinkTests
             game, player, new StartRunCommand(Worlds.Chapter, DifficultyTier.NORMAL));
         var port = new CapturingAnalyticsPort();
 
+        var translated = AnalyticsTranslator.Translate(batch).Select(e => e.Name).ToArray();
+
+        translated.ShouldContain(
+            AnalyticsVocabulary.RunStart,
+            "fixture floor: an accepted START_RUN translates to run_start, so this batch gives the " +
+            "sink something real to track.");
+
         await new AnalyticsEventSink(port).ReceiveAsync(batch, Worlds.Cancel);
 
-        port.Tracked.Select(t => t.Event.Name).ShouldContain(
-            AnalyticsVocabulary.RunStart, "an accepted START_RUN translates to run_start.");
+        port.Tracked.Select(t => t.Event.Name).ShouldBe(
+            translated,
+            "the sink tracks exactly what the translator yields, in order — an event dropped, " +
+            "duplicated or improvised here silently corrupts every funnel downstream.");
         port.Tracked.ShouldAllBe(
             t => t.Player == player,
             "every tracked event belongs to the batch's player. An event tracked against anyone " +

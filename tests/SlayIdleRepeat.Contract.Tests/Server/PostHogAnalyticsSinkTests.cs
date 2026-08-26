@@ -136,9 +136,14 @@ public sealed class PostHogAnalyticsSinkTests
     }
 
     [Fact]
-    public void Construction_refuses_null_arguments()
+    public void Construction_refuses_null_options()
     {
         Should.Throw<ArgumentNullException>(() => new PostHogAnalyticsSink(null!, new RecordingHandler()));
+    }
+
+    [Fact]
+    public void Construction_refuses_a_null_handler()
+    {
         Should.Throw<ArgumentNullException>(() => new PostHogAnalyticsSink(Enabled(), null!));
     }
 }

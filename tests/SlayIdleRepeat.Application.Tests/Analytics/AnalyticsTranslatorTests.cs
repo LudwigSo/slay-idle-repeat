@@ -53,6 +53,23 @@ public sealed class AnalyticsTranslatorTests
     }
 
     [Fact]
+    public void Translate_maps_a_death_end_run_to_run_end_with_victory_false()
+    {
+        // The discriminating counterpart to the victory case: a translator that hard-codes
+        // victory="true" passes that one and fails here.
+        var batch = AnalyticsWorlds.DeathEndRun();
+
+        var emitted = AnalyticsTranslator.Translate(batch)
+            .Where(e => e.Name == AnalyticsVocabulary.RunEnd)
+            .ShouldHaveSingleItem("one accepted END_RUN is exactly one run_end, dead or victorious.");
+
+        emitted.Properties["victory"].ShouldBe(
+            "false",
+            "this run's Boss is alive and the hero is at 0 HP — reporting it as a victory would " +
+            "poison every completion-rate read on the dashboard.");
+    }
+
+    [Fact]
     public void Translate_maps_an_accepted_begin_session_to_session_start()
     {
         var game = Worlds.Game();

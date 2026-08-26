@@ -45,6 +45,21 @@ internal static class AnalyticsWorlds
         return Applied(game, player, victory, new EndRunCommand());
     }
 
+    /// <summary>A death <c>END_RUN</c>'s delivery: the hero is at 0 HP with the Boss alive, so the command is accepted.</summary>
+    internal static DispatchedEvents DeathEndRun()
+    {
+        var (game, player) = Worlds.InARun();
+        var slice = game.State(player);
+        var death = new WorldSlice(
+            slice.Player,
+            Rehydrated(slice.Run!.ToSnapshot() with
+            {
+                CurrentHp = 0,
+            }));
+
+        return Applied(game, player, death, new EndRunCommand());
+    }
+
     /// <summary>A <c>USE_FIXED_DIE</c> delivery: the run holds one die of <paramref name="pips"/> and spends it.</summary>
     internal static DispatchedEvents FixedDieWalk(int pips)
     {

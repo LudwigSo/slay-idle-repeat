@@ -76,10 +76,15 @@ public sealed class TelemetryExceptionMiddlewareTests
     }
 
     [Fact]
-    public void Construction_refuses_null_arguments()
+    public void Construction_refuses_a_null_next_delegate()
     {
         Should.Throw<ArgumentNullException>(
             () => new TelemetryExceptionMiddleware(null!, new CapturingTelemetryPort()));
+    }
+
+    [Fact]
+    public void Construction_refuses_a_null_telemetry_port()
+    {
         Should.Throw<ArgumentNullException>(
             () => new TelemetryExceptionMiddleware(_ => Task.CompletedTask, null!));
     }
