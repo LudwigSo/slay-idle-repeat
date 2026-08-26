@@ -7,7 +7,7 @@ namespace SlayIdleRepeat.Core;
 /// <para>
 /// Five switches, closed on purpose rather than a string-keyed bag: PvP, the Plus offer, mail,
 /// ad placements and chapters. A bag would let any later task introduce an ungoverned flag with no
-/// decision behind it; adding a fifth switch here requires touching <c>FeatureFlagsTests</c> too.
+/// decision behind it; adding a sixth switch here requires touching <c>FeatureFlagsTests</c> too.
 /// </para>
 /// <para>
 /// Kill lists, not allow lists — an identifier no switch names is enabled. An allow list would

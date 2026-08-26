@@ -70,11 +70,13 @@ public sealed class GameBackbone
         // the real telemetry sink is M5-11's.
         RemoteConfig = new RemoteConfigSource(configPath, Console.Error.WriteLine);
 
+        // Non-numeric or non-positive falls back to the documented 60: a typo here must not fault
+        // the boot (the source refuses a non-positive interval loudly rather than looping never).
         var reloadSeconds = int.TryParse(
             configuration["RemoteConfig:ReloadSeconds"],
             NumberStyles.Integer,
             CultureInfo.InvariantCulture,
-            out var configured)
+            out var configured) && configured > 0
             ? configured
             : 60;
         RemoteConfig.EnsureReloadLoopStarted(TimeSpan.FromSeconds(reloadSeconds));

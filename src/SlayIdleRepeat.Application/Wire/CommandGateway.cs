@@ -178,9 +178,11 @@ public sealed class CommandGateway
             return Rejection(envelope, RejectionReason.RATE_LIMITED);
         }
 
-        // The ONE flags read of this submit (ruling 5): the gate and the GameContext below must
-        // judge from the same snapshot, or a reload between them would half-apply a kill switch.
-        var flags = _currentFlags();
+        // The ONE flags read of this submit: the gate and the GameContext below must judge from
+        // the same snapshot, or a reload between them would half-apply a kill switch.
+        var flags = _currentFlags()
+            ?? throw new InvalidOperationException(
+                "The currentFlags source answered null; the composition root must always resolve a FeatureFlags value.");
         if (FeatureGate.IsDisabled(command, flags))
         {
             return Rejection(envelope, RejectionReason.FEATURE_DISABLED);

@@ -103,7 +103,9 @@ public sealed record GameContext(
         builder.Append(CultureInfo.InvariantCulture, $"NowUtc = {NowUtc:O}");
         builder.Append(CultureInfo.InvariantCulture, $", CommandSeed = {Describe(CommandSeed)}");
         builder.Append(CultureInfo.InvariantCulture, $", Content = {Content.Version.Short}");
-        builder.Append(CultureInfo.InvariantCulture, $", Flags = {Flags.PvpEnabled}/{Flags.PlusOfferEnabled}");
+        builder.Append(
+            CultureInfo.InvariantCulture,
+            $", Flags = {Flags.PvpEnabled}/{Flags.PlusOfferEnabled}/{Flags.MailEnabled}");
         builder.Append(CultureInfo.InvariantCulture, $", AllocatedRunId = {AllocatedRunId?.ToString() ?? "null"}");
 
         return true;

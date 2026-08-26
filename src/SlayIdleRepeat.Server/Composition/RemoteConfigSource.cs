@@ -10,7 +10,8 @@ namespace SlayIdleRepeat.Server.Composition;
 /// <remarks>
 /// <para>
 /// The document's five members are all optional and each omission is the identity — kill lists say
-/// only what they kill. A document that says anything unrecognisable (an unknown top-level member,
+/// only what they kill. Member names are case-sensitive: a wrong-cased name is an unknown member.
+/// A document that says anything unrecognisable (an unknown or duplicate top-level member,
 /// a blank kill-list entry, malformed JSON) is refused WHOLE, loudly, keeping the last good state:
 /// a typo like <c>disabledChapter</c> must never silently kill nothing. An absent file or an unset
 /// path is the identity element — everything enabled — warned with the greppable
@@ -77,6 +78,10 @@ public sealed class RemoteConfigSource
     /// <remarks>Composition glue: a source a test constructs runs no loop unless the test opts in.</remarks>
     public void EnsureReloadLoopStarted(TimeSpan interval)
     {
+        // Validated synchronously: thrown inside the fire-and-forget method below, this would only
+        // fault a discarded task — "reloaded every 60 s" would silently become "never".
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
+
         if (Interlocked.Exchange(ref _reloadLoopStarted, 1) != 0)
         {
             return;
@@ -90,7 +95,16 @@ public sealed class RemoteConfigSource
         using var timer = new PeriodicTimer(interval);
         while (await timer.WaitForNextTickAsync().ConfigureAwait(false))
         {
-            Reload();
+            try
+            {
+                Reload();
+            }
+            catch (Exception unexpected)
+            {
+                // The loop is this task's whole life; an escaped exception (LoadOnce catches only
+                // what it knows) would kill every future reload with nothing logged.
+                _warn(Marker + " a reload pass failed unexpectedly; keeping the last accepted state: " + unexpected);
+            }
         }
     }
 
@@ -151,8 +165,16 @@ public sealed class RemoteConfigSource
         string[] disabledAdPlacements = [];
         string[] disabledChapters = [];
 
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var member in root.EnumerateObject())
         {
+            if (!seen.Add(member.Name))
+            {
+                // JsonDocument tolerates duplicates with the last one winning — silently
+                // contradicting whichever of the two the operator believed was in force.
+                throw new FormatException("Duplicate top-level member '" + member.Name + "'.");
+            }
+
             switch (member.Name)
             {
                 case "pvpEnabled":

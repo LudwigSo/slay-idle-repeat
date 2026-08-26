@@ -183,6 +183,29 @@ public sealed class RemoteConfigSourceTests
         }
     }
 
+    /// <summary>JsonDocument tolerates duplicates last-wins — which of the two did the operator mean?</summary>
+    [Fact]
+    public void A_duplicate_top_level_member_refuses_the_whole_document()
+    {
+        var path = ATempConfigPath();
+        var warnings = new List<string>();
+
+        try
+        {
+            File.WriteAllText(path, "{\"pvpEnabled\": false, \"pvpEnabled\": true}");
+
+            var source = new RemoteConfigSource(path, warnings.Add);
+
+            warnings.ShouldContain(w => w.Contains("[remote-config]"));
+            source.Current.PvpEnabled.ShouldBeTrue(
+                "neither of a duplicate member's contradicting values may apply");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void Malformed_json_refuses_the_whole_document()
     {
