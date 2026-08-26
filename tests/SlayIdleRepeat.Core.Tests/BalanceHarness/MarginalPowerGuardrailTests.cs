@@ -80,10 +80,15 @@ public sealed class MarginalPowerGuardrailTests
     }
 
     [Fact]
-    public void The_guardrail_FAILS_on_the_shipped_archetypes_naming_all_NINE_uncovered_stats()
+    public void The_guardrail_FAILS_on_the_shipped_archetypes_naming_all_TEN_uncovered_stats()
     {
-        // Nine, not two — the two structural zeros plus the seven the relative step additionally
-        // suppresses, which is a different defect. Pins the whole list rather than a sample of it.
+        // Ten, not two — the two structural zeros plus the eight the harness definitions additionally
+        // suppress, which is a different defect. Pins the whole list rather than a sample of it.
+        // ASPD joined the list with `16` D46: DR_PCT's improving-direction probe (÷1% of the
+        // damage-taken multiplier) strictly out-lifts the ×1.01 the multiplicative trio takes, so the
+        // top three is DR_PCT plus two of the exactly-tied {MAX_HP, ATK, ASPD} — and the deterministic
+        // StatId tie-break always drops ASPD. A tie-break artifact of the harness, not a fact about
+        // ASPD, and the summary's step-implicated branch says so.
         var result = MarginalPowerGuardrail.Evaluate(
             ShippedHarness.Content, ShippedHarness.Runner.Calibration.Archetypes, level: 40);
 
@@ -91,8 +96,8 @@ public sealed class MarginalPowerGuardrailTests
         result.SubjectCount.ShouldBe(14 * 5);
 
         result.Summary.ShouldContain(
-            "9 of 14 stats are top-3 in no archetype: " +
-            "DEF, CRIT, CDMG, DODGE, BLOCK, PEN, DMG_PCT, HEAL_PCT, THORNS",
+            "10 of 14 stats are top-3 in no archetype: " +
+            "DEF, ASPD, CRIT, CDMG, DODGE, BLOCK, PEN, DMG_PCT, HEAL_PCT, THORNS",
             Case.Sensitive,
             "the whole breach list, in StatIds.Combat order");
 
@@ -181,24 +186,27 @@ public sealed class MarginalPowerGuardrailTests
     }
 
     [Fact]
-    public void DR_PCT_is_the_one_ratio_stat_that_CAN_out_rank_them_and_only_near_its_cap()
+    public void DR_PCT_out_ranks_the_multiplicative_three_above_its_floor_and_scores_zero_at_it()
     {
-        // Without this, "seven stats never reach the top 3" would also be satisfied by a ranking that
-        // ignored every ratio stat. DR_PCT's elasticity passes 1 at DR = 0.5, so it displaces one of
-        // the multiplicative three at 0.59 and does not at 0.2.
+        // Without this, "seven stats never reach the top 3" would also be satisfied by a ranking
+        // that ignored every ratio stat. Under `16` D46 the probe steps DR_PCT down — its improving
+        // direction — so shrinking the damage-taken divisor by 1% lifts EffectiveHP by ~1.0101%,
+        // strictly more than the trio's ×1.01: DR_PCT ranks top-3 anywhere above its 0.4 floor. AT
+        // the floor the downward step clamps away and its marginal power is exactly zero.
         var high = MarginalPowerGuardrail.Rank(
             ShippedHarness.Content,
             new BuildArchetype("ARCH_DR_HIGH", AllNonZero().With(StatId.DR_PCT, 0.59)),
             level: 40);
 
-        var low = MarginalPowerGuardrail.Rank(
+        var atFloor = MarginalPowerGuardrail.Rank(
             ShippedHarness.Content,
-            new BuildArchetype("ARCH_DR_LOW", AllNonZero().With(StatId.DR_PCT, 0.2)),
+            new BuildArchetype("ARCH_DR_FLOOR", AllNonZero().With(StatId.DR_PCT, 0.4)),
             level: 40);
 
         high.Entries.Take(3).Select(e => e.Stat).ShouldContain(StatId.DR_PCT);
-        low.Entries.Take(3).Select(e => e.Stat).ShouldNotContain(StatId.DR_PCT);
-        low.Entries.Take(3).Select(e => e.Stat)
+        atFloor.Entries.Single(e => e.Stat == StatId.DR_PCT).MarginalPower.ShouldBe(
+            0.0, "both sides of the probe read the floored 0.4, like a stat at its cap");
+        atFloor.Entries.Take(3).Select(e => e.Stat)
             .ShouldBe(new[] { StatId.MAX_HP, StatId.ATK, StatId.ASPD }, ignoreOrder: true);
     }
 

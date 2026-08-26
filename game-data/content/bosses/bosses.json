@@ -197,7 +197,7 @@
           "id": "BOSS_OSSUARY_KING_P2_OSSIFY_DR",
           "op": "STAT_ADD_PCT",
           "stat": "DR_PCT",
-          "value": 0.3,
+          "value": -0.3,
           "trigger": { "kind": "PERIODIC", "interval": 14.0 },
           "target": "SELF",
           "duration": { "seconds": 6.0, "scope": "BATTLE", "until": "WARD_BROKEN" }
@@ -297,7 +297,7 @@
           "id": "BOSS_CINDERMAW_P2_ERUPTION_DR",
           "op": "STAT_ADD_PCT",
           "stat": "DR_PCT",
-          "value": 0.2,
+          "value": -0.2,
           "trigger": { "kind": "ON_PHASE_ENTER", "phase": 2 },
           "target": "SELF",
           "duration": { "scope": "PHASE" }

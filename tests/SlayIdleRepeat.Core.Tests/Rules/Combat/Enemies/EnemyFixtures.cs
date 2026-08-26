@@ -42,8 +42,8 @@ internal static class EnemyFixtures
         {
             [StatId.BLOCK] = 0.00,
             [StatId.PEN] = 0.00,
-            [StatId.DMG_PCT] = 0.00,
-            [StatId.DR_PCT] = 0.00,
+            [StatId.DMG_PCT] = 1.00,
+            [StatId.DR_PCT] = 1.00,
             [StatId.HEAL_PCT] = 1.00,
             [StatId.THORNS] = 0.00,
         });
@@ -125,8 +125,8 @@ internal static class EnemyFixtures
                 [
                     new("BLOCK", ContentValue.Number(0.0m)),
                     new("PEN", ContentValue.Number(0.0m)),
-                    new("DMG_PCT", ContentValue.Number(0.0m)),
-                    new("DR_PCT", ContentValue.Number(0.0m)),
+                    new("DMG_PCT", ContentValue.Number(1.0m)),
+                    new("DR_PCT", ContentValue.Number(1.0m)),
                     new("HEAL_PCT", Number("derivation/fixedStats/HEAL_PCT", 1.0m, unauthorised)),
                     new("THORNS", ContentValue.Number(0.0m)),
                 ])),

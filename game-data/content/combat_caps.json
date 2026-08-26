@@ -1,18 +1,21 @@
 {
   "$schema": "../schema/combat_caps.schema.json",
-  "_doc": "05 §1-2 — the combat simulator's constants: the six stat caps of 05 §1, the hero base stat curve of 05 §2, the ward pool cap of 05 §4.1, the two mitigation dials of 05 §4, and the PvP duration override of 11 §4.3. 05 §1.1 and 11 §4.3 name this file as `res://data/combat_caps.json` / `data/combat_caps.json`; the repository path is game-data/content/combat_caps.json. It sits under content/ and NOT under tuning/ deliberately: 21 §3.1 catalogues exactly sixteen tuning files and a seventeenth is a bug, and these are balance and simulator constants rather than economy dials. The same ruling was enforced in code by TunableMarkerAudit.NonEconomyDataFiles until the 📐 audit was removed; it is now a convention this comment is the only record of. Every key here carries its 05/11 section; a number with no section is a number nobody will defend.",
+  "_doc": "05 §1-2 — the combat simulator's constants: the five stat caps of 05 §1 (with 16 D46's damage-taken floor re-expressing the sixth), the hero base stat curve of 05 §2, the ward pool cap of 05 §4.1, the two mitigation dials of 05 §4, and the PvP duration override of 11 §4.3. 05 §1.1 and 11 §4.3 name this file as `res://data/combat_caps.json` / `data/combat_caps.json`; the repository path is game-data/content/combat_caps.json. It sits under content/ and NOT under tuning/ deliberately: 21 §3.1 catalogues exactly sixteen tuning files and a seventeenth is a bug, and these are balance and simulator constants rather than economy dials. The same ruling was enforced in code by TunableMarkerAudit.NonEconomyDataFiles until the 📐 audit was removed; it is now a convention this comment is the only record of. Every key here carries its 05/11 section; a number with no section is a number nobody will defend.",
   "_status": "transcribed",
   "caps": {
-    "_doc": "05 §1 — the six capped stats, verbatim from the stat table's Notes column. Every one is a 0..1 ratio and the cap is an UPPER bound; 05 states no lower bound for any of them and none is invented here. 18 §8 step 9 applies these after all aggregation, honouring STAT_CAP_OVERRIDE. The keys are 18 §2.1 StatId names, which is the vocabulary an effect writes: 05 §1's LS is LIFESTEAL and its DR% is DR_PCT.",
+    "_doc": "05 §1 — the five capped stats, verbatim from the stat table's Notes column. Every one is a 0..1 ratio and the cap is an UPPER bound; 05 states no lower bound for any of them and none is invented here. 18 §8 step 9 applies these after all aggregation, honouring STAT_CAP_OVERRIDE. The keys are 18 §2.1 StatId names, which is the vocabulary an effect writes: 05 §1's LS is LIFESTEAL. DR_PCT left this set with 16 D46: it is no longer a 0..1 ratio but a damage-taken multiplier, and its authored bound lives in floors below.",
     "CRIT": 0.75,
     "LIFESTEAL": 0.4,
     "DODGE": 0.5,
     "BLOCK": 0.6,
-    "PEN": 0.7,
-    "DR_PCT": 0.6
+    "PEN": 0.7
+  },
+  "floors": {
+    "_doc": "16 D46 — the one authored floor. DR_PCT is the damage-taken multiplier (base 1.00, consumed bare as damage × DR_PCT), so 05 §1's 'at most 60% reduction' upper cap re-expresses as a LOWER bound on the multiplier: 1.0 − 0.6 = 0.4. Applied at 18 §8 step 9 with the caps. STAT_CAP_OVERRIDE's STAT_MAX rewrites ceilings only and never touches this floor. No other stat authors a floor and none is invented (16 R6).",
+    "DR_PCT": 0.4
   },
   "heroBaseStats": {
-    "_doc": "05 §2 — Base(stat) for the hero, as base + perLevel * L where L is the Legend Level (1..200). The three curves 05 §2 writes as formulae (MaxHP = 250 + 45 * L, ATK = 30 + 6 * L, DEF = 15 + 3 * L) carry a perLevel; the eleven constants it writes as a single number carry perLevel 0, which is a transcription of `ASPD = 1.00` rather than a filled hole. 🔒 All fourteen combat stats are required: 05 §2 — 'every actor — hero and enemy alike — carries a complete 14-stat block with these defaults. An unstated stat is a bug, not a zero.' HEAL_PCT base is 1.0, not 0 — it is a multiplier on ALL healing received, so a 0 here would silently disable every heal in the game.",
+    "_doc": "05 §2 — Base(stat) for the hero, as base + perLevel * L where L is the Legend Level (1..200). The three curves 05 §2 writes as formulae (MaxHP = 250 + 45 * L, ATK = 30 + 6 * L, DEF = 15 + 3 * L) carry a perLevel; the eleven constants it writes as a single number carry perLevel 0, which is a transcription of `ASPD = 1.00` rather than a filled hole. 16 D46: DMG_PCT and DR_PCT are MULTIPLIER stats consumed bare, so their base is 1.0 — the identity — not 0; a 0 here would zero every actor's damage and delete every hit taken. 🔒 All fourteen combat stats are required: 05 §2 — 'every actor — hero and enemy alike — carries a complete 14-stat block with these defaults. An unstated stat is a bug, not a zero.' HEAL_PCT base is 1.0, not 0 — it is a multiplier on ALL healing received, so a 0 here would silently disable every heal in the game.",
     "legendLevelMin": 1,
     "legendLevelMax": 200,
     "stats": {
@@ -26,8 +29,8 @@
       "DODGE": { "base": 0.02, "perLevel": 0 },
       "BLOCK": { "base": 0.0, "perLevel": 0 },
       "PEN": { "base": 0.0, "perLevel": 0 },
-      "DMG_PCT": { "base": 0.0, "perLevel": 0 },
-      "DR_PCT": { "base": 0.0, "perLevel": 0 },
+      "DMG_PCT": { "base": 1.0, "perLevel": 0 },
+      "DR_PCT": { "base": 1.0, "perLevel": 0 },
       "HEAL_PCT": { "base": 1.0, "perLevel": 0 },
       "THORNS": { "base": 0.0, "perLevel": 0 }
     }

@@ -92,9 +92,11 @@ public static class PowerCalculator
         var effDef = Capped(stats, StatId.DEF, model) * (1.0 - model.ReferencePen);
         var mitigationVsReference = Mitigation(effDef, model.ReferenceLevel, model);
 
+        // DR% is the damage-taken multiplier consumed bare, so survivability divides by the
+        // bounded multiplier itself — its authored floor (0.4) keeps the divisor away from zero.
         var survivability = Capped(stats, StatId.MAX_HP, model)
             / (1.0 - mitigationVsReference)
-            / (1.0 - Capped(stats, StatId.DR_PCT, model))
+            / Capped(stats, StatId.DR_PCT, model)
             / (1.0 - Capped(stats, StatId.DODGE, model))
             / (1.0 - (Capped(stats, StatId.BLOCK, model) * model.BlockWeight))
             * (1.0 + (Capped(stats, StatId.LIFESTEAL, model) * model.LifestealWeight))
@@ -129,7 +131,7 @@ public static class PowerCalculator
         var dps = Capped(stats, StatId.ATK, model)
             * Capped(stats, StatId.ASPD, model)
             * (1.0 + (Capped(stats, StatId.CRIT, model) * Capped(stats, StatId.CDMG, model)))
-            * (1.0 + Capped(stats, StatId.DMG_PCT, model))
+            * Capped(stats, StatId.DMG_PCT, model)
             * (1.0 - mitigationOfReference)
             * (1.0 + AbsentPetDpsShare);
 
@@ -171,8 +173,9 @@ public static class PowerCalculator
     }
 
     /// <summary>
-    /// Caps applied after aggregation: a player at the crit cap gains nothing from more crit, and
-    /// power must reflect that or it recommends gear that does nothing.
+    /// Bounds applied after aggregation: a player at the crit cap gains nothing from more crit —
+    /// and one at the damage-taken floor gains nothing from more reduction — and power must
+    /// reflect that or it recommends gear that does nothing.
     /// </summary>
     private static double Capped(ActorStats stats, StatId stat, PowerModel model) =>
         model.Caps.Apply(stat, stats[stat]);

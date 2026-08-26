@@ -5,7 +5,7 @@
   "description": "05 §1-2 — the combat simulator's constants. 05 §1.1: 'every cap above lives in res://data/combat_caps.json'; 05 §2's hero base stat block carries its own 📐 TUNABLE. The file also holds 05 §4.1's ward pool cap, 05 §4's two mitigation dials and 11 §4.3's pvpMaxFightSeconds, each of which names combat_caps.json in its own section. 🔒 It lives under content/ rather than tuning/: doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug, and these are balance and simulator constants, not economy dials that the economy simulator sweeps. The same ruling was enforced in code by TunableMarkerAudit.NonEconomyDataFiles until the 📐 audit was removed; it is now a convention this comment is the only record of. ⚠️ The citation is deliberately written without a section marker — that catalogue section is itself a recorded out-of-scope 📐 baseline entry, and citing it here would close an entry this change did not close.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "_status", "caps", "heroBaseStats", "wardCapPct", "pvpMaxFightSeconds", "mitigation"],
+  "required": ["$schema", "_doc", "_status", "caps", "floors", "heroBaseStats", "wardCapPct", "pvpMaxFightSeconds", "mitigation"],
   "$defs": {
     "ratio01": {
       "description": "05 §1 — a stat the table types as 0..1. multipleOf pins it to 05 §1.1's 4-decimal-place form: a cap that is not itself rounded puts an unrounded value into every stat it binds, and this is the difference between a content-build failure and a runtime throw out of Core.",
@@ -30,18 +30,27 @@
     "_doc": { "type": "string", "minLength": 1 },
     "_status": { "enum": ["transcribed", "partial", "skeleton"] },
     "caps": {
-      "description": "05 §1 — the six capped stats and nothing else. Keyed by 18 §2.1 StatId name: 05 §1's LS is LIFESTEAL, its DR% is DR_PCT. 🔒 additionalProperties is false and all six are required, so a cap that is dropped or renamed fails the build rather than silently becoming 'uncapped'. The eight remaining combat stats are absent because 05 §1 caps none of them; absence here means uncapped, which is the only meaning 05 authorises. Each bound is an UPPER bound — 05 states no lower bound for any stat and none is invented (16 R6).",
+      "description": "05 §1 — the five capped stats and nothing else. Keyed by 18 §2.1 StatId name: 05 §1's LS is LIFESTEAL. 🔒 additionalProperties is false and all five are required, so a cap that is dropped or renamed fails the build rather than silently becoming 'uncapped'. The remaining combat stats are absent because 05 §1 caps none of them; absence here means uncapped, which is the only meaning 05 authorises. Each bound is an UPPER bound — 05 states no lower bound for any stat and none is invented (16 R6). DR_PCT left this set with 16 D46: it is a damage-taken multiplier now, bounded below in floors.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["_doc", "CRIT", "LIFESTEAL", "DODGE", "BLOCK", "PEN", "DR_PCT"],
+      "required": ["_doc", "CRIT", "LIFESTEAL", "DODGE", "BLOCK", "PEN"],
       "properties": {
         "_doc": { "type": "string", "minLength": 1 },
         "CRIT": { "description": "05 §1 — Crit Chance, capped at 0.75.", "$ref": "#/$defs/ratio01" },
         "LIFESTEAL": { "description": "05 §1 — Lifesteal, capped at 0.40.", "$ref": "#/$defs/ratio01" },
         "DODGE": { "description": "05 §1 — Dodge, capped at 0.50.", "$ref": "#/$defs/ratio01" },
         "BLOCK": { "description": "05 §1 — Block, capped at 0.60. A block halves the hit.", "$ref": "#/$defs/ratio01" },
-        "PEN": { "description": "05 §1 — Armor Penetration, capped at 0.70.", "$ref": "#/$defs/ratio01" },
-        "DR_PCT": { "description": "05 §1 — Damage Reduction, capped at 0.60.", "$ref": "#/$defs/ratio01" }
+        "PEN": { "description": "05 §1 — Armor Penetration, capped at 0.70.", "$ref": "#/$defs/ratio01" }
+      }
+    },
+    "floors": {
+      "description": "16 D46 — the one authored floor. DR_PCT is the damage-taken multiplier (base 1.00, consumed bare), so 05 §1's 'at most 60% reduction' cap re-expresses as a LOWER bound on the multiplier: 1.0 − 0.6 = 0.4. 🔒 additionalProperties is false and DR_PCT is required, so the floor can neither vanish silently nor gain uninvented company (16 R6). STAT_CAP_OVERRIDE's STAT_MAX rewrites ceilings only and never touches a floor.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "DR_PCT"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "DR_PCT": { "description": "16 D46 — the damage-taken multiplier's lower bound: 1.0 − 0.6 = 0.4.", "$ref": "#/$defs/ratio01" }
       }
     },
     "heroBaseStats": {
@@ -78,8 +87,8 @@
             "DODGE": { "description": "05 §2 — DODGE = 0.02.", "$ref": "#/$defs/baseStatCurve" },
             "BLOCK": { "description": "05 §2 — BLOCK = 0.00.", "$ref": "#/$defs/baseStatCurve" },
             "PEN": { "description": "05 §2 — PEN = 0.00.", "$ref": "#/$defs/baseStatCurve" },
-            "DMG_PCT": { "description": "05 §2 — DMG% = 0.00. 05 §1 types it as the additive multiplier bucket.", "$ref": "#/$defs/baseStatCurve" },
-            "DR_PCT": { "description": "05 §2 — DR% = 0.00.", "$ref": "#/$defs/baseStatCurve" },
+            "DMG_PCT": { "description": "05 §2 / 16 D46 — DMG% = 1.00: a multiplier stat consumed bare, so its base is the identity.", "$ref": "#/$defs/baseStatCurve" },
+            "DR_PCT": { "description": "05 §2 / 16 D46 — DR% = 1.00: the damage-taken multiplier's identity.", "$ref": "#/$defs/baseStatCurve" },
             "HEAL_PCT": { "description": "05 §2 — HEAL% = 1.00, NOT 0. 'a multiplier on ALL healing received; base 1.0, so lifesteal and heals work with no modifiers. +35% Healing Received => x1.35.'", "$ref": "#/$defs/baseStatCurve" },
             "THORNS": { "description": "05 §2 — THORN = 0.00, the fraction of damage taken that is reflected.", "$ref": "#/$defs/baseStatCurve" }
           }

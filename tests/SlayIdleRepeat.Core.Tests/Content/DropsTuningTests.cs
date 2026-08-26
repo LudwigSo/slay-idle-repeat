@@ -456,7 +456,7 @@ public sealed class DropsTuningTests
     /// <summary>An affix range a roll cannot land inside is refused.</summary>
     [Theory]
     [InlineData(0.5, 0.2)]
-    [InlineData(-0.1, 0.2)]
+    [InlineData(-0.02, -0.08)]
     public void An_affix_range_a_roll_cannot_land_inside_is_refused(double minimum, double maximum)
     {
         var affixes = ContentValue.Array(

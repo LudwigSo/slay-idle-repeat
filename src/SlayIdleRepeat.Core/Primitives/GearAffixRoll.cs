@@ -7,8 +7,8 @@ namespace SlayIdleRepeat.Core.Primitives;
 /// The affix's authored id, e.g. <c>AFX_CRIT_CHANCE</c>. Never null, empty or whitespace.
 /// </param>
 /// <param name="Value">
-/// The rolled magnitude, inside the affix's authored range. Finite, never negative, and rounded to
-/// the assembly's determinism precision.
+/// The rolled magnitude, inside the affix's authored range — which sets its sign. Finite and
+/// rounded to the assembly's determinism precision.
 /// </param>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public readonly record struct GearAffixRoll(string AffixId, double Value)
     /// <summary>The affix's authored id. Never null, empty or whitespace.</summary>
     public string AffixId { get; } = IdText.Require(AffixId, nameof(GearAffixRoll));
 
-    /// <summary>The rolled magnitude. Finite, non-negative and rounded.</summary>
+    /// <summary>The rolled magnitude. Finite and rounded; its sign is the authored range's.</summary>
     public double Value { get; } = Rolled(Value);
 
     /// <summary>The id and the value, so a log line reads the affix rather than the record's shape.</summary>
@@ -47,18 +47,23 @@ public readonly record struct GearAffixRoll(string AffixId, double Value)
     /// <summary>The guard behind <see cref="Value"/>.</summary>
     /// <param name="value">The candidate magnitude.</param>
     /// <returns>The magnitude, unchanged.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">It is not finite, is negative, or is unrounded.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">It is not finite, is negative zero, or is unrounded.</exception>
+    /// <remarks>
+    /// Sign-free since the damage-reduction affix's range re-signed — it adds flat onto
+    /// <c>DR_PCT</c>'s base 1.0, so its rolls are negative. Negative zero stays refused: the
+    /// canonical state writer treats it as a distinct encoding of a value no roll produces.
+    /// </remarks>
     private static double Rolled(double value)
     {
-        if (!DeterminismRounding.IsRounded(value) || value < 0.0)
+        if (!DeterminismRounding.IsRounded(value) || double.IsNegative(value) && value == 0.0)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(Value),
                 value,
-                "An affix value is a finite, non-negative magnitude already rounded to the assembly's " +
-                "determinism precision. Persisted state carries no unrounded double — the canonical " +
-                "writer refuses one — so an affix rounded on the way in here would hide whichever roll " +
-                "produced it. Round at the roll, not at the record.");
+                "An affix value is a finite magnitude already rounded to the assembly's determinism " +
+                "precision, and never negative zero. Persisted state carries no unrounded double — " +
+                "the canonical writer refuses one — so an affix rounded on the way in here would hide " +
+                "whichever roll produced it. Round at the roll, not at the record.");
         }
 
         return value;

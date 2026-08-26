@@ -30,7 +30,7 @@ internal static class InRunIncomeDocuments
     internal const string AdsPath = "tuning/ads.json";
 
     /// <summary>The revive heal share of Max HP, as shipped.</summary>
-    internal const decimal ShippedReviveHealPctMaxHp = 0.5m;
+    internal const decimal ShippedReviveHealPctMaxHp = 0.66m;
 
     /// <summary>The revive invulnerability window in seconds, as shipped.</summary>
     internal const int ShippedReviveInvulnerabilitySeconds = 2;
@@ -114,7 +114,7 @@ internal static class InRunIncomeDocuments
             ("SHR_CRIT", "CRIT", 0.08m, null),
             ("SHR_DEF", "DEF", 0.2m, null),
             ("SHR_LS", "LIFESTEAL", 0.06m, null),
-            ("SHR_DR", "DR", 0.06m, null),
+            ("SHR_DR", "DR", -0.06m, null),
             ("SHR_THORN", "THORNS", 0.25m, null),
             ("SHR_GOLD", "GOLD_GAIN", 0.15m, null),
             ("SHR_HEAL", null, null, 0.4m),

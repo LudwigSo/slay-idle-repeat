@@ -146,8 +146,8 @@
                 "description": "How the affix writes it. Two ops rather than the whole effect vocabulary, deliberately: an affix is a standing stat modifier and nothing else, so an authoring slip cannot turn one into a summon. STAT_ADD_FLAT adds X percentage points and is what a stat that is itself a fraction or an accumulator takes; STAT_ADD_PCT multiplies and is only correct for a stat whose base is a magnitude the percentage is taken of, because aggregation multiplies the running value and a percent of a zero base is zero. null exactly where stat is null.",
                 "enum": ["STAT_ADD_FLAT", "STAT_ADD_PCT", null]
               },
-              "min": { "type": "number", "minimum": 0 },
-              "max": { "type": "number", "minimum": 0 },
+              "min": { "description": "Signed since 16 D46: AFX_DAMAGE_REDUCTION adds flat onto DR_PCT's base 1.0 (a damage-taken multiplier), so its range is negative. DropsTuning still refuses max < min and non-finite bounds.", "type": "number" },
+              "max": { "type": "number" },
               "slots": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/slot" } },
               "minRarity": { "$ref": "#/$defs/rarity" }
             }

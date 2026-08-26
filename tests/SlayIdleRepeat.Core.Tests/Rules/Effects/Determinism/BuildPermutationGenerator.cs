@@ -13,7 +13,7 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 /// <param name="Sources">The ten sources, as far as this permutation populates them.</param>
 /// <param name="Context">The state conditions and <c>valueScale</c> read.</param>
 /// <param name="BaseStats">The hero curve at this permutation's Legend Level.</param>
-/// <param name="Caps">The six ceilings, before any <c>STAT_CAP_OVERRIDE</c>.</param>
+/// <param name="Caps">The five ceilings and the damage-taken floor, before any <c>STAT_CAP_OVERRIDE</c>.</param>
 /// <param name="Effects">
 /// Every effect authored, in emission order — not resolution order. Carried so the coverage tests read
 /// the emitted vocabulary off the generator's actual output rather than its declared intent.

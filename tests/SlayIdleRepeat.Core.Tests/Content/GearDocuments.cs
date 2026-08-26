@@ -192,7 +192,7 @@ internal static class GearDocuments
         new("AFX_DODGE", "DODGE", "STAT_ADD_FLAT", 0.02m, 0.08m, ["BOOTS", "AMULET"], null),
         new("AFX_BLOCK", "BLOCK", "STAT_ADD_FLAT", 0.03m, 0.12m, ["ARMOR", "HELMET"], null),
         new("AFX_LIFESTEAL", "LIFESTEAL", "STAT_ADD_FLAT", 0.02m, 0.09m, ["AMULET", "WEAPON"], null),
-        new("AFX_DAMAGE_REDUCTION", "DR_PCT", "STAT_ADD_FLAT", 0.02m, 0.08m, ["ARMOR", "AMULET"], null),
+        new("AFX_DAMAGE_REDUCTION", "DR_PCT", "STAT_ADD_FLAT", -0.08m, -0.02m, ["ARMOR", "AMULET"], null),
         new("AFX_GOLD_GAIN", "GOLD_PCT", "STAT_ADD_FLAT", 0.08m, 0.3m, ["RING", "AMULET"], null),
         new("AFX_PET_AURA_POWER", "PET_AURA_PCT", "STAT_ADD_FLAT", 0.05m, 0.2m, ["AMULET", "RING"], null),
         new("AFX_DAMAGE_VS_ELITES", null, null, 0.08m, 0.25m, ["WEAPON", "RING"], null),

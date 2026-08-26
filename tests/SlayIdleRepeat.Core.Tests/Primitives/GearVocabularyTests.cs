@@ -174,21 +174,20 @@ public sealed class GearVocabularyTests
             .Message.ShouldMatchWildcard("*GearAffixRoll*");
     }
 
-    /// <summary>A magnitude that is not a finite, non-negative, already-rounded number is refused.</summary>
+    /// <summary>A magnitude that is not a finite, already-rounded number — or is negative zero — is refused.</summary>
     /// <remarks>
     /// The rounding arm is the one that matters most and is the least obvious: persisted state carries
     /// no unrounded double — the canonical writer refuses one — so an affix rounded on the way in here
     /// would hide whichever roll produced it. Round at the roll, not at the record.
     /// </remarks>
     [Theory]
-    [InlineData(-0.5)]
-    [InlineData(-0.0001)]
+    [InlineData(-0.0)]
     [InlineData(double.NaN)]
     [InlineData(double.PositiveInfinity)]
     [InlineData(double.NegativeInfinity)]
     [InlineData(0.12345)]
     [InlineData(0.000012)]
-    public void An_affix_roll_refuses_a_magnitude_that_is_not_a_rounded_non_negative_number(double value)
+    public void An_affix_roll_refuses_a_magnitude_that_is_not_a_rounded_number(double value)
     {
         var thrown = Should.Throw<ArgumentOutOfRangeException>(
             () => new GearAffixRoll("AFX_CRIT_CHANCE", value));
@@ -201,11 +200,13 @@ public sealed class GearVocabularyTests
             "the rounding belongs, which is the whole reason it refuses rather than rounds.");
     }
 
-    /// <summary>An already-rounded, non-negative magnitude is accepted, zero included.</summary>
-    /// <remarks>The boundary control: the rule refuses unrounded values, not small ones.</remarks>
+    /// <summary>An already-rounded magnitude is accepted — zero and, since the damage-reduction affix re-signed, negative rolls included.</summary>
+    /// <remarks>The boundary control: the rule refuses unrounded values, not small or signed ones.</remarks>
     [Theory]
     [InlineData(0.0)]
     [InlineData(0.0001)]
+    [InlineData(-0.0001)]
+    [InlineData(-0.08)]
     [InlineData(0.1234)]
     [InlineData(1.0)]
     [InlineData(350.0)]

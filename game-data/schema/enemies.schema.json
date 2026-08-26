@@ -91,7 +91,7 @@
           "maximum": 15
         },
         "fixedStats": {
-          "description": "05 §6.0 — BLOCK 0.00, PEN 0.00, DMG% 0.00, DR% 0.00, HEAL% 1.00 and THORN 0.00 for every archetype. 🔒 All six are required: an actor block states all fourteen combat stats and 'an unstated stat is a bug, not a zero', and HEAL_PCT is the case that proves it — its value is 1.0 because it multiplies all healing received, so a defaulted 0 would disable every heal an enemy could ever receive.",
+          "description": "05 §6.0 / 16 D46 — BLOCK 0.00, PEN 0.00, DMG% 1.00, DR% 1.00, HEAL% 1.00 and THORN 0.00 for every archetype. 🔒 All six are required: an actor block states all fourteen combat stats and 'an unstated stat is a bug, not a zero'. HEAL_PCT, DMG_PCT and DR_PCT are the cases that prove it — each is a bare multiplier whose identity is 1.0, so a defaulted 0 would disable every heal, zero every enemy's damage, and delete every hit an enemy takes.",
           "type": "object",
           "additionalProperties": false,
           "required": ["_doc", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS"],
@@ -99,8 +99,8 @@
             "_doc": { "type": "string", "minLength": 1 },
             "BLOCK": { "description": "05 §6.0 — BLOCK = 0.00.", "$ref": "#/$defs/ratio01" },
             "PEN": { "description": "05 §6.0 — PEN = 0.00.", "$ref": "#/$defs/ratio01" },
-            "DMG_PCT": { "description": "05 §6.0 — DMG% = 0.00.", "$ref": "#/$defs/coefficient" },
-            "DR_PCT": { "description": "05 §6.0 — DR% = 0.00.", "$ref": "#/$defs/ratio01" },
+            "DMG_PCT": { "description": "05 §6.0 / 16 D46 — DMG% = 1.00, the bare multiplier's identity.", "$ref": "#/$defs/coefficient" },
+            "DR_PCT": { "description": "05 §6.0 / 16 D46 — DR% = 1.00, the damage-taken multiplier's identity.", "$ref": "#/$defs/ratio01" },
             "HEAL_PCT": { "description": "05 §6.0 — HEAL% = 1.00.", "$ref": "#/$defs/coefficient" },
             "THORNS": { "description": "05 §6.0 — THORN = 0.00.", "$ref": "#/$defs/coefficient" }
           }

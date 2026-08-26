@@ -68,7 +68,7 @@
         { "id": "SHR_CRIT", "displayName": "loc.shrine.crit.name", "stat": "CRIT", "magnitude": 0.08 },
         { "id": "SHR_DEF", "displayName": "loc.shrine.def.name", "stat": "DEF", "magnitude": 0.2 },
         { "id": "SHR_LS", "displayName": "loc.shrine.ls.name", "stat": "LIFESTEAL", "magnitude": 0.06 },
-        { "id": "SHR_DR", "displayName": "loc.shrine.dr.name", "stat": "DR", "magnitude": 0.06 },
+        { "id": "SHR_DR", "displayName": "loc.shrine.dr.name", "stat": "DR", "magnitude": -0.06 },
         { "id": "SHR_THORN", "displayName": "loc.shrine.thorn.name", "stat": "THORNS", "magnitude": 0.25 },
         { "id": "SHR_GOLD", "displayName": "loc.shrine.gold.name", "stat": "GOLD_GAIN", "magnitude": 0.15 },
         { "id": "SHR_HEAL", "displayName": "loc.shrine.heal.name", "stat": null, "magnitude": null, "immediateHealPctMaxHp": 0.4 }

@@ -637,8 +637,9 @@ internal sealed class DropsTuning
             var minimum = content.ReadDouble(pointer + "/min");
             var maximum = content.ReadDouble(pointer + "/max");
 
-            if (!double.IsFinite(minimum) || !double.IsFinite(maximum) ||
-                minimum < 0.0 || maximum < minimum)
+            // Sign-free since the damage-reduction affix re-signed: it adds flat onto DR_PCT's
+            // base 1.0, so its authored range is negative. Order and finiteness stay required.
+            if (!double.IsFinite(minimum) || !double.IsFinite(maximum) || maximum < minimum)
             {
                 throw new InvalidTunableException(
                     pointer,

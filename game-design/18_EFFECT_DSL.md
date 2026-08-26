@@ -81,7 +81,7 @@ steps          = min( floor( fn / per ), cap )        // cap: null ⇒ uncapped
 | Op | Meaning |
 |---|---|
 | `STAT_ADD_FLAT` | Add a flat amount to a stat, before percent aggregation |
-| `STAT_ADD_PCT` | Add to the additive percent bucket for a stat |
+| `STAT_ADD_PCT` | Add to the additive percent bucket for a stat. On `DR_PCT` — the damage-taken multiplier, base 1.00 (`16` D46) — a reduction authors a **negative** value |
 | `STAT_MULT` | Multiply the stat after all additive aggregation (Legendary-tier only) |
 | `STAT_SET` | Force a stat to a value (`CP_GLASS_HEART` only) |
 | `STAT_CONVERT` | Convert `value` × the **source** stat (`stat`) into the **destination** stat (`toStat`) — `PK_TURTLE` (20% of DEF into ATK), `PK_JUGGERNAUT` (8% of Max HP into ATK). Two signed deltas, applied at §8 step 6 |
@@ -401,13 +401,15 @@ The `Volatile` elite modifier — *"explodes on death for 15% of hero Max HP"*:
   "trigger": {"kind":"ON_DEATH"}, "target": "ALL_ENEMIES" }
 ```
 
-Ossify — Ossuary King phase 2 (`17` §4): ward plus a DR buff that dies with the ward:
+Ossify — Ossuary King phase 2 (`17` §4): ward plus a DR buff that dies with the ward. `DR%` is
+the damage-taken multiplier off base 1.00 (`16` D46), so a damage-reduction buff authors its
+percent-add **negative**: `−0.30` aggregates to a 0.70 multiplier — "30% less damage taken".
 
 ```json
 [
   { "op": "SHIELD", "value": 0.20, "valueMode": "SELF_MAXHP_PCT",
     "trigger": {"kind":"PERIODIC","interval":14.0}, "target": "SELF" },
-  { "op": "STAT_ADD_PCT", "stat": "DR_PCT", "value": 0.30,
+  { "op": "STAT_ADD_PCT", "stat": "DR_PCT", "value": -0.30,
     "trigger": {"kind":"PERIODIC","interval":14.0}, "target": "SELF",
     "duration": { "seconds": 6.0, "scope": "BATTLE", "until": "WARD_BROKEN" } }
 ]

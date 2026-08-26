@@ -61,25 +61,29 @@ internal static class StatFixtures
                 [StatId.DODGE] = (0.02, 0),
                 [StatId.BLOCK] = (0.00, 0),
                 [StatId.PEN] = (0.00, 0),
-                [StatId.DMG_PCT] = (0.00, 0),
-                [StatId.DR_PCT] = (0.00, 0),
+                [StatId.DMG_PCT] = (1.00, 0),
+                [StatId.DR_PCT] = (1.00, 0),
                 [StatId.HEAL_PCT] = (1.00, 0),
                 [StatId.THORNS] = (0.00, 0),
             },
             1,
             200);
 
-    /// <summary>The six stat caps.</summary>
+    /// <summary>The five stat caps plus the damage-taken floor, as the shipped document authors them.</summary>
     internal static StatCaps Caps() =>
-        StatCaps.From(new Dictionary<StatId, double>
-        {
-            [StatId.CRIT] = 0.75,
-            [StatId.LIFESTEAL] = 0.40,
-            [StatId.DODGE] = 0.50,
-            [StatId.BLOCK] = 0.60,
-            [StatId.PEN] = 0.70,
-            [StatId.DR_PCT] = 0.60,
-        });
+        StatCaps.From(
+            new Dictionary<StatId, double>
+            {
+                [StatId.CRIT] = 0.75,
+                [StatId.LIFESTEAL] = 0.40,
+                [StatId.DODGE] = 0.50,
+                [StatId.BLOCK] = 0.60,
+                [StatId.PEN] = 0.70,
+            },
+            new Dictionary<StatId, double>
+            {
+                [StatId.DR_PCT] = 0.40,
+            });
 
     /// <summary>The two mitigation dials as the shipped document authors them — <c>120</c> and <c>20</c>.</summary>
     /// <remarks>
@@ -117,7 +121,6 @@ internal static class StatFixtures
             [StatId.DODGE] = 0.50m,
             [StatId.BLOCK] = 0.60m,
             [StatId.PEN] = 0.70m,
-            [StatId.DR_PCT] = 0.60m,
         };
 
         foreach (var (capped, ceiling) in capOverrides ?? new Dictionary<StatId, decimal>())
@@ -142,8 +145,8 @@ internal static class StatFixtures
             [StatId.DODGE] = (0.02m, 0m),
             [StatId.BLOCK] = (0.00m, 0m),
             [StatId.PEN] = (0.00m, 0m),
-            [StatId.DMG_PCT] = (0.00m, 0m),
-            [StatId.DR_PCT] = (0.00m, 0m),
+            [StatId.DMG_PCT] = (1.00m, 0m),
+            [StatId.DR_PCT] = (1.00m, 0m),
             [StatId.HEAL_PCT] = (1.00m, 0m),
             [StatId.THORNS] = (0.00m, 0m),
         };

@@ -145,6 +145,14 @@ public static class MarginalPowerGuardrail
             var usedAbsolute = current == 0.0;
             var step = usedAbsolute ? AbsoluteProbeForZero : current * RelativeStep;
 
+            // DR_PCT is the damage-taken multiplier: its improving direction is DOWN, so the
+            // probe steps negative — an upward step would measure the stat getting worse and
+            // report the one stat every tank build wants as never worth taking.
+            if (stat == StatId.DR_PCT)
+            {
+                step = -step;
+            }
+
             var bumped = PowerCalculator.PowerIndex(
                 archetype.Stats.With(stat, current + step).ToActorStats(), level, content);
 

@@ -77,9 +77,10 @@ internal sealed class AttackPipeline : IAttackPipeline
         }
 
         // ── 2 · Base damage — the multiplier arrives unmultiplied by ATK; multiplying again at the
-        // op layer would square the attacker's power.
+        // op layer would square the attacker's power. DMG% is a multiplier stat consumed bare
+        // (base 1.0 is its identity), never inside a (1 + x) term.
         var raw = StatRounding.Round(
-            source.Stats[StatId.ATK] * attackMultiplier * (1.0 + source.Stats[StatId.DMG_PCT]));
+            source.Stats[StatId.ATK] * attackMultiplier * source.Stats[StatId.DMG_PCT]);
 
         // ── 3 · Mitigation ──────────────────────────────────────────────────────────────────
         var dmg = StatRounding.Round(raw * (1.0 - Mitigation(source, target)));
@@ -323,12 +324,14 @@ internal sealed class AttackPipeline : IAttackPipeline
     }
 
     /// <summary>
-    /// <c>dmg × (1 − DR%) × Π DamageTakenMult</c>, the product in ascending effect-id order. Shared
-    /// by the attack, <c>DAMAGE_MAXHP_PCT</c> and the thorns reflect.
+    /// <c>dmg × DR% × Π DamageTakenMult</c>, the product in ascending effect-id order. Shared by
+    /// the attack, <c>DAMAGE_MAXHP_PCT</c> and the thorns reflect. <c>DR%</c> is the damage-taken
+    /// multiplier consumed bare (base 1.0 is its identity, and it stays a stat — the
+    /// <c>DAMAGE_TAKEN_MULT</c> op is a separate factor, not a spelling of it).
     /// </summary>
     private static double IncomingDamage(double damage, BattleActor defender)
     {
-        var afterDr = StatRounding.Round(damage * (1.0 - defender.Stats[StatId.DR_PCT]));
+        var afterDr = StatRounding.Round(damage * defender.Stats[StatId.DR_PCT]);
 
         return StatRounding.Round(afterDr * defender.Flow.DamageTakenMultiplier());
     }

@@ -50,14 +50,21 @@ public sealed class StatAggregationTests
             "one-shots the hero three seconds into the enrage");
     }
 
-    /// <summary>The same erratum, from <c>ALL_COMBAT</c>'s side: ×2.0 means ×2, not ×3.</summary>
+    /// <summary>The same erratum, from <c>ALL_COMBAT</c>'s side: ×2.0 means ×2 per stat, not ×3.</summary>
+    /// <remarks>
+    /// The observable is the hit, which under `16` D46 composes ATK × DMG% — BOTH combat stats, both
+    /// doubled, so the hit is ×4. Under the Pi(1 + v) erratum each would triple: ×9. ⚠️ That an
+    /// ALL_COMBAT multiplier now moves the two bare-multiplier stats too (damage ×4, damage taken
+    /// ×2) is a real D46 consequence for `18` §9.1's authored CP_GLASS_HEART, carried forward in
+    /// this change's report — no shipped content authors ALL_COMBAT yet.
+    /// </remarks>
     [Fact]
     public void CP_GLASS_HEART_doubles_every_combat_stat_exactly()
     {
         var doubled = Atk(390.0, StatFixtures.AllCombatEffect("CP_GLASS_HEART_MULT", EffectOp.STAT_MULT, 2.0));
 
-        doubled.ShouldBe(780.0, "390 x 2");
-        doubled.ShouldNotBe(1170.0, "390 x 3 is what Pi(1 + v) would give");
+        doubled.ShouldBe(1560.0, "390 x 2 (ATK) x 2 (DMG%, a combat stat like any other)");
+        doubled.ShouldNotBe(3510.0, "390 x 3 x 3 is what Pi(1 + v) would give");
     }
 
     /// <summary>The 2.0 is data — a downgrade to ×1.6 is a one-number edit.</summary>
@@ -66,8 +73,8 @@ public sealed class StatAggregationTests
     {
         var effect = StatFixtures.AllCombatEffect("CP_GLASS_HEART_MULT", EffectOp.STAT_MULT, 2.0);
 
-        Atk(100.0, effect).ShouldBe(200.0);
-        Atk(100.0, effect with { Value = 1.6 }).ShouldBe(160.0);
+        Atk(100.0, effect).ShouldBe(400.0, "100 x 2 (ATK) x 2 (DMG%)");
+        Atk(100.0, effect with { Value = 1.6 }).ShouldBe(256.0, "100 x 1.6 x 1.6");
     }
 
     /// <summary>
@@ -80,7 +87,7 @@ public sealed class StatAggregationTests
             390.0,
             StatFixtures.AllCombatEffect("CP_GLASS_HEART_MULT", EffectOp.STAT_MULT, 2.0),
             Effect("CP_GLASS_HEART_SET_HP", EffectOp.STAT_SET, StatId.MAX_HP, 1.0))
-            .ShouldBe(780.0, "the set writes MAX_HP only — everything else is still doubled");
+            .ShouldBe(1560.0, "the set writes MAX_HP only — everything else is still doubled, DMG% included");
 
     // ─────────────────────────────────────────── the post-step-7 Max HP, read as a ward
 
@@ -240,50 +247,50 @@ public sealed class StatAggregationTests
         StatRounding.IsRounded(result).ShouldBeTrue();
     }
 
-    // ────────────────────────────────────────────────────────────────────── step 9 · the caps
+    // ───────────────────────────────────────────────────────── step 9 · caps and the floor
 
-    /// <summary>Caps are applied after all aggregation.</summary>
+    /// <summary>Step-9 bounds are applied after all aggregation — here `16` D46's 0.4 floor.</summary>
     /// <remarks>
-    /// <c>DR_PCT</c> is the cap these cases read because it is the one capped stat whose ceiling
-    /// is deterministically visible — it multiplies the hit by <c>(1 − DR%)</c>. The other five
-    /// are draw thresholds, visible only as a rate across many swings. The raw is 100 throughout,
-    /// so each expectation is the percentage that survived.
+    /// <c>DR_PCT</c> is the bound these cases read because it is the one bounded stat whose bound
+    /// is deterministically visible — the hit is multiplied by the bare <c>DR%</c>. The five
+    /// capped stats are draw thresholds, visible only as a rate across many swings. The raw is 100
+    /// throughout, so each expectation is the percentage that survived.
     /// </remarks>
     [Fact]
-    public void Caps_are_applied_after_all_aggregation() =>
+    public void The_floor_is_applied_after_all_aggregation() =>
         Mitigated(
-            Effect("A_PCT", EffectOp.STAT_ADD_PCT, StatId.DR_PCT, 30.0),
-            Effect("B_MULT", EffectOp.STAT_MULT, StatId.DR_PCT, 5.0))
-            .ShouldBe(40.0, "DR% caps at 0.60 however large the build gets");
+            Effect("A_PCT", EffectOp.STAT_ADD_PCT, StatId.DR_PCT, -0.5),
+            Effect("B_MULT", EffectOp.STAT_MULT, StatId.DR_PCT, 0.5))
+            .ShouldBe(40.0, "1.0 x 0.5 x 0.5 = 0.25, floored to 0.40 however deep the build stacks");
 
-    /// <summary>🔒 A step-8 set below the ceiling means the cap binds nothing at all.</summary>
+    /// <summary>🔒 A step-8 set above the floor means the floor binds nothing at all.</summary>
     [Fact]
-    public void A_cap_binds_the_end_of_the_pipeline_not_an_intermediate() =>
+    public void The_floor_binds_the_end_of_the_pipeline_not_an_intermediate() =>
         Mitigated(
-            Effect("A_MULT", EffectOp.STAT_MULT, StatId.DR_PCT, 2.0),
-            Effect("B_SET", EffectOp.STAT_SET, StatId.DR_PCT, 0.30))
-            .ShouldBe(70.0, "the set lands after step 7's x2 and below the 0.60 cap");
+            Effect("A_MULT", EffectOp.STAT_MULT, StatId.DR_PCT, 0.2),
+            Effect("B_SET", EffectOp.STAT_SET, StatId.DR_PCT, 0.55))
+            .ShouldBe(55.0, "the set lands after step 7's x0.2 and above the 0.40 floor");
 
-    /// <summary>🔒 Step 9 runs after step 8, so a <c>STAT_SET</c> above the ceiling is still clamped.</summary>
+    /// <summary>🔒 Step 9 runs after step 8, so a <c>STAT_SET</c> below the floor is still clamped.</summary>
     [Fact]
-    public void A_STAT_SET_above_the_ceiling_is_still_capped()
+    public void A_STAT_SET_below_the_floor_is_still_floored()
     {
-        var landed = Mitigated(Effect("A_SET", EffectOp.STAT_SET, StatId.DR_PCT, 0.90));
+        var landed = Mitigated(Effect("A_SET", EffectOp.STAT_SET, StatId.DR_PCT, 0.20));
 
-        landed.ShouldBe(40.0, "DR% caps at 0.60");
-        landed.ShouldNotBe(10.0, "10 is an uncapped 0.90 — the cap applied before step 8");
+        landed.ShouldBe(40.0, "DR% floors at 0.40");
+        landed.ShouldNotBe(20.0, "20 is an unfloored 0.20 — the floor applied before step 8");
     }
 
-    /// <summary>🔒 …and after step 7: a sub-1 multiplier brings an over-cap intermediate back down.</summary>
+    /// <summary>🔒 …and after step 7: an over-1 multiplier brings an under-floor intermediate back up.</summary>
     [Fact]
-    public void A_cap_is_not_applied_to_an_intermediate_a_later_step_brings_back_down()
+    public void The_floor_is_not_applied_to_an_intermediate_a_later_step_brings_back_up()
     {
         var landed = Mitigated(
-            Effect("A_PCT", EffectOp.STAT_ADD_PCT, StatId.DR_PCT, 30.0),
-            Effect("B_MULT", EffectOp.STAT_MULT, StatId.DR_PCT, 0.5));
+            Effect("A_PCT", EffectOp.STAT_ADD_PCT, StatId.DR_PCT, -0.8),
+            Effect("B_MULT", EffectOp.STAT_MULT, StatId.DR_PCT, 3.0));
 
-        landed.ShouldBe(40.0, "0.05 x 31 = 1.55, x 0.5 = 0.775, then capped to 0.60");
-        landed.ShouldNotBe(70.0, "70 is a 0.30 DR% — capped at step 5 and then halved by step 7");
+        landed.ShouldBe(60.0, "1.0 x 0.2 = 0.2, x 3 = 0.6 — never floored, because 0.6 is the end value");
+        landed.ShouldNotBe(120.0, "120 is 0.2 floored to 0.4 at step 5 and then tripled by step 7");
     }
 
     /// <summary>THORNS is capped nowhere, and the reflected damage says so.</summary>
@@ -397,7 +404,7 @@ public sealed class StatAggregationTests
     private static double Mitigated(params EffectDefinition[] defenderEffects) =>
         PublicFightBench.Duel(
             PublicFightBench.Stats(500.0, (StatId.ATK, 100.0)),
-            PublicFightBench.Stats(500_000.0, (StatId.DR_PCT, 0.05)),
+            PublicFightBench.Stats(500_000.0),
             defenderEffects: defenderEffects)
         .AttackerHit();
 
