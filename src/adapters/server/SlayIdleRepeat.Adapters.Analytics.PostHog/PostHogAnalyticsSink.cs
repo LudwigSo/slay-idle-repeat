@@ -1,3 +1,7 @@
+using System.Collections.Concurrent;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -19,8 +23,13 @@ namespace SlayIdleRepeat.Adapters.Analytics.PostHog;
 /// </remarks>
 public sealed class PostHogAnalyticsSink : IAnalyticsSinkPort, IDisposable
 {
+    // Roughly a busy hour of buffered events; beyond it the oldest are the least valuable.
+    private const int QueueCapacity = 10_000;
+
     private readonly PostHogOptions _options;
-    private readonly HttpMessageHandler _handler;
+    private readonly HttpClient _client;
+    private readonly ConcurrentQueue<CaptureEntry> _queue = new();
+    private readonly SemaphoreSlim _flushGate = new(1, 1);
 
     /// <summary>Builds the sink over its configuration and the HTTP handler it posts through.</summary>
     /// <param name="options">The adapter's configuration.</param>
@@ -32,7 +41,7 @@ public sealed class PostHogAnalyticsSink : IAnalyticsSinkPort, IDisposable
         ArgumentNullException.ThrowIfNull(handler);
 
         _options = options;
-        _handler = handler;
+        _client = new HttpClient(handler, disposeHandler: false);
     }
 
     /// <inheritdoc/>
@@ -40,10 +49,16 @@ public sealed class PostHogAnalyticsSink : IAnalyticsSinkPort, IDisposable
     {
         ArgumentNullException.ThrowIfNull(analyticsEvent);
 
-        _ = _options;
-        _ = _handler;
+        if (!_options.Enabled)
+        {
+            return;
+        }
 
-        throw new NotImplementedException();
+        _queue.Enqueue(new CaptureEntry(analyticsEvent.Name, player.Value, analyticsEvent.Properties));
+
+        while (_queue.Count > QueueCapacity && _queue.TryDequeue(out _))
+        {
+        }
     }
 
     /// <summary>
@@ -51,11 +66,61 @@ public sealed class PostHogAnalyticsSink : IAnalyticsSinkPort, IDisposable
     /// shutdown and a test can flush deterministically. Never throws for a backend problem.
     /// </summary>
     /// <param name="ct">Cancellation.</param>
-    public Task FlushAsync(CancellationToken ct) => throw new NotImplementedException();
+    public async Task FlushAsync(CancellationToken ct)
+    {
+        await _flushGate.WaitAsync(ct).ConfigureAwait(false);
+
+        try
+        {
+            var batch = new List<CaptureEntry>();
+
+            while (_queue.TryDequeue(out var entry))
+            {
+                batch.Add(entry);
+            }
+
+            if (batch.Count == 0)
+            {
+                return;
+            }
+
+            await PostAsync(batch, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _flushGate.Release();
+        }
+    }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        // Nothing owned yet; the queue and its flush loop arrive with the implementation.
+        _client.Dispose();
+        _flushGate.Dispose();
     }
+
+    private async Task PostAsync(IReadOnlyList<CaptureEntry> batch, CancellationToken ct)
+    {
+        try
+        {
+            var body = JsonSerializer.Serialize(new CapturePayload(_options.ProjectKey, batch));
+            using var content = new StringContent(body, Encoding.UTF8, "application/json");
+            using var response = await _client
+                .PostAsync(_options.Host.TrimEnd('/') + "/batch", content, ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            // A backend that is down is the adapter's problem at its own edge: the batch is dropped.
+        }
+    }
+
+    private sealed record CapturePayload(
+        [property: JsonPropertyName("api_key")] string ApiKey,
+        [property: JsonPropertyName("batch")] IReadOnlyList<CaptureEntry> Batch);
+
+    private sealed record CaptureEntry(
+        [property: JsonPropertyName("event")] string Event,
+        [property: JsonPropertyName("distinct_id")] string DistinctId,
+        [property: JsonPropertyName("properties")] IReadOnlyDictionary<string, string> Properties);
 }

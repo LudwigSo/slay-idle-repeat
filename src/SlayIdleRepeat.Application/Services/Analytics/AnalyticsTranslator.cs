@@ -1,5 +1,8 @@
+using System.Globalization;
 using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Services.Events;
+using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Events;
 
 namespace SlayIdleRepeat.Application.Services.Analytics;
 
@@ -21,6 +24,71 @@ public static class AnalyticsTranslator
     {
         ArgumentNullException.ThrowIfNull(batch);
 
-        throw new NotImplementedException();
+        var emitted = new List<AnalyticsEvent>();
+
+        // The command's own fact first, then the domain events in the order the domain produced them.
+        switch (batch.Command)
+        {
+            case StartRunCommand when batch.State.Run is { } opened:
+                emitted.Add(new AnalyticsEvent(AnalyticsVocabulary.RunStart, new Dictionary<string, string>
+                {
+                    ["run_id"] = opened.Id.Value,
+                    ["chapter"] = Invariant(opened.ChapterId),
+                    ["tier"] = opened.Tier.ToString(),
+                }));
+                break;
+
+            case EndRunCommand when batch.State.Run is { } ended:
+                emitted.Add(new AnalyticsEvent(AnalyticsVocabulary.RunEnd, new Dictionary<string, string>
+                {
+                    ["run_id"] = ended.Id.Value,
+                    ["victory"] = ended.ToSnapshot().BossDefeated ? "true" : "false",
+                }));
+                break;
+
+            case BeginSessionCommand session:
+                emitted.Add(new AnalyticsEvent(AnalyticsVocabulary.SessionStart, new Dictionary<string, string>
+                {
+                    ["client_version"] = session.ClientVersion,
+                    ["content_hash"] = session.ContentHash,
+                }));
+                break;
+        }
+
+        foreach (var domainEvent in batch.Events)
+        {
+            switch (domainEvent)
+            {
+                case DiceRolled rolled:
+                    emitted.Add(DieRolled(rolled.Pips, "rolled"));
+                    break;
+
+                case FixedDieUsed spent:
+                    emitted.Add(DieRolled(spent.Pips, "fixed"));
+                    break;
+
+                case CurrencyChanged moved:
+                    emitted.Add(new AnalyticsEvent(
+                        AnalyticsVocabulary.CurrencyChanged,
+                        new Dictionary<string, string>
+                        {
+                            ["currency"] = moved.Id.ToString(),
+                            ["delta"] = Invariant(moved.Delta),
+                            ["reason"] = moved.Reason,
+                        }));
+                    break;
+            }
+        }
+
+        return emitted;
     }
+
+    private static AnalyticsEvent DieRolled(int pips, string source) =>
+        new(AnalyticsVocabulary.DieRolled, new Dictionary<string, string>
+        {
+            ["face"] = Invariant(pips),
+            ["source"] = source,
+        });
+
+    private static string Invariant(long value) => value.ToString(CultureInfo.InvariantCulture);
 }

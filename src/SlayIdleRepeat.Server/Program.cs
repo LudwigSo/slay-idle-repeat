@@ -12,7 +12,11 @@ using SlayIdleRepeat.Server.Composition;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddObservability();
+
 var app = builder.Build();
+
+app.UseObservability();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

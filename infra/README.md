@@ -187,14 +187,16 @@ curl -X POST http://127.0.0.1:4318/v1/traces \
 Then look for the service `sir-pipeline-probe` in Jaeger. The span is stamped
 `2026-01-01T00:00:00Z`, so widen the time range.
 
-> ⚠️ **Not proven, and cannot be until M5-11:** that
-> `SlayIdleRepeat.Server` emits anything at all. There is no OpenTelemetry SDK
-> registered in the server yet — no spans, no metrics, no Serilog. Every panel
-> on the *Telemetry pipeline* dashboard that is about application data is empty
-> by construction, and the `otel-collector-app` scrape target is up with zero
-> series. **M5-11** ("Serilog structured logs, OpenTelemetry metrics/traces,
-> Sentry, PostHog server-side event sink") is what fills them. The road is built
-> and tested; nothing is driving on it.
+> **M5-11 registered the emitters.** `builder.AddObservability()`
+> (`Composition/ObservabilityComposition.cs`) wires Serilog (compact one-line
+> JSON to stdout), the OpenTelemetry SDK subscribed to the server's own
+> `ActivitySource`/`Meter` (both named `SlayIdleRepeat.Server`) with OTLP
+> exporters that read the `OTEL_*` variables below, Sentry from `Sentry__Dsn`,
+> and the PostHog `/batch` sink from `PostHog__*` with a 10-second flush loop.
+> What travels today: a `run_command`/`player_command` span per command POST, a
+> `domain_events` histogram tagged by event type, and every exception that
+> escapes the pipeline. With the local `Sentry__Dsn=''` / `PostHog__Enabled=false`
+> both vendor sinks stay silent by configuration, not by absence.
 
 ### Why no Loki
 
@@ -232,11 +234,13 @@ used.
 - Neither is on the critical path for anything before M5-11, because they are
   sinks for data the server does not yet emit.
 
-The **adapters exist in the codebase** (`Adapters.Analytics.PostHog`, and Sentry
-via the server's error reporting) and are wired to a local no-op here: the API
-gets `Sentry__Dsn=` (empty — the SDK's own documented "disabled" value) and
-`PostHog__Enabled=false`. A deployed environment sets a real DSN and host, which
-is precisely the "deployment detail" `14` §10 calls it.
+The **adapters exist and are registered** (`Adapters.Analytics.PostHog` behind
+`IAnalyticsSinkPort`, Sentry initialised unconditionally at startup) but are
+configured off here: the API gets `Sentry__Dsn=` (empty — the SDK's own
+documented "disabled" value) and `PostHog__Enabled=false`, which the server
+announces with one startup warning that analytics is being dropped. A deployed
+environment sets a real DSN and host, which is precisely the "deployment
+detail" `14` §10 calls it.
 
 **If you have come here to "complete" the observability stack: don't.** Bring it
 up at a kickoff instead.
@@ -249,10 +253,12 @@ up at a kickoff instead.
 config service."* Every deployment-varying value reaches the API as an
 environment variable, listed in the `api` service in `docker-compose.yml`.
 
-> ⚠️ **The server reads none of them yet.** They are defined now, with the names
-> M5 will bind to, so the wiring is a reviewable artefact instead of folklore.
-> `__` is ASP.NET Core's configuration separator: `ConnectionStrings__Postgres`
-> binds to the key `ConnectionStrings:Postgres`.
+> ⚠️ **M5-11's rows are read; M5-05's are not yet.** The server binds the
+> `OTEL_*`, `Sentry__Dsn` and `PostHog__*` variables today; the connection and
+> object-store groups are defined with the names M5-05 will bind to, so that
+> wiring stays a reviewable artefact instead of folklore. `__` is ASP.NET
+> Core's configuration separator: `ConnectionStrings__Postgres` binds to the
+> key `ConnectionStrings:Postgres`.
 
 | Variable | Value in this stack | Consumed by |
 |---|---|---|
@@ -283,12 +289,15 @@ up as they are.
    it here; do not leave `dotnet ef database update` as a README step. Then bind
    the three `ConnectionStrings__*` / `ObjectStore__*` groups above in
    `Composition/`.
-2. **M5-11** — register the OpenTelemetry SDK and Serilog. The `OTEL_*` variables
-   and the whole collector pipeline are already waiting; if spans do not appear
-   in Jaeger, check `docker compose logs otel-collector` before suspecting this
-   stack. Then add the real game dashboards (`14` §10.1's event set — perk pick
-   rate, run abandonment by tile index, disconnect rate, season rating drift) as
-   new files in `infra/grafana/dashboards/`.
+2. **M5-11 — done for the SDK and Serilog**: `builder.AddObservability()`
+   registers both, and the `OTEL_*` variables are picked up by the SDK as they
+   are. If spans do not appear in Jaeger, check
+   `docker compose logs otel-collector` before suspecting this stack. Still
+   open here: the real game dashboards (`14` §10.1's event set — perk pick
+   rate, run abandonment by tile index, disconnect rate, season rating drift)
+   as new files in `infra/grafana/dashboards/`, which need source events the
+   domain does not emit yet (see the unemittable-event register in
+   `Architecture.Tests`).
 3. **Both** — tighten the stack assertions in the `compose-boot` job
    (`.github/workflows/ci.yml`) to cover the new signals: real server spans and
    metrics rather than only "every scrape target is up".

@@ -40,4 +40,45 @@ public interface IAnalyticsSinkPort
 /// The event's properties. Never null (empty is fine), every key non-blank, and every value already
 /// rendered invariantly by the caller — this type carries text, it formats nothing.
 /// </param>
-public sealed record AnalyticsEvent(string Name, IReadOnlyDictionary<string, string> Properties);
+public sealed record AnalyticsEvent(string Name, IReadOnlyDictionary<string, string> Properties)
+{
+    /// <inheritdoc cref="AnalyticsEvent"/>
+    public string Name { get; } = ValidName(Name);
+
+    /// <inheritdoc cref="AnalyticsEvent"/>
+    public IReadOnlyDictionary<string, string> Properties { get; } = ValidProperties(Properties);
+
+    private static string ValidName(string name)
+    {
+        if (name is null || !IsLowerSnake(name))
+        {
+            throw new ArgumentException(
+                $"'{name}' is not an analytics event name. The name must match ^[a-z][a-z0-9_]*$, "
+                + "or one fact reaches the backend as several casing/spacing variants.",
+                nameof(Name));
+        }
+
+        return name;
+    }
+
+    private static bool IsLowerSnake(string name) =>
+        name.Length > 0
+        && name[0] is >= 'a' and <= 'z'
+        && name.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_');
+
+    private static IReadOnlyDictionary<string, string> ValidProperties(
+        IReadOnlyDictionary<string, string> properties)
+    {
+        ArgumentNullException.ThrowIfNull(properties, nameof(Properties));
+
+        if (properties.Keys.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new ArgumentException(
+                "A property key is blank. A blank key names nothing, so its value would arrive at "
+                + "the backend unaddressable.",
+                nameof(Properties));
+        }
+
+        return properties;
+    }
+}

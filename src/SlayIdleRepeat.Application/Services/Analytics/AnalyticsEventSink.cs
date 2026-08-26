@@ -26,8 +26,11 @@ public sealed class AnalyticsEventSink : IDomainEventSink
     {
         ArgumentNullException.ThrowIfNull(batch);
 
-        _ = _analytics;
+        foreach (var analyticsEvent in AnalyticsTranslator.Translate(batch))
+        {
+            _analytics.Track(batch.Player, analyticsEvent);
+        }
 
-        throw new NotImplementedException();
+        return Task.CompletedTask;
     }
 }

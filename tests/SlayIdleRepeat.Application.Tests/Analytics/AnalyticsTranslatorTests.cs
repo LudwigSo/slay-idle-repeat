@@ -124,24 +124,41 @@ public sealed class AnalyticsTranslatorTests
     }
 
     [Fact]
-    public void Translate_maps_a_currency_movement_to_currency_changed()
+    public void Translate_maps_every_currency_movement_to_its_own_currency_changed()
     {
         var batch = AnalyticsWorlds.VictoryEndRun(bankedSoulShards: 50);
 
-        var moved = batch.Events.OfType<CurrencyChanged>()
-            .ShouldHaveSingleItem("fixture floor: 50 banked Soul Shards paid at Victory move exactly once.");
+        var moved = batch.Events.OfType<CurrencyChanged>().ToArray();
 
-        moved.Delta.ShouldBe(50, "fixture floor: Victory pays the banked amount in full.");
+        moved.Length.ShouldBeGreaterThanOrEqualTo(
+            2,
+            "fixture floor: a victory pays the banked Soul Shards AND grants the energy its " +
+            "legend level-up carries — a fixture with one movement cannot prove per-event fidelity.");
+
+        var payout = moved.Where(movement => movement.Reason == "run_end_payout")
+            .ShouldHaveSingleItem(
+                "fixture floor: the banked amount is paid under the payout reason exactly once.");
+
+        payout.Delta.ShouldBe(50, "fixture floor: Victory pays the banked amount in full.");
 
         var emitted = AnalyticsTranslator.Translate(batch)
             .Where(e => e.Name == AnalyticsVocabulary.CurrencyChanged)
-            .ShouldHaveSingleItem("one CurrencyChanged is exactly one currency_changed.");
+            .ToArray();
 
-        emitted.Properties["currency"].ShouldBe("SOUL_SHARDS", "which wallet moved.");
-        emitted.Properties["delta"].ShouldBe("50", "how much, signed, rendered invariantly.");
-        emitted.Properties["reason"].ShouldBe(
-            "run_end_payout",
-            "the domain's own attribution reason, verbatim — the whole point of the event.");
+        emitted.Select(e => (e.Properties["currency"], e.Properties["delta"], e.Properties["reason"]))
+            .ShouldBe(
+                moved.Select(m => (
+                    m.Id.ToString(),
+                    m.Delta.ToString(CultureInfo.InvariantCulture),
+                    m.Reason)),
+                "every CurrencyChanged is exactly one currency_changed, in domain order — a " +
+                "translator that keeps only the first movement makes every later wallet invisible.");
+
+        var payoutEvent = emitted.Where(e => e.Properties["reason"] == "run_end_payout")
+            .ShouldHaveSingleItem("the payout movement survives translation under its own reason.");
+
+        payoutEvent.Properties["currency"].ShouldBe("SOUL_SHARDS", "which wallet moved.");
+        payoutEvent.Properties["delta"].ShouldBe("50", "how much, signed, rendered invariantly.");
     }
 
     /// <summary>

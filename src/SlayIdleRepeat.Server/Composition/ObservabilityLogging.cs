@@ -1,4 +1,7 @@
+using Serilog;
 using Serilog.Core;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 
 namespace SlayIdleRepeat.Server.Composition;
 
@@ -19,6 +22,16 @@ public static class ObservabilityLogging
     {
         ArgumentNullException.ThrowIfNull(output);
 
-        throw new NotImplementedException();
+        return new LoggerConfiguration()
+            .WriteTo.Sink(new CompactJsonTextWriterSink(output))
+            .CreateLogger();
+    }
+
+    /// <summary>Renders each event through <see cref="CompactJsonFormatter"/> — one line per event.</summary>
+    private sealed class CompactJsonTextWriterSink(TextWriter output) : ILogEventSink
+    {
+        private readonly CompactJsonFormatter _formatter = new();
+
+        public void Emit(LogEvent logEvent) => _formatter.Format(logEvent, output);
     }
 }

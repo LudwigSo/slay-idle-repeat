@@ -1,5 +1,6 @@
-using SlayIdleRepeat.Application.UseCases;
+using SlayIdleRepeat.Application.Services.Analytics;
 using SlayIdleRepeat.Application.Services.Events;
+using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Application.Wire;
 using SlayIdleRepeat.Server.Endpoints;
 
@@ -27,10 +28,15 @@ public static class GameCommandComposition
 
         IPrincipalResolver principals = new PlaceholderBearerPlayerIdResolver();
 
+        // The server's only tracing: no ASP.NET auto-instrumentation package is pinned, so a
+        // command that is not wrapped here appears on no trace at all.
+        var telemetry = ObservabilityComposition.Telemetry(app.Configuration);
+
         app.MapPost(
             "/run/{runId}/command",
             async (HttpContext http, string runId, CancellationToken ct) =>
             {
+                using var span = telemetry.BeginSpan("run_command");
                 var reply = await CommandRequestHandler.HandleRunCommandAsync(
                     principals, Gateway(app), http.Request.Headers.Authorization, runId,
                     await ReadBodyAsync(http, ct), ct);
@@ -42,6 +48,7 @@ public static class GameCommandComposition
             "/player/command",
             async (HttpContext http, CancellationToken ct) =>
             {
+                using var span = telemetry.BeginSpan("player_command");
                 var reply = await CommandRequestHandler.HandlePlayerCommandAsync(
                     principals, Gateway(app), http.Request.Headers.Authorization,
                     await ReadBodyAsync(http, ct), ct);
@@ -69,8 +76,16 @@ public static class GameCommandComposition
 
             var backbone = GameBackbone.Shared(app.Configuration, app.Environment);
 
+            // Post-commit fan-out: analytics and the domain-events counter, over the SAME composed
+            // ports the observability area flushes and exports — never a second, private instance.
+            var dispatcher = new DomainEventDispatcher(
+            [
+                new AnalyticsEventSink(ObservabilityComposition.AnalyticsSink(app.Configuration)),
+                new TelemetryEventSink(ObservabilityComposition.Telemetry(app.Configuration)),
+            ]);
+
             return _gateway = new CommandGateway(
-                new ApplyCommandUseCase(backbone.WorldStore, new DomainEventDispatcher([])),
+                new ApplyCommandUseCase(backbone.WorldStore, dispatcher),
                 backbone.Clock,
                 backbone.Ids,
                 backbone.Content,

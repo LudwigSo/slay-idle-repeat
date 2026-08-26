@@ -27,13 +27,19 @@ public sealed class TelemetryExceptionMiddleware
 
     /// <summary>Runs the pipeline; records and rethrows whatever escapes it.</summary>
     /// <param name="context">The request.</param>
-    public Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        _ = _next;
-        _ = _telemetry;
+        try
+        {
+            await _next(context).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            _telemetry.RecordException(error);
 
-        throw new NotImplementedException();
+            throw;
+        }
     }
 }

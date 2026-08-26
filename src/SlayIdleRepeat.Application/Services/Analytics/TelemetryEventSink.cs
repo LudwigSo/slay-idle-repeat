@@ -32,8 +32,12 @@ public sealed class TelemetryEventSink : IDomainEventSink
     {
         ArgumentNullException.ThrowIfNull(batch);
 
-        _ = _telemetry;
+        foreach (var domainEvent in batch.Events)
+        {
+            _telemetry.RecordMetric(
+                DomainEventsMetric, 1d, (EventTypeTag, domainEvent.GetType().Name));
+        }
 
-        throw new NotImplementedException();
+        return Task.CompletedTask;
     }
 }
