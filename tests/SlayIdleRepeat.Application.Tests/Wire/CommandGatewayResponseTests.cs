@@ -1,5 +1,6 @@
 using System.Globalization;
 using Shouldly;
+using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Tests.UseCases;
 using SlayIdleRepeat.Application.Wire;
 using SlayIdleRepeat.Core;
@@ -194,14 +195,16 @@ public sealed class CommandGatewayResponseTests
     [InlineData("START_RUN", "{\"chapterId\": 1, \"tier\": \"NORMAL\"}", "disabledChapter")]
     [InlineData("CLAIM_AD_REWARD", "{\"placementId\": \"ad_killed\"}", "disabledPlacement")]
     [InlineData("START_DUEL", "{\"ghostId\": \"g1\"}", "pvpKilled")]
+    [InlineData("CLAIM_INBOX", "{}", "mailKilled")]
     public async Task Each_kill_switch_answers_FEATURE_DISABLED_before_dispatch(
         string type, string payload, string killSwitch)
     {
         var flags = killSwitch switch
         {
-            "disabledChapter" => new FeatureFlags(true, true, [], ["1"]),
-            "disabledPlacement" => new FeatureFlags(true, true, ["ad_killed"], []),
-            _ => new FeatureFlags(pvpEnabled: false, plusOfferEnabled: true, [], []),
+            "disabledChapter" => new FeatureFlags(true, true, true, [], ["1"]),
+            "disabledPlacement" => new FeatureFlags(true, true, true, ["ad_killed"], []),
+            "mailKilled" => new FeatureFlags(pvpEnabled: true, plusOfferEnabled: true, mailEnabled: false, [], []),
+            _ => new FeatureFlags(pvpEnabled: false, plusOfferEnabled: true, mailEnabled: true, [], []),
         };
 
         var world = await GatewayWorld.WithAStartingPlayerAsync(flags);
@@ -225,8 +228,61 @@ public sealed class CommandGatewayResponseTests
             world.Player, Envelopes.Body("START_DUEL", 1, "c-d", "{\"ghostId\": \"g1\"}"), Worlds.Cancel);
         Replies.Rejection(duel, "ILLEGAL_STATE");
 
+        // CLAIM_INBOX's registry row is Deferred to M5-08 — same construction as START_DUEL above.
+        var inbox = await world.Gateway.SubmitPlayerCommandAsync(
+            world.Player, Envelopes.Body("CLAIM_INBOX", 2, "c-i", "{}"), Worlds.Cancel);
+        Replies.Rejection(inbox, "ILLEGAL_STATE");
+
         var start = await world.Gateway.SubmitPlayerCommandAsync(
-            world.Player, Envelopes.StartRun(sequence: 2, commandId: "c-s"), Worlds.Cancel);
+            world.Player, Envelopes.StartRun(sequence: 3, commandId: "c-s"), Worlds.Cancel);
         Replies.Parse(start, expectedStatus: 200).TryGetProperty("rejected", out _).ShouldBeFalse();
+    }
+
+    /// <summary>The gate reads the live flags source per command, so a reload needs no gateway rebuild.</summary>
+    [Fact]
+    public async Task A_reloaded_kill_switch_applies_to_the_next_command_without_a_gateway_rebuild()
+    {
+        var flags = LocalHostAmbience.NoRemoteConfigResolved();
+        var world = await GatewayWorld.WithAStartingPlayerAsync(currentFlags: () => flags);
+
+        var before = await world.Gateway.SubmitPlayerCommandAsync(
+            world.Player, Envelopes.Body("START_DUEL", 1, "c-1", "{\"ghostId\": \"g1\"}"), Worlds.Cancel);
+        Replies.Rejection(before, "ILLEGAL_STATE");
+
+        flags = new FeatureFlags(pvpEnabled: false, plusOfferEnabled: true, mailEnabled: true, [], []);
+
+        var after = await world.Gateway.SubmitPlayerCommandAsync(
+            world.Player, Envelopes.Body("START_DUEL", 2, "c-2", "{\"ghostId\": \"g1\"}"), Worlds.Cancel);
+        Replies.Rejection(after, "FEATURE_DISABLED");
+    }
+
+    /// <summary>
+    /// One snapshot per submitted command — as far as the public surface can observe, the gate and
+    /// the <c>GameContext</c> read the same per-command instance (kickoff ruling 5).
+    /// </summary>
+    [Fact]
+    public async Task Each_submitted_command_reads_the_flags_source_exactly_once()
+    {
+        var reads = 0;
+        var world = await GatewayWorld.WithAStartingPlayerAsync(
+            currentFlags: () =>
+            {
+                reads++;
+                return LocalHostAmbience.NoRemoteConfigResolved();
+            });
+
+        var baseline = reads;
+
+        await world.Gateway.SubmitPlayerCommandAsync(
+            world.Player, Envelopes.StartRun(sequence: 1, commandId: "c-1"), Worlds.Cancel);
+        (reads - baseline).ShouldBe(1,
+            "two reads per command could hand the gate and the GameContext different snapshots, " +
+            "and zero means the gateway kept a stale construction-time copy");
+
+        await world.Gateway.SubmitPlayerCommandAsync(
+            world.Player,
+            Envelopes.Body("BEGIN_SESSION", 2, "c-2", "{\"clientVersion\": \"1.0\", \"contentHash\": \"h\"}"),
+            Worlds.Cancel);
+        (reads - baseline).ShouldBe(2);
     }
 }

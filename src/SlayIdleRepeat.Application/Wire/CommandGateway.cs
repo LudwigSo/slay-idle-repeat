@@ -90,7 +90,46 @@ public sealed class CommandGateway
     /// <param name="ids">The source of run identities and per-command seeds.</param>
     /// <param name="content">The loaded, validated content set every command reads.</param>
     /// <param name="entitlements">The subscription entitlement the composition root resolved.</param>
-    /// <param name="flags">The kill switches the composition root resolved.</param>
+    /// <param name="currentFlags">The kill switches' live source; the composition root's reloading config swaps what it answers.</param>
+    /// <param name="ledger">Where sequencing state and idempotency records live.</param>
+    /// <param name="throttle">The per-player application-level limit.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    public CommandGateway(
+        ApplyCommandUseCase apply,
+        IClockPort clock,
+        IIdGeneratorPort ids,
+        ContentSnapshot content,
+        Entitlements entitlements,
+        Func<FeatureFlags> currentFlags,
+        ICommandLedgerStore ledger,
+        ICommandThrottle throttle)
+    {
+        ArgumentNullException.ThrowIfNull(apply);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(ids);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(entitlements);
+        ArgumentNullException.ThrowIfNull(currentFlags);
+        ArgumentNullException.ThrowIfNull(ledger);
+        ArgumentNullException.ThrowIfNull(throttle);
+
+        _apply = apply;
+        _clock = clock;
+        _ids = ids;
+        _content = content;
+        _entitlements = entitlements;
+        _flags = currentFlags();
+        _ledger = ledger;
+        _throttle = throttle;
+    }
+
+    /// <summary>Composes the gateway over a fixed flag value — the live-source overload with a constant read.</summary>
+    /// <param name="apply">The write side every dispatched command goes through.</param>
+    /// <param name="clock">The instant every command is applied at.</param>
+    /// <param name="ids">The source of run identities and per-command seeds.</param>
+    /// <param name="content">The loaded, validated content set every command reads.</param>
+    /// <param name="entitlements">The subscription entitlement the composition root resolved.</param>
+    /// <param name="flags">The kill switches, fixed for the gateway's lifetime.</param>
     /// <param name="ledger">Where sequencing state and idempotency records live.</param>
     /// <param name="throttle">The per-player application-level limit.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
@@ -103,24 +142,16 @@ public sealed class CommandGateway
         FeatureFlags flags,
         ICommandLedgerStore ledger,
         ICommandThrottle throttle)
+        : this(apply, clock, ids, content, entitlements, Constant(flags), ledger, throttle)
     {
-        ArgumentNullException.ThrowIfNull(apply);
-        ArgumentNullException.ThrowIfNull(clock);
-        ArgumentNullException.ThrowIfNull(ids);
-        ArgumentNullException.ThrowIfNull(content);
-        ArgumentNullException.ThrowIfNull(entitlements);
-        ArgumentNullException.ThrowIfNull(flags);
-        ArgumentNullException.ThrowIfNull(ledger);
-        ArgumentNullException.ThrowIfNull(throttle);
+    }
 
-        _apply = apply;
-        _clock = clock;
-        _ids = ids;
-        _content = content;
-        _entitlements = entitlements;
-        _flags = flags;
-        _ledger = ledger;
-        _throttle = throttle;
+    /// <summary>A constant flags source, null-checked under the fixed-value parameter's own name.</summary>
+    private static Func<FeatureFlags> Constant(FeatureFlags flags)
+    {
+        ArgumentNullException.ThrowIfNull(flags);
+
+        return () => flags;
     }
 
     /// <summary><c>POST /run/{runId}/command</c> — a run command, sequenced on that run.</summary>

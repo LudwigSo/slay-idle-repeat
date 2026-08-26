@@ -30,5 +30,10 @@ public static class LocalHostAmbience
     /// nothing is killed. That is the identity element of the value, not a default chosen for it.
     /// </remarks>
     public static FeatureFlags NoRemoteConfigResolved() =>
-        new(pvpEnabled: true, plusOfferEnabled: true, disabledAdPlacements: [], disabledChapters: []);
+        new(
+            pvpEnabled: true,
+            plusOfferEnabled: true,
+            mailEnabled: true,
+            disabledAdPlacements: [],
+            disabledChapters: []);
 }

@@ -22,7 +22,7 @@ public sealed class InProcessGameHostConstructionTests
         var ids = new CountingIdGenerator();
         var content = Worlds.Content;
         var entitlements = new Entitlements(hasPlus: false, expiresAtUtc: null);
-        var flags = new FeatureFlags(pvpEnabled: true, plusOfferEnabled: true, [], []);
+        var flags = new FeatureFlags(pvpEnabled: true, plusOfferEnabled: true, mailEnabled: true, [], []);
         IReadOnlyList<IDomainEventSink> sinks = [];
 
         // The control first: with every part supplied the very same call succeeds, so each refusal
