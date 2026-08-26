@@ -272,10 +272,12 @@ internal static class EffectOpValidation
                 $"{effect.Op} carries valueMode {mode}, and 18 §2.2 gives it " +
                 $"[{string.Join(", ", rules.Admits)}] — {rules.Reason}");
         }
-        else if (rules is null && mode == ValueMode.NEGATE)
+        else if (effect.Op == EffectOp.STAT_SET && mode == ValueMode.NEGATE)
         {
             // STAT_SET admits the valueMode key without an OpValueRules row, so without this arm a
-            // NEGATE on it would validate clean and mean nothing.
+            // NEGATE on it would validate clean and mean nothing. Narrowed to STAT_SET: every other
+            // rules-less op is already refused the key itself by the ExclusiveTo above, and a second
+            // problem for the same mistake would be noise.
             problems.Add(
                 $"{effect.Op} carries valueMode {mode}, and 16 D49 grants NEGATE to SURVIVE_LETHAL " +
                 "alone — with no hit to void, it has no stated meaning anywhere else");

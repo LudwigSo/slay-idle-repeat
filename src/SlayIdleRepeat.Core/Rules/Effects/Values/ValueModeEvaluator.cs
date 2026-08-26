@@ -3,7 +3,8 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Effects.Values;
 
 /// <summary>
-/// The eight <c>valueMode</c>s: what an effect's <c>value</c> is a multiple of.
+/// The eight amount <c>valueMode</c>s — what an effect's <c>value</c> is a multiple of — plus
+/// <c>NEGATE</c>, which denotes no amount and is refused here by its own arm.
 /// </summary>
 /// <remarks>
 /// Answers one question — what amount does this value denote, given these subjects — and knows
@@ -27,12 +28,13 @@ internal static class ValueModeEvaluator
     internal const ValueMode DamageAndHealingDefault = ValueMode.ATK_MULT;
 
     /// <summary>The amount <paramref name="value"/> denotes under <paramref name="mode"/>.</summary>
-    /// <param name="mode">One of the eight value modes.</param>
+    /// <param name="mode">One of the nine value modes; the eight amount modes resolve, NEGATE throws.</param>
     /// <param name="value">The effect's value, already scaled if it carries a scale.</param>
     /// <param name="subjects">The subjects the mode reads.</param>
     /// <param name="effectId">The effect's id, named in any failure.</param>
     /// <exception cref="EffectContextException">
-    /// The bundle does not carry the mode's subject, or the mode is not one of the eight.
+    /// The bundle does not carry the mode's subject, the mode is NEGATE (no amount exists), or the
+    /// mode is not one of the nine.
     /// </exception>
     internal static double Resolve(
         ValueMode mode, double value, ValueModeSubjects subjects, string effectId) =>

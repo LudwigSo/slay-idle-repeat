@@ -96,15 +96,14 @@ internal static class CombatFlowOps
 
         if (OpValue.ModeOf(effect, OpValueRules.SurviveLethal) == ValueMode.NEGATE)
         {
-            var problems = EffectOpValidation.Problems(effect);
-            if (problems.Count > 0)
+            if (effect.Value is not null || effect.ValueScale is not null)
             {
                 throw new EffectContextException(
                     effect.Id,
-                    string.Join("; ", problems),
-                    "16 D49's NEGATE carries no value and no valueScale — the voided hit has no HP " +
-                    "number, and ignoring an authored one would ship whichever misreading put it " +
-                    "there (the FORCE_CRIT_NEXT precedent).");
+                    "SURVIVE_LETHAL under valueMode NEGATE carries a value or a valueScale",
+                    "16 D49's NEGATE voids the hit outright — there is no HP number, so nothing to " +
+                    "carry or scale, and ignoring an authored one would ship whichever misreading " +
+                    "put it there (the FORCE_CRIT_NEXT precedent).");
             }
 
             context.Seams.Flow.ArmNegateLethal(holder, effect.Id);

@@ -71,7 +71,7 @@ public sealed class SetBonusCatalogueTests
         effect.Id.ShouldBe("SET_BONUS_HEAVY_6");
         effect.Op.ShouldBe(EffectOp.SURVIVE_LETHAL);
         effect.ValueMode.ShouldBe(ValueMode.NEGATE);
-        effect.Value.ShouldBeNull("a voided hit has no HP number, and authoring one would be 16 R6's invented value");
+        effect.Value.ShouldBeNull("a voided hit has no HP number, and authoring one would invent a value nobody ruled");
         effect.Target.ShouldBe(EffectTarget.SELF);
 
         var trigger = effect.Trigger.ShouldNotBeNull();

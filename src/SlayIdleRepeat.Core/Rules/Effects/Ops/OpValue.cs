@@ -64,10 +64,10 @@ internal static class OpValue
                 "(steering S6).");
     }
 
-    /// <summary>The subjects value modes read, gathered from this op's firing context for <see cref="ValueModeEvaluator.Resolve"/> — the one statement of the eight-mode table.</summary>
+    /// <summary>The subjects value modes read, gathered from this op's firing context for <see cref="ValueModeEvaluator.Resolve"/> — the one statement of the amount-mode table.</summary>
     /// <remarks>
-    /// A gatherer rather than a second switch, so the eight-way mode logic lives once in the
-    /// evaluator instead of being restated here and drifting from it.
+    /// A gatherer rather than a second switch, so the per-mode logic lives once in the evaluator
+    /// instead of being restated here and drifting from it.
     /// <para>
     /// <see cref="ValueModeSubjects.SourceAttack"/> is read only for <c>ATK_MULT</c>: the bundle is
     /// eager, and the ATK read crosses a resolved-stat seam, so gathering it for every mode

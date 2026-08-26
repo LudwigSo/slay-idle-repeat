@@ -56,7 +56,7 @@ internal sealed class SetBonusCatalogue
 
     /// <summary>The keys one authored set-bonus trigger may carry.</summary>
     /// <remarks>
-    /// 🔒 <b>The nested half of the same guard, and it is not optional.</b> A trigger carries ten
+    /// 🔒 <b>The nested half of the same guard, and it is not optional.</b> A trigger carries
     /// other parameters this reader does not map — <c>chance</c>, <c>cooldown</c>, <c>interval</c>
     /// and the rest — so without this, checking only the effect's own keys leaves the lossiness one
     /// level down. <c>once</c> is mapped for exactly the case this remark used to warn about:
