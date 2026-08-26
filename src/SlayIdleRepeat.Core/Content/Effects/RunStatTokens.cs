@@ -38,7 +38,7 @@ public static class RunStatTokens
     /// <summary>Attempts to read a run-scoped tuning document's <c>stat</c> token.</summary>
     /// <param name="token">The authored token. <c>null</c> answers <c>false</c> — a row that names no stat.</param>
     /// <param name="stat">The stat, when the token names one.</param>
-    /// <returns><c>true</c> when the token names one of the 26 stats.</returns>
+    /// <returns><c>true</c> when the token names one of the 24 stats.</returns>
     public static bool TryParse(string? token, out StatId stat)
     {
         if (token is null)
@@ -60,7 +60,7 @@ public static class RunStatTokens
     /// <summary>Reads a run-scoped tuning document's <c>stat</c> token.</summary>
     /// <param name="token">The authored token.</param>
     /// <param name="reference">The content pointer, for the failure text.</param>
-    /// <exception cref="InvalidTunableException">The token names none of the 26 stats.</exception>
+    /// <exception cref="InvalidTunableException">The token names none of the 24 stats.</exception>
     public static StatId Parse(string token, string reference)
     {
         if (TryParse(token, out var stat))
@@ -70,7 +70,7 @@ public static class RunStatTokens
 
         throw new InvalidTunableException(
             reference,
-            "'" + token + "' names none of 18 §2.1's 26 stats, and none of the aliases the run-scoped " +
+            "'" + token + "' names none of 18 §2.1's 24 stats, and none of the aliases the run-scoped " +
             "tuning documents use for them. Refused rather than skipped: a buff or curse whose stat " +
             "could not be read would load cleanly, appear on screen with its authored magnitude, and " +
             "change nothing about the fight.");
