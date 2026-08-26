@@ -92,8 +92,9 @@ public sealed class NonCombatStatClauseCutTests
         var clauses = StatClauses(Data());
 
         clauses.Count.ShouldBeGreaterThanOrEqualTo(
-            40, "the shipped catalogue authors 57 stat clauses; finding almost none means the " +
-                "walk broke — a renamed member, a reshaped row — not that the catalogue emptied");
+            40, "the shipped catalogue authors well over this many stat clauses (57 as of " +
+                "2026-08); finding almost none means the walk broke — a renamed member, a " +
+                "reshaped row — not that the catalogue emptied");
 
         clauses.ShouldContain(
             c => c.Stat == nameof(StatId.ATK),
@@ -136,16 +137,19 @@ public sealed class NonCombatStatClauseCutTests
     /// The catalogue census and the unauthorised-hole pins still move on this edit, exactly as
     /// they move on any authoring — that is their job, not this guard's. This control is what
     /// separates the two: without it, an arm that fired on "a clause was added" would pass every
-    /// case above.
+    /// case above. The <c>ALL_COMBAT</c> case exercises the selector-token branch of the walk: a
+    /// token that is schema-legal but not a <c>StatId</c> member, and expands to combat stats.
     /// </remarks>
-    [Fact]
-    public void A_combat_stat_clause_is_not_this_guards_subject()
+    [Theory]
+    [InlineData("ATK")]
+    [InlineData("ALL_COMBAT")]
+    public void A_combat_stat_clause_is_not_this_guards_subject(string stat)
     {
         var snapshot = ContentLoader.Load(
-            RepoData.SourceWithEdit(Document, Anchor, Injected("STAT_ADD_PCT", "ATK", "0.05"))).Require();
+            RepoData.SourceWithEdit(Document, Anchor, Injected("STAT_ADD_PCT", stat, "0.05"))).Require();
 
         StatClauses(snapshot).Where(c => !c.Combat).ShouldBeEmpty(
-            "an ATK clause is ordinary authoring; a guard that fired on it would be pinning the " +
+            "a combat clause is ordinary authoring; a guard that fired on it would be pinning the " +
             "census, which PerksDataTests already owns");
     }
 
@@ -174,6 +178,7 @@ public sealed class NonCombatStatClauseCutTests
         issue.Code.ShouldBe(ContentIssueCode.SchemaViolation, "which rule fired — steering S2");
         issue.Location.ShouldStartWith(Document, Case.Sensitive, "which document");
         issue.Location.ShouldContain("/effects/", Case.Sensitive, "which embedded effect");
+        issue.Message.ShouldContain("TILE_PREVIEW", Case.Sensitive, "and which token was refused");
     }
 
     /// <summary>One stat-naming clause of the shipped catalogue, located and classified.</summary>
@@ -211,6 +216,17 @@ public sealed class NonCombatStatClauseCutTests
                     }
 
                     var token = stat.AsText("stat");
+
+                    // The two selector tokens that are schema-legal here but are not StatId
+                    // members: ALL_COMBAT (statSelector) expands to the fourteen combat stats, so
+                    // it IS a combat clause; HIGHEST_PCT_BONUS (statCopySelector) resolves at copy
+                    // time to whichever combat stat leads, so neither is this guard's subject.
+                    if (token is "ALL_COMBAT" or "HIGHEST_PCT_BONUS")
+                    {
+                        clauses.Add(new StatClause(
+                            $"{Document}#/perks/{p}/tiers/{t}/effects/{e}", token, Combat: true));
+                        continue;
+                    }
 
                     Enum.TryParse<StatId>(token, ignoreCase: false, out var statId).ShouldBeTrue(
                         $"'{token}' at {Document}#/perks/{p}/tiers/{t}/effects/{e} is not a " +
