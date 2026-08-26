@@ -17,6 +17,8 @@ public static class RemoteConfigRequestHandler
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        return new RemoteConfigReply(200, string.Empty, string.Empty, string.Empty);
+        // max-age=21600 is the authored 6 h of 14 §10 — the client-side caching half's contract.
+        return new RemoteConfigReply(
+            200, document, "application/json; charset=utf-8", "public, max-age=21600");
     }
 }

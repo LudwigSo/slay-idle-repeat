@@ -75,7 +75,7 @@ public static class GameCommandComposition
                 backbone.Ids,
                 backbone.Content,
                 backbone.Entitlements,
-                backbone.Flags,
+                () => backbone.Flags,
                 backbone.Ledger,
                 new UnlimitedCommandThrottle());
         }

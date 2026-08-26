@@ -69,7 +69,7 @@ public sealed class CommandGateway
     private readonly IIdGeneratorPort _ids;
     private readonly ContentSnapshot _content;
     private readonly Entitlements _entitlements;
-    private readonly FeatureFlags _flags;
+    private readonly Func<FeatureFlags> _currentFlags;
     private readonly ICommandLedgerStore _ledger;
     private readonly ICommandThrottle _throttle;
 
@@ -90,7 +90,7 @@ public sealed class CommandGateway
     /// <param name="ids">The source of run identities and per-command seeds.</param>
     /// <param name="content">The loaded, validated content set every command reads.</param>
     /// <param name="entitlements">The subscription entitlement the composition root resolved.</param>
-    /// <param name="currentFlags">The kill switches' live source; the composition root's reloading config swaps what it answers.</param>
+    /// <param name="currentFlags">The kill switches' live source; the composition root's reloading config swaps what it answers. Read exactly once per submitted command, so the gate and the <c>GameContext</c> always see the same snapshot.</param>
     /// <param name="ledger">Where sequencing state and idempotency records live.</param>
     /// <param name="throttle">The per-player application-level limit.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
@@ -118,40 +118,9 @@ public sealed class CommandGateway
         _ids = ids;
         _content = content;
         _entitlements = entitlements;
-        _flags = currentFlags();
+        _currentFlags = currentFlags;
         _ledger = ledger;
         _throttle = throttle;
-    }
-
-    /// <summary>Composes the gateway over a fixed flag value — the live-source overload with a constant read.</summary>
-    /// <param name="apply">The write side every dispatched command goes through.</param>
-    /// <param name="clock">The instant every command is applied at.</param>
-    /// <param name="ids">The source of run identities and per-command seeds.</param>
-    /// <param name="content">The loaded, validated content set every command reads.</param>
-    /// <param name="entitlements">The subscription entitlement the composition root resolved.</param>
-    /// <param name="flags">The kill switches, fixed for the gateway's lifetime.</param>
-    /// <param name="ledger">Where sequencing state and idempotency records live.</param>
-    /// <param name="throttle">The per-player application-level limit.</param>
-    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
-    public CommandGateway(
-        ApplyCommandUseCase apply,
-        IClockPort clock,
-        IIdGeneratorPort ids,
-        ContentSnapshot content,
-        Entitlements entitlements,
-        FeatureFlags flags,
-        ICommandLedgerStore ledger,
-        ICommandThrottle throttle)
-        : this(apply, clock, ids, content, entitlements, Constant(flags), ledger, throttle)
-    {
-    }
-
-    /// <summary>A constant flags source, null-checked under the fixed-value parameter's own name.</summary>
-    private static Func<FeatureFlags> Constant(FeatureFlags flags)
-    {
-        ArgumentNullException.ThrowIfNull(flags);
-
-        return () => flags;
     }
 
     /// <summary><c>POST /run/{runId}/command</c> — a run command, sequenced on that run.</summary>
@@ -209,7 +178,10 @@ public sealed class CommandGateway
             return Rejection(envelope, RejectionReason.RATE_LIMITED);
         }
 
-        if (FeatureGate.IsDisabled(command, _flags))
+        // The ONE flags read of this submit (ruling 5): the gate and the GameContext below must
+        // judge from the same snapshot, or a reload between them would half-apply a kill switch.
+        var flags = _currentFlags();
+        if (FeatureGate.IsDisabled(command, flags))
         {
             return Rejection(envelope, RejectionReason.FEATURE_DISABLED);
         }
@@ -232,7 +204,7 @@ public sealed class CommandGateway
         await gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            return await SubmitSequencedAsync(player, routedRun, scope, envelope, command, ct)
+            return await SubmitSequencedAsync(player, routedRun, scope, envelope, command, flags, ct)
                 .ConfigureAwait(false);
         }
         finally
@@ -248,6 +220,7 @@ public sealed class CommandGateway
         string scope,
         CommandEnvelope envelope,
         GameCommand command,
+        FeatureFlags flags,
         CancellationToken ct)
     {
         var last = await _ledger.ReadLastSequenceAsync(scope, ct).ConfigureAwait(false);
@@ -302,7 +275,7 @@ public sealed class CommandGateway
             GameRules.RequiresCommandSeed(command) ? CommandSeedSource.Fresh(_ids) : null,
             _content,
             _entitlements,
-            _flags,
+            flags,
             opensRun ? MintRunId() : null);
 
         var outcome = await _apply

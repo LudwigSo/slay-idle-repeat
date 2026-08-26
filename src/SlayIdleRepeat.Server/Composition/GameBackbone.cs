@@ -1,3 +1,4 @@
+using System.Globalization;
 using SlayIdleRepeat.Adapters.Ambient.System;
 using SlayIdleRepeat.Adapters.Content.LocalFile;
 using SlayIdleRepeat.Application.Hosting;
@@ -25,8 +26,10 @@ namespace SlayIdleRepeat.Server.Composition;
 /// <para>
 /// What is named here, with its expiry: the real ambient adapters (<see cref="SystemClock"/>,
 /// <see cref="SystemIdGenerator"/>) and the local-file content source, which stay; the volatile
-/// world store and command ledger (M5-05's stores); and <see cref="LocalHostAmbience"/>'s two
-/// named absences (M5-06 resolves the entitlement per player, M5-10 the flags from remote config).
+/// world store and command ledger (M5-05's stores); <see cref="LocalHostAmbience"/>'s remaining
+/// named absence (M5-06 resolves the entitlement per player); and the flags' live source,
+/// <see cref="RemoteConfigSource"/> (M5-10) — its warn sink is a bare stderr write until M5-11's
+/// telemetry lands.
 /// </para>
 /// <para>
 /// Built lazily WITHOUT caching a failure: the content set lives at <c>GameData:Root</c> (default
@@ -57,7 +60,24 @@ public sealed class GameBackbone
         WorldStore = new WorldSliceStore(new PlaceholderVolatileWorldStore());
         Ledger = new VolatileCommandLedger();
         Entitlements = LocalHostAmbience.NoSubscriptionResolved();
-        Flags = LocalHostAmbience.NoRemoteConfigResolved();
+
+        var configuredConfigPath = configuration["RemoteConfig:Path"];
+        var configPath = string.IsNullOrEmpty(configuredConfigPath) || Path.IsPathRooted(configuredConfigPath)
+            ? configuredConfigPath
+            : Path.Combine(environment.ContentRootPath, configuredConfigPath);
+
+        // Console.Error keeps the [remote-config] marker greppable in the container's log stream;
+        // the real telemetry sink is M5-11's.
+        RemoteConfig = new RemoteConfigSource(configPath, Console.Error.WriteLine);
+
+        var reloadSeconds = int.TryParse(
+            configuration["RemoteConfig:ReloadSeconds"],
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out var configured)
+            ? configured
+            : 60;
+        RemoteConfig.EnsureReloadLoopStarted(TimeSpan.FromSeconds(reloadSeconds));
     }
 
     /// <summary>The loaded, validated content set every command and query reads.</summary>
@@ -78,8 +98,11 @@ public sealed class GameBackbone
     /// <summary>The subscription entitlement nothing has resolved yet.</summary>
     public Entitlements Entitlements { get; }
 
-    /// <summary>The kill switches no remote config has reached yet.</summary>
-    public FeatureFlags Flags { get; }
+    /// <summary>The reloading flags document behind <c>GET /config</c> and the kill switches.</summary>
+    public RemoteConfigSource RemoteConfig { get; }
+
+    /// <summary>The kill switches' live read — what the source's last accepted document says right now.</summary>
+    public FeatureFlags Flags => RemoteConfig.Current;
 
     /// <summary>The process's backbone, built on first call. A failed build is retried, never cached.</summary>
     /// <param name="configuration">The host's configuration.</param>

@@ -129,17 +129,24 @@ services:
 
       # ---- 14 §1.1 "Configuration | Environment variables only (12-factor)" --
       #
-      # ⚠️ THE SERVER DOES NOT READ ANY OF THE VARIABLES BELOW YET. Today it is a
-      # /health endpoint and nothing else; the adapters that consume these arrive
-      # with M5-05 (Postgres/Redis/S3) and M5-11 (observability). They are defined
-      # here, now, with the names M5 will bind to, so that the wiring is a
-      # reviewable artefact instead of folklore — and so M5 changes code, not this
-      # file. If M5 needs a different name, change it in BOTH places in the same
-      # commit and update infra/README.md.
+      # ⚠️ THE SERVER READS ONLY THE RemoteConfig__* PAIR BELOW (M5-10) SO FAR.
+      # The rest are defined ahead of the adapters that consume them — M5-05
+      # (Postgres/Redis/S3) and M5-11 (observability) — with the names M5 will
+      # bind to, so that the wiring is a reviewable artefact instead of folklore
+      # — and so M5 changes code, not this file. If M5 needs a different name,
+      # change it in BOTH places in the same commit and update infra/README.md.
       #
       # `__` is the ASP.NET Core configuration separator: `ConnectionStrings__Postgres`
       # binds to configuration key `ConnectionStrings:Postgres`. No vendor config
       # service, no config file that varies per environment.
+
+      # Remote config — 14 §10/§14 kill switches. CONSUMED since M5-10: the server
+      # re-reads the file every ReloadSeconds and serves it on GET /config. The
+      # file is the committed identity document, mounted read-only below — edit
+      # ./infra/remote-config/flags.json to throw a switch locally. 60 s is an
+      # ops number (14 §16.5), not a tunable.
+      RemoteConfig__Path: '/app/remote-config/flags.json'
+      RemoteConfig__ReloadSeconds: '60'
 
       # Postgres — 14 §7.1 🔒 "The system of record for everything, per command".
       ConnectionStrings__Postgres: 'Host=postgres;Port=5432;Database=slayidlerepeat;Username=sir_app;Password=sir_local_dev_password;Include Error Detail=true'
@@ -173,6 +180,10 @@ services:
       # adapter can be registered unconditionally and simply does nothing here.
       Sentry__Dsn: ''
       PostHog__Enabled: 'false'
+    volumes:
+      # The flags document RemoteConfig__Path points at. Read-only: the server
+      # only ever reads it; an operator edits the file on the host side.
+      - ./infra/remote-config:/app/remote-config:ro
     depends_on:
       postgres:
         condition: service_healthy
