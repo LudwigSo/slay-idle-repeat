@@ -257,8 +257,10 @@ public sealed class CommandGatewayResponseTests
     }
 
     /// <summary>
-    /// One snapshot per submitted command — as far as the public surface can observe, the gate and
-    /// the <c>GameContext</c> read the same per-command instance (kickoff ruling 5).
+    /// One snapshot per submitted command (kickoff ruling 5). Exactly-once is the strongest public
+    /// pin: two reads could feed the gate and the <c>GameContext</c> different snapshots, but a
+    /// context built from a construction-time copy while the gate takes the one read would also
+    /// count one — replies never echo the flags, so that pairing is Phase-3 review territory.
     /// </summary>
     [Fact]
     public async Task Each_submitted_command_reads_the_flags_source_exactly_once()

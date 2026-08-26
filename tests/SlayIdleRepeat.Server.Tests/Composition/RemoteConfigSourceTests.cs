@@ -19,10 +19,13 @@ public sealed class RemoteConfigSourceTests
     {
         var path = ATempConfigPath();
         var warnings = new List<string>();
+
+        // Alternating switch values: each neighbouring pair differs, so two members wired
+        // crosswise cannot both read back right (the one-switch Theory discriminates the rest).
         const string document = """
             {
               "pvpEnabled": false,
-              "plusOfferEnabled": false,
+              "plusOfferEnabled": true,
               "mailEnabled": false,
               "disabledAdPlacements": ["ad_killed"],
               "disabledChapters": ["7"]
@@ -36,7 +39,7 @@ public sealed class RemoteConfigSourceTests
             var source = new RemoteConfigSource(path, warnings.Add);
 
             source.Current.PvpEnabled.ShouldBeFalse();
-            source.Current.PlusOfferEnabled.ShouldBeFalse();
+            source.Current.PlusOfferEnabled.ShouldBeTrue();
             source.Current.MailEnabled.ShouldBeFalse();
             source.Current.IsAdPlacementEnabled("ad_killed").ShouldBeFalse();
             source.Current.IsChapterEnabled("7").ShouldBeFalse();
@@ -145,7 +148,9 @@ public sealed class RemoteConfigSourceTests
             File.WriteAllText(path, "{\"pvpEnabled\": true, \"disabledChapter\": [\"7\"]}");
             source.Reload();
 
-            warnings.ShouldNotBeEmpty("a refused document unreported is a kill switch an operator thinks is thrown");
+            warnings.ShouldContain(
+                w => w.Contains("[remote-config]"),
+                "a refusal without the greppable marker is a kill switch an operator thinks is thrown");
             source.Current.PvpEnabled.ShouldBeFalse("nothing of the refused document may apply, not even its known members");
             source.Document.ShouldBe(lastGood);
         }
@@ -167,7 +172,7 @@ public sealed class RemoteConfigSourceTests
 
             var source = new RemoteConfigSource(path, warnings.Add);
 
-            warnings.ShouldNotBeEmpty();
+            warnings.ShouldContain(w => w.Contains("[remote-config]"));
             source.Current.IsAdPlacementEnabled("ad_killed").ShouldBeTrue(
                 "half-applying a refused document would kill the named placement while hiding the refusal");
             source.Document.ShouldNotContain("ad_killed", customMessage: "a refused file must never be served");
@@ -190,7 +195,7 @@ public sealed class RemoteConfigSourceTests
 
             var source = new RemoteConfigSource(path, warnings.Add);
 
-            warnings.ShouldNotBeEmpty();
+            warnings.ShouldContain(w => w.Contains("[remote-config]"));
             ShouldBeTheIdentity(source.Current);
             Should.NotThrow(
                 () => JsonDocument.Parse(source.Document),
@@ -272,6 +277,7 @@ public sealed class RemoteConfigSourceTests
             source.Reload();
 
             ShouldBeTheIdentity(source.Current);
+            ShouldBeTheRenderedIdentityDocument(source.Document);
             warnings.ShouldContain(w => w.Contains("[remote-config]"));
         }
         finally

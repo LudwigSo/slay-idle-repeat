@@ -23,21 +23,19 @@ public sealed class FeatureFlagsTests
     }
 
     /// <summary>The fifth switch of 14 §14's set (M5 kickoff ruling 2): mail claims.</summary>
-    [Fact]
-    public void MailEnabled_round_trips_independently_of_the_other_switches()
+    /// <remarks>One-cold rows: every pair of switches differs in some row, so any two wired crosswise fail one.</remarks>
+    [Theory]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    public void MailEnabled_round_trips_independently_of_the_other_switches(bool pvp, bool plusOffer, bool mail)
     {
-        var mailKilled = new FeatureFlags(pvpEnabled: true, plusOfferEnabled: true, mailEnabled: false, [], []);
+        var flags = new FeatureFlags(pvp, plusOffer, mail, [], []);
 
-        mailKilled.MailEnabled.ShouldBeFalse();
-        mailKilled.PvpEnabled.ShouldBeTrue(
-            "a mail kill that read back through PvP means the switches are wired crosswise");
-        mailKilled.PlusOfferEnabled.ShouldBeTrue();
-
-        var onlyMailAlive = new FeatureFlags(pvpEnabled: false, plusOfferEnabled: false, mailEnabled: true, [], []);
-
-        onlyMailAlive.MailEnabled.ShouldBeTrue();
-        onlyMailAlive.PvpEnabled.ShouldBeFalse();
-        onlyMailAlive.PlusOfferEnabled.ShouldBeFalse();
+        flags.MailEnabled.ShouldBe(
+            mail, "a switch reading back through a neighbour means the members are wired crosswise");
+        flags.PvpEnabled.ShouldBe(pvp);
+        flags.PlusOfferEnabled.ShouldBe(plusOffer);
     }
 
     [Fact]

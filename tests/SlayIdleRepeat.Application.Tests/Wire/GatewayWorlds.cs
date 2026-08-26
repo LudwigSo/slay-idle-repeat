@@ -71,6 +71,13 @@ internal sealed class GatewayWorld
     internal static async Task<GatewayWorld> WithAStartingPlayerAsync(
         FeatureFlags? flags = null, ICommandLedgerStore? ledger = null, Func<FeatureFlags>? currentFlags = null)
     {
+        if (flags is not null && currentFlags is not null)
+        {
+            throw new ArgumentException(
+                "Pass flags or currentFlags, never both — a fixed value the live source contradicts tests nothing.",
+                nameof(currentFlags));
+        }
+
         var cache = new InMemoryLocalCache();
         var store = new WorldSliceStore(cache);
         var clock = new AdjustableClock();
