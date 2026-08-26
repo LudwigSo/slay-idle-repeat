@@ -169,6 +169,10 @@ internal static class StatFixtures
         var root = ContentValue.Object(
         [
             new("caps", ContentValue.Object(caps)),
+            new("floors", ContentValue.Object(
+            [
+                new(StatId.DR_PCT.ToString(), ContentValue.Number(0.4m)),
+            ])),
             new("heroBaseStats", ContentValue.Object(
             [
                 new("legendLevelMin", ContentValue.Number(1m)),

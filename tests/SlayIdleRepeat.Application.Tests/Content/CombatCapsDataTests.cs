@@ -36,15 +36,15 @@ public sealed class CombatCapsDataTests
     [InlineData("DODGE", 0.50)]
     [InlineData("BLOCK", 0.60)]
     [InlineData("PEN", 0.70)]
-    [InlineData("DR_PCT", 0.60)]
-    public void The_six_caps_are_the_numbers_05_section_1_states(string stat, double cap)
+    public void The_five_caps_are_the_numbers_05_section_1_states(string stat, double cap)
     {
         Data().ReadDouble($"{Document}#/caps/{stat}").ShouldBe(cap);
     }
 
     /// <summary>
-    /// Exactly six caps. A missing one would read as "uncapped", which is legitimate for the other
-    /// eight stats — indistinguishable from an accidental deletion.
+    /// Exactly five caps — `16` D46 moved <c>DR_PCT</c> out of the ratio-cap set. A missing cap
+    /// would read as "uncapped", which is legitimate for the other stats — indistinguishable from
+    /// an accidental deletion.
     /// </summary>
     [Fact]
     public void No_stat_carries_a_cap_05_section_1_does_not_state()
@@ -52,8 +52,22 @@ public sealed class CombatCapsDataTests
         var caps = Data().Read($"{Document}#/caps");
 
         caps.MemberNames.Where(name => !name.StartsWith('_')).ShouldBe(
-            ["BLOCK", "CRIT", "DODGE", "DR_PCT", "LIFESTEAL", "PEN"],
+            ["BLOCK", "CRIT", "DODGE", "LIFESTEAL", "PEN"],
             ignoreOrder: true);
+    }
+
+    /// <summary>
+    /// `16` D46: the authored 0.6 reduction cap survives as a floor of 0.4 on the damage-taken
+    /// multiplier (1.0 − 0.6 = 0.4), and it is the only floor authored.
+    /// </summary>
+    [Fact]
+    public void DR_PCTs_bound_is_the_re_expressed_damage_taken_floor()
+    {
+        Data().ReadDouble($"{Document}#/floors/DR_PCT").ShouldBe(0.4);
+
+        Data().Read($"{Document}#/floors").MemberNames
+            .Where(name => !name.StartsWith('_'))
+            .ShouldBe(["DR_PCT"], "no other stat authors a floor, and none is invented");
     }
 
     [Theory]
@@ -76,8 +90,8 @@ public sealed class CombatCapsDataTests
     [InlineData("DODGE", 0.02)]
     [InlineData("BLOCK", 0.00)]
     [InlineData("PEN", 0.00)]
-    [InlineData("DMG_PCT", 0.00)]
-    [InlineData("DR_PCT", 0.00)]
+    [InlineData("DMG_PCT", 1.00)]
+    [InlineData("DR_PCT", 1.00)]
     [InlineData("HEAL_PCT", 1.00)]
     [InlineData("THORNS", 0.00)]
     public void The_eleven_level_independent_base_stats_are_05_section_2s(string stat, double baseValue)
@@ -141,7 +155,7 @@ public sealed class CombatCapsDataTests
 
         root.MemberNames.ShouldBe(
             [
-                "$schema", "_doc", "_status", "caps", "heroBaseStats",
+                "$schema", "_doc", "_status", "caps", "floors", "heroBaseStats",
                 "wardCapPct", "pvpMaxFightSeconds", "mitigation",
             ],
             ignoreOrder: true);

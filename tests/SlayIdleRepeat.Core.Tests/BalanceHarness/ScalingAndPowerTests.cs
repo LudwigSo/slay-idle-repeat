@@ -144,6 +144,66 @@ public sealed class ScalingAndPowerTests
         (atHundred / atTen).ShouldBeGreaterThan(1.05);
     }
 
+    /// <summary>
+    /// `16` D46: <c>Dps</c> consumes <c>DMG%</c> bare. 1.15 against the 1.0 identity scales DPS by
+    /// exactly 1.15; the additive reading scales it by 2.15 / 2.0 = 1.075.
+    /// </summary>
+    [Fact]
+    public void Dps_consumes_DMG_PCT_bare()
+    {
+        var baseline = PowerCalculator.Dps(PowerBlock((StatId.DMG_PCT, 1.0)), 10, ShippedHarness.Content);
+        var boosted = PowerCalculator.Dps(PowerBlock((StatId.DMG_PCT, 1.15)), 10, ShippedHarness.Content);
+
+        (boosted / baseline).ShouldBe(1.15, tolerance: 1e-6);
+    }
+
+    /// <summary>
+    /// `16` D46: <c>EffectiveHp</c> divides by the damage-taken multiplier itself. Doubling the
+    /// multiplier (0.4 → 0.8) halves survivability; the subtractive reading with the old 0.6 cap
+    /// answers 1.5 for the same pair.
+    /// </summary>
+    [Fact]
+    public void EffectiveHp_divides_by_the_bare_damage_taken_multiplier()
+    {
+        var atFloor = PowerCalculator.EffectiveHp(PowerBlock((StatId.DR_PCT, 0.4)), ShippedHarness.Content);
+        var doubled = PowerCalculator.EffectiveHp(PowerBlock((StatId.DR_PCT, 0.8)), ShippedHarness.Content);
+
+        (doubled / atFloor).ShouldBe(0.5, tolerance: 1e-6);
+    }
+
+    /// <summary>
+    /// The 0.4 damage-taken floor (`05` §1's 0.6 cap re-expressed) binds inside the power model
+    /// too: 0.2 scores exactly what 0.4 scores, and 0.5 — above the floor — scores less.
+    /// </summary>
+    [Fact]
+    public void The_damage_taken_floor_binds_inside_EffectiveHp()
+    {
+        var below = PowerCalculator.EffectiveHp(PowerBlock((StatId.DR_PCT, 0.2)), ShippedHarness.Content);
+        var atFloor = PowerCalculator.EffectiveHp(PowerBlock((StatId.DR_PCT, 0.4)), ShippedHarness.Content);
+        var above = PowerCalculator.EffectiveHp(PowerBlock((StatId.DR_PCT, 0.5)), ShippedHarness.Content);
+
+        below.ShouldBe(atFloor, "0.2 floors to 0.4 before the model reads it");
+        above.ShouldBeLessThan(atFloor, "0.5 is above the floor and passes through — the negative control");
+    }
+
+    /// <summary>A minimal but complete block for the two D46 pins: identity DMG%/DR% unless named.</summary>
+    private static ActorStats PowerBlock(params (StatId Stat, double Value)[] overrides)
+    {
+        var values = new List<(StatId, double)>
+        {
+            (StatId.MAX_HP, 1000.0),
+            (StatId.ATK, 100.0),
+            (StatId.DEF, 100.0),
+            (StatId.ASPD, 1.0),
+            (StatId.HEAL_PCT, 1.0),
+            (StatId.DMG_PCT, 1.0),
+            (StatId.DR_PCT, 1.0),
+        };
+        values.AddRange(overrides.Select(o => (o.Stat, o.Value)));
+
+        return Rules.Stats.StatFixtures.Block(values.ToArray());
+    }
+
     [Fact]
     public void A_scalar_that_is_not_finite_and_positive_is_refused()
     {

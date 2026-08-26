@@ -76,12 +76,16 @@ public sealed class EnemiesDataTests
     public void The_rounding_is_the_four_decimal_places_05_section_1_1_locks() =>
         Data().ReadInt32($"{Document}#/derivation/roundingDecimals").ShouldBe(4);
 
-    /// <summary>`05` §6 — the six stats every archetype shares.</summary>
+    /// <summary>
+    /// `05` §6 — the six stats every archetype shares. <c>DMG_PCT</c> and <c>DR_PCT</c> are 1.00
+    /// under `16` D46: they are multiplier stats consumed bare, so 0 here would zero every enemy's
+    /// damage and delete every hit an enemy takes.
+    /// </summary>
     [Theory]
     [InlineData("BLOCK", 0.00)]
     [InlineData("PEN", 0.00)]
-    [InlineData("DMG_PCT", 0.00)]
-    [InlineData("DR_PCT", 0.00)]
+    [InlineData("DMG_PCT", 1.00)]
+    [InlineData("DR_PCT", 1.00)]
     [InlineData("HEAL_PCT", 1.00)]
     [InlineData("THORNS", 0.00)]
     public void The_six_invariant_stats_are_05_section_6s_values(string stat, double expected) =>

@@ -54,8 +54,8 @@ public sealed class HeroBuildTests
         Stat(build, StatId.LIFESTEAL).ShouldBe(0.0);
         Stat(build, StatId.BLOCK).ShouldBe(0.0);
         Stat(build, StatId.PEN).ShouldBe(0.0);
-        Stat(build, StatId.DMG_PCT).ShouldBe(0.0);
-        Stat(build, StatId.DR_PCT).ShouldBe(0.0);
+        Stat(build, StatId.DMG_PCT).ShouldBe(1.0, "a multiplier stat consumed bare, not an additive bucket");
+        Stat(build, StatId.DR_PCT).ShouldBe(1.0, "the damage-taken multiplier's identity");
         Stat(build, StatId.THORNS).ShouldBe(0.0);
     }
 

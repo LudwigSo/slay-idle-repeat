@@ -193,13 +193,55 @@ public sealed class DamageResolutionTests
     // ══════════════════════════════════════════════════════ steps 6-8
 
     /// <summary>
-    /// Both <c>(1 − DR%)</c> and the <c>DAMAGE_TAKEN_MULT</c> product apply together, not just one
-    /// factor. The three rows separate DR alone, the product alone, and both.
+    /// `16` D46: <c>DMG%</c> is a multiplier consumed bare — <c>raw = ATK × attackMultiplier ×
+    /// DMG%</c>, never <c>× (1 + DMG%)</c>.
+    /// </summary>
+    /// <remarks>
+    /// 1.15 is the discriminating row: bare gives 61.9275 (115 × 0.5385), the additive reading
+    /// 115.7775. The 0.5 row is a damage CUT below identity, unreachable under <c>(1 + x)</c>.
+    /// </remarks>
+    [Theory]
+    [InlineData(1.15, 61.9275)]
+    [InlineData(0.5, 26.925)]
+    [InlineData(1.0, 53.85)]
+    public void Step_2_consumes_DMG_PCT_bare_as_the_damage_multiplier(
+        double dmgPct, double expected) =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk), (StatId.DMG_PCT, dmgPct)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef)))
+            .AttackerHit()
+            .ShouldBe(expected);
+
+    /// <summary>
+    /// `16` D46: <c>DR%</c> is the damage-taken multiplier consumed bare — <c>dmg × DR%</c>, never
+    /// <c>dmg × (1 − DR%)</c>.
+    /// </summary>
+    /// <remarks>
+    /// Every row separates the two readings: bare 0.45 gives 24.2325 where subtractive gives
+    /// 29.6175; 0.9 gives 48.465 vs 5.385; 1.2 amplifies (64.62), which <c>(1 − x)</c> cannot
+    /// produce at all. 0.5 is deliberately absent — it is the readings' fixed point.
+    /// </remarks>
+    [Theory]
+    [InlineData(0.45, 24.2325)]
+    [InlineData(0.9, 48.465)]
+    [InlineData(1.2, 64.62)]
+    public void Step_6_consumes_DR_PCT_bare_as_the_damage_taken_multiplier(
+        double dr, double expected) =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef), (StatId.DR_PCT, dr)))
+            .AttackerHit()
+            .ShouldBe(expected);
+
+    /// <summary>
+    /// Both the bare <c>DR%</c> multiplier and the <c>DAMAGE_TAKEN_MULT</c> product apply together —
+    /// D46 re-signs the stat and does NOT merge it into the op. The three rows separate DR alone,
+    /// the product alone, and both.
     /// </summary>
     [Theory]
-    [InlineData(0.5, 1.0, 1.0, 26.925)]
-    [InlineData(0.0, 0.5, 0.5, 13.4625)]
-    [InlineData(0.5, 0.5, 1.0, 13.4625)]
+    [InlineData(0.9, 1.0, 1.0, 48.465)]
+    [InlineData(1.0, 0.5, 0.5, 13.4625)]
+    [InlineData(0.9, 0.5, 1.0, 24.2325)]
     public void Step_6_applies_both_DR_and_the_DAMAGE_TAKEN_MULT_product(
         double dr, double firstMult, double secondMult, double expected) =>
         PublicFightBench.Duel(
@@ -212,6 +254,52 @@ public sealed class DamageResolutionTests
             ])
             .AttackerHit()
             .ShouldBe(expected);
+
+    /// <summary>
+    /// Step 9 floors the aggregated <c>DR%</c> at the authored damage-taken floor — `05` §1's 0.60
+    /// reduction cap re-expressed under D46 as <c>1.0 − 0.6 = 0.4</c>.
+    /// </summary>
+    /// <remarks>
+    /// −0.75 aggregates to 1.0 × 0.25, under the floor, so the fight reads 0.4 (21.54). −0.45
+    /// lands at 0.55, above the floor, and passes through untouched (29.6175) — the negative
+    /// control that separates a floor from a constant.
+    /// </remarks>
+    [Theory]
+    [InlineData(-0.75, 21.54)]
+    [InlineData(-0.45, 29.6175)]
+    public void Step_9_floors_the_aggregated_damage_taken_multiplier(
+        double pctAdd, double expected) =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef), (StatId.DR_PCT, 1.0)),
+            defenderEffects:
+            [
+                PublicFightBench.Effect("EFF_DR", EffectOp.STAT_ADD_PCT, StatId.DR_PCT, pctAdd),
+            ])
+            .AttackerHit()
+            .ShouldBe(expected);
+
+    /// <summary>The floor binds a base authored below it too, not only an aggregation that sinks past it.</summary>
+    [Fact]
+    public void Step_9s_floor_binds_a_base_authored_below_it() =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef), (StatId.DR_PCT, 0.25)))
+            .AttackerHit()
+            .ShouldBe(21.54, "the floor reads 0.4 whatever authored the undershoot");
+
+    /// <summary>
+    /// The floor binds the stat, not the damage a fight computes from it — <c>DAMAGE_TAKEN_MULT</c>
+    /// still multiplies below <c>0.4 × dmg</c>.
+    /// </summary>
+    [Fact]
+    public void The_floor_binds_the_stat_and_not_the_DAMAGE_TAKEN_MULT_product() =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef), (StatId.DR_PCT, 0.25)),
+            defenderEffects: [Charge("EFF_A", EffectOp.DAMAGE_TAKEN_MULT, 0.5)])
+            .AttackerHit()
+            .ShouldBe(10.77, "53.85 × 0.4 (floored stat) × 0.5 (the op, unfloored)");
 
     /// <summary>
     /// Damage never falls below 10% of raw. At DEF 100 000 mitigation alone would leave 0.12, so the
