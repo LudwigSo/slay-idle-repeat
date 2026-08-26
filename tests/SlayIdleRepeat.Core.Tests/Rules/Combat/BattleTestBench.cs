@@ -176,7 +176,7 @@ internal sealed class RecordingAttackPipeline : IAttackPipeline
         double amount,
         bool bypassesWards,
         string sourceEffectId,
-        IEffectActorView? source = null) =>
+        IEffectActorView? source) =>
         DealTrueDamage(target, amount, sourceEffectId);
 
     /// <inheritdoc />

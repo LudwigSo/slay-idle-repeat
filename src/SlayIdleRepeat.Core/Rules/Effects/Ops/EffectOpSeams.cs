@@ -131,7 +131,7 @@ internal interface IAttackPipeline
         double amount,
         bool bypassesWards,
         string sourceEffectId,
-        IEffectActorView? source = null);
+        IEffectActorView? source);
 
     /// <summary><c>Heal()</c>: <c>healed = min(amount × target.HEALPct, MaxHP − HP)</c>, overheal discarded unless an effect consumes it. Routes both <c>HEAL</c> and <c>HEAL_LEECH</c>.</summary>
     /// <param name="amount">The pre-HEAL% amount, rounded to 4 dp.</param>
@@ -351,7 +351,7 @@ internal sealed class UnwiredAttackPipeline : IAttackPipeline
         double amount,
         bool bypassesWards,
         string sourceEffectId,
-        IEffectActorView? source = null) =>
+        IEffectActorView? source) =>
         throw Unwired(sourceEffectId, nameof(DealMaxHpPctDamage), "05 §4.2's DAMAGE_MAXHP_PCT row");
 
     /// <inheritdoc />

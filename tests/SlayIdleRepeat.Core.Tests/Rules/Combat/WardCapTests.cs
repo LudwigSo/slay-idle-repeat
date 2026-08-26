@@ -273,7 +273,7 @@ public sealed class WardCapTests
             p =>
             {
                 p.Pipeline.GrantWard(p.Hero, 100.0, null, "PK_WARDED");
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, 100.0, bypassesWards: false, "EFF_D");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, 100.0, bypassesWards: false, "EFF_D", source: null);
 
                 p.Hero.Wards.Total.ShouldBe(0.0);
             });

@@ -733,7 +733,7 @@ internal sealed class DrawingAttackPipeline : IAttackPipeline
         double amount,
         bool bypassesWards,
         string sourceEffectId,
-        IEffectActorView? source = null) =>
+        IEffectActorView? source) =>
         _inner.DealMaxHpPctDamage(target, amount, bypassesWards, sourceEffectId, source);
 
     /// <inheritdoc />

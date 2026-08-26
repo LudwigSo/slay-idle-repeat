@@ -21,6 +21,7 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// </remarks>
 internal readonly record struct ConditionSubjects(bool ReadsTarget, bool ReadsAttacker)
 {
+
     /// <summary>The subjects the tree reads, walked through every combinator.</summary>
     /// <param name="condition">The tree, or <see langword="null"/> for an ungated effect.</param>
     internal static ConditionSubjects Of(EffectCondition? condition)

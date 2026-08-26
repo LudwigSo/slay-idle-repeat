@@ -274,7 +274,7 @@ internal class RecordingStatusPipeline : IAttackPipeline
         double amount,
         bool bypassesWards,
         string sourceEffectId,
-        IEffectActorView? source = null)
+        IEffectActorView? source)
     {
         var actor = (BattleActor)target;
         Dots.Add((_services.Tick, actor.Id, amount, bypassesWards, sourceEffectId));

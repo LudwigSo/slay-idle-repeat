@@ -264,33 +264,10 @@ internal sealed class SetBonusCatalogue
             // attacker-gated standing DR), and `condition: null` stays the vocabulary's canonical
             // ungated.
             Condition = content.IsAuthorised(pointer + "/condition")
-                ? RequireContextGate(
-                    ConditionContentReader.Read(content, pointer + "/condition", "a set bonus's condition"),
-                    pointer + "/condition")
+                ? ConditionContentReader.ReadContextGate(
+                    content, pointer + "/condition", "a set bonus's condition")
                 : null,
         };
-    }
-
-    /// <summary>
-    /// A gear gate must read a contextual subject; an ambient one is refused where it is authored.
-    /// </summary>
-    /// <remarks>
-    /// An ambient condition on a standing gear grant would evaluate in battle and then throw out of
-    /// the strict aggregation the first time a hero screen composes the build -- the deferred
-    /// version of exactly the failure the old blanket refusal prevented.
-    /// </remarks>
-    private static EffectCondition RequireContextGate(EffectCondition condition, string pointer)
-    {
-        var subjects = ConditionSubjects.Of(condition);
-
-        return subjects.ReadsTarget || subjects.ReadsAttacker
-            ? condition
-            : throw new InvalidTunableException(
-                pointer,
-                "The tree reads neither the current target nor the attacker, so it is not a " +
-                "context gate: an ambient condition on standing gear evaluates in battle and then " +
-                "throws out of the hero screen's strict aggregation. Gate gear on a contextual " +
-                "subject, or leave it ungated.");
     }
 
     private static EffectTrigger ReadTrigger(ContentSnapshot content, string pointer)

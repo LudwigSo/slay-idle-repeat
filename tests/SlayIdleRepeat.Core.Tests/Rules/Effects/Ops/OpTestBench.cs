@@ -166,7 +166,7 @@ internal sealed class OpTestBench
             double amount,
             bool bypassesWards,
             string sourceEffectId,
-            IEffectActorView? source = null)
+            IEffectActorView? source)
         {
             bench.WardBypasses.Add(bypassesWards);
             bench.Record(nameof(DealMaxHpPctDamage), target.Id, amount, sourceEffectId);

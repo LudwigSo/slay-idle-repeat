@@ -41,26 +41,6 @@ internal static class ConditionContentReader
         ArgumentNullException.ThrowIfNull(pointer);
         ArgumentNullException.ThrowIfNull(what);
 
-        var tree = ReadNode(content, pointer, what);
-
-        var subjects = ConditionSubjects.Of(tree);
-        if (subjects is { ReadsTarget: true, ReadsAttacker: true })
-        {
-            // The per-pair re-aggregation hands each side exactly one subject -- the source a
-            // target, the defender an attacker -- so a both-subject gate could never hold: the
-            // inverted-range shape, wearing a gate's clothes.
-            throw new InvalidTunableException(
-                pointer,
-                "The tree reads both the current target and the attacker, and no evaluation " +
-                "context of the standing bucket ever carries both -- the gate could never hold, so " +
-                "the effect it gates could never fire.");
-        }
-
-        return tree;
-    }
-
-    private static EffectCondition ReadNode(ContentSnapshot content, string pointer, string what)
-    {
         var node = content.Read(pointer);
 
         if (node.MemberNames.Contains("all", StringComparer.Ordinal))
@@ -78,10 +58,50 @@ internal static class ConditionContentReader
         if (node.MemberNames.Contains("not", StringComparer.Ordinal))
         {
             RequireOnlyKey(node, "not", pointer, what);
-            return EffectCondition.Not(ReadNode(content, pointer + "/not", what));
+            return EffectCondition.Not(Read(content, pointer + "/not", what));
         }
 
         return EffectCondition.Of(ReadTerm(content, pointer, what));
+    }
+
+    /// <summary>
+    /// Reads the tree at <paramref name="pointer"/> as a <b>gear gate</b> — a condition on a
+    /// standing gear grant, which must read exactly one contextual subject.
+    /// </summary>
+    /// <remarks>
+    /// The two refusals are standing-bucket policy, which is why they live on this entry point and
+    /// not in <see cref="Read"/>: a trigger-time context genuinely carries both subjects, so a
+    /// both-subject tree is a legal authored shape for a triggered effect. A standing gear grant is
+    /// different on both sides — an <b>ambient</b> tree would evaluate in battle and then throw out
+    /// of the hero screen's strict aggregation, and a <b>both-subject</b> tree could never hold,
+    /// because the per-pair re-aggregation hands each side exactly one subject (the source a
+    /// target, the defender an attacker): the inverted-range shape, wearing a gate's clothes.
+    /// </remarks>
+    /// <param name="content">The version-stamped snapshot being read.</param>
+    /// <param name="pointer">Where the tree is authored.</param>
+    /// <param name="what">Whose condition it is, in the reader's terms.</param>
+    /// <exception cref="InvalidTunableException">The tree is malformed, ambient, or reads both subjects.</exception>
+    internal static EffectCondition ReadContextGate(ContentSnapshot content, string pointer, string what)
+    {
+        var tree = Read(content, pointer, what);
+
+        return ConditionSubjects.Of(tree) switch
+        {
+            { ReadsTarget: false, ReadsAttacker: false } => throw new InvalidTunableException(
+                pointer,
+                "The tree reads neither the current target nor the attacker, so it is not a " +
+                "context gate: an ambient condition on standing gear evaluates in battle and then " +
+                "throws out of the hero screen's strict aggregation. Gate gear on a contextual " +
+                "subject, or leave it ungated."),
+
+            { ReadsTarget: true, ReadsAttacker: true } => throw new InvalidTunableException(
+                pointer,
+                "The tree reads both the current target and the attacker, and no evaluation " +
+                "context of the standing bucket ever carries both — the gate could never hold, so " +
+                "the effect it gates could never fire."),
+
+            _ => tree,
+        };
     }
 
     private static EffectCondition[] ReadOperands(ContentSnapshot content, string pointer, string what)
@@ -91,7 +111,7 @@ internal static class ConditionContentReader
 
         for (var i = 0; i < read.Length; i++)
         {
-            read[i] = ReadNode(content, pointer + "/" + AuthoredToken.Render(i), what);
+            read[i] = Read(content, pointer + "/" + AuthoredToken.Render(i), what);
         }
 
         return read;

@@ -185,7 +185,7 @@ internal sealed class AttackPipeline : IAttackPipeline
         double amount,
         bool bypassesWards,
         string sourceEffectId,
-        IEffectActorView? source = null)
+        IEffectActorView? source)
     {
         var actor = Actor(target);
 
