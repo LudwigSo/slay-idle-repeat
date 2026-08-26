@@ -635,7 +635,7 @@ public sealed class RealDataNegativeCaseTests
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        CountUnauthorised(snapshot).ShouldBe(291,
+        CountUnauthorised(snapshot).ShouldBe(288,
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
@@ -657,12 +657,14 @@ public sealed class RealDataNegativeCaseTests
     // Every affix RANGE remains exactly as authored.
     //
     // 14 until M4-16, which OPENED two: every affix row now names the stat it writes and the bucket
-    // it writes through, and thirteen of the fourteen resolve to a stat that exists. The fourteenth
-    // is the damage-vs-Elites affix, which is conditional damage — the stat block has no conditional
-    // bucket, and a target-gated standing effect throws during re-aggregation rather than reading
-    // false — so both of its keys are null and neither is required to be. Opening a hole is the same
-    // deliberate act as filling one and moves this number the same way.
-    [InlineData("tuning/drops.json", 16)]
+    // it writes through, and the damage-vs-Elites affix — conditional damage, inexpressible before
+    // a conditional bucket existed — authored both keys null.
+    //
+    // 14 again since M4-16e (16 D47): the conditional standing-effect bucket made that row
+    // authorable, so its stat/op pair is filled — a TARGET_IS_ELITE-gated STAT_ADD_PCT on DMG_PCT,
+    // x(1+v) against elites under D46's multiplier reading — and both holes closed. Filling a hole
+    // is a design decision, made deliberately, moving this number in the same commit.
+    [InlineData("tuning/drops.json", 14)]
     [InlineData("tuning/power_model.json", 13)]
     [InlineData("tuning/events.json", 7)]
     [InlineData("tuning/progression.json", 5)]
@@ -706,16 +708,17 @@ public sealed class RealDataNegativeCaseTests
     // because a file with no row here is a file this theory does not watch at all.
     [InlineData("content/gear/gear.json", 0)]
 
-    // sets.json: new in M4-16, and its twelve holes are the two kinds this file's header
-    // distinguishes. SEVEN are deferred design decisions — of the four sets' twelve breakpoints,
-    // five are a standing stat modifier or a heal on a kill and are authored in full, while the
-    // other seven each need something that does not exist: pets (three of them), a conditional
-    // damage bucket, the Star die face (two), or a magnitude the design set never wrote down. Each
-    // of those carries its owner and its reason in GearAuthoringGapRegisterTests, whose second arm
-    // fails when that owner ships. The remaining FIVE are perks.json's kind: `condition: null` is
-    // the effect vocabulary's canonical "ungated", one per authored effect, and nothing can ever
-    // legitimately ask what its undecided value was.
-    [InlineData("content/sets/sets.json", 12)]
+    // sets.json: new in M4-16, its holes the two kinds this file's header distinguishes. SEVEN
+    // are deferred design decisions — `effects: null` breakpoints that each need something that
+    // does not exist: pets (three of them), the Star die face (two), a survival shape nobody
+    // authored, or a chain-hit magnitude nobody wrote. Each carries its reason (and its owner,
+    // where one exists) in GearAuthoringGapRegisterTests, whose second arm fails when that owner
+    // ships. The remaining FOUR are perks.json's kind: `condition: null` is the effect
+    // vocabulary's canonical "ungated", one per ungated authored effect. M4-16e (16 D47) moved
+    // this from twelve: Ironvow's four-piece authored against the conditional standing-effect
+    // bucket — an attacker-gated standing DR, whose condition is a real tree rather than the
+    // canonical null — closing one deferred hole and adding none.
+    [InlineData("content/sets/sets.json", 11)]
 
     // Bosses carry zero holes: where the design authorises nothing, the boss data omits the key
     // instead of writing null (a boss with no summons carries no adds fraction, and so on). The

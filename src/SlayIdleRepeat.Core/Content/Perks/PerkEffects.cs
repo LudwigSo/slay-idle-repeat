@@ -44,9 +44,6 @@ internal static class PerkEffects
         "startDelay", "phase", "tileType", "category",
     ];
 
-    /// <summary>The keys one authored comparison term may carry.</summary>
-    private static readonly string[] KnownTermKeys = ["fn", "op", "value", "statusId", "category"];
-
     /// <summary>The keys one authored value scale may carry.</summary>
     private static readonly string[] KnownValueScaleKeys = ["fn", "per", "cap", "statusId", "category"];
 
@@ -141,7 +138,7 @@ internal static class PerkEffects
             Op = AuthoredToken.Parse<EffectOp>(content, pointer + "/op", "an effect operation"),
             Trigger = Authored(content, pointer + "/trigger") ? ReadTrigger(content, pointer + "/trigger") : null,
             Condition = Authored(content, pointer + "/condition")
-                ? ReadCondition(content, pointer + "/condition")
+                ? ConditionContentReader.Read(content, pointer + "/condition", "a perk effect's condition")
                 : null,
             Target = Authored(content, pointer + "/target")
                 ? AuthoredToken.Parse<EffectTarget>(content, pointer + "/target", "an effect target")
@@ -194,100 +191,6 @@ internal static class PerkEffects
             TileType = Word(content, pointer + "/tileType"),
             Category = Word(content, pointer + "/category"),
         };
-    }
-
-    /// <summary>One node of a condition tree: a comparison, or one of the three combinators.</summary>
-    /// <remarks>
-    /// The four shapes are told apart by which key is present, exactly as the schema's <c>oneOf</c>
-    /// does it — a comparison is the shape with no combinator key, not a default, so a node carrying
-    /// none of the four is refused rather than read as an unsatisfiable comparison.
-    /// </remarks>
-    private static EffectCondition ReadCondition(ContentSnapshot content, string pointer)
-    {
-        var node = content.Read(pointer);
-
-        if (node.MemberNames.Contains("all", StringComparer.Ordinal))
-        {
-            return EffectCondition.All(ReadOperands(content, pointer + "/all"));
-        }
-
-        if (node.MemberNames.Contains("any", StringComparer.Ordinal))
-        {
-            return EffectCondition.Any(ReadOperands(content, pointer + "/any"));
-        }
-
-        if (node.MemberNames.Contains("not", StringComparer.Ordinal))
-        {
-            return EffectCondition.Not(ReadCondition(content, pointer + "/not"));
-        }
-
-        return EffectCondition.Of(ReadTerm(content, pointer));
-    }
-
-    private static EffectCondition[] ReadOperands(ContentSnapshot content, string pointer)
-    {
-        var operands = content.Read(pointer);
-        var read = new EffectCondition[operands.Items.Count];
-
-        for (var i = 0; i < read.Length; i++)
-        {
-            read[i] = ReadCondition(content, pointer + "/" + AuthoredToken.Render(i));
-        }
-
-        return read;
-    }
-
-    /// <summary>A comparison — the leaf of a condition tree.</summary>
-    /// <remarks>
-    /// <c>value</c> carries three shapes and the comparator does not decide which: a boolean for the
-    /// four <c>*_IS_*</c> predicates, a two-element array for <c>BETWEEN</c>, a number otherwise. The
-    /// authored shape is what is read, so a boolean written against a numeric comparator reaches the
-    /// evaluator as the flag it is rather than as a silently coerced 1.
-    /// </remarks>
-    private static ConditionTerm ReadTerm(ContentSnapshot content, string pointer)
-    {
-        RequireKnownKeys(content, pointer, KnownTermKeys, "a perk effect's condition");
-
-        var value = content.Read(pointer + "/value");
-
-        return new ConditionTerm
-        {
-            Fn = AuthoredToken.Parse<ConditionFunction>(content, pointer + "/fn", "a condition function"),
-            Comparator = ReadComparator(content, pointer + "/op"),
-            Value = value.Kind == ContentValueKind.Number ? value.AsDouble(pointer + "/value") : null,
-            Flag = value.Kind == ContentValueKind.Boolean ? value.AsBoolean(pointer + "/value") : null,
-            RangeLow = value.Kind == ContentValueKind.Array && value.Items.Count == 2
-                ? value.Items[0].AsDouble(pointer + "/value/0")
-                : null,
-            RangeHigh = value.Kind == ContentValueKind.Array && value.Items.Count == 2
-                ? value.Items[1].AsDouble(pointer + "/value/1")
-                : null,
-            StatusId = Word(content, pointer + "/statusId"),
-            Category = Word(content, pointer + "/category"),
-        };
-    }
-
-    /// <summary>
-    /// The comparator, whose JSON spelling is lower-case where every other token in the DSL is
-    /// <c>SCREAMING_SNAKE</c>.
-    /// </summary>
-    /// <remarks>
-    /// Upper-cased before the parse rather than parsed case-insensitively: the shared token reader
-    /// refuses a spelling that is not exactly a member's name, precisely so two spellings of one
-    /// member cannot both load, and relaxing that for this one key would relax it for every key it
-    /// reads. What is authored lower-case is one closed vocabulary, and this is where the mapping is
-    /// stated.
-    /// </remarks>
-    private static ConditionComparator ReadComparator(ContentSnapshot content, string pointer)
-    {
-        var authored = content.ReadText(pointer);
-
-        return AuthoredToken.TryParse<ConditionComparator>(authored.ToUpperInvariant(), out var parsed)
-            ? parsed
-            : throw new InvalidTunableException(
-                pointer,
-                $"'{authored}' is not a comparator. The authored set is eq, neq, lt, lte, gt, gte, " +
-                "between — lower-case, unlike every other token in the DSL.");
     }
 
     private static ValueScale ReadValueScale(ContentSnapshot content, string pointer)

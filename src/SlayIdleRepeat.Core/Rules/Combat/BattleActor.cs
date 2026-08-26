@@ -1,6 +1,7 @@
 using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
+using SlayIdleRepeat.Core.Rules.Effects.Conditions;
 using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Rules.Combat;
@@ -89,6 +90,15 @@ internal sealed class BattleActor : IEffectActorView
             if (EffectDefaults.IsAlwaysActive(held.Effect))
             {
                 standing.Add(held.Effect);
+
+                // The conditional standing-effect bucket's early-out: only a STANDING stat op with
+                // a target- or attacker-reading gate can make an attack's per-pair re-aggregation
+                // differ from the ambient one, so the pair pass is skipped for every actor without
+                // one. Stat family only, because aggregation reads nothing else.
+                var subjects = ConditionSubjects.Of(held.Effect.Condition);
+                HoldsContextGatedStanding |=
+                    held.Effect.Family == EffectOpFamily.STAT &&
+                    (subjects.ReadsTarget || subjects.ReadsAttacker);
             }
             else if (held.Effect.Trigger!.Kind == TriggerKind.PERIODIC)
             {
@@ -296,6 +306,13 @@ internal sealed class BattleActor : IEffectActorView
 
     /// <summary>Whether this actor's aggregation reads live state and must be re-run every tick rather than only when marked stale.</summary>
     internal bool StatsDependOnLiveState { get; set; }
+
+    /// <summary>
+    /// Whether any standing stat op carries a context gate — the flag behind the per-pair
+    /// re-aggregation an attack resolution asks for. False for every actor whose swings must stay
+    /// byte-identical to the ambient block's.
+    /// </summary>
+    internal bool HoldsContextGatedStanding { get; private set; }
 
     /// <summary>The actor's untriggered effects — the standing modifiers aggregation reads. Fixed for the fight.</summary>
     /// <remarks>

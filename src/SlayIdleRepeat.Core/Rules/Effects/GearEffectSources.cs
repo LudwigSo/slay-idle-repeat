@@ -241,6 +241,10 @@ internal sealed class GearAffixEffectSource : IEffectSource
                     Stat = StatSelector.Of(definition.Stat!.Value),
                     Trigger = EffectDefaults.Always,
                     Target = EffectDefaults.AbsentTarget,
+
+                    // The pool's context gate rides the synthesised effect untouched — the whole
+                    // of what makes a target-gated affix a data row rather than a special case.
+                    Condition = definition.Condition,
                     Value = roll.Value,
                 };
 

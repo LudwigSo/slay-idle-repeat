@@ -133,6 +133,8 @@ Wearing 2 / 4 / 6 pieces of a set grants escalating bonuses.
 | **Ironvow** | Heavy | +15% DEF | −15% damage taken from Elites/Bosses | Once per battle, negate a lethal hit |
 | **Stormcall** | Agile | +10% ASPD | Every 5th attack chains to all enemies | Attack speed also scales pet ability cooldowns |
 
+The two conditional rows author against `16` D47's conditional standing-effect bucket (`18` §8, step 2 restated): the `+X% Damage vs Elites` affix is a `TARGET_IS_ELITE`-gated `STAT_ADD_PCT` on `DMG_PCT`, and Ironvow's 4-piece is a standing `STAT_ADD_PCT DR_PCT −0.15` gated on `any(ATTACKER_IS_ELITE, ATTACKER_IS_BOSS)` — both re-aggregated per target within one attack resolution, with zero per-affix code. ⚠️ Stormcall's 4-piece stays unauthored: "chains" names no multiplier for the chained hit, and the gear gap register records that missing number rather than inventing one.
+
 Because a set maps to a family axis, a full 6-piece set is also a full commitment to one build archetype. That is intentional: mixing axes is the flexible, safe play; committing to one is the high-ceiling play — **on the three axes that have a set.**
 
 ---

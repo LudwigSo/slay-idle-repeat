@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/sets.schema.json",
-  "_doc": "08 §3.2 — the four SS sets' 2/4/6-piece bonuses, as effect DSL data. A set is identified by its family axis: there is exactly one set per axis, drops.json authors a null setId because no setId vocabulary exists, and the axis is what an SS item's family already resolves to — so a second identifier here would be a second answer. The piece counts are drops.json#/sets/breakpoints and are cross-checked against it rather than restated as a rule. Effects are embedded rather than referenced: an effect is never a file. ⚠️ A null effects array is an unauthorised bonus, not an absent one — 08 §3.2 describes all twelve in prose and seven of them name a mechanism that does not exist or a magnitude nobody wrote, and inventing either is the hole the null exists to keep visible.",
+  "_doc": "08 §3.2 — the four SS sets' 2/4/6-piece bonuses, as effect DSL data. A set is identified by its family axis: there is exactly one set per axis, drops.json authors a null setId because no setId vocabulary exists, and the axis is what an SS item's family already resolves to — so a second identifier here would be a second answer. The piece counts are drops.json#/sets/breakpoints and are cross-checked against it rather than restated as a rule. Effects are embedded rather than referenced: an effect is never a file. ⚠️ A null effects array is an unauthorised bonus, not an absent one — 08 §3.2 describes all twelve in prose and six of them name a mechanism that does not exist or a magnitude nobody wrote, and inventing either is the hole the null exists to keep visible.",
   "_status": "partial",
   "sets": [
     {
@@ -56,7 +56,25 @@
             }
           ]
         },
-        { "pieces": 4, "effects": null },
+        {
+          "pieces": 4,
+          "effects": [
+            {
+              "id": "SET_BONUS_HEAVY_4",
+              "op": "STAT_ADD_PCT",
+              "stat": "DR_PCT",
+              "trigger": { "kind": "ALWAYS" },
+              "condition": {
+                "any": [
+                  { "fn": "ATTACKER_IS_ELITE", "op": "eq", "value": true },
+                  { "fn": "ATTACKER_IS_BOSS", "op": "eq", "value": true }
+                ]
+              },
+              "target": "SELF",
+              "value": -0.15
+            }
+          ]
+        },
         { "pieces": 6, "effects": null }
       ]
     },
