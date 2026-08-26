@@ -50,12 +50,13 @@ public readonly record struct GearAffixRoll(string AffixId, double Value)
     /// <exception cref="ArgumentOutOfRangeException">It is not finite, is negative zero, or is unrounded.</exception>
     /// <remarks>
     /// Sign-free since the damage-reduction affix's range re-signed — it adds flat onto
-    /// <c>DR_PCT</c>'s base 1.0, so its rolls are negative. Negative zero stays refused: the
-    /// canonical state writer treats it as a distinct encoding of a value no roll produces.
+    /// <c>DR_PCT</c>'s base 1.0, so its rolls are negative. Negative zero stays refused, by
+    /// <see cref="DeterminismRounding.IsRounded"/>'s own negative-zero arm: the canonical state
+    /// writer treats it as a distinct encoding of a value no roll produces.
     /// </remarks>
     private static double Rolled(double value)
     {
-        if (!DeterminismRounding.IsRounded(value) || double.IsNegative(value) && value == 0.0)
+        if (!DeterminismRounding.IsRounded(value))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(Value),

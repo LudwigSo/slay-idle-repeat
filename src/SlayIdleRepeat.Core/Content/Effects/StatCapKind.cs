@@ -4,7 +4,7 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// <remarks>
 /// <para>
 /// Only one token was authored originally, and it is not a stat cap at all: <see cref="HEAL_CEILING"/>
-/// is a ceiling on <c>Heal()</c>, not one of the six stat ceilings. Two more members were added
+/// is a ceiling on <c>Heal()</c>, not one of the stat ceilings. Two more members were added
 /// later so the op could actually raise a cap or redirect one, as its own description promised.
 /// </para>
 /// <para>
@@ -19,7 +19,7 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 public enum StatCapKind
 {
     /// <summary>
-    /// The ceiling on healing, expressed as a fraction of Max HP. Not one of the six stat caps — it
+    /// The ceiling on healing, expressed as a fraction of Max HP. Not one of the stat caps — it
     /// bounds <c>Heal()</c>, so the ordinary cap table is left untouched by it.
     /// </summary>
     HEAL_CEILING = 1,

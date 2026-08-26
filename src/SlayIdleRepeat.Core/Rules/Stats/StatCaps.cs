@@ -32,8 +32,8 @@ internal sealed class StatCaps
     /// <summary>No bound on any stat — the state before any are read from data.</summary>
     /// <remarks>
     /// Exists so a test or the balance harness can aggregate without a content snapshot, and so the
-    /// "no bound bit" case is expressible rather than being spelled as an empty dictionary literal
-    /// at every call site.
+    /// "no bound binds anything" case is expressible rather than being spelled as an empty
+    /// dictionary literal at every call site.
     /// </remarks>
     internal static StatCaps None { get; } = new(
         new Dictionary<StatId, double>(), new Dictionary<StatId, double>());

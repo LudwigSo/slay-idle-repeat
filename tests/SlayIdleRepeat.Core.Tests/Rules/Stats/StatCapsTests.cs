@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
-/// <summary>The six stat ceilings, and their application.</summary>
+/// <summary>The five stat ceilings and the one floor, and their application.</summary>
 public sealed class StatCapsTests
 {
     [Theory]

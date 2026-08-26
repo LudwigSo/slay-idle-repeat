@@ -49,10 +49,10 @@ public enum StatId
     /// <summary>Armour penetration, 0..1.</summary>
     PEN = 10,
 
-    /// <summary>Outgoing damage percent.</summary>
+    /// <summary>Outgoing damage multiplier, consumed bare; base 1.0.</summary>
     DMG_PCT = 11,
 
-    /// <summary>Damage reduction percent.</summary>
+    /// <summary>Damage-taken multiplier, consumed bare; base 1.0, so lower is better.</summary>
     DR_PCT = 12,
 
     /// <summary>Multiplier on all healing received; base 1.0.</summary>
