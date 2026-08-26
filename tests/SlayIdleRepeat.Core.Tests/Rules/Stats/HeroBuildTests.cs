@@ -194,6 +194,37 @@ public sealed class HeroBuildTests
             "and it is named as unapplied rather than dropped on the floor");
     }
 
+    /// <summary>
+    /// The pet-aura affix — the other shipped non-combat row — is reported the same way, and it is
+    /// the ONLY thing reported: the amulet's own combat contributions must not land beside it.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 D48 kept <c>AFX_PET_AURA_POWER</c> and <c>AFX_GOLD_GAIN</c> in the pool as the armed side
+    /// of the cut — rolled, collected, reported, waiting on a consumer. The gold row's reporting is
+    /// pinned above; this pins the pet row against the same shipped tuning, so a drops.json edit
+    /// that unmapped either stat fails by name rather than by census. The single-item form is the
+    /// control the case above lacks: a pipeline that skipped everything it collected would satisfy
+    /// two ShouldContains, but not this.
+    /// </remarks>
+    [Fact]
+    public void A_pet_aura_affix_is_the_only_skip_its_build_reports()
+    {
+        var amulet = Inventories.Item(
+            "amulet", GearFamily.PENDANT, Rarity.S, affixes: [new GearAffixRoll("AFX_PET_AURA_POWER", 0.2)]);
+
+        var build = HeroBuild.Of(Level, [amulet], Content);
+
+        build.Effects.ShouldContain(
+            e => e.Id.Contains("AFX_PET_AURA_POWER", StringComparison.Ordinal),
+            "the affix is collected — it is a real bonus the player rolled");
+
+        var skipped = build.Aggregated.SkippedNonCombatStatEffects.ShouldHaveSingleItem(
+            "exactly the pet-aura affix is unapplied; the amulet's primary and secondary are " +
+            "combat stats and belong in the block, not in the skip report");
+
+        skipped.ShouldContain("AFX_PET_AURA_POWER", Case.Sensitive, "PET_AURA_PCT has no consumer yet");
+    }
+
     /// <summary>An affix the pool authors with no stat contributes nothing and breaks nothing.</summary>
     /// <remarks>
     /// The damage-vs-Elites affix rolls onto real items today. It writes no stat, so the build must
