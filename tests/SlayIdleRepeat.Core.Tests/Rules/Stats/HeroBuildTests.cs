@@ -195,25 +195,17 @@ public sealed class HeroBuildTests
     }
 
     /// <summary>
-    /// The target-gated damage-vs-Elites affix is collected with its gate and composes off-gate —
-    /// with zero per-affix code anywhere on the path.
+    /// The target-gated damage-vs-Elites affix reaches the fight's effect list with its gate — with
+    /// zero per-affix code anywhere on the path.
     /// </summary>
-    /// <remarks>
-    /// Three facts in one build. The synthesised effect carries the pool's condition (the
-    /// passthrough that makes the row data, not a special case); composing the hero screen's block
-    /// does not throw (the strict gate treats a context-gated standing effect as inactive, not as a
-    /// refusal); and the off-gate block shows the identity damage multiplier, because outside a
-    /// fight there is no target for the gate to hold against.
-    /// </remarks>
     [Fact]
-    public void A_target_gated_affix_is_collected_with_its_gate_and_composes_off_gate()
+    public void A_target_gated_affix_is_collected_with_its_gate()
     {
         var weapon = Inventories.Item(
             "w", GearFamily.BLADE, Rarity.S, affixes: [new GearAffixRoll("AFX_DAMAGE_VS_ELITES", 0.25)]);
 
-        var build = HeroBuild.Of(Level, [weapon], Content);
-
-        var affix = build.Effects.SingleOrDefault(
+        var affix = HeroBuild.Of(Level, [weapon], Content)
+            .Effects.SingleOrDefault(
                 e => e.Id.Contains("AFX_DAMAGE_VS_ELITES", StringComparison.Ordinal))
             .ShouldNotBeNull("the rolled affix is a real bonus and reaches the fight's effect list");
 
@@ -221,13 +213,21 @@ public sealed class HeroBuildTests
             .Term.ShouldNotBeNull()
             .Fn.ShouldBe(ConditionFunction.TARGET_IS_ELITE);
         affix.Value.ShouldBe(0.25, "the roll is the magnitude");
+    }
 
-        Should.NotThrow(
-            () => Stat(build, StatId.DMG_PCT),
-            "a hero screen composes this build, and a refusal here bricks it for anyone wearing " +
-            "the affix");
+    /// <summary>The hero screen composes a build wearing the gated affix, showing the off-gate block.</summary>
+    /// <remarks>
+    /// The strict gate treats a context-gated standing effect as inactive rather than refusing it —
+    /// a refusal here bricks the hero screen for anyone wearing the affix — and outside a fight
+    /// there is no target for the gate to hold against, so the multiplier shows its base.
+    /// </remarks>
+    [Fact]
+    public void A_build_wearing_the_gated_affix_composes_off_gate_to_the_identity_multiplier()
+    {
+        var weapon = Inventories.Item(
+            "w", GearFamily.BLADE, Rarity.S, affixes: [new GearAffixRoll("AFX_DAMAGE_VS_ELITES", 0.25)]);
 
-        Stat(build, StatId.DMG_PCT).ShouldBe(
+        Stat(HeroBuild.Of(Level, [weapon], Content), StatId.DMG_PCT).ShouldBe(
             1.0, "off its gate the affix contributes nothing, so the multiplier shows its base");
     }
 

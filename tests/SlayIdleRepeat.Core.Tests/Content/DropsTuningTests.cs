@@ -406,6 +406,29 @@ public sealed class DropsTuningTests
         Tuning().Affix("AFX_CRIT_CHANCE").Condition.ShouldBeNull();
     }
 
+    /// <summary>An affix authoring neither half is still a legal pool member that writes nothing.</summary>
+    /// <remarks>
+    /// The shipped pool no longer carries a null pair — the damage-vs-Elites affix was its one —
+    /// but the shape stays legal: it is how the pool says "described by the design set, not yet
+    /// expressible", and the gear gap register's data arm is built on it staying loadable. A
+    /// synthetic row, so this pin survives the shipped pool changing again.
+    /// </remarks>
+    [Fact]
+    public void An_affix_authoring_no_stat_at_all_loads_and_writes_nothing()
+    {
+        var pool = ContentValue.Array(
+            GearDocuments.ShippedAffixes
+                .Select(GearDocuments.AffixRow)
+                .Append(GearDocuments.AffixRow(
+                    new AuthoredAffix("AFX_TEST_NULL_PAIR", null, null, 0.1m, 0.2m, ["RING"], null))));
+
+        var affix = DropsTuning.Read(GearDocuments.With(affixes: pool)).Affix("AFX_TEST_NULL_PAIR");
+
+        affix.WritesAStat.ShouldBeFalse("neither half is authored, so a roll of it contributes nothing");
+        affix.Minimum.ShouldBe(0.1);
+        affix.Maximum.ShouldBe(0.2);
+    }
+
     /// <summary>An affix the pool does not declare is refused.</summary>
     [Theory]
     [InlineData("AFX_NOT_AUTHORED")]

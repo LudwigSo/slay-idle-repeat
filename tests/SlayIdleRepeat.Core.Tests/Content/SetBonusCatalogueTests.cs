@@ -73,16 +73,32 @@ public sealed class SetBonusCatalogueTests
         effect.Op.ShouldBe(EffectOp.STAT_ADD_PCT);
         effect.Stat.ShouldBe(StatSelector.Of(StatId.DR_PCT));
         effect.Value.ShouldBe(-0.15, "−15% damage taken authors a NEGATIVE percent-add on DR%");
-        effect.Trigger!.Kind.ShouldBe(TriggerKind.ALWAYS);
+        effect.Trigger.ShouldNotBeNull().Kind.ShouldBe(TriggerKind.ALWAYS);
         effect.Target.ShouldBe(EffectTarget.SELF);
 
         var condition = effect.Condition.ShouldNotBeNull("the gate is the whole point of the row");
         condition.Kind.ShouldBe(ConditionKind.ANY);
         condition.Operands.Count.ShouldBe(2);
-        condition.Operands[0].Term!.Fn.ShouldBe(ConditionFunction.ATTACKER_IS_ELITE);
-        condition.Operands[0].Term!.Flag.ShouldBe(true);
-        condition.Operands[1].Term!.Fn.ShouldBe(ConditionFunction.ATTACKER_IS_BOSS);
-        condition.Operands[1].Term!.Flag.ShouldBe(true);
+
+        var elite = condition.Operands[0].Term.ShouldNotBeNull();
+        elite.Fn.ShouldBe(ConditionFunction.ATTACKER_IS_ELITE);
+        elite.Comparator.ShouldBe(ConditionComparator.EQ);
+        elite.Flag.ShouldBe(true);
+
+        var boss = condition.Operands[1].Term.ShouldNotBeNull();
+        boss.Fn.ShouldBe(ConditionFunction.ATTACKER_IS_BOSS);
+        boss.Comparator.ShouldBe(ConditionComparator.EQ);
+        boss.Flag.ShouldBe(true);
+    }
+
+    /// <summary>The ungated control: a set bonus authoring <c>condition: null</c> reads none.</summary>
+    [Fact]
+    public void An_unauthored_condition_reads_as_no_condition_at_all()
+    {
+        Shipped()
+            .Granted(GearFamilyAxis.HEAVY, 2)
+            .ShouldHaveSingleItem()
+            .Condition.ShouldBeNull("Ironvow's two-piece is the vocabulary's canonical ungated");
     }
 
     /// <summary>
@@ -249,6 +265,63 @@ public sealed class SetBonusCatalogueTests
         condition.Operands[0].Term!.Fn.ShouldBe(ConditionFunction.ATTACKER_IS_ELITE);
         condition.Operands[1].Term!.Fn.ShouldBe(ConditionFunction.ATTACKER_IS_BOSS);
         condition.Operands[1].Term!.Flag.ShouldBe(true);
+    }
+
+    /// <summary>A numeric comparison maps its comparator and value — not only the boolean form.</summary>
+    [Fact]
+    public void A_numeric_condition_term_maps_its_comparator_and_value()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_PCT"),
+            ["stat"] = ContentValue.Text("DMG_PCT"),
+            ["value"] = ContentValue.Number(0.25m),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["fn"] = ContentValue.Text("TARGET_HP_PCT"),
+                ["op"] = ContentValue.Text("lt"),
+                ["value"] = ContentValue.Number(0.30m),
+            }),
+        });
+
+        var term = SetBonusCatalogue.Read(Snapshot(CoveringSet("BALANCED", effect)), Breakpoints)
+            .Granted(GearFamilyAxis.BALANCED, Breakpoints[0])
+            .ShouldHaveSingleItem()
+            .Condition.ShouldNotBeNull()
+            .Term.ShouldNotBeNull();
+
+        term.Fn.ShouldBe(ConditionFunction.TARGET_HP_PCT);
+        term.Comparator.ShouldBe(ConditionComparator.LT);
+        term.Value.ShouldBe(0.30);
+        term.Flag.ShouldBeNull("a numeric comparison carries no boolean");
+    }
+
+    /// <summary>A function the vocabulary does not declare is refused, with the term named.</summary>
+    [Fact]
+    public void A_condition_function_the_vocabulary_does_not_declare_is_refused()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_FLAT"),
+            ["stat"] = ContentValue.Text("LIFESTEAL"),
+            ["value"] = ContentValue.Number(0.1m),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["fn"] = ContentValue.Text("TARGET_IS_SHINY"),
+                ["op"] = ContentValue.Text("eq"),
+                ["value"] = ContentValue.True,
+            }),
+        });
+
+        var message = Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
+            .Message;
+
+        message.ShouldContain("TARGET_IS_SHINY", Case.Sensitive);
+        message.ShouldContain("condition function", Case.Sensitive);
     }
 
     /// <summary>A key the reader does not map INSIDE a condition term is refused too.</summary>

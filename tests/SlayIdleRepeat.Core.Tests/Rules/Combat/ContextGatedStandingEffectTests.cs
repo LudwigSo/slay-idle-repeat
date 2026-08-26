@@ -94,8 +94,11 @@ public sealed class ContextGatedStandingEffectTests
     /// would answer <c>not(…)</c> as true with no target in hand and apply an anti-elite bonus to the
     /// whole fight; under the subject-presence rule the tree reads a target, so it waits for one.
     /// </remarks>
-    [Fact]
-    public void A_negated_target_gate_applies_exactly_against_targets_outside_it()
+    [Theory]
+    [InlineData(false, HeroAtk * (1.0 + DamageBonus))]
+    [InlineData(true, HeroAtk)]
+    public void A_negated_target_gate_applies_exactly_against_targets_outside_it(
+        bool elite, double expectedHit)
     {
         var antiElite = StandingEffect(
             "TEST_ANTI_ELITE_DMG",
@@ -108,13 +111,52 @@ public sealed class ContextGatedStandingEffectTests
                 Flag = true,
             })));
 
-        HeroHits(elite: false, antiElite).ShouldBe(
-            HeroAtk * (1.0 + DamageBonus),
-            "the target is outside the negated gate, so the bonus applies to this swing");
+        HeroHits(elite, antiElite).ShouldBe(
+            expectedHit,
+            "a negated gate applies exactly against targets outside it — never ambiently, and " +
+            "never against the target it names");
+    }
 
-        HeroHits(elite: true, antiElite).ShouldBe(
-            HeroAtk,
-            "the target is inside the negated gate, so the bonus contributes nothing");
+    /// <summary>
+    /// The re-aggregation is per target within one attack resolution, not once per tick: a live HP
+    /// gate crosses mid-fight and only the swings after the crossing carry the bonus.
+    /// </summary>
+    /// <remarks>
+    /// The executioner shape. The target opens at full health (first swing unboosted), the first
+    /// hit takes it below the threshold, and the second swing — twenty ticks later, against the
+    /// same target — reads the target's LIVE hit points and lands boosted.
+    /// </remarks>
+    [Fact]
+    public void A_live_hp_gate_is_read_at_swing_time_against_the_targets_current_hp()
+    {
+        var executioner = StandingEffect(
+            "TEST_EXECUTIONER_DMG",
+            StatId.DMG_PCT,
+            DamageBonus,
+            EffectCondition.Of(new ConditionTerm
+            {
+                Fn = ConditionFunction.TARGET_HP_PCT,
+                Comparator = ConditionComparator.LT,
+                Value = 0.75,
+            }));
+
+        var hero = BattleTestBench.Hero(
+            AttackPipelineBench.Stats(1_000_000.0, (StatId.ATK, HeroAtk)),
+            effects: [new HeldEffect(executioner)]);
+
+        // 300 Max HP: the first hit of 100 leaves 200/300 ≈ 0.6667 < 0.75, and the fight ends with
+        // the target still standing so both swings are observable. ATK 0: the enemy soaks silently.
+        var enemy = BattleTestBench.Enemy(0, AttackPipelineBench.Stats(300.0));
+
+        var result = CombatSimulator.Simulate(BattleTestBench.Plan(
+            [hero, enemy],
+            rules: CombatRules.PvE with { MaxTicks = 21 }));
+
+        result.ValuesBy(CombatEventType.Hit, CombatActor.Hero).ShouldBe(
+            new[] { HeroAtk, HeroAtk * (1.0 + DamageBonus) },
+            "the gate reads the target's live HP at each swing: full health first (no bonus), " +
+            "below three quarters at the second swing (boosted) — a gate read once per fight or " +
+            "at plan time would produce two equal hits");
     }
 
     // ────────────────────────────────────────────── the attacker-gated half (DR vs elites/bosses)
@@ -153,6 +195,45 @@ public sealed class ContextGatedStandingEffectTests
             EnemyAtk,
             "an ordinary enemy satisfies neither arm of the gate, so the hit lands unreduced");
     }
+
+    /// <summary>
+    /// The re-aggregation is per attacker within one tick: two enemies swing in the same tick, and
+    /// only the one inside the gate is reduced.
+    /// </summary>
+    /// <remarks>
+    /// The arm that separates per-pair re-aggregation from a once-per-tick shortcut: both hits land
+    /// in tick 0, so a defender block computed once for the tick would either reduce both or
+    /// neither. Two ticks rather than one, so the ambient refresh after the swings also completes
+    /// with the gated effect still held.
+    /// </remarks>
+    [Fact]
+    public void Two_attackers_in_one_tick_are_gated_independently()
+    {
+        var hero = BattleTestBench.Hero(
+            AttackPipelineBench.Stats(1_000_000.0, (StatId.ATK, HeroAtk)),
+            effects: [new HeldEffect(AttackerGatedReduction())]);
+
+        var elite = EliteEnemy();
+        var ordinary = BattleTestBench.Enemy(
+            1, AttackPipelineBench.Stats(1_000_000.0, (StatId.ATK, EnemyAtk)));
+
+        var result = CombatSimulator.Simulate(BattleSimulationPlan(hero, elite, ordinary));
+
+        result.ValuesBy(CombatEventType.Hit, CombatActor.Enemy(0)).ShouldBe(
+            new[] { EnemyAtk * (1.0 + DamageReduction) },
+            "the elite's hit is reduced by the gate");
+
+        result.ValuesBy(CombatEventType.Hit, CombatActor.Enemy(1)).ShouldBe(
+            new[] { EnemyAtk },
+            "the ordinary enemy's hit, in the same tick, is not — a defender block computed once " +
+            "per tick could not tell the two apart");
+    }
+
+    /// <summary>A two-tick plan over the given roster.</summary>
+    private static BattlePlan BattleSimulationPlan(ActorPlan hero, params ActorPlan[] enemies) =>
+        BattleTestBench.Plan(
+            new[] { hero }.Concat(enemies),
+            rules: CombatRules.PvE with { MaxTicks = 2 });
 
     /// <summary>The control: an ungated reduction of the same magnitude reduces every hit.</summary>
     [Fact]
