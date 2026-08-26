@@ -27,6 +27,7 @@
     { "id": "NetArchTest.Rules", "reason": "The engine the 23 §6 architecture rules are written against." },
     { "id": "Mono.Cecil", "reason": "IL reader used by SlayIdleRepeat.Architecture.Tests (M0-08, Infrastructure/Il.cs) to inspect method bodies for the banned-API rules. It reads assemblies; it is not a service behind a port and cannot lock anything in." },
     { "id": "coverlet.collector", "reason": "Coverage collector. Test-time only." },
+    { "id": "Serilog.AspNetCore", "reason": "Logging framework writing structured JSON to stdout (M5-11). The log backend is whatever scrapes the container's output, so this is not a swappable service behind a port and cannot lock the project in; no backend endpoint or credential is named in code." },
     { "id": "Microsoft.SourceLink.*", "reason": "Debug symbol metadata. Build-time only, no runtime surface." }
   ]
 }

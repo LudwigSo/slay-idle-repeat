@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    ICrashReportingPort over Sentry (client).
+    ITelemetryPort over Sentry (client).
     Sentry is referenced by this project and no other (23 §5 A9).
   -->
 

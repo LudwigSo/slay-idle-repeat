@@ -87,9 +87,10 @@ public sealed class ApplyCommandUseCaseTests
         var second = new RecordingSink("second", order);
         var useCase = new ApplyCommandUseCase(
             new WorldSliceStore(cache), new DomainEventDispatcher([first, second]));
+        var command = new RollDiceCommand();
 
         var outcome = await useCase.ExecuteAsync(
-            new ApplyCommandRequest(player, run, new RollDiceCommand()), Worlds.Context(game), Worlds.Cancel);
+            new ApplyCommandRequest(player, run, command), Worlds.Context(game), Worlds.Cancel);
 
         outcome.Events.ShouldContain(
             @event => @event is DiceRolled,
@@ -98,8 +99,11 @@ public sealed class ApplyCommandUseCaseTests
 
         first.Batches.Count.ShouldBe(1, "the first sink saw the batch " + first.Batches.Count + " times.");
         second.Batches.Count.ShouldBe(1, "the second sink saw the batch " + second.Batches.Count + " times.");
-        first.Batches[0].ShouldBe(outcome.Events, "the first sink was handed something other than this command's events.");
-        second.Batches[0].ShouldBe(outcome.Events, "the second sink was handed something other than this command's events.");
+        first.Batches[0].Events.ShouldBe(outcome.Events, "the first sink was handed something other than this command's events.");
+        second.Batches[0].Events.ShouldBe(outcome.Events, "the second sink was handed something other than this command's events.");
+        first.Batches[0].Player.ShouldBe(player, "the batch attributes the events to the player who sent the command.");
+        first.Batches[0].Command.ShouldBeSameAs(command, "the batch carries the command as accepted, not a reconstruction.");
+        first.Batches[0].State.ShouldBeSameAs(outcome.State, "the batch carries the committed state the command produced.");
         order.ShouldBe(new[] { "first", "second" }, Case.Sensitive, "sinks are delivered to in registration order.");
     }
 

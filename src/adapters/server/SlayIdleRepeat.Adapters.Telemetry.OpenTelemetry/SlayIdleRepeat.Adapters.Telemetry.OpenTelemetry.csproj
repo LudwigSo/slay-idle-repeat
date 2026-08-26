@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    IMetricsPort / ITracingPort over OpenTelemetry (14 §13).
+    ITelemetryPort over OpenTelemetry (14 §13).
     The OpenTelemetry packages are referenced by this project and no other.
   -->
 

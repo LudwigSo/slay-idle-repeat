@@ -55,8 +55,10 @@ public sealed class PortCatalogueTests
     /// <c>ContractSuiteCoverageTests.PortFloor</c> and <c>SubjectSetFloorTests.PortFloor</c>. Three
     /// floors are stated over the same set in three assemblies; one moving without the others is one
     /// of them having gained a member the other two cannot see.
+    /// 🔒 M5-11 raised it 6 → 8 for <c>IAnalyticsSinkPort</c> and <c>ITelemetryPort</c>, and moved
+    /// the same two siblings with it.
     /// </remarks>
-    private const int DeclaredPortFloor = 6;
+    private const int DeclaredPortFloor = 8;
 
     /// <summary>
     /// Entries in the register. At zero, <see cref="No_port_deferral_outlives_the_port_it_defers"/>,
@@ -94,6 +96,8 @@ public sealed class PortCatalogueTests
             new[] { "DeviceModel", "OsVersion", "AppVersion", "Locale", "IsLowEndDevice" }),
         ("23 §4.1", "ILocalCachePort", new[] { "ReadAsync", "WriteAsync", "DeleteAsync" }),
         ("23 §4.1", "IRewardedAdPort", new[] { "IsReady", "ShowAsync", "PreloadAsync" }),
+        ("23 §4.2", "IAnalyticsSinkPort", new[] { "Track" }),
+        ("23 §4.2", "ITelemetryPort", new[] { "RecordException", "BeginSpan", "RecordMetric" }),
         ("23 §4.3", "IClockPort", new[] { "UtcNow" }),
         ("23 §4.3", "IIdGeneratorPort", new[] { "NewGuid", "NewCommandId" }),
     };

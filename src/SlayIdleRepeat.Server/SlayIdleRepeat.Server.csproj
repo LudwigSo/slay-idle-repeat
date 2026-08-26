@@ -12,6 +12,14 @@
   -->
 
   <ItemGroup>
+    <!--
+      M5-11: the log pipeline. Structured JSON to stdout; the backend is whatever
+      scrapes it, so this is process plumbing, not a vendor service behind a port.
+    -->
+    <PackageReference Include="Serilog.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
 
     <!--
@@ -32,6 +40,8 @@
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Push.FcmApns\SlayIdleRepeat.Adapters.Push.FcmApns.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Analytics.PostHog\SlayIdleRepeat.Adapters.Analytics.PostHog.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry.csproj" />
+    <!-- M5-11: ITelemetryPort's second real implementation; the composition root may name adapters. -->
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Telemetry.Sentry\SlayIdleRepeat.Adapters.Telemetry.Sentry.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Config.HttpJson\SlayIdleRepeat.Adapters.Config.HttpJson.csproj" />
   </ItemGroup>
 

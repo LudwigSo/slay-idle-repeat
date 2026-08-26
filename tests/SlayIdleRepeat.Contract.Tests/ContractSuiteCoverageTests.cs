@@ -41,12 +41,14 @@ public sealed class ContractSuiteCoverageTests
     /// the port declared on that commit could have been deleted again with every rule in this file
     /// still reporting success over the five that remained — which is the drift the paragraph under
     /// <see cref="AdapterAssemblyFloor"/> says these numbers exist to notice.
+    /// 🔒 M5-11 raised it 6 → 8 for <c>IAnalyticsSinkPort</c> and <c>ITelemetryPort</c>, with the
+    /// same two siblings.
     /// </remarks>
-    private const int PortFloor = 6;
+    private const int PortFloor = 8;
 
     /// <summary>Attributed suites in this assembly. At zero, rule 3's suite arm has nothing to check.</summary>
     /// <remarks>Moves with <see cref="PortFloor"/>: rule 1 is one suite per port, exactly.</remarks>
-    private const int SuiteFloor = 6;
+    private const int SuiteFloor = 8;
 
     /// <summary>
     /// Adapter assemblies the scan finds. At zero, rule 2 finds no implementations and reports
@@ -144,6 +146,11 @@ public sealed class ContractSuiteCoverageTests
         "SlayIdleRepeat.Adapters.InMemory.InMemoryRewardedAd",
         "SlayIdleRepeat.Adapters.Platform.Host.HostPlatformInfo",
         "SlayIdleRepeat.Adapters.InMemory.InMemoryPlatformInfo",
+        "SlayIdleRepeat.Adapters.Analytics.PostHog.PostHogAnalyticsSink",
+        "SlayIdleRepeat.Adapters.InMemory.RecordingAnalyticsSink",
+        "SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry.OpenTelemetryTelemetry",
+        "SlayIdleRepeat.Adapters.Telemetry.Sentry.SentryTelemetry",
+        "SlayIdleRepeat.Adapters.InMemory.RecordingTelemetry",
     };
 
     private const string PortsNamespace = "SlayIdleRepeat.Application.Ports";
@@ -169,10 +176,20 @@ public sealed class ContractSuiteCoverageTests
     /// from that port's suite (<c>23</c> §5 A8).
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The derivation half is the one this rule exists for. An attribute naming the right
     /// implementation on a class deriving from the wrong suite compiles, runs and reports success —
     /// it just runs some other port's cases. That is the drift a name convention cannot see and the
     /// reason the two attributes are separate.
+    /// </para>
+    /// <para>
+    /// 🔒 M5-11: the rule consults <see cref="FixtureExemptions"/> — an implementation carried by
+    /// that register needs no fixture, because a register entry names the observation that covers it
+    /// instead. That is not this rule going soft: an exemption is held by its own four directions
+    /// (satisfied, unanchored, malformed, and the OTel entry's CI pin) in
+    /// <c>FixtureExemptionTests</c>, so a fixture arriving or the type leaving turns the BUILD red
+    /// rather than widening this rule's silence.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_implementation_of_a_port_has_a_contract_fixture()
@@ -181,8 +198,10 @@ public sealed class ContractSuiteCoverageTests
 
         Empty(
             ImplementationsWithoutACoveringFixture(
-                ports, SuiteDeclarations(), FixtureDeclarations(), PortImplementations(ports)),
-            "Every implementation of a port has a contract fixture deriving from that port's suite (23 §5 A8).");
+                ports, SuiteDeclarations(), FixtureDeclarations(), PortImplementations(ports),
+                FixtureExemptions.Entries.Select(e => e.Implementation)),
+            "Every implementation of a port has a contract fixture deriving from that port's suite, "
+            + "or a FixtureExemptions entry naming what observes it instead (23 §5 A8).");
     }
 
     /// <summary>
@@ -243,14 +262,38 @@ public sealed class ContractSuiteCoverageTests
 
         var fixtures = Fixtures().ToArray();
 
-        foreach (var suite in suites)
-        {
-            var derived = fixtures.Count(f => suite.IsAssignableFrom(f) && f != suite);
+        // 🔒 M5-11: the per-suite fixture floor is exemption-aware, HONESTLY. 23 §5 A5's demand is
+        // still two fixtures — the real adapter and the fake — but an implementation carried by
+        // FixtureExemptions has its coverage somewhere a fixture cannot be, so demanding its fixture
+        // HERE would make the register a rule this floor contradicts. Each suite therefore requires
+        // max(1, 2 − its port's exempted implementations): a suite whose real adapters are all
+        // exempt still needs its fake fixture (a suite executing zero cases is never acceptable),
+        // and the moment an exemption expires — FixtureExemptionTests forces its deletion — the
+        // requirement snaps back toward 2 in the same commit. Every suite whose port has no
+        // exemption keeps the unchanged demand of 2.
+        var implementations = PortImplementations(ports).ToArray();
+        var exempted = FixtureExemptions.Entries
+            .Select(e => e.Implementation)
+            .ToHashSet(StringComparer.Ordinal);
 
-            Floor(offenders, $"fixtures deriving from '{suite.Name}'", derived, FixturesPerSuiteFloor,
+        foreach (var declaration in SuiteDeclarations())
+        {
+            var suite = declaration.Suite;
+            var derived = fixtures.Count(f => suite.IsAssignableFrom(f) && f != suite);
+            var exemptOfThisPort = implementations.Count(
+                t => declaration.Port.IsAssignableFrom(t)
+                     && t.FullName is not null && exempted.Contains(t.FullName));
+            var required = Math.Max(1, FixturesPerSuiteFloor - exemptOfThisPort);
+
+            Floor(offenders, $"fixtures deriving from '{suite.Name}'", derived, required,
                 "23 §5 A5 is the real adapter AND the in-memory fake. One fixture is not a "
                 + "comparison, and an abstract suite with none executes zero cases while still "
-                + "counting as coverage.");
+                + "counting as coverage."
+                + (exemptOfThisPort > 0
+                    ? $" ({exemptOfThisPort} implementation(s) of this suite's port are carried by "
+                      + "FixtureExemptions, which is what lowered the requirement — it snaps back "
+                      + "when an exemption expires.)"
+                    : string.Empty));
 
             var cases = suite
                 .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
@@ -403,13 +446,15 @@ public sealed class ContractSuiteCoverageTests
             typeof(SystemClockContractTests), typeof(Adapters.Ambient.System.SystemClock));
         var implementations = new[] { typeof(Adapters.Ambient.System.SystemClock) };
 
-        ImplementationsWithoutACoveringFixture(ports, new[] { suite }, new[] { fixture }, implementations)
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { suite }, new[] { fixture }, implementations, Array.Empty<string>())
             .ShouldBeEmpty(
                 "SystemClockContractTests is attributed to SystemClock and derives from "
                 + "IClockPortContractTests, which is the arrangement the rule demands.");
 
         ImplementationsWithoutACoveringFixture(
-                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), implementations)
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), implementations,
+                Array.Empty<string>())
             .ShouldHaveSingleItem()
             .ShouldContain("carries [ContractFixtureFor(typeof(SystemClock))]", Case.Sensitive);
 
@@ -418,17 +463,36 @@ public sealed class ContractSuiteCoverageTests
         // cases. Only the IsAssignableFrom half can see it.
         var wrongSuite = new SuiteDeclaration(typeof(IIdGeneratorPortContractTests), typeof(IClockPort));
 
-        ImplementationsWithoutACoveringFixture(ports, new[] { wrongSuite }, new[] { fixture }, implementations)
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { wrongSuite }, new[] { fixture }, implementations, Array.Empty<string>())
             .ShouldHaveSingleItem()
             .ShouldContain("does not derive from 'IIdGeneratorPortContractTests'", Case.Sensitive);
 
         // The negative control on the quantifier itself: a type that implements no port is not this
         // rule's business, or it would demand a fixture for every class in every scanned assembly.
         ImplementationsWithoutACoveringFixture(
-                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), new[] { typeof(string) })
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), new[] { typeof(string) },
+                Array.Empty<string>())
             .ShouldBeEmpty(
                 "string implements no port. A rule that asked for a fixture here would be asking for "
                 + "one for every type the assembly scan returns.");
+
+        // 🔒 The exemption arm (M5-11): an implementation the register carries is skipped — fixture
+        // demand and wrong-suite arm both — while the same implementation UNregistered is reported.
+        // The full-name match is part of the claim: the SIMPLE name alone must not exempt.
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), implementations,
+                new[] { typeof(Adapters.Ambient.System.SystemClock).FullName! })
+            .ShouldBeEmpty(
+                "SystemClock is exempted here, so the rule must not demand its fixture — the "
+                + "register's own directions are what hold the exemption honest.");
+
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), implementations,
+                new[] { "SystemClock" })
+            .ShouldHaveSingleItem(
+                "a bare simple name exempts nothing — a decoy of the same simple name in another "
+                + "adapter must not be able to excuse the type it shadows.");
     }
 
     /// <summary>
@@ -516,21 +580,33 @@ public sealed class ContractSuiteCoverageTests
     /// Rule 2's body: every implementation with no fixture, and every fixture that names the right
     /// implementation while deriving from the wrong suite. Empty means the rule holds.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ The exemption skips an implementation ENTIRELY, wrong-suite arm included — a fixture over
+    /// an exempted implementation is <c>FixtureExemptions.Satisfied</c>'s finding (delete the entry),
+    /// and reporting it here too would name two repairs for one edit.
+    /// </remarks>
     internal static IReadOnlyList<string> ImplementationsWithoutACoveringFixture(
         IEnumerable<Type> ports,
         IEnumerable<SuiteDeclaration> suites,
         IEnumerable<FixtureDeclaration> fixtures,
-        IEnumerable<Type> implementations)
+        IEnumerable<Type> implementations,
+        IEnumerable<string> exemptedImplementations)
     {
         var declared = fixtures.ToArray();
         var suiteOf = suites.ToLookup(s => s.Port, s => s.Suite);
         var candidates = implementations.ToArray();
+        var exempted = exemptedImplementations.ToHashSet(StringComparer.Ordinal);
         var offenders = new List<string>();
 
         foreach (var port in ports)
         {
             foreach (var implementation in candidates.Where(port.IsAssignableFrom))
             {
+                if (implementation.FullName is not null && exempted.Contains(implementation.FullName))
+                {
+                    continue;
+                }
+
                 var covering = declared.Where(f => f.Implementation == implementation).ToArray();
 
                 if (covering.Length == 0)
@@ -539,7 +615,9 @@ public sealed class ContractSuiteCoverageTests
                         $"'{implementation.FullName}' implements the port '{port.Name}' and no class in "
                         + "SlayIdleRepeat.Contract.Tests carries [ContractFixtureFor(typeof("
                         + $"{implementation.Name}))]. An implementation nothing runs the shared suite "
-                        + "against is an implementation the port does not actually constrain.");
+                        + "against is an implementation the port does not actually constrain. If a "
+                        + "fixture is genuinely impossible — a vendor backend, a key, a DSN — add a "
+                        + "FixtureExemptions entry naming what observes it instead.");
                     continue;
                 }
 
@@ -593,7 +671,10 @@ public sealed class ContractSuiteCoverageTests
     // ------------------------------------------------------------------------------- discovery
 
     /// <summary>Every port: an interface under <c>Application.Ports</c> in the Application assembly.</summary>
-    private static IEnumerable<Type> Ports() =>
+    /// <remarks>Internal, with <see cref="FixtureDeclarations"/> and <see cref="PortImplementations"/>:
+    /// <c>FixtureExemptionTests</c> states its directions over the SAME discovery this file uses, so
+    /// the two files cannot disagree about what a port implementation or a fixture is.</remarks>
+    internal static IEnumerable<Type> Ports() =>
         TypesOf(Load(ApplicationAssemblyName))
             .Where(t => t.IsInterface && IsUnder(t.Namespace, PortsNamespace))
             .OrderBy(t => t.FullName, StringComparer.Ordinal);
@@ -617,12 +698,12 @@ public sealed class ContractSuiteCoverageTests
         Suites().Select(s => new SuiteDeclaration(s, s.GetCustomAttribute<ContractSuiteForAttribute>()!.Port));
 
     /// <summary>Each fixture paired with the implementation its attribute names.</summary>
-    private static IEnumerable<FixtureDeclaration> FixtureDeclarations() =>
+    internal static IEnumerable<FixtureDeclaration> FixtureDeclarations() =>
         Fixtures().Select(f => new FixtureDeclaration(
             f, f.GetCustomAttribute<ContractFixtureForAttribute>()!.Implementation));
 
     /// <summary>Every concrete, non-abstract implementation of any port across the scanned assemblies.</summary>
-    private static IEnumerable<Type> PortImplementations(IReadOnlyCollection<Type> ports) =>
+    internal static IEnumerable<Type> PortImplementations(IReadOnlyCollection<Type> ports) =>
         ScannedAssemblies()
             .SelectMany(TypesOf)
             .Where(t => t is { IsInterface: false, IsAbstract: false } && ports.Any(p => p.IsAssignableFrom(t)))

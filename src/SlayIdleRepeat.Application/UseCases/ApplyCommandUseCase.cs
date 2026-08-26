@@ -174,7 +174,8 @@ public sealed class ApplyCommandUseCase
 
         await _store.SaveAsync(result.NewState, ct).ConfigureAwait(false);
 
-        var failures = await _dispatcher.DispatchAsync(result.Events, ct).ConfigureAwait(false);
+        var batch = new DispatchedEvents(request.Player, request.Command, result.NewState, result.Events);
+        var failures = await _dispatcher.DispatchAsync(batch, ct).ConfigureAwait(false);
 
         return ApplyCommandOutcome.Accept(result.NewState, result.Events, failures);
     }

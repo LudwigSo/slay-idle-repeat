@@ -1404,7 +1404,9 @@ public sealed class SubjectSetFloorTests
     // 🔒 M7-01b raised this from 5 to 6 for IPlatformInfoPort, the first of `23` §4.1's three
     // platform ports to become declarable — with PortCatalogueTests.DeclaredPortFloor and
     // ContractSuiteCoverageTests.PortFloor, the two other floors over this same set.
-    private const int PortFloor = 6;                 // IContentSourcePort (M0-09) + M5-01's four + M7-01b's one
+    // 🔒 M5-11 raised it 6 → 8 for IAnalyticsSinkPort and ITelemetryPort, moving the same two
+    // sibling floors in the same commit.
+    private const int PortFloor = 8;                 // IContentSourcePort (M0-09) + M5-01's four + M7-01b's one + M5-11's two
     private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 
     // 🔒 M1-12. The constants whose register row carries a citation THIS assembly can resolve, and
