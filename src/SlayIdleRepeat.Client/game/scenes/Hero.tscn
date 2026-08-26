@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" uid="uid://c37kehccn106d" path="res://game/art/chr_hero_rogue.glb" id="1_model"]
+
+[node name="Hero" type="Node3D"]
+
+[node name="Model" parent="." instance=ExtResource("1_model")]
+transform = Transform3D(1.22388, 0, -0.49449, 0, 1.32, 0, 0.49449, 0, 1.22388, 0, -1.72, 0)

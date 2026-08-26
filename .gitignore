@@ -89,3 +89,7 @@ spikes/**/obj/
 *.xcarchive/
 *.xcodeproj/
 *.xcworkspace/
+
+# Blender writes a .blend1 backup beside every save. The .blend is the source; the
+# backup is a local undo step and never part of the tree.
+*.blend1

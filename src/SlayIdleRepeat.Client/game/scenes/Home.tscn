@@ -1,6 +1,7 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/Home.cs" id="1_home"]
+[ext_resource type="PackedScene" path="res://game/scenes/Hero.tscn" id="2_hero"]
 
 [sub_resource type="QuadMesh" id="QuadMesh_ground"]
 size = Vector2(24, 42)
@@ -25,6 +26,9 @@ unique_name_in_owner = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
 mesh = SubResource("QuadMesh_ground")
 material_override = SubResource("StandardMaterial3D_ground")
+
+[node name="Hero" parent="World" instance=ExtResource("2_hero")]
+unique_name_in_owner = true
 
 [node name="Ui" type="CanvasLayer" parent="."]
 unique_name_in_owner = true

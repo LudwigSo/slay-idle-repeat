@@ -52,5 +52,7 @@ build/git/hooks/* text eol=lf
 *.otf             binary
 *.zip             binary
 *.pck             binary
+*.glb             binary
+*.blend           binary
 *.aab             binary
 *.apk             binary
