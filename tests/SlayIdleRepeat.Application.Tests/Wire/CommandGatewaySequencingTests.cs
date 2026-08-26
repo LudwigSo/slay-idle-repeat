@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Application.Tests.UseCases;
+using SlayIdleRepeat.Application.Wire;
 using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Wire;
@@ -153,5 +154,82 @@ public sealed class CommandGatewaySequencingTests
         // …and the refused exchange replays byte-identically for its own commandId.
         var replay = await world.Gateway.SubmitPlayerCommandAsync(world.Player, refusal, Worlds.Cancel);
         replay.Body.ShouldBe(refused.Body, customMessage: "a 200-rejection is final for that commandId — retrying it re-decides nothing");
+    }
+
+    [Fact]
+    public async Task Another_players_run_answers_RUN_NOT_FOUND_and_costs_the_owner_nothing()
+    {
+        var (world, run) = await GatewayWorld.InAStartedRunAsync();
+        var intruder = await world.SeedSecondPlayerAsync("PLAYER_intruder");
+
+        // The intruder guesses the owner's runId and the small next sequence.
+        var foreign = await world.Gateway.SubmitRunCommandAsync(
+            intruder, run, Envelopes.Body("PICK_PERK", 1, "c-intrude", "{\"optionIndex\": 0}"), Worlds.Cancel);
+
+        Replies.Rejection(foreign, "RUN_NOT_FOUND");
+        Replies.Rejection(foreign, "RUN_NOT_FOUND").TryGetProperty("stateHash", out _).ShouldBeFalse(
+            "the foreign submit read no state, so there is nothing honest to hash");
+
+        // The owner's scope is untouched: their sequence 1 is still expected, and the intruder's
+        // commandId never landed in the owner's idempotency space.
+        var owners = await world.Gateway.SubmitRunCommandAsync(
+            world.Player, run, Envelopes.Body("PICK_PERK", 1, "c-intrude", "{\"optionIndex\": 0}"), Worlds.Cancel);
+
+        Replies.Parse(owners, expectedStatus: 200).TryGetProperty("rejected", out _).ShouldBeFalse(
+            "a run scope is its OWNER's: a foreign player naming the runId must consume nothing — " +
+            "not a sequence number (or the owner desyncs) and not a commandId (or the owner's " +
+            "genuine command conflicts with an intruder's record)");
+    }
+
+    [Fact]
+    public async Task A_replayed_START_RUN_repairs_a_run_scope_whose_open_never_landed()
+    {
+        // The seam the record-then-open pair leaves: with a durable ledger, appending the
+        // acceptance and opening the run scope are two store calls and the process can die between
+        // them. No shipped command can reach that state through the volatile ledger, so the fixture
+        // constructs it directly (S25): a decorator drops the first open.
+        var ledger = new OpenDroppingLedger(new VolatileCommandLedger()) { DropOpens = true };
+        var world = await GatewayWorld.WithAStartingPlayerAsync(ledger: ledger);
+
+        var startRun = Envelopes.StartRun(sequence: 1, commandId: "c-start");
+        var first = await world.Gateway.SubmitPlayerCommandAsync(world.Player, startRun, Worlds.Cancel);
+        var runId = Replies.Parse(first, expectedStatus: 200)
+            .GetProperty("outcome").GetProperty("runId").GetString()!;
+
+        // The broken state is real: the accepted run answers RUN_NOT_FOUND.
+        var beforeRepair = await world.Gateway.SubmitRunCommandAsync(
+            world.Player, new Core.Primitives.RunId(runId),
+            Envelopes.Body("PICK_PERK", 1, "c-1", "{\"optionIndex\": 0}"), Worlds.Cancel);
+        Replies.Rejection(beforeRepair, "RUN_NOT_FOUND");
+
+        // The client's own retry rule — same commandId after a fault — is the repair path.
+        ledger.DropOpens = false;
+        var replay = await world.Gateway.SubmitPlayerCommandAsync(world.Player, startRun, Worlds.Cancel);
+        replay.Body.ShouldBe(first.Body, customMessage: "the replay is still the stored bytes, never a re-execution");
+
+        var afterRepair = await world.Gateway.SubmitRunCommandAsync(
+            world.Player, new Core.Primitives.RunId(runId),
+            Envelopes.Body("PICK_PERK", 1, "c-1", "{\"optionIndex\": 0}"), Worlds.Cancel);
+        Replies.Parse(afterRepair, expectedStatus: 200).TryGetProperty("rejected", out _).ShouldBeFalse(
+            "the replayed opening acceptance re-opens its run scope, so the run it named is " +
+            "reachable again instead of RUN_NOT_FOUND forever");
+    }
+
+    /// <summary>A ledger whose <c>OpenScopeAsync</c> can be made to silently fail — the durable-store crash window, constructed.</summary>
+    private sealed class OpenDroppingLedger(ICommandLedgerStore inner) : ICommandLedgerStore
+    {
+        internal bool DropOpens { get; set; }
+
+        public Task<long?> ReadLastSequenceAsync(string scope, CancellationToken ct) =>
+            inner.ReadLastSequenceAsync(scope, ct);
+
+        public Task<LedgerRecord?> ReadRecordAsync(string scope, CommandId commandId, CancellationToken ct) =>
+            inner.ReadRecordAsync(scope, commandId, ct);
+
+        public Task OpenScopeAsync(string scope, CancellationToken ct) =>
+            DropOpens ? Task.CompletedTask : inner.OpenScopeAsync(scope, ct);
+
+        public Task AppendAsync(string scope, LedgerRecord record, CancellationToken ct) =>
+            inner.AppendAsync(scope, record, ct);
     }
 }

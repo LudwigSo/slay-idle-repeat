@@ -66,13 +66,15 @@ internal sealed class GatewayWorld
 
     /// <summary>A world holding one starting player and nothing else.</summary>
     /// <param name="flags">The kill switches, defaulting to none thrown.</param>
-    internal static async Task<GatewayWorld> WithAStartingPlayerAsync(FeatureFlags? flags = null)
+    /// <param name="ledger">The ledger seam, defaulting to the placeholder — a case about the seam's failure shapes passes a decorated one.</param>
+    internal static async Task<GatewayWorld> WithAStartingPlayerAsync(
+        FeatureFlags? flags = null, ICommandLedgerStore? ledger = null)
     {
         var cache = new InMemoryLocalCache();
         var store = new WorldSliceStore(cache);
         var clock = new AdjustableClock();
         clock.Set(Worlds.Start);
-        var ledger = new VolatileCommandLedger();
+        var volatileLedger = new VolatileCommandLedger();
         var throttle = new ManualThrottle();
         var resolvedFlags = flags ?? LocalHostAmbience.NoRemoteConfigResolved();
 
@@ -92,10 +94,25 @@ internal sealed class GatewayWorld
             Worlds.Content,
             LocalHostAmbience.NoSubscriptionResolved(),
             resolvedFlags,
-            ledger,
+            ledger ?? volatileLedger,
             throttle);
 
-        return new GatewayWorld(gateway, store, ledger, throttle, clock, player, resolvedFlags);
+        return new GatewayWorld(gateway, store, volatileLedger, throttle, clock, player, resolvedFlags);
+    }
+
+    /// <summary>A second starting player in the same world, so cross-player claims compare two real principals.</summary>
+    internal async Task<PlayerId> SeedSecondPlayerAsync(string id)
+    {
+        var player = new PlayerId(id);
+        var starting = PlayerAggregate.CreateStartingNamedAfterItsOwnId(player, Clock.UtcNow, Worlds.Content);
+        if (starting.IsFailure)
+        {
+            throw new InvalidOperationException("The second player does not rehydrate: " + starting.Error);
+        }
+
+        await Store.SaveAsync(new WorldSlice(starting.Value, null), Worlds.Cancel);
+
+        return player;
     }
 
     /// <summary>

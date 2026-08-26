@@ -17,6 +17,11 @@ public interface ICommandThrottle
 }
 
 /// <summary>⚠️ PLACEHOLDER — no limit at all, until M5-14 lands the per-player limiter this seam exists for.</summary>
+/// <remarks>
+/// Beside its seam rather than in the composition root because "no limit" is the seam's identity
+/// element, not an adapter decision — the same placement argument as <c>VolatileCommandLedger</c>'s,
+/// without even state to hold. It dies with M5-14.
+/// </remarks>
 public sealed class UnlimitedCommandThrottle : ICommandThrottle
 {
     /// <inheritdoc/>

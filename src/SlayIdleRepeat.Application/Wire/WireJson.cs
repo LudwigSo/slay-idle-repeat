@@ -15,7 +15,9 @@ namespace SlayIdleRepeat.Application.Wire;
 /// </para>
 /// <para>
 /// Deliberately not exposed as options for callers to serialise other things with: a response body
-/// is the only thing this class renders.
+/// is the only thing this class renders. A future wire body that must speak the same dialect —
+/// M5-07's <c>GET /run/{id}/state</c> answer is the known one — becomes a second <c>Render</c>
+/// overload HERE, never a second converter roster somewhere else.
 /// </para>
 /// </remarks>
 public static class WireJson

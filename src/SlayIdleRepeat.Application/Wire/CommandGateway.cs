@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Globalization;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Shared;
@@ -14,8 +13,8 @@ using SlayIdleRepeat.Core.Rules.Combat;
 namespace SlayIdleRepeat.Application.Wire;
 
 /// <summary>What the transport writes back: the HTTP status and the exact body.</summary>
-/// <param name="StatusCode"><c>200</c> for every in-protocol answer, <c>400</c> for a body that is not an envelope. Nothing else — the other statuses in 14 §16.2's table belong to layers in front of this one (auth, infrastructure limits, maintenance) or to the host's own fault handling.</param>
-/// <param name="Body">The response body. Empty on a 400, which carries no contract shape.</param>
+/// <param name="StatusCode">The GATEWAY emits only <c>200</c> (every in-protocol answer) and <c>400</c> (a body that is not an envelope); the endpoint handler in front of it reuses this shape for the refusals that never reach the gateway — 401/403 from the principal seam, 404 for an unroutable segment. The remaining statuses in 14 §16.2's table belong to infrastructure and the host's own fault handling.</param>
+/// <param name="Body">The response body. Empty on every non-200, which carry no contract shape.</param>
 public sealed record GatewayReply(int StatusCode, string Body);
 
 /// <summary>
@@ -37,8 +36,9 @@ public sealed record GatewayReply(int StatusCode, string Body);
 /// <c>START_RUN</c> — sequences on the player's lifetime counter; everything on
 /// <c>POST /run/{runId}/command</c> sequences on that run, whose counter the accepted
 /// <c>START_RUN</c> opens at 0 so the first run command is the expected <c>last + 1 = 1</c>.
-/// Commands in one scope are processed one at a time (the per-scope gate below); two scopes never
-/// wait on each other.
+/// One PLAYER's commands are processed one at a time across both scopes (the striped gate below),
+/// because both scopes write the same stored player row; different players never wait on each
+/// other except by stripe collision.
 /// </para>
 /// <para>
 /// This is also where a command's ambient values are issued, because the endpoint owns the
@@ -61,6 +61,9 @@ public sealed class CommandGateway
     /// <summary>What a minted run identity is spelled with — the sibling of the host's <c>PLAYER_</c> prefix.</summary>
     private const string RunIdPrefix = "RUN_";
 
+    /// <summary>How many gates the striped pool holds. Fixed, so the pool's memory is too.</summary>
+    private const int GateStripes = 256;
+
     private readonly ApplyCommandUseCase _apply;
     private readonly IClockPort _clock;
     private readonly IIdGeneratorPort _ids;
@@ -70,8 +73,16 @@ public sealed class CommandGateway
     private readonly ICommandLedgerStore _ledger;
     private readonly ICommandThrottle _throttle;
 
-    /// <summary>One gate per live scope, so a scope's check-dispatch-record is atomic without serialising the world.</summary>
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _scopeGates = new(StringComparer.Ordinal);
+    /// <summary>
+    /// The striped gate pool, keyed by PLAYER — not by sequencing scope. A player's run and player
+    /// scopes both load-modify-save the same stored player row, so two scopes running concurrently
+    /// for one player would let the last save silently erase the other command's whole effect while
+    /// the ledger records both as accepted. One gate per player serialises the row; two players
+    /// never wait on each other except by stripe collision, which only serialises and never skews.
+    /// Fixed-size, so a stream of invented identities cannot grow it.
+    /// </summary>
+    private readonly SemaphoreSlim[] _playerGates =
+        Enumerable.Range(0, GateStripes).Select(_ => new SemaphoreSlim(1, 1)).ToArray();
 
     /// <summary>Composes the gateway over everything it needs, every piece stated by the caller.</summary>
     /// <param name="apply">The write side every dispatched command goes through.</param>
@@ -173,10 +184,20 @@ public sealed class CommandGateway
         }
 
         var scope = routedRun is { } addressed
-            ? RunScopePrefix + addressed.Value
+            ? RunScope(player, addressed)
             : PlayerScopePrefix + player.Value;
 
-        var gate = _scopeGates.GetOrAdd(scope, _ => new SemaphoreSlim(1, 1));
+        // The run-scope existence check runs BEFORE the gate: an invented run id must cost nothing
+        // held and nothing kept. It is only a fast path — the same check runs again under the gate,
+        // where it is authoritative — and it cannot mis-answer a legitimate command, because the
+        // scope is opened before the START_RUN reply that first names the run id is returned.
+        if (routedRun is not null &&
+            await _ledger.ReadLastSequenceAsync(scope, ct).ConfigureAwait(false) is null)
+        {
+            return Rejection(envelope, RejectionReason.RUN_NOT_FOUND);
+        }
+
+        var gate = _playerGates[(StringComparer.Ordinal.GetHashCode(player.Value) & int.MaxValue) % GateStripes];
         await gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -214,9 +235,22 @@ public sealed class CommandGateway
             // A duplicate is the SAME exchange — same id, same sequence, same intent — and replays
             // the stored bytes. A known id carrying anything else is a client whose model of the
             // conversation is wrong, told so rather than half-obeyed.
-            return stored.Sequence == envelope.Sequence && stored.Command.Equals(command)
-                ? new GatewayReply(200, stored.ResponseBody)
-                : Rejection(envelope, RejectionReason.IDEMPOTENCY_CONFLICT);
+            if (stored.Sequence != envelope.Sequence || !stored.Command.Equals(command))
+            {
+                return Rejection(envelope, RejectionReason.IDEMPOTENCY_CONFLICT);
+            }
+
+            // The replay repairs the record-then-open seam: appending the acceptance and opening
+            // the new run's scope are two store calls, and a durable backing may fail between them.
+            // Without this, a START_RUN whose open never landed would replay a runId every command
+            // answers RUN_NOT_FOUND to, forever. OpenScopeAsync is idempotent, so the common case
+            // — the scope already open — re-opens nothing.
+            if (stored.OpensRunScope is { } openedScope)
+            {
+                await _ledger.OpenScopeAsync(openedScope, ct).ConfigureAwait(false);
+            }
+
+            return new GatewayReply(200, stored.ResponseBody);
         }
 
         var expected = (last ?? 0) + 1;
@@ -248,19 +282,36 @@ public sealed class CommandGateway
         var response = Respond(envelope, outcome, runScoped);
         var responseBody = WireJson.Render(response);
 
+        var opensRunScope = outcome.Accepted && opensRun && outcome.State.Run is { } opened
+            ? RunScope(player, opened.Id)
+            : null;
+
         await _ledger
-            .AppendAsync(scope, new LedgerRecord(envelope.CommandId, envelope.Sequence, command, responseBody), ct)
+            .AppendAsync(
+                scope,
+                new LedgerRecord(envelope.CommandId, envelope.Sequence, command, responseBody, opensRunScope),
+                ct)
             .ConfigureAwait(false);
 
         // The other half of "the run's sequence starts at 1": the new run's own scope opens at 0,
-        // after the record above so a replayed START_RUN can never find its scope missing.
-        if (outcome.Accepted && opensRun && outcome.State.Run is { } opened)
+        // after the record above so a replayed START_RUN can repair a missing open — the record
+        // carries the scope key for exactly that.
+        if (opensRunScope is not null)
         {
-            await _ledger.OpenScopeAsync(RunScopePrefix + opened.Id.Value, ct).ConfigureAwait(false);
+            await _ledger.OpenScopeAsync(opensRunScope, ct).ConfigureAwait(false);
         }
 
         return new GatewayReply(200, responseBody);
     }
+
+    /// <summary>
+    /// A run's sequencing scope, qualified by its OWNER: a run is a child of its player, so a
+    /// foreign player naming another's run id builds a scope no START_RUN ever opened and answers
+    /// <c>RUN_NOT_FOUND</c> before any state is read — instead of consuming the owner's next
+    /// sequence with a dispatched rejection recorded into the owner's own idempotency space.
+    /// </summary>
+    private static string RunScope(PlayerId player, RunId run) =>
+        RunScopePrefix + player.Value + ":" + run.Value;
 
     /// <summary>Builds the response envelope for a dispatched command — accepted or domain-refused.</summary>
     /// <remarks>
@@ -287,7 +338,7 @@ public sealed class CommandGateway
         // The outcome's run-side fields ride run-scoped commands only: a meta command may read the
         // run but cannot write it, so echoing it there would be a second copy of unchanged state.
         var acceptedOutcome = new AcceptedCommandOutcome(
-            RunId: run?.Id.Value,
+            RunId: run?.Id,
             Run: run is null ? null : WireProjections.Of(run),
             RngStreamStates: run?.RngStreamPositions,
             BattleSeed: run is not null && RunBattle.HasOpenBattle(run) ? BattleSeedWireForm(run) : null,

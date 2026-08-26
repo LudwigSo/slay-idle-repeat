@@ -11,7 +11,7 @@ namespace SlayIdleRepeat.Application.Wire;
 /// <param name="BattleSeed">The open battle's server-issued seed as <c>0x</c> + 16 lowercase hex, or <c>null</c> when no battle is open after this command.</param>
 /// <param name="Events">The command's domain events, in order — the animation script the client replays.</param>
 public sealed record AcceptedCommandOutcome(
-    string? RunId,
+    RunId? RunId,
     RunWireProjection? Run,
     IReadOnlyDictionary<string, ulong>? RngStreamStates,
     string? BattleSeed,
@@ -31,9 +31,11 @@ public sealed record AcceptedCommandOutcome(
 /// recorded absence, not an oversight: the three reason-specific payloads the wire contract
 /// authors (a currency id for the funds shortfall, an availability instant for the cooldown, a
 /// required/available pair for the energy shortfall) have no channel out of the domain today —
-/// <c>HandlerResult.Reject</c> carries the reason value alone — and every other reason ships
-/// <c>detail: null</c> by ruling. The field is declared so the shape is stable when the channel
-/// arrives; nothing may fill it with a value the domain did not decide.
+/// <c>HandlerResult.Reject</c> carries the reason value alone — and every other reason ships no
+/// detail by ruling. On the wire a null detail is OMITTED, not spelled <c>null</c> (the renderer
+/// skips null members; the spec marks the field "reason-specific, optional"). The member is
+/// declared so the shape is stable when the channel arrives; nothing may fill it with a value the
+/// domain did not decide.
 /// </para>
 /// </remarks>
 public sealed record CommandResponse
