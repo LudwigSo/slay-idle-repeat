@@ -131,11 +131,18 @@ database and the login role the API is configured for.
 and sane lock timeouts, and writes one row into a `meta.bootstrap` table
 explaining why there are no other tables.
 
-> ⚠️ **There is no schema.** Tables, indexes and migrations — profiles, run
-> snapshots, idempotency outcomes, the append-only economy event log, messages,
-> ghosts, ratings, ladder, seasons, entitlements — are **M5-05**'s deliverable
-> (`14` §7). Guessing at them here would give M5 a schema to fight rather than a
-> clean database to create.
+> ✅ **The schema arrives with the API, not with this init script.** M5-05's
+> migrations — players, runs, idempotency outcomes, the append-only economy
+> event log, player messages — are numbered SQL files **embedded in
+> `SlayIdleRepeat.Adapters.Persistence.Postgres`** and applied **at API
+> startup**, under `pg_advisory_lock`, with a checksum-verified
+> `meta.migrations` history table (created by the runner itself —
+> `meta.bootstrap` stays init-script bookkeeping). Two API instances starting
+> together apply the history once; an edited already-applied file fails the
+> boot loudly. There is no `dotnet ef database update` step and no migration
+> init container: `docker compose up` alone yields a migrated database the
+> moment the API is healthy. Ghosts, ratings, ladder, seasons and entitlements
+> remain later milestones' files (M12 onward), appended as the next ordinals.
 
 **MinIO** — `infra/minio/init.sh` runs in the `minio-init` container and creates
 the two buckets `14` §7.1 calls for, `battle-logs` and `ghost-snapshots`, both
@@ -278,11 +285,17 @@ up as they are.
 
 ### The M5 checklist
 
-1. **M5-05** — Postgres schema and a migration runner. Decide how migrations run
-   in this stack (an init container like `minio-init`, or at API startup) and add
-   it here; do not leave `dotnet ef database update` as a README step. Then bind
-   the three `ConnectionStrings__*` / `ObjectStore__*` groups above in
-   `Composition/`.
+1. ✅ **M5-05** — done. Migrations run **at API startup** (see "What is set up
+   automatically" above): embedded numbered SQL files, `pg_advisory_lock`,
+   checksummed `meta.migrations`. `Composition/PersistenceComposition.cs` binds
+   `ConnectionStrings__Postgres` (system of record — without it the process
+   runs on volatile placeholders), `ConnectionStrings__Redis` (hot cache,
+   optional decorator), `Cache__RunStateTtlHours`, and the `ObjectStore__*`
+   group (battle-log store + write-behind drain; `GhostSnapshotBucket` stays
+   unread until M12). The compose-boot job now also runs four probes against
+   this wiring: a command round-trip persisted in Postgres, a byte-identical
+   idempotent replay across an API restart, a Redis flush that costs latency
+   but no progress, and the battle-log drain's startup marker.
 2. **M5-11** — register the OpenTelemetry SDK and Serilog. The `OTEL_*` variables
    and the whole collector pipeline are already waiting; if spans do not appear
    in Jaeger, check `docker compose logs otel-collector` before suspecting this

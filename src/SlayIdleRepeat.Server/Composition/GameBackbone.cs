@@ -24,9 +24,10 @@ namespace SlayIdleRepeat.Server.Composition;
 /// </para>
 /// <para>
 /// What is named here, with its expiry: the real ambient adapters (<see cref="SystemClock"/>,
-/// <see cref="SystemIdGenerator"/>) and the local-file content source, which stay; the volatile
-/// world store and command ledger (M5-05's stores); and <see cref="LocalHostAmbience"/>'s two
-/// named absences (M5-06 resolves the entitlement per player, M5-10 the flags from remote config).
+/// <see cref="SystemIdGenerator"/>) and the local-file content source, which stay; the world store
+/// and command ledger from <see cref="PersistenceComposition"/> (Postgres-backed when configured,
+/// volatile otherwise); and <see cref="LocalHostAmbience"/>'s two named absences (M5-06 resolves
+/// the entitlement per player, M5-10 the flags from remote config).
 /// </para>
 /// <para>
 /// Built lazily WITHOUT caching a failure: the content set lives at <c>GameData:Root</c> (default
@@ -54,8 +55,14 @@ public sealed class GameBackbone
         Content = ContentLoader.Load(new LocalFileContentSource(dataRoot)).Require();
         Clock = new SystemClock();
         Ids = new SystemIdGenerator();
-        WorldStore = new WorldSliceStore(new PlaceholderVolatileWorldStore());
-        Ledger = new VolatileCommandLedger();
+
+        // M5-05: the stores come from the persistence composition — Postgres-backed (with the Redis
+        // hot cache) when ConnectionStrings:Postgres is configured, the volatile placeholders when
+        // it is not.
+        var persistence = PersistenceComposition.Shared(configuration);
+        WorldStore = new WorldSliceStore(persistence.WorldRows);
+        Ledger = persistence.Ledger;
+
         Entitlements = LocalHostAmbience.NoSubscriptionResolved();
         Flags = LocalHostAmbience.NoRemoteConfigResolved();
     }

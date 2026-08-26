@@ -88,16 +88,14 @@ public interface ICommandLedgerStore
 }
 
 /// <summary>
-/// ⚠️ PLACEHOLDER — the in-process <see cref="ICommandLedgerStore"/> that stands in until M5-05
-/// lands the Redis hot-cache over the Postgres-authoritative record. Process-lifetime memory: a
-/// restart forgets every sequence and every outcome, which is tolerable only while no real client
-/// depends on this server.
+/// ⚠️ VOLATILE FALLBACK — the in-process <see cref="ICommandLedgerStore"/> a database-less process
+/// runs on (M5-05 landed <c>DurableCommandLedger</c> over the idempotency port for everything
+/// else). Process-lifetime memory: a restart forgets every sequence and every outcome.
 /// </summary>
 /// <remarks>
-/// In this assembly rather than the composition root, unlike <c>PlaceholderVolatileWorldStore</c>,
-/// because it is the seam's reference implementation: the gateway's own suite runs the 16.3 rules
-/// against it, so the semantics M5-05's backing must reproduce are exercised here rather than
-/// restated there. It dies with that task.
+/// In this assembly rather than the composition root, unlike the volatile world store, because it
+/// is the seam's reference implementation: the gateway's own suite runs the 16.3 rules against it,
+/// so the semantics the durable backing reproduces are exercised here rather than restated there.
 /// </remarks>
 public sealed class VolatileCommandLedger : ICommandLedgerStore
 {

@@ -23,6 +23,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Server\SlayIdleRepeat.Server.csproj" />
+    <!-- The port fakes, for the composition classes that take ports (RepositoryWorldRows). -->
+    <ProjectReference Include="..\..\src\adapters\fakes\SlayIdleRepeat.Adapters.InMemory\SlayIdleRepeat.Adapters.InMemory.csproj" />
   </ItemGroup>
 
 </Project>
