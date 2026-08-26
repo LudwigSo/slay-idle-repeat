@@ -372,11 +372,38 @@ public sealed class DropsTuningTests
         affix.Slots.ShouldBe(new[] { GearSlot.WEAPON, GearSlot.RING, GearSlot.HELMET });
     }
 
-    /// <summary>An affix authoring neither half is a real pool member that writes nothing.</summary>
+    /// <summary>
+    /// The damage-vs-Elites affix authors the conditional bucket's shape: a target-gated
+    /// percent-add on the damage multiplier.
+    /// </summary>
+    /// <remarks>
+    /// Its <c>stat</c>/<c>op</c> pair was the pool's one null pair until the bucket existed, so this
+    /// row doubles as the pin that the gap stayed closed: under the multiplier reading a roll of
+    /// <c>v</c> composes to ×(1 + v) against elites and to nothing against anyone else.
+    /// </remarks>
     [Fact]
-    public void An_affix_authoring_no_stat_at_all_loads_and_writes_nothing()
+    public void The_damage_vs_elites_affix_is_a_target_gated_percent_add_on_the_damage_multiplier()
     {
-        Tuning().Affix("AFX_DAMAGE_VS_ELITES").WritesAStat.ShouldBeFalse();
+        var affix = Tuning().Affix("AFX_DAMAGE_VS_ELITES");
+
+        affix.WritesAStat.ShouldBeTrue("the conditional bucket made the row authorable");
+        affix.Stat.ShouldBe(StatId.DMG_PCT);
+        affix.Op.ShouldBe(EffectOp.STAT_ADD_PCT);
+        affix.Minimum.ShouldBe(0.08);
+        affix.Maximum.ShouldBe(0.25);
+
+        var condition = affix.Condition.ShouldNotBeNull("the gate is what the affix means");
+        var term = condition.Term.ShouldNotBeNull("the gate is one comparison");
+        term.Fn.ShouldBe(ConditionFunction.TARGET_IS_ELITE);
+        term.Comparator.ShouldBe(ConditionComparator.EQ);
+        term.Flag.ShouldBe(true);
+    }
+
+    /// <summary>An affix authoring no condition carries none — the pool's other thirteen rows.</summary>
+    [Fact]
+    public void An_affix_authoring_no_condition_carries_none()
+    {
+        Tuning().Affix("AFX_CRIT_CHANCE").Condition.ShouldBeNull();
     }
 
     /// <summary>An affix the pool does not declare is refused.</summary>

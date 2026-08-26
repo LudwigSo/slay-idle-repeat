@@ -194,24 +194,41 @@ public sealed class HeroBuildTests
             "and it is named as unapplied rather than dropped on the floor");
     }
 
-    /// <summary>An affix the pool authors with no stat contributes nothing and breaks nothing.</summary>
+    /// <summary>
+    /// The target-gated damage-vs-Elites affix is collected with its gate and composes off-gate —
+    /// with zero per-affix code anywhere on the path.
+    /// </summary>
     /// <remarks>
-    /// The damage-vs-Elites affix rolls onto real items today. It writes no stat, so the build must
-    /// carry the item without it — not throw, and not invent a stat for it.
+    /// Three facts in one build. The synthesised effect carries the pool's condition (the
+    /// passthrough that makes the row data, not a special case); composing the hero screen's block
+    /// does not throw (the strict gate treats a context-gated standing effect as inactive, not as a
+    /// refusal); and the off-gate block shows the identity damage multiplier, because outside a
+    /// fight there is no target for the gate to hold against.
     /// </remarks>
     [Fact]
-    public void An_affix_with_no_authored_stat_contributes_nothing()
+    public void A_target_gated_affix_is_collected_with_its_gate_and_composes_off_gate()
     {
         var weapon = Inventories.Item(
             "w", GearFamily.BLADE, Rarity.S, affixes: [new GearAffixRoll("AFX_DAMAGE_VS_ELITES", 0.25)]);
 
         var build = HeroBuild.Of(Level, [weapon], Content);
 
-        build.Effects.ShouldNotContain(
-            e => e.Id.Contains("AFX_DAMAGE_VS_ELITES", StringComparison.Ordinal),
-            "the pool authors no stat and no op for it, so there is nothing to contribute");
+        var affix = build.Effects.SingleOrDefault(
+                e => e.Id.Contains("AFX_DAMAGE_VS_ELITES", StringComparison.Ordinal))
+            .ShouldNotBeNull("the rolled affix is a real bonus and reaches the fight's effect list");
 
-        build.Effects.Count.ShouldBe(2, "the weapon still contributes its own primary and secondary");
+        affix.Condition.ShouldNotBeNull("the pool's gate rides the synthesised effect unchanged")
+            .Term.ShouldNotBeNull()
+            .Fn.ShouldBe(ConditionFunction.TARGET_IS_ELITE);
+        affix.Value.ShouldBe(0.25, "the roll is the magnitude");
+
+        Should.NotThrow(
+            () => Stat(build, StatId.DMG_PCT),
+            "a hero screen composes this build, and a refusal here bricks it for anyone wearing " +
+            "the affix");
+
+        Stat(build, StatId.DMG_PCT).ShouldBe(
+            1.0, "off its gate the affix contributes nothing, so the multiplier shows its base");
     }
 
     // ───────────────────────────────────────────────────────────────── the set bonuses
