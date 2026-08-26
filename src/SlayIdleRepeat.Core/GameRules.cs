@@ -152,7 +152,12 @@ public static class GameRules
     private const string EnergyRegenReason = "energy_regen";
 
     /// <summary>Every registered command type, by wire name — the single declared source of that mapping.</summary>
-    internal static IReadOnlyDictionary<string, Type> CommandTypesByWireName => Dispatch.TypesByWireName;
+    /// <remarks>
+    /// Public because the transport must turn 14 §2.3's <c>type</c> field into the typed command,
+    /// and this table is the one vocabulary — a wire-side copy would be the second table 14 §2.3
+    /// forbids. It exposes only names and types: the handler, kind and flags stay internal.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, Type> CommandTypesByWireName => Dispatch.TypesByWireName;
 
     /// <summary>The dispatch row for a command type, or <c>null</c> when no row names it.</summary>
     /// <remarks>Exposed for the domain suite, which drives the table's decisions directly.</remarks>
@@ -206,6 +211,29 @@ public static class GameRules
         return RegistrationFor(command.GetType())?.Kind == CommandKind.Meta;
     }
 
+    /// <summary>Whether this command opens a run — and therefore may be issued a <c>GameContext.AllocatedRunId</c>.</summary>
+    /// <param name="command">The command about to be applied.</param>
+    /// <returns>
+    /// <c>true</c> for the one command whose dispatch row opens a run, <c>false</c> for every other
+    /// — including a type no dispatch row names, on <see cref="RequiresCommandSeed"/>'s totality
+    /// argument.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="command"/> is null.</exception>
+    /// <remarks>
+    /// The second public door onto the dispatch table, and the sibling of
+    /// <see cref="RequiresCommandSeed"/> for the same caller: the endpoint has to route 14 §2.3's
+    /// one exception — the run command submitted on the player endpoint because no run id exists
+    /// yet — and the fact lives on the dispatch row, which is internal. Together the two answer the
+    /// whole endpoint split: a command submits on the player endpoint exactly when it is meta or it
+    /// opens a run.
+    /// </remarks>
+    public static bool OpensRun(GameCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        return RegistrationFor(command.GetType())?.OpensRun == true;
+    }
+
     /// <summary><see cref="Apply"/>'s body, over an explicit dispatch table so the domain test suite can drive it against shapes never committed to production.</summary>
     /// <remarks>
     /// Internal, and not a second entry point: the architecture rule that <c>Apply</c> is the only
@@ -226,6 +254,21 @@ public static class GameRules
         if (registration is null)
         {
             return CommandResult.Reject(RejectionReason.ILLEGAL_STATE, state);
+        }
+
+        // The mirror of the CommandSeed regime guards: an allocated run id on a command that does
+        // not open a run is a miswired host, not a refusal. Silently ignoring it would let the
+        // wire allocator burn an identity per command with nothing going red, and a later reader
+        // could not tell an id that was used from one that was dropped.
+        if (context.AllocatedRunId is not null && !registration.OpensRun)
+        {
+            throw new InvalidOperationException(
+                "'" + registration.WireName + "' was dispatched with a GameContext.AllocatedRunId, " +
+                "and its dispatch row does not open a run. The allocated id is an ambient value for " +
+                "the ONE command that creates a run (14 §2.3: the server allocates the RunId); every " +
+                "other command acts on a run that already has its identity. This is a miswired host " +
+                "— issue the id only when GameRules.OpensRun answers true — not a player asking for " +
+                "something they cannot have.");
         }
 
         // A run command whose slice carries no run is a caller/loading defect, not a rejection —

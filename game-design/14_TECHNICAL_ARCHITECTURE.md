@@ -112,6 +112,8 @@ POST /run/{runId}/command
 
 A command the server says no to returns a **rejection envelope**, also on HTTP 200 — the full contract (rejection reasons, HTTP mapping, sequencing, idempotency scope) is the normative appendix, **§16**.
 
+⚠️ **Errata on the example above** *(M5-03, per the M5 kickoff)*: the shipped response carries **`profile`** — the full client-visible `PlayerSnapshot` projection (§16.6's Input row) — where the example sketches `profileDelta`. A delta was specified nowhere (no base, no merge rule), so shipping one would have been an invented contract; the field name and the full-projection semantics above are what M7-02's mirror builds on. The example's `outcome` fields are per-command illustration; normatively the outcome carries the run projection, `runId`, `rngStreamStates` (the literal draw counters), `battleSeed` while a battle is open, and the command's domain events.
+
 🔒 **The wire command list and the domain `GameCommand` hierarchy are the same vocabulary** (`30` §11). One name per command, no mapping layer between transport and domain. This is the direct guard against the "mapping fatigue" failure mode recorded in `23` §9.
 
 #### The canonical command registry 🔒
@@ -631,7 +633,7 @@ Those are real benefits and they line up well with a game whose entire pitch is 
 
 Every command request and response carries `protocolVersion` — an integer, currently **1**. It versions the *envelope and lifecycle semantics* of this appendix, nothing else: content changes ride the content hash (§6) and never bump it; command additions ride the registry (§2.3) and never bump it.
 
-🔒 **Skew rule:** the server accepts its own version `N` and `N−1` — the wire enforcement of §14's "one version of client skew in both directions". Anything outside that window is rejected with `PROTOCOL_VERSION_UNSUPPORTED`, and the client shows the forced-update flow (`16` O32).
+🔒 **Skew rule:** the server accepts its own version `N` and `N−1` — the wire enforcement of §14's "one version of client skew in both directions". Anything outside that window is rejected with `PROTOCOL_VERSION_UNSUPPORTED`, and the client shows the forced-update flow (`16` O32). *(M5-03 clarification: this explicit `{N, N−1}` window is the normative reading — §14's "both directions" prose describes the deploy-time tolerance a rolling release needs, not a wider window; `N+1` is rejected. There is no clock-skew rule anywhere in this appendix, and none is to be invented beside this one.)*
 
 ### 16.2 Rejection — the `RejectionReason` enum and the HTTP mapping
 
@@ -743,7 +745,7 @@ Throughput sanity: ~30 commands/run × ~8 runs/DAU × 10k DAU ≈ 2.4M transacti
 
 | Rule | Specification |
 |---|---|
-| Input | The public snapshot DTOs (`30` §11.3). Run commands hash `PlayerSnapshot` then `RunSnapshot`, concatenated; meta commands hash `PlayerSnapshot` alone. |
+| Input | 🔒 **The client-visible wire projection** of the public snapshot DTOs (`30` §11.3): `PlayerWireProjection` + `RunWireProjection` — field-for-field the snapshots minus `RunSnapshot.RunSeed` and `PlayerSnapshot.BattleHashMismatches`, each excluded because the client is never sent it (`02` §2: the seed never leaves the server; §9: the tally is never player-facing) and a mirror cannot hash a field it does not hold. *(M5 kickoff ruling: this row formerly said the snapshot DTOs themselves, which contradicted `02` §2 for `RunSeed` — `02` §2 wins; `14` §8.1 agrees. The snapshots persist unchanged.)* Run-scoped commands (including `START_RUN`) hash player then run, concatenated; meta commands hash the player alone; a run-scoped refusal on a player with no run hashes the player alone, there being no run snapshot on either end. The projection has its own field-order pin, `WireProjectionFieldOrder.json`, under this table's Field order rule. |
 | Algorithm | **FNV-1a, 64-bit**, over the canonical bytes. Wire form: `"fnv1a:"` + 16 lowercase hex characters. The prefix names the algorithm so it can only ever be rotated deliberately and visibly. |
 | Field order | Declaration order of the snapshot record, depth-first. 🔒 Adding, removing or reordering a field is a serialisation change: it bumps `SchemaVersion` and is handled as a versioned migration, never silently. A CI test pins the field list per `SchemaVersion`. |
 | Collections | Lists in stored order. Every dictionary/map in ascending key order — ordinal for strings, numeric for numeric ids. No unordered container is ever hashed as-is. |

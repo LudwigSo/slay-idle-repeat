@@ -256,9 +256,16 @@ public static class CanonicalStateWriter
     /// nested record, <c>Items[]</c> for a list's element slot, <c>Map{key}</c>/<c>Map{value}</c> for
     /// a dictionary's — so wrapping a field in a collection, nesting it, or making it optional each
     /// read as the shape change they are.
+    /// <para>
+    /// Public, unlike <see cref="CanonicalBytes"/>, because the wire projection's field-order pin
+    /// lives beside the projection in a layer above this one and must be produced by this same
+    /// traversal — a pin built from a second traversal is a pin that can drift from the bytes. It
+    /// describes the encoding without performing it, so it opens no second bytes-out door.
+    /// </para>
     /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="rootType"/> is null.</exception>
     /// <exception cref="NotSupportedException">Some part of the type has no canonical encoding.</exception>
-    internal static IReadOnlyList<string> CanonicalFieldOrder(Type rootType)
+    public static IReadOnlyList<string> CanonicalFieldOrder(Type rootType)
     {
         ArgumentNullException.ThrowIfNull(rootType);
 

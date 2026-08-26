@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core;
 
@@ -37,12 +38,21 @@ namespace SlayIdleRepeat.Core;
 /// exactly one rule.
 /// </param>
 /// <param name="Flags">The kill switches, resolved at the composition root.</param>
+/// <param name="AllocatedRunId">
+/// The server-issued identity for the run this command opens — present only on the one command
+/// whose dispatch row opens a run, <c>null</c> on every other. Like <paramref name="CommandSeed"/>,
+/// it is an ambient value the host resolves and the domain must not invent: the wire allocator
+/// draws it from <c>IIdGeneratorPort</c>. When it is <c>null</c> on the opening command, the
+/// handler's deterministic mint stands — the in-process host's regime, where the id never rides a
+/// wire and reproducibility is worth more than opacity.
+/// </param>
 public sealed record GameContext(
     DateTimeOffset NowUtc,
     ulong? CommandSeed,
     ContentSnapshot Content,
     Entitlements Entitlements,
-    FeatureFlags Flags)
+    FeatureFlags Flags,
+    RunId? AllocatedRunId = null)
 {
     private readonly DateTimeOffset _nowUtc = RequireUtc(NowUtc);
     private readonly ContentSnapshot _content = Require(Content, nameof(Content));
@@ -94,6 +104,7 @@ public sealed record GameContext(
         builder.Append(CultureInfo.InvariantCulture, $", CommandSeed = {Describe(CommandSeed)}");
         builder.Append(CultureInfo.InvariantCulture, $", Content = {Content.Version.Short}");
         builder.Append(CultureInfo.InvariantCulture, $", Flags = {Flags.PvpEnabled}/{Flags.PlusOfferEnabled}");
+        builder.Append(CultureInfo.InvariantCulture, $", AllocatedRunId = {AllocatedRunId?.ToString() ?? "null"}");
 
         return true;
     }

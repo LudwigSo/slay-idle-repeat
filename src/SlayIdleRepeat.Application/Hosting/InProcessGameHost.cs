@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Text;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
@@ -149,7 +148,7 @@ public sealed class InProcessGameHost : IGameHost
 
         var context = new GameContext(
             _clock.UtcNow,
-            GameRules.RequiresCommandSeed(command) ? FreshCommandSeed() : null,
+            GameRules.RequiresCommandSeed(command) ? CommandSeedSource.Fresh(_ids) : null,
             _content,
             _entitlements,
             _flags);
@@ -160,29 +159,4 @@ public sealed class InProcessGameHost : IGameHost
     /// <inheritdoc/>
     public Task<OwnStateResult> ReadOwnStateAsync(PlayerId player, RunId? run, CancellationToken ct) =>
         _read.ReadAsync(new ReadOwnStateRequest(player, run), ct);
-
-    /// <summary>One meta command's seed, folded from the one sanctioned source of fresh entropy here.</summary>
-    /// <remarks>
-    /// Both halves of the guid are folded in rather than the low eight bytes taken, because a
-    /// generator is only required to make the whole identifier unique — a fake that varies its
-    /// trailing bytes and a real one that varies its leading bytes are both conforming, and reading
-    /// half of it would silently draw the same seed forever under one of them.
-    /// </remarks>
-    private ulong FreshCommandSeed()
-    {
-        Span<byte> bytes = stackalloc byte[16];
-
-        // Checked rather than discarded. A write that did not happen leaves the buffer as the stack
-        // left it, and the fold below would then draw the same seed for every command — the exact
-        // failure the fold itself exists to rule out, and the one shape of it nothing would report.
-        if (!_ids.NewGuid().TryWriteBytes(bytes))
-        {
-            throw new InvalidOperationException(
-                "A guid did not fit sixteen bytes, so this command's seed would be folded from a " +
-                "buffer nothing wrote.");
-        }
-
-        return BinaryPrimitives.ReadUInt64LittleEndian(bytes) ^
-               BinaryPrimitives.ReadUInt64LittleEndian(bytes[8..]);
-    }
 }
