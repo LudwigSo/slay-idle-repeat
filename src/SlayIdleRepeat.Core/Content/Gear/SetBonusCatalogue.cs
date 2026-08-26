@@ -56,14 +56,14 @@ internal sealed class SetBonusCatalogue
 
     /// <summary>The keys one authored set-bonus trigger may carry.</summary>
     /// <remarks>
-    /// 🔒 <b>The nested half of the same guard, and it is not optional.</b> A trigger carries eleven
-    /// other parameters this reader does not map — <c>once</c>, <c>chance</c>, <c>cooldown</c>,
-    /// <c>interval</c> and the rest — so without this, checking only the effect's own keys leaves the
-    /// lossiness one level down. It is reachable at the very next authoring step: a
-    /// once-per-battle save is spelled with <c>once</c> on an <c>ON_LETHAL</c> trigger, and dropping
-    /// it silently would turn one save per fight into one every time the hero would die.
+    /// 🔒 <b>The nested half of the same guard, and it is not optional.</b> A trigger carries
+    /// other parameters this reader does not map — <c>chance</c>, <c>cooldown</c>, <c>interval</c>
+    /// and the rest — so without this, checking only the effect's own keys leaves the lossiness one
+    /// level down. <c>once</c> is mapped for exactly the case this remark used to warn about:
+    /// Ironvow's six-piece is a once-per-battle save on an <c>ON_LETHAL</c> trigger, and dropping
+    /// the key silently would turn one save per fight into one every time the hero would die.
     /// </remarks>
-    private static readonly string[] KnownTriggerKeys = ["kind", "everyNth"];
+    private static readonly string[] KnownTriggerKeys = ["kind", "everyNth", "once"];
 
     private readonly IReadOnlyDictionary<GearFamilyAxis, IReadOnlyList<SetBonusRow>> _bonuses;
 
@@ -285,6 +285,9 @@ internal sealed class SetBonusCatalogue
             Kind = AuthoredToken.Parse<TriggerKind>(content, pointer + "/kind", "a trigger kind"),
             EveryNth = content.IsAuthorised(pointer + "/everyNth")
                 ? content.ReadInt32(pointer + "/everyNth")
+                : null,
+            Once = content.IsAuthorised(pointer + "/once")
+                ? content.ReadBoolean(pointer + "/once")
                 : null,
         };
     }

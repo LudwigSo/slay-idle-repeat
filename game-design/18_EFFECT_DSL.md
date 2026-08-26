@@ -134,7 +134,7 @@ The last two exist only inside `ON_HEAL` contexts (`05` §4.3): `HEAL_AMOUNT` is
 | `ATTACK_MULT_NEXT` | Multiply the damage of the next `charges` attacks by `value` (`PK_OPENER`'s ×3 first attack — `05` §4) |
 | `FORCE_CRIT_NEXT` | The next `charges` attacks always crit. Carries no `value` |
 | `REDUCE_COOLDOWN` | Reduce pet/boss ability cooldowns |
-| `SURVIVE_LETHAL` | Survive an otherwise-fatal hit at the HP `value`/`valueMode` name — `PK_UNBREAKABLE` is `{"value": 1, "valueMode": "FLAT"}` = **1 HP**, per `06`. `valueMode` defaults to `SELF_MAXHP_PCT` here, not `ATK_MULT` |
+| `SURVIVE_LETHAL` | Survive an otherwise-fatal hit at the HP `value`/`valueMode` name — `PK_UNBREAKABLE` is `{"value": 1, "valueMode": "FLAT"}` = **1 HP**, per `06`. `valueMode` defaults to `SELF_MAXHP_PCT` here, not `ATK_MULT`. This op alone also admits `valueMode: NEGATE` (`16` D49, §10.1 E7): the lethal hit is **voided** — HP unchanged — and the effect carries **no** `value` and no `valueScale`, because there is no HP number (Ironvow's 6-piece, `08` §3.2) |
 | `REVIVE` | Return from 0 HP at a given HP fraction |
 | `SUMMON` | Spawn N enemies of an archetype (boss use) |
 | `SET_TARGET_PRIORITY` | Adjust targeting weight (added for Sporequeen — `17` §8) |
@@ -507,6 +507,7 @@ Every row below adds a **key or a token, never a number** — the numbers stay i
 | E4 | `SURVIVE_LETHAL` | which unit `value` is in | `valueMode` | §2.4 says "HP fraction", §7.4 writes `"value": 1` (a *full-HP* fraction) and `06` says "at 1 HP". Reuses §2.2's existing modes rather than picking a reading |
 | E5 | `REMOVE_STATUS` | the tag group | `statusTag` | §2.3 offers "a status or a tag group" and named a key only for the first |
 | E6 | `RANDOM_OUTCOME` (new op) | a **mutually exclusive** weighted choice | `outcomes` (`[{effectId, weight}]`) | `17` §9's *Roll of Fate* is one visible d6 with three results. §4's conditions are "pure functions of current state" and a draw is **not** state, so three `chance`-gated effects are three *independent* draws — all three can fire, or none — and they spend **three** draw indices where `14` §8.0's `WeightedPick` spends **one**, desynchronising every later draw of the battle |
+| E7 | `SURVIVE_LETHAL` | a token for "the hit is voided" | `valueMode: NEGATE` | `08` §3.2's Ironvow 6-piece says *negate a lethal hit* and authors **no** HP number; the op's existing readings survive **at** an HP (`value` flat or a Max-HP fraction), which is a different sentence. NEGATE voids the hit — HP unchanged — and the effect carries no `value`/`valueScale`, so no number had to be invented for it. ⚠️ The **owner** ruled only *that* the 6-piece be implemented (`16` D49); the NEGATE **shape is the conductor's call**, recorded as such in the decision log. `SURVIVE_LETHAL` alone admits it; validation refuses it on every other op |
 
 ⚠️ **Not taken, and recorded so nobody assumes it was.** `REVIVE` has E4's problem word for word —
 §2.4 gives it "at a given HP fraction" — and is deliberately left fraction-only: no authored content

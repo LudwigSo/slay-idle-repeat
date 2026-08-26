@@ -211,6 +211,9 @@ internal interface ICombatFlowSink
     /// <summary><c>SURVIVE_LETHAL</c>: arms a save that leaves the actor at <paramref name="hp"/>. Does not fire <c>ON_REVIVE</c> — the actor never died.</summary>
     void ArmSurviveLethal(IEffectActorView holder, double hp, string sourceEffectId);
 
+    /// <summary><c>SURVIVE_LETHAL</c> under <c>valueMode: NEGATE</c> (16 D49): arms a save that voids the lethal hit — HP unchanged, no HP the effect names.</summary>
+    void ArmNegateLethal(IEffectActorView holder, string sourceEffectId);
+
     /// <summary><c>REVIVE</c>: arms a return from 0 HP at <paramref name="hp"/>. Unlike <see cref="ArmSurviveLethal"/> this does fire <c>ON_REVIVE</c>.</summary>
     void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId);
 
@@ -450,6 +453,10 @@ internal sealed class UnwiredCombatFlow : ICombatFlowSink
     /// <inheritdoc />
     public void ArmSurviveLethal(IEffectActorView holder, double hp, string sourceEffectId) =>
         throw Unwired(sourceEffectId, nameof(ArmSurviveLethal));
+
+    /// <inheritdoc />
+    public void ArmNegateLethal(IEffectActorView holder, string sourceEffectId) =>
+        throw Unwired(sourceEffectId, nameof(ArmNegateLethal));
 
     /// <inheritdoc />
     public void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId) =>

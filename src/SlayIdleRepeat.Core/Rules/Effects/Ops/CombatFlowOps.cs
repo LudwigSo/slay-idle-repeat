@@ -83,15 +83,34 @@ internal static class CombatFlowOps
         return fraction;
     }
 
-    /// <summary><c>SURVIVE_LETHAL</c>: arm a save at the HP the effect names.</summary>
+    /// <summary><c>SURVIVE_LETHAL</c>: arm a save at the HP the effect names, or a <c>NEGATE</c> save that voids the hit.</summary>
     /// <remarks>
-    /// <c>valueMode</c> lets this be authored either as a flat HP value or a fraction of Max HP.
-    /// Holder-scoped, and not an <c>ON_REVIVE</c> — the actor never died, so the seam has a separate
-    /// member for it.
+    /// <c>valueMode</c> lets this be authored as a flat HP value, a fraction of Max HP, or 16 D49's
+    /// <c>NEGATE</c> — the hit is voided and HP is unchanged, so that arm resolves no value at all.
+    /// Holder-scoped, and not an <c>ON_REVIVE</c> — the actor never died, so the seam has separate
+    /// members for it.
     /// </remarks>
     internal static double SurviveLethal(EffectDefinition effect, EffectOpContext context)
     {
         var holder = OpTargets.Holder(context);
+
+        if (OpValue.ModeOf(effect, OpValueRules.SurviveLethal) == ValueMode.NEGATE)
+        {
+            if (effect.Value is not null || effect.ValueScale is not null)
+            {
+                throw new EffectContextException(
+                    effect.Id,
+                    "SURVIVE_LETHAL under valueMode NEGATE carries a value or a valueScale",
+                    "16 D49's NEGATE voids the hit outright — there is no HP number, so nothing to " +
+                    "carry or scale, and ignoring an authored one would ship whichever misreading " +
+                    "put it there (the FORCE_CRIT_NEXT precedent).");
+            }
+
+            context.Seams.Flow.ArmNegateLethal(holder, effect.Id);
+
+            return 0.0;
+        }
+
         var hp = SurvivalHp(effect, context, OpValueRules.SurviveLethal);
 
         context.Seams.Flow.ArmSurviveLethal(holder, hp, effect.Id);

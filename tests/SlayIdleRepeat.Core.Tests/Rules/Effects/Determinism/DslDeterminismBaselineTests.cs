@@ -202,16 +202,31 @@ public sealed class DslDeterminismBaselineTests
             "18 §6 gives five stacking modes");
     }
 
-    /// <summary>All 8 value modes reach the corpus.</summary>
+    /// <summary>
+    /// All 8 amount modes reach the corpus. <c>NEGATE</c>, the ninth member (16 D49), is declared
+    /// and deliberately NOT yet emitted: the M4-16efg kickoff (R2) reserves the corpus regeneration
+    /// for the conductor at merge, so that two lanes extending the vocabulary in parallel move the
+    /// committed table exactly once. The carve-out is scoped to the CURRENT issue of the committed
+    /// table and expires by itself in both directions: reissuing the table flips the ReviewedBy pin
+    /// below, and emitting NEGATE while the carve-out stands fails <c>Covers</c>' nothing-invented
+    /// direction against the reduced catalogue.
+    /// </summary>
     [Fact]
     public void Every_value_mode_18_declares_is_emitted_by_the_permutation_generator()
     {
+        DslDeterminismBaseline.ReviewedBy.ShouldBe(
+            "feature-M4-16d-M7-06g-rebaseline",
+            "the committed table has been reissued, so the R2 deferral this carve-out records is " +
+            "over: add NEGATE to EffectVocabularyEmissionSets.ValueModes and to the generator's " +
+            "emission so it reaches the regenerated corpus, and delete the carve-out from this test");
+
         Covers(
             EveryEffect().Where(effect => effect.ValueMode is not null).Select(effect => effect.ValueMode!.Value),
             EffectVocabularyEmissionSets.ValueModes,
-            Enum.GetValues<ValueMode>(),
+            Enum.GetValues<ValueMode>().Where(mode => mode != ValueMode.NEGATE).ToArray(),
             "value mode",
-            "18 §11 and 18 §2.2: eight value modes");
+            "18 §11 and 18 §2.2: eight amount modes; NEGATE (16 D49) is carved out until the " +
+            "table's next issue");
     }
 
     /// <summary>Every extension key reaches the corpus, including the ones that arrived without a catalogue row.</summary>

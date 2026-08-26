@@ -30,10 +30,11 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// only in a comment.
 /// </para>
 /// <para>
-/// ⚠️ <b>An entry may name no owner, and that is a finding rather than an omission.</b> Four of these
-/// need a mechanism no open tracker row describes — applying a non-combat stat to anything at all, an
-/// attacker- or target-conditional damage bucket, and two set bonuses whose magnitude the design set
-/// never wrote down. Naming a plausible task for one of those would be steering S6's fabricated value
+/// ⚠️ <b>An entry may name no owner, and that is a finding rather than an omission.</b> Three of these
+/// need a mechanism no open tracker row describes — an attacker- or target-conditional damage bucket
+/// (twice over), and a set bonus whose one magnitude the design set never wrote down. (Ironvow's
+/// six-piece left this register with 16 D49: NEGATE voids the hit, so the missing number stopped
+/// being missing by ceasing to exist — M4-16g.) Naming a plausible task for one of those would be steering S6's fabricated value
 /// with a task id in place of a number, so they carry <c>null</c> and say what is missing. The data
 /// arm still fires on every one of them.
 /// </para>
@@ -89,14 +90,6 @@ public sealed partial class GearAuthoringGapRegisterTests
             "hit-reaction context — which is every re-aggregation — so a standing gated DR would be " +
             "silently inert rather than loud. This needs the same conditional bucket the " +
             "damage-vs-Elites affix needs, and the same absence of an owner applies."),
-
-        new(Sets + "#/sets/1/bonuses/2/effects",
-            "Ironvow's six-piece bonus, 'once per battle, negate a lethal hit'",
-            null,
-            "The mechanism exists and the number does not. SURVIVE_LETHAL arms a save and ON_LETHAL " +
-            "carries `once`, but the op survives AT a named HP and 08 §3.2 authors none — and " +
-            "'negate' arguably means the hit deals nothing, which is a different thing from surviving " +
-            "at a fraction. Two unauthored decisions, either of which would be invented here."),
 
         new(Sets + "#/sets/2/bonuses/1/effects",
             "Fateweave's four-piece bonus, 'Star faces grant a free perk draft'",
@@ -232,12 +225,13 @@ public sealed partial class GearAuthoringGapRegisterTests
     /// first.
     /// </remarks>
     [Fact]
-    public void The_register_holds_the_eight_gaps_it_was_written_against()
+    public void The_register_holds_the_seven_gaps_still_open()
     {
         Gaps.Length.ShouldBe(
-            8,
-            "eight gear bonuses are deliberately unauthored: one affix and seven set-bonus " +
-            "breakpoints. A register that quietly emptied would report success over nothing.");
+            7,
+            "seven gear bonuses are deliberately unauthored: one affix and six set-bonus " +
+            "breakpoints (M4-16g closed Ironvow's six-piece against 16 D49's NEGATE). A register " +
+            "that quietly emptied would report success over nothing.");
 
         Gaps.ShouldAllBe(g => g.Why.Length > 0, "a gap without a reason is a gap nobody can falsify");
 

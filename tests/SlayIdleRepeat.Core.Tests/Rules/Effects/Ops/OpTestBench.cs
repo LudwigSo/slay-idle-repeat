@@ -237,6 +237,9 @@ internal sealed class OpTestBench
         public void ArmSurviveLethal(IEffectActorView holder, double hp, string sourceEffectId) =>
             bench.Record(nameof(ArmSurviveLethal), holder.Id, hp, sourceEffectId);
 
+        public void ArmNegateLethal(IEffectActorView holder, string sourceEffectId) =>
+            bench.Record(nameof(ArmNegateLethal), holder.Id, 0.0, sourceEffectId);
+
         public void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId) =>
             bench.Record(nameof(ArmRevive), holder.Id, hp, sourceEffectId);
 

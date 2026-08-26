@@ -46,12 +46,37 @@ public sealed class SetBonusCatalogueTests
     [Fact]
     public void An_unauthored_breakpoint_is_a_bonus_that_grants_nothing()
     {
-        var rows = Shipped().Bonuses(GearFamilyAxis.HEAVY);
+        var rows = Shipped().Bonuses(GearFamilyAxis.BALANCED);
 
         rows.Count.ShouldBe(3);
-        rows[0].Effects.ShouldNotBeNull("Ironvow's two-piece is +15% DEF");
-        rows[1].Effects.ShouldBeNull("its four-piece needs a conditional bucket that does not exist");
-        rows[2].Effects.ShouldBeNull("its six-piece names no survival HP for the op to arm");
+        rows[0].Effects.ShouldNotBeNull("Bloodmoon's two-piece is +10% Lifesteal");
+        rows[1].Effects.ShouldNotBeNull("its four-piece heals on kill");
+        rows[2].Effects.ShouldBeNull("its six-piece needs pets, which do not exist");
+    }
+
+    /// <summary>
+    /// Ironvow's six-piece, shipped: 16 D49's value-less <c>NEGATE</c> save on <c>ON_LETHAL</c>,
+    /// once per battle. Anchored on the breakpoint row rather than <c>Granted</c> counts so the
+    /// four-piece row's own authoring (a sibling task) cannot move this pin.
+    /// </summary>
+    [Fact]
+    public void The_shipped_Ironvow_six_piece_authors_the_D49_NEGATE_save()
+    {
+        var row = Shipped().Bonuses(GearFamilyAxis.HEAVY)[2];
+
+        row.Pieces.ShouldBe(6);
+
+        var effect = row.Effects.ShouldNotBeNull().ShouldHaveSingleItem();
+
+        effect.Id.ShouldBe("SET_BONUS_HEAVY_6");
+        effect.Op.ShouldBe(EffectOp.SURVIVE_LETHAL);
+        effect.ValueMode.ShouldBe(ValueMode.NEGATE);
+        effect.Value.ShouldBeNull("a voided hit has no HP number, and authoring one would invent a value nobody ruled");
+        effect.Target.ShouldBe(EffectTarget.SELF);
+
+        var trigger = effect.Trigger.ShouldNotBeNull();
+        trigger.Kind.ShouldBe(TriggerKind.ON_LETHAL);
+        trigger.Once.ShouldBe(true, "08 §3.2: ONCE per battle — an unbounded negate never dies");
     }
 
     /// <summary>A set the document does not author is refused, never answered as empty.</summary>
@@ -124,9 +149,8 @@ public sealed class SetBonusCatalogueTests
 
     /// <summary>A key the reader does not map INSIDE the trigger is refused too.</summary>
     /// <remarks>
-    /// Reachable at the next authoring step: a once-per-battle save is <c>once</c> on an
-    /// <c>ON_LETHAL</c> trigger, and dropping it silently turns one save per fight into one every
-    /// time the hero would die.
+    /// The probe is <c>chance</c> — a real trigger parameter this reader still does not map — so the
+    /// nested guard stays proven now that <c>once</c> is mapped for the six-piece save.
     /// </remarks>
     [Fact]
     public void A_trigger_key_the_reader_does_not_map_is_refused()
@@ -139,8 +163,8 @@ public sealed class SetBonusCatalogueTests
             ["value"] = ContentValue.Number(0.1m),
             ["trigger"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
             {
-                ["kind"] = ContentValue.Text("ON_LETHAL"),
-                ["once"] = ContentValue.True,
+                ["kind"] = ContentValue.Text("ON_ATTACK"),
+                ["chance"] = ContentValue.Number(0.5m),
             }),
         });
 
@@ -149,11 +173,37 @@ public sealed class SetBonusCatalogueTests
                     Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
             .Message;
 
-        message.ShouldContain("'once' is a key this reader does not map", Case.Sensitive);
+        message.ShouldContain("'chance' is a key this reader does not map", Case.Sensitive);
         message.ShouldContain(
             "a set bonus's trigger may carry",
             Case.Sensitive,
             "the nested guard fired, not the one over the effect's own keys");
+    }
+
+    /// <summary>
+    /// <c>once</c> IS mapped, not merely tolerated: dropping it silently would turn one save per
+    /// fight into one every time the hero would die.
+    /// </summary>
+    [Fact]
+    public void A_set_bonus_trigger_carries_once_through_to_the_effect()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("SURVIVE_LETHAL"),
+            ["valueMode"] = ContentValue.Text("NEGATE"),
+            ["target"] = ContentValue.Text("SELF"),
+            ["trigger"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["kind"] = ContentValue.Text("ON_LETHAL"),
+                ["once"] = ContentValue.True,
+            }),
+        });
+
+        var read = SetBonusCatalogue.Read(Snapshot(CoveringSet("BALANCED", effect)), Breakpoints)
+            .Bonuses(GearFamilyAxis.BALANCED)[0].Effects.ShouldNotBeNull().ShouldHaveSingleItem();
+
+        read.Trigger.ShouldNotBeNull().Once.ShouldBe(true);
     }
 
     /// <summary>A set authoring fewer rows than the ladder has breakpoints is refused.</summary>
