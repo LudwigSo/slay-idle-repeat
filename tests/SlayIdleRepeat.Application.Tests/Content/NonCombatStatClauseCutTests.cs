@@ -51,11 +51,36 @@ public sealed class NonCombatStatClauseCutTests
     private const string Document = "content/perks/perks.json";
 
     /// <summary>
-    /// The unique anchor the injection probes graft a clause onto: the first clause of the
-    /// catalogue's first row. If the row is renamed, <c>RepoData.SourceWithEdit</c> throws rather
-    /// than letting the probes pass over nothing.
+    /// The unique anchor the injection probes act on: the whole first clause of the catalogue's
+    /// first row, replaced in place. If the clause is reworded, <c>RepoData.SourceWithEdit</c>
+    /// throws rather than letting the probes pass over nothing.
     /// </summary>
-    private const string Anchor = "\"id\": \"PK_STATIC_CHARGE_T1\",";
+    /// <remarks>
+    /// 🔒 Replaced, never grafted beside: <c>DeclaredRules.ValidatedEffects</c> is a process-wide
+    /// accumulator keyed by pointer, and a grafted sibling registers a pointer the clean catalogue
+    /// never produces — which turns <c>PerksDataTests</c>' 237-effect census red in full-suite
+    /// runs while every filtered run stays green. Replacing keeps the pointer set identical.
+    /// Composed line-by-line with explicit <c>\n</c> so this source file's own line endings can
+    /// never leak into the match against the LF-normalised document text.
+    /// </remarks>
+    private static readonly string Anchor = Lines(
+        "            {",
+        "              \"id\": \"PK_STATIC_CHARGE_T1\",",
+        "              \"op\": \"DAMAGE\",",
+        "              \"valueMode\": \"ATK_MULT\",",
+        "              \"trigger\": {",
+        "                \"kind\": \"ON_ATTACK\"",
+        "              },",
+        "              \"condition\": {",
+        "                \"not\": {",
+        "                  \"fn\": \"IS_PVP\",",
+        "                  \"op\": \"eq\",",
+        "                  \"value\": true",
+        "                }",
+        "              },",
+        "              \"target\": \"RANDOM_ENEMY\",",
+        "              \"value\": 0.35",
+        "            }");
 
     private static ContentSnapshot Data() => ContentLoader.Load(RepoData.Source()).Require();
 
@@ -92,9 +117,10 @@ public sealed class NonCombatStatClauseCutTests
         var clauses = StatClauses(Data());
 
         clauses.Count.ShouldBeGreaterThanOrEqualTo(
-            40, "the shipped catalogue authors well over this many stat clauses (57 as of " +
-                "2026-08); finding almost none means the walk broke — a renamed member, a " +
-                "reshaped row — not that the catalogue emptied");
+            40, "the shipped catalogue authors well over this many stat sightings (66 as of " +
+                "2026-08: 57 'stat' members and 9 STAT_CONVERT 'toStat' destinations); finding " +
+                "almost none means the walk broke — a renamed member, a reshaped row — not that " +
+                "the catalogue emptied");
 
         clauses.ShouldContain(
             c => c.Stat == nameof(StatId.ATK),
@@ -106,27 +132,30 @@ public sealed class NonCombatStatClauseCutTests
     /// clause on either schema-legal non-combat stat is found, located, and named.
     /// </summary>
     /// <remarks>
-    /// Two shapes on purpose — different stat, different op. <c>.Require()</c> is half the point:
-    /// the loader ACCEPTS both clauses, which is what keeps the cut a ruling about content rather
-    /// than a fact about the schema, and is why this guard must exist. The clause key set mirrors
-    /// the cut originals (M3-07's <c>PK_GREED_T1</c> shape) exactly.
+    /// Three shapes on purpose — two different stat ops, and a <c>STAT_CONVERT</c> whose
+    /// non-combat stat is the DESTINATION, so the walk's <c>toStat</c> arm is exercised and not
+    /// trusted. <c>.Require()</c> is half the point: the loader ACCEPTS all three clauses, which
+    /// is what keeps the cut a ruling about content rather than a fact about the schema, and is
+    /// why this guard must exist. The stat-op key set mirrors the cut originals (M3-07's
+    /// <c>PK_GREED_T1</c> shape) exactly; the convert mirrors the shipped <c>PK_ONSLAUGHT_T1</c>.
     /// </remarks>
     [Theory]
-    [InlineData("STAT_ADD_PCT", "GOLD_PCT", "0.25")]
-    [InlineData("STAT_ADD_FLAT", "PET_AURA_PCT", "0.05")]
+    [InlineData("STAT_ADD_PCT", "GOLD_PCT", null, "0.25")]
+    [InlineData("STAT_ADD_FLAT", "PET_AURA_PCT", null, "0.05")]
+    [InlineData("STAT_CONVERT", "ATK", "GOLD_PCT", "0.25")]
     public void A_re_authored_non_combat_clause_is_found_by_this_guard(
-        string op, string stat, string value)
+        string op, string stat, string? toStat, string value)
     {
         var snapshot = ContentLoader.Load(
-            RepoData.SourceWithEdit(Document, Anchor, Injected(op, stat, value))).Require();
+            RepoData.SourceWithEdit(Document, Anchor, Injected(op, stat, toStat, value))).Require();
 
         var found = StatClauses(snapshot).Where(c => !c.Combat).ShouldHaveSingleItem(
-            "the injected clause is the only non-combat clause in the edited catalogue");
+            "the injected clause carries the only non-combat stat in the edited catalogue");
 
-        found.Stat.ShouldBe(stat, "which stat fired — steering S2");
+        found.Stat.ShouldBe(toStat ?? stat, "which stat fired — steering S2");
         found.Pointer.ShouldBe(
             Document + "#/perks/0/tiers/0/effects/0",
-            "and where: the graft site, so the guard reports a location a human can open");
+            "and where: the replacement site, so the guard reports a location a human can open");
     }
 
     /// <summary>
@@ -146,7 +175,7 @@ public sealed class NonCombatStatClauseCutTests
     public void A_combat_stat_clause_is_not_this_guards_subject(string stat)
     {
         var snapshot = ContentLoader.Load(
-            RepoData.SourceWithEdit(Document, Anchor, Injected("STAT_ADD_PCT", stat, "0.05"))).Require();
+            RepoData.SourceWithEdit(Document, Anchor, Injected("STAT_ADD_PCT", stat, null, "0.05"))).Require();
 
         StatClauses(snapshot).Where(c => !c.Combat).ShouldBeEmpty(
             "a combat clause is ordinary authoring; a guard that fired on it would be pinning the " +
@@ -169,7 +198,7 @@ public sealed class NonCombatStatClauseCutTests
             "the stat is retired from the vocabulary, not merely cut from content");
 
         var result = ContentLoader.Load(
-            RepoData.SourceWithEdit(Document, Anchor, Injected("STAT_ADD_PCT", "TILE_PREVIEW", "0.25")));
+            RepoData.SourceWithEdit(Document, Anchor, Injected("STAT_ADD_PCT", "TILE_PREVIEW", null, "0.25")));
 
         result.Snapshot.ShouldBeNull("a retired stat must not load");
 
@@ -185,10 +214,11 @@ public sealed class NonCombatStatClauseCutTests
     private sealed record StatClause(string Pointer, string Stat, bool Combat);
 
     /// <summary>
-    /// Every embedded effect clause in the perk catalogue that names a stat, with its JSON pointer
-    /// and its combat/non-combat classification — read off <see cref="StatIds.IsCombat"/>, the
-    /// same classification the aggregation pipeline skips by, so this guard and the runtime cannot
-    /// disagree about what "non-combat" means.
+    /// Every stat named by an embedded effect clause in the perk catalogue — one entry per
+    /// stat-naming member, so a conversion contributes its source and its destination — with its
+    /// JSON pointer and its combat/non-combat classification, read off
+    /// <see cref="StatIds.IsCombat"/>, the same classification the aggregation pipeline skips by,
+    /// so this guard and the runtime cannot disagree about what "non-combat" means.
     /// </summary>
     private static IReadOnlyList<StatClause> StatClauses(ContentSnapshot snapshot)
     {
@@ -209,34 +239,14 @@ public sealed class NonCombatStatClauseCutTests
 
                 for (var e = 0; e < effects!.Items.Count; e++)
                 {
-                    if (!effects.Items[e].TryGetMember("stat", out var stat) ||
-                        stat!.Kind != ContentValueKind.Text)
-                    {
-                        continue;
-                    }
+                    var pointer = $"{Document}#/perks/{p}/tiers/{t}/effects/{e}";
 
-                    var token = stat.AsText("stat");
-
-                    // The two selector tokens that are schema-legal here but are not StatId
-                    // members: ALL_COMBAT (statSelector) expands to the fourteen combat stats, so
-                    // it IS a combat clause; HIGHEST_PCT_BONUS (statCopySelector) resolves at copy
-                    // time to whichever combat stat leads, so neither is this guard's subject.
-                    if (token is "ALL_COMBAT" or "HIGHEST_PCT_BONUS")
-                    {
-                        clauses.Add(new StatClause(
-                            $"{Document}#/perks/{p}/tiers/{t}/effects/{e}", token, Combat: true));
-                        continue;
-                    }
-
-                    Enum.TryParse<StatId>(token, ignoreCase: false, out var statId).ShouldBeTrue(
-                        $"'{token}' at {Document}#/perks/{p}/tiers/{t}/effects/{e} is not a " +
-                        "declared StatId — the schema admits a stat the vocabulary does not, " +
-                        "and this guard cannot classify what it cannot parse");
-
-                    clauses.Add(new StatClause(
-                        $"{Document}#/perks/{p}/tiers/{t}/effects/{e}",
-                        token,
-                        StatIds.IsCombat(statId)));
+                    // Both ends of a clause: 'stat' (every stat op's subject, or a conversion's
+                    // source) and 'toStat' (a STAT_CONVERT / REDIRECT_EXCESS destination — the
+                    // schema's toStat enum admits every stat, non-combat included, so a cut stat
+                    // re-authored as a destination is schema-legal and must be this guard's too).
+                    Classify(effects.Items[e], "stat", pointer, clauses);
+                    Classify(effects.Items[e], "toStat", pointer, clauses);
                 }
             }
         }
@@ -244,12 +254,54 @@ public sealed class NonCombatStatClauseCutTests
         return clauses;
     }
 
+    /// <summary>One member of one clause, classified into <paramref name="clauses"/> if it names a stat.</summary>
+    private static void Classify(
+        ContentValue clause, string member, string pointer, List<StatClause> clauses)
+    {
+        if (!clause.TryGetMember(member, out var stat) || stat!.Kind != ContentValueKind.Text)
+        {
+            return;
+        }
+
+        var token = stat.AsText(member);
+
+        // The two selector tokens that are schema-legal here but are not StatId members:
+        // ALL_COMBAT (statSelector) expands to the fourteen combat stats, so it IS a combat
+        // clause; HIGHEST_PCT_BONUS (statCopySelector) resolves at copy time to whichever combat
+        // stat leads, so neither is this guard's subject.
+        if (token is "ALL_COMBAT" or "HIGHEST_PCT_BONUS")
+        {
+            clauses.Add(new StatClause(pointer, token, Combat: true));
+            return;
+        }
+
+        Enum.TryParse<StatId>(token, ignoreCase: false, out var statId).ShouldBeTrue(
+            $"'{token}' at {pointer} is not a declared StatId — the schema admits a stat the " +
+            "vocabulary does not, and this guard cannot classify what it cannot parse");
+
+        clauses.Add(new StatClause(pointer, token, StatIds.IsCombat(statId)));
+    }
+
     /// <summary>
-    /// The injected probe clause: a complete sibling grafted before the anchor clause, in the cut
-    /// originals' exact key set.
+    /// The probe clause that replaces the anchor clause whole — never a grafted sibling, see the
+    /// anchor's remarks. Stat ops carry the cut originals' exact key set; a conversion adds the
+    /// <c>toStat</c> destination the shipped <c>PK_ONSLAUGHT_T1</c> shape carries.
     /// </summary>
-    private static string Injected(string op, string stat, string value) =>
-        "\"id\": \"PK_STATIC_CHARGE_T1_PROBE\", \"op\": \"" + op + "\", \"stat\": \"" + stat +
-        "\", \"trigger\": { \"kind\": \"ALWAYS\" }, \"condition\": null, \"target\": \"SELF\", " +
-        "\"value\": " + value + " }, { " + Anchor;
+    private static string Injected(string op, string stat, string? toStat, string value) => Lines(
+        "            {",
+        "              \"id\": \"PK_STATIC_CHARGE_T1_PROBE\",",
+        $"              \"op\": \"{op}\",",
+        $"              \"stat\": \"{stat}\",",
+        toStat is null ? null : $"              \"toStat\": \"{toStat}\",",
+        "              \"trigger\": {",
+        "                \"kind\": \"ALWAYS\"",
+        "              },",
+        "              \"condition\": null,",
+        "              \"target\": \"SELF\",",
+        $"              \"value\": {value}",
+        "            }");
+
+    /// <summary>LF-joined lines, skipping nulls — the document text is LF regardless of this file's own endings.</summary>
+    private static string Lines(params string?[] lines) =>
+        string.Join("\n", lines.Where(line => line is not null));
 }
