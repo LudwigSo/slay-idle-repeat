@@ -1498,8 +1498,11 @@ internal sealed class BattleSimulation
         public void ArmNegateLethal(IEffectActorView holder, string sourceEffectId)
         {
             var actor = Actor(holder);
+
+            // NaN, not 0.0: a negate save has no HP, and a future reader that forgets to check
+            // Negates should poison its arithmetic loudly rather than quietly read "0 HP".
             actor.Flow.ArmDeathSave(new DeathSave(
-                Hp: 0.0, IsRevive: false, sourceEffectId, FiresOnce(actor, sourceEffectId),
+                Hp: double.NaN, IsRevive: false, sourceEffectId, FiresOnce(actor, sourceEffectId),
                 Negates: true));
         }
 
