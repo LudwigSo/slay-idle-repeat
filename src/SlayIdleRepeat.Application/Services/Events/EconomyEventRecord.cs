@@ -40,6 +40,26 @@ public static class EconomyEventEnricher
         RunId? run,
         CommandId commandId,
         DateTimeOffset occurredAtUtc,
-        IReadOnlyList<DomainEvent> events) =>
-        throw new NotImplementedException("M5-05 phase 3 implements the enricher.");
+        IReadOnlyList<DomainEvent> events)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+
+        if (events.Count == 0)
+        {
+            return Array.Empty<EconomyEventRecord>();
+        }
+
+        var rows = new EconomyEventRecord[events.Count];
+
+        for (var index = 0; index < events.Count; index++)
+        {
+            var @event = events[index];
+
+            rows[index] = new EconomyEventRecord(
+                player, run, commandId, @event.Sequence, occurredAtUtc,
+                @event.GetType().Name, WireJson.RenderEvent(@event));
+        }
+
+        return rows;
+    }
 }

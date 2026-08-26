@@ -55,9 +55,6 @@ public sealed record GatewayReply(int StatusCode, string Body);
 /// </remarks>
 public sealed class CommandGateway
 {
-    private const string RunScopePrefix = "run:";
-    private const string PlayerScopePrefix = "player:";
-
     /// <summary>What a minted run identity is spelled with — the sibling of the host's <c>PLAYER_</c> prefix.</summary>
     private const string RunIdPrefix = "RUN_";
 
@@ -185,7 +182,7 @@ public sealed class CommandGateway
 
         var scope = routedRun is { } addressed
             ? RunScope(player, addressed)
-            : PlayerScopePrefix + player.Value;
+            : CommandScopes.ForPlayer(player);
 
         // The run-scope existence check runs BEFORE the gate: an invented run id must cost nothing
         // held and nothing kept. It is only a fast path — the same check runs again under the gate,
@@ -311,7 +308,7 @@ public sealed class CommandGateway
     /// sequence with a dispatched rejection recorded into the owner's own idempotency space.
     /// </summary>
     private static string RunScope(PlayerId player, RunId run) =>
-        RunScopePrefix + player.Value + ":" + run.Value;
+        CommandScopes.ForRun(player, run);
 
     /// <summary>Builds the response envelope for a dispatched command — accepted or domain-refused.</summary>
     /// <remarks>

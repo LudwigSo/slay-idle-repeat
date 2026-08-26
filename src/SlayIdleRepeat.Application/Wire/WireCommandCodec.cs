@@ -94,12 +94,26 @@ public static class WireCommandCodec
         }
     }
 
+    /// <summary>The registry's index read backwards, built once: wire name by command type.</summary>
+    private static readonly Lazy<IReadOnlyDictionary<Type, string>> WireNamesByType = new(() =>
+        GameRules.CommandTypesByWireName.ToDictionary(pair => pair.Value, pair => pair.Key));
+
     /// <summary>The wire type name a command travels under — the dispatch registry's own index, read backwards.</summary>
     /// <param name="command">The typed command.</param>
     /// <exception cref="ArgumentNullException"><paramref name="command"/> is null.</exception>
     /// <exception cref="InvalidOperationException">The registry has no wire name for this type — a command that was never registered cannot have been decoded.</exception>
-    public static string WireNameOf(GameCommand command) =>
-        throw new NotImplementedException("M5-05 phase 3 implements the encode half.");
+    public static string WireNameOf(GameCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        return WireNamesByType.Value.TryGetValue(command.GetType(), out var name)
+            ? name
+            : throw new InvalidOperationException(
+                "'" + command.GetType().Name + "' has no wire name in the dispatch registry. Every " +
+                "decoded command came in THROUGH that registry, so an unregistered one here was " +
+                "constructed by a caller the wire never saw — it cannot be stored under a name the " +
+                "decoder will resolve back.");
+    }
 
     /// <summary>A command's payload as canonical JSON — the durable half of the record a duplicate is checked against.</summary>
     /// <param name="command">The typed command.</param>
@@ -109,8 +123,13 @@ public static class WireCommandCodec
     /// equality rather than gaining a byte-level second definition.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="command"/> is null.</exception>
-    public static string EncodePayload(GameCommand command) =>
-        throw new NotImplementedException("M5-05 phase 3 implements the encode half.");
+    public static string EncodePayload(GameCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        // The RUNTIME type: serialising as the abstract base would write no member at all.
+        return JsonSerializer.Serialize(command, command.GetType(), PayloadOptions);
+    }
 
     private static void DisallowUnmappedMembers(JsonTypeInfo typeInfo)
     {
