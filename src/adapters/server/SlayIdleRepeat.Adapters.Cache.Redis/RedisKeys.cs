@@ -12,14 +12,30 @@ namespace SlayIdleRepeat.Adapters.Cache.Redis;
 /// </remarks>
 public static class RedisKeys
 {
+    private const string Prefix = "sir:";
+
     /// <summary>The key one run's hot snapshot is cached under.</summary>
     /// <param name="run">The run.</param>
+    /// <exception cref="ArgumentException"><paramref name="run"/> is a default struct with no text.</exception>
     public static string ForRunState(RunId run) =>
-        throw new NotImplementedException("M5-05 phase 3 implements the Redis adapter.");
+        Prefix + "run:" + RequireText(run.Value, nameof(run));
 
     /// <summary>The key one recorded command outcome is cached under.</summary>
     /// <param name="scope">The record's sequencing domain.</param>
     /// <param name="commandId">The record's idempotency key.</param>
-    public static string ForRecord(IdempotencyScope scope, CommandId commandId) =>
-        throw new NotImplementedException("M5-05 phase 3 implements the Redis adapter.");
+    /// <exception cref="ArgumentException"><paramref name="commandId"/> is a default struct with no text.</exception>
+    public static string ForRecord(IdempotencyScope scope, CommandId commandId)
+    {
+        var command = RequireText(commandId.Value, nameof(commandId));
+
+        return scope.Kind == IdempotencyScopeKind.Run
+            ? Prefix + "idem:run:" + scope.Player.Value + ":" + scope.Run!.Value.Value + ":" + command
+            : Prefix + "idem:player:" + scope.Player.Value + ":" + command;
+    }
+
+    private static string RequireText(string? value, string parameterName) =>
+        value ?? throw new ArgumentException(
+            "This id carries no text (a default struct) — a key built on it would pool every such " +
+            "caller's entries under one name.",
+            parameterName);
 }

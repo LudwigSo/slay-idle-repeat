@@ -13,28 +13,92 @@ namespace SlayIdleRepeat.Adapters.Cache.Redis;
 /// </remarks>
 public sealed class RedisIdempotencyCache : IIdempotencyStore
 {
+    private readonly IVolatileByteCache _cache;
+    private readonly IIdempotencyStore _inner;
+    private readonly CacheWriteFailureCounter _failures;
+
     /// <summary>Builds the cache layer over the authoritative store.</summary>
     /// <param name="cache">The volatile byte surface.</param>
     /// <param name="inner">The authoritative store underneath.</param>
     /// <param name="failures">Where absorbed cache failures are counted.</param>
-    public RedisIdempotencyCache(IVolatileByteCache cache, IIdempotencyStore inner, CacheWriteFailureCounter failures) =>
-        throw new NotImplementedException("M5-05 phase 3 implements the Redis adapter.");
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    public RedisIdempotencyCache(IVolatileByteCache cache, IIdempotencyStore inner, CacheWriteFailureCounter failures)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        ArgumentNullException.ThrowIfNull(inner);
+        ArgumentNullException.ThrowIfNull(failures);
+
+        _cache = cache;
+        _inner = inner;
+        _failures = failures;
+    }
 
     /// <inheritdoc/>
-    public Task<RecordedCommandOutcome?> GetRecordedOutcomeAsync(
-        IdempotencyScope scope, CommandId commandId, CancellationToken ct) =>
-        throw new NotImplementedException("M5-05 phase 3 implements the Redis adapter.");
+    public async Task<RecordedCommandOutcome?> GetRecordedOutcomeAsync(
+        IdempotencyScope scope, CommandId commandId, CancellationToken ct)
+    {
+        var key = RedisKeys.ForRecord(scope, commandId);
+        var cacheAnswered = true;
+
+        try
+        {
+            if (await _cache.GetAsync(key, ct).ConfigureAwait(false) is { } cached)
+            {
+                return RedisRecordCodec.Decode(cached);
+            }
+        }
+        catch (Exception failure) when (RedisRunStateCache.IsAbsorbable(failure))
+        {
+            // One count per absorbed read; the repopulate is skipped rather than attempted against
+            // an endpoint that just failed.
+            _failures.Increment();
+            cacheAnswered = false;
+        }
+
+        var authoritative = await _inner.GetRecordedOutcomeAsync(scope, commandId, ct).ConfigureAwait(false);
+
+        if (authoritative is not null && cacheAnswered)
+        {
+            await TrySetAsync(key, authoritative, RepopulateTtl, ct).ConfigureAwait(false);
+        }
+
+        return authoritative;
+    }
 
     /// <inheritdoc/>
-    public Task RecordAsync(
-        IdempotencyScope scope, RecordedCommandOutcome outcome, TimeSpan ttl, CancellationToken ct) =>
-        throw new NotImplementedException("M5-05 phase 3 implements the Redis adapter.");
+    public async Task RecordAsync(
+        IdempotencyScope scope, RecordedCommandOutcome outcome, TimeSpan ttl, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(outcome);
+
+        // The authority first — the atomic record-plus-advance is its; the cache holds a copy of
+        // bytes that can never change.
+        await _inner.RecordAsync(scope, outcome, ttl, ct).ConfigureAwait(false);
+
+        await TrySetAsync(RedisKeys.ForRecord(scope, outcome.CommandId), outcome, ttl, ct).ConfigureAwait(false);
+    }
 
     /// <inheritdoc/>
     public Task<long?> ReadLastSequenceAsync(IdempotencyScope scope, CancellationToken ct) =>
-        throw new NotImplementedException("M5-05 phase 3 implements the Redis adapter.");
+        _inner.ReadLastSequenceAsync(scope, ct);
 
     /// <inheritdoc/>
     public Task OpenScopeAsync(IdempotencyScope scope, CancellationToken ct) =>
-        throw new NotImplementedException("M5-05 phase 3 implements the Redis adapter.");
+        _inner.OpenScopeAsync(scope, ct);
+
+    /// <summary>What a repopulated entry rides with — its true remaining lifetime is the authority's business.</summary>
+    private static readonly TimeSpan RepopulateTtl = TimeSpan.FromHours(1);
+
+    private async Task TrySetAsync(
+        string key, RecordedCommandOutcome outcome, TimeSpan ttl, CancellationToken ct)
+    {
+        try
+        {
+            await _cache.SetAsync(key, RedisRecordCodec.Encode(outcome), ttl, ct).ConfigureAwait(false);
+        }
+        catch (Exception failure) when (RedisRunStateCache.IsAbsorbable(failure))
+        {
+            _failures.Increment();
+        }
+    }
 }
