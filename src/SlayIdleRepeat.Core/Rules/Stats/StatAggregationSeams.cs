@@ -1,6 +1,5 @@
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
-using SlayIdleRepeat.Core.Rules.Effects.Conditions;
 
 namespace SlayIdleRepeat.Core.Rules.Stats;
 
@@ -128,7 +127,7 @@ internal sealed record StatAggregationSeams(
 /// </para>
 /// <para>
 /// A <b>context-gated</b> effect — one whose condition reads the current target or the attacker
-/// (<see cref="Effects.Conditions.ConditionSubjects"/>) — is different: the conditional
+/// (<see cref="ConditionSubjects"/>) — is different: the conditional
 /// standing-effect bucket's rule gives it an authored answer outside a fight. It contributes only
 /// in a context carrying its subject, and this gate has none — so it is inactive here, which is
 /// what lets a hero screen compose a build wearing a damage-vs-Elites affix instead of throwing.

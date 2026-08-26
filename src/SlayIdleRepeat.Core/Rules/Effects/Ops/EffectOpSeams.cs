@@ -121,8 +121,17 @@ internal interface IAttackPipeline
     /// True for a self-inflicted cost (e.g. a cursed-perk drawback) — wards must not silently delete
     /// perk drawbacks. The op reads and reports this rather than the pipeline re-deriving it.
     /// </param>
+    /// <param name="source">
+    /// The casting actor, where the caller has one — it gates the receiver's DR reading (an
+    /// attacker-gated standing DR reduces a boss's percent ability exactly as it reduces its
+    /// swings) and changes nothing about the emitted <c>Hit</c>. Null where no caster exists.
+    /// </param>
     void DealMaxHpPctDamage(
-        IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId);
+        IEffectActorView target,
+        double amount,
+        bool bypassesWards,
+        string sourceEffectId,
+        IEffectActorView? source = null);
 
     /// <summary><c>Heal()</c>: <c>healed = min(amount × target.HEALPct, MaxHP − HP)</c>, overheal discarded unless an effect consumes it. Routes both <c>HEAL</c> and <c>HEAL_LEECH</c>.</summary>
     /// <param name="amount">The pre-HEAL% amount, rounded to 4 dp.</param>
@@ -338,7 +347,11 @@ internal sealed class UnwiredAttackPipeline : IAttackPipeline
 
     /// <inheritdoc />
     public void DealMaxHpPctDamage(
-        IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId) =>
+        IEffectActorView target,
+        double amount,
+        bool bypassesWards,
+        string sourceEffectId,
+        IEffectActorView? source = null) =>
         throw Unwired(sourceEffectId, nameof(DealMaxHpPctDamage), "05 §4.2's DAMAGE_MAXHP_PCT row");
 
     /// <inheritdoc />

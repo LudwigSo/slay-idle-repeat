@@ -235,6 +235,48 @@ public sealed class ContextGatedStandingEffectTests
             new[] { hero }.Concat(enemies),
             rules: CombatRules.PvE with { MaxTicks = 2 });
 
+    /// <summary>
+    /// Max-HP-percent damage carries its caster, so an attacker-gated standing DR reduces a boss's
+    /// or elite's percent ability exactly as it reduces their swings.
+    /// </summary>
+    /// <remarks>
+    /// 08 §3.2's sentence is "−15% damage taken from Elites/Bosses", unqualified — and a boss's
+    /// signature damage is exactly this op. Without the caster on the contract, the ability would
+    /// quietly bypass the shipped set bonus while the same boss's basic attack respected it.
+    /// </remarks>
+    [Theory]
+    [InlineData(true, 100.0 * (1.0 + DamageReduction))]
+    [InlineData(false, 100.0)]
+    public void Max_hp_percent_damage_is_gated_on_its_caster(bool elite, double expectedHit)
+    {
+        var percentAbility = new EffectDefinition
+        {
+            Id = "TEST_MAXHP_PCT_ABILITY",
+            Op = EffectOp.DAMAGE_MAXHP_PCT,
+            Trigger = new EffectTrigger { Kind = TriggerKind.ON_ATTACK },
+            Target = EffectTarget.CURRENT_TARGET,
+            Value = 0.10,
+        };
+
+        var enemy = BattleTestBench.Enemy(
+            0,
+            AttackPipelineBench.Stats(1_000_000.0),
+            effects: [new HeldEffect(percentAbility)]);
+
+        var hero = BattleTestBench.Hero(
+            AttackPipelineBench.Stats(1_000.0),
+            effects: [new HeldEffect(AttackerGatedReduction())]);
+
+        var result = CombatSimulator.Simulate(BattleTestBench.Plan(
+            [hero, elite ? enemy with { IsElite = true } : enemy],
+            rules: CombatRules.PvE with { MaxTicks = 1 }));
+
+        result.ValuesBy(CombatEventType.Hit, CombatActor.None).ShouldBe(
+            new[] { expectedHit },
+            "10% of the hero's 1000 Max HP is 100, and the defender's block for this damage is " +
+            "read against its caster — reduced inside the gate, full outside it");
+    }
+
     /// <summary>The control: an ungated reduction of the same magnitude reduces every hit.</summary>
     [Fact]
     public void An_ungated_reduction_still_reduces_a_hit_from_anyone()

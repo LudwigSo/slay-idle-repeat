@@ -664,12 +664,13 @@ internal sealed class DropsTuning
                     maximum,
                     ReadSlots(content, pointer + "/slots"),
 
-                    // The context gate the conditional standing-effect bucket rides on: authored
-                    // per row (the damage-vs-Elites affix is target-gated, the other thirteen are
-                    // ungated), and carried onto the synthesised effect untouched — which is what
-                    // keeps a gated affix a data row rather than a special case.
+                    // The context gate the bucket rides on, carried onto the synthesised effect
+                    // untouched. The damage-vs-Elites affix is target-gated; the other twelve are
+                    // ungated.
                     content.IsAuthorised(pointer + "/condition")
-                        ? ConditionContentReader.Read(content, pointer + "/condition", "an affix's condition")
+                        ? RequireContextGate(
+                            ConditionContentReader.Read(content, pointer + "/condition", "an affix's condition"),
+                            pointer + "/condition")
                         : null),
                 ReadMinimumRarity(content, pointer + "/minRarity"));
         }
@@ -724,6 +725,28 @@ internal sealed class DropsTuning
         }
 
         return (AuthoredToken.Parse<StatId>(content, statReference, "one of the stats"), op);
+    }
+
+    /// <summary>
+    /// A gear gate must read a contextual subject; an ambient one is refused where it is authored.
+    /// </summary>
+    /// <remarks>
+    /// An ambient condition on a standing gear grant would evaluate in battle and then throw out of
+    /// the strict aggregation the first time a hero screen composes the build -- so the pool refuses
+    /// it at load, exactly as the set-bonus reader does.
+    /// </remarks>
+    private static EffectCondition RequireContextGate(EffectCondition condition, string reference)
+    {
+        var subjects = ConditionSubjects.Of(condition);
+
+        return subjects.ReadsTarget || subjects.ReadsAttacker
+            ? condition
+            : throw new InvalidTunableException(
+                reference,
+                "The tree reads neither the current target nor the attacker, so it is not a " +
+                "context gate: an ambient condition on standing gear evaluates in battle and then " +
+                "throws out of the hero screen's strict aggregation. Gate gear on a contextual " +
+                "subject, or leave it ungated.");
     }
 
     private static IReadOnlyList<GearSlot> ReadSlots(ContentSnapshot content, string reference)

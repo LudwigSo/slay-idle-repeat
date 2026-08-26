@@ -429,6 +429,34 @@ public sealed class DropsTuningTests
         affix.Maximum.ShouldBe(0.2);
     }
 
+    /// <summary>An ambient-only gate on an affix is refused at load, not at the hero screen.</summary>
+    /// <remarks>
+    /// The bucket's gates read a contextual subject. An ambient condition on a standing affix would
+    /// evaluate in battle and then throw out of the strict aggregation the first time a hero screen
+    /// composes the build — so the pool refuses it where it is authored.
+    /// </remarks>
+    [Fact]
+    public void An_ambient_only_gate_on_an_affix_is_refused()
+    {
+        var gate = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["fn"] = ContentValue.Text("IS_PVP"),
+            ["op"] = ContentValue.Text("eq"),
+            ["value"] = ContentValue.False,
+        });
+
+        var pool = ContentValue.Array(
+            GearDocuments.ShippedAffixes
+                .Select(GearDocuments.AffixRow)
+                .Append(GearDocuments.AffixRow(new AuthoredAffix(
+                    "AFX_TEST_AMBIENT_GATE", "GOLD_PCT", "STAT_ADD_FLAT", 0.1m, 0.2m, ["RING"],
+                    null, gate))));
+
+        Should.Throw<InvalidTunableException>(
+                () => DropsTuning.Read(GearDocuments.With(affixes: pool)))
+            .Message.ShouldContain("reads neither the current target nor the attacker", Case.Sensitive);
+    }
+
     /// <summary>An affix the pool does not declare is refused.</summary>
     [Theory]
     [InlineData("AFX_NOT_AUTHORED")]

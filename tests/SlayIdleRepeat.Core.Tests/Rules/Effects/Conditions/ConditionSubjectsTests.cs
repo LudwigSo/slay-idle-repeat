@@ -1,7 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
-using SlayIdleRepeat.Core.Rules.Effects.Conditions;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Conditions;
@@ -119,7 +118,7 @@ public sealed class ConditionSubjectsTests
             CurrentTarget = hasTarget ? enemy : null,
         };
 
-        ConditionSubjects.CarriedBy(tree, context).ShouldBe(
+        context.Carries(ConditionSubjects.Of(tree)).ShouldBe(
             carried,
             "a target-reading tree waits for a context that names its target — ambient " +
             "re-aggregation carries none, an attack resolution carries one");
@@ -141,7 +140,7 @@ public sealed class ConditionSubjectsTests
             Attacker = hasAttacker ? enemy : null,
         };
 
-        ConditionSubjects.CarriedBy(tree, context).ShouldBe(carried);
+        context.Carries(ConditionSubjects.Of(tree)).ShouldBe(carried);
     }
 
     /// <summary>An ungated effect is carried by every context.</summary>
@@ -150,7 +149,7 @@ public sealed class ConditionSubjectsTests
     {
         var hero = EffectTestBattle.Hero();
 
-        ConditionSubjects.CarriedBy(null, EffectTestBattle.Context(hero, hero)).ShouldBeTrue();
+        EffectTestBattle.Context(hero, hero).Carries(ConditionSubjects.Of(null)).ShouldBeTrue();
     }
 
     /// <summary>An ambient tree is carried by a context with neither subject.</summary>
@@ -159,8 +158,8 @@ public sealed class ConditionSubjectsTests
     {
         var hero = EffectTestBattle.Hero();
 
-        ConditionSubjects.CarriedBy(
-                Term(ConditionFunction.SELF_HP_PCT), EffectTestBattle.Context(hero, hero))
+        EffectTestBattle.Context(hero, hero)
+            .Carries(ConditionSubjects.Of(Term(ConditionFunction.SELF_HP_PCT)))
             .ShouldBeTrue();
     }
 
@@ -184,7 +183,7 @@ public sealed class ConditionSubjectsTests
             Attacker = hasAttacker ? enemy : null,
         };
 
-        ConditionSubjects.CarriedBy(tree, context).ShouldBe(carried);
+        context.Carries(ConditionSubjects.Of(tree)).ShouldBe(carried);
     }
 
     /// <summary>

@@ -41,21 +41,44 @@ internal static class ConditionContentReader
         ArgumentNullException.ThrowIfNull(pointer);
         ArgumentNullException.ThrowIfNull(what);
 
+        var tree = ReadNode(content, pointer, what);
+
+        var subjects = ConditionSubjects.Of(tree);
+        if (subjects is { ReadsTarget: true, ReadsAttacker: true })
+        {
+            // The per-pair re-aggregation hands each side exactly one subject -- the source a
+            // target, the defender an attacker -- so a both-subject gate could never hold: the
+            // inverted-range shape, wearing a gate's clothes.
+            throw new InvalidTunableException(
+                pointer,
+                "The tree reads both the current target and the attacker, and no evaluation " +
+                "context of the standing bucket ever carries both -- the gate could never hold, so " +
+                "the effect it gates could never fire.");
+        }
+
+        return tree;
+    }
+
+    private static EffectCondition ReadNode(ContentSnapshot content, string pointer, string what)
+    {
         var node = content.Read(pointer);
 
         if (node.MemberNames.Contains("all", StringComparer.Ordinal))
         {
+            RequireOnlyKey(node, "all", pointer, what);
             return EffectCondition.All(ReadOperands(content, pointer + "/all", what));
         }
 
         if (node.MemberNames.Contains("any", StringComparer.Ordinal))
         {
+            RequireOnlyKey(node, "any", pointer, what);
             return EffectCondition.Any(ReadOperands(content, pointer + "/any", what));
         }
 
         if (node.MemberNames.Contains("not", StringComparer.Ordinal))
         {
-            return EffectCondition.Not(Read(content, pointer + "/not", what));
+            RequireOnlyKey(node, "not", pointer, what);
+            return EffectCondition.Not(ReadNode(content, pointer + "/not", what));
         }
 
         return EffectCondition.Of(ReadTerm(content, pointer, what));
@@ -68,7 +91,7 @@ internal static class ConditionContentReader
 
         for (var i = 0; i < read.Length; i++)
         {
-            read[i] = Read(content, pointer + "/" + AuthoredToken.Render(i), what);
+            read[i] = ReadNode(content, pointer + "/" + AuthoredToken.Render(i), what);
         }
 
         return read;
@@ -86,6 +109,19 @@ internal static class ConditionContentReader
         RequireKnownKeys(content, pointer, what);
 
         var value = content.Read(pointer + "/value");
+
+        // Refused at read time rather than left for the evaluator: the bucket moved a gated
+        // tree's first evaluation from the hero screen to the first pair context mid-fight, so a
+        // malformed value that used to fail at composition would fail out of an attack resolution.
+        if (value.Kind is not (ContentValueKind.Number or ContentValueKind.Boolean) &&
+            !(value.Kind == ContentValueKind.Array && value.Items.Count == 2))
+        {
+            throw new InvalidTunableException(
+                pointer + "/value",
+                "A comparison's value is a number, a boolean, or a two-element array (the 'between' " +
+                "form) — nothing else has an authored reading, and loading one anyway would defer " +
+                "the failure to the middle of a battle.");
+        }
 
         return new ConditionTerm
         {
@@ -119,12 +155,32 @@ internal static class ConditionContentReader
     {
         var authored = content.ReadText(pointer);
 
-        return AuthoredToken.TryParse<ConditionComparator>(authored.ToUpperInvariant(), out var parsed)
+        // The exact-lower-case check keeps the one-spelling-per-member rule the shared token
+        // reader enforces everywhere else: without it, upper-casing before the parse would let
+        // every casing of one member load.
+        return string.Equals(authored, authored.ToLowerInvariant(), StringComparison.Ordinal) &&
+               AuthoredToken.TryParse<ConditionComparator>(authored.ToUpperInvariant(), out var parsed)
             ? parsed
             : throw new InvalidTunableException(
                 pointer,
                 $"'{authored}' is not a comparator. The authored set is eq, neq, lt, lte, gt, gte, " +
                 "between — lower-case, unlike every other token in the DSL.");
+    }
+
+    /// <summary>Refuses a sibling key beside a combinator, which would otherwise be silently dropped.</summary>
+    private static void RequireOnlyKey(ContentValue node, string key, string pointer, string what)
+    {
+        foreach (var name in node.MemberNames)
+        {
+            if (!string.Equals(name, key, StringComparison.Ordinal))
+            {
+                throw new InvalidTunableException(
+                    pointer + "/" + name,
+                    $"'{name}' is a key this reader does not map beside '{key}', so authoring it " +
+                    $"would change nothing about the effect the game builds. A combinator node of " +
+                    $"{what} carries its one combinator key and nothing else.");
+            }
+        }
     }
 
     private static string? Word(ContentSnapshot content, string pointer) =>

@@ -69,10 +69,11 @@ internal sealed class AttackPipeline : IAttackPipeline
 
         // The conditional standing-effect bucket: each side's block is re-aggregated against the
         // OTHER party — the source with the defender as its current target, the defender with the
-        // attacker in context — so a target- or attacker-gated standing effect applies to exactly
-        // this pair. Both calls return the ambient block unchanged (the same instance) for an
-        // actor holding no context-gated standing effect, and every read of steps 1-10 goes
-        // through these two locals so one resolution cannot mix the two blocks.
+        // attacker in context — so a gated standing effect applies to exactly this pair. Both
+        // calls return the ambient block unchanged (the same instance) for an actor holding no
+        // context-gated standing effect. Every direct stat read of steps 1-10 goes through these
+        // two locals; the lifesteal's Heal() deliberately stays ambient (its HEAL_PCT, heal
+        // ceiling and Max HP are the recipient's pool-level facts, not this pair's).
         var sourceStats = _services.StatsAgainst(source, target, attacker: null).Final;
         var targetStats = _services.StatsAgainst(target, target: null, attacker: source).Final;
 
@@ -180,15 +181,25 @@ internal sealed class AttackPipeline : IAttackPipeline
     /// caller and never re-derived here.
     /// </remarks>
     public void DealMaxHpPctDamage(
-        IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId)
+        IEffectActorView target,
+        double amount,
+        bool bypassesWards,
+        string sourceEffectId,
+        IEffectActorView? source = null)
     {
         var actor = Actor(target);
 
         RequireFinite(amount, sourceEffectId, "max-HP-percent damage");
 
-        // No attacker in this contract, so the receiver's block is the ambient one: an
-        // attacker-gated standing DR has no subject to hold against here.
-        var dmg = IncomingDamage(StatRounding.Round(Math.Max(0.0, amount)), actor, actor.Stats);
+        // The receiver's block is read against the caster where one is named — a boss's percent
+        // ability is damage "from Elites/Bosses" exactly as its swings are — and stays ambient for
+        // the callers that have none (a DoT tick). The Hit still carries no source: the caster
+        // gates the DR reading, it does not change the log encoding.
+        var defenderStats = source is null
+            ? actor.Stats
+            : _services.StatsAgainst(actor, target: null, attacker: Actor(source)).Final;
+
+        var dmg = IncomingDamage(StatRounding.Round(Math.Max(0.0, amount)), actor, defenderStats);
 
         ApplyToHp(actor, dmg, absorbedByWards: !bypassesWards, CombatActor.None);
     }

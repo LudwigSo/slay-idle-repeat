@@ -270,7 +270,11 @@ internal class RecordingStatusPipeline : IAttackPipeline
 
     /// <inheritdoc />
     public void DealMaxHpPctDamage(
-        IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId)
+        IEffectActorView target,
+        double amount,
+        bool bypassesWards,
+        string sourceEffectId,
+        IEffectActorView? source = null)
     {
         var actor = (BattleActor)target;
         Dots.Add((_services.Tick, actor.Id, amount, bypassesWards, sourceEffectId));

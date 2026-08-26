@@ -1,7 +1,6 @@
 using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
-using SlayIdleRepeat.Core.Rules.Effects.Conditions;
 using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Rules.Combat;
@@ -87,6 +86,9 @@ internal sealed class BattleActor : IEffectActorView
             // default says so — and reading only the absent half is not a narrower rule but a silent
             // one: every gear stat, affix and set bonus is synthesised with an explicit ALWAYS, so
             // that half of the loadout reached the aggregation pass and none of it reached a fight.
+            var subjects = ConditionSubjects.Of(held.Effect.Condition);
+            var contextGated = subjects.ReadsTarget || subjects.ReadsAttacker;
+
             if (EffectDefaults.IsAlwaysActive(held.Effect))
             {
                 standing.Add(held.Effect);
@@ -95,18 +97,21 @@ internal sealed class BattleActor : IEffectActorView
                 // a target- or attacker-reading gate can make an attack's per-pair re-aggregation
                 // differ from the ambient one, so the pair pass is skipped for every actor without
                 // one. Stat family only, because aggregation reads nothing else.
-                var subjects = ConditionSubjects.Of(held.Effect.Condition);
                 HoldsContextGatedStanding |=
-                    held.Effect.Family == EffectOpFamily.STAT &&
-                    (subjects.ReadsTarget || subjects.ReadsAttacker);
+                    held.Effect.Family == EffectOpFamily.STAT && contextGated;
             }
             else if (held.Effect.Trigger!.Kind == TriggerKind.PERIODIC)
             {
                 HoldsAPeriodic = true;
             }
 
+            // A context-gated condition is constant-inactive in every ambient context (its subject
+            // is never present there), so it cannot make the per-tick answer change — only an
+            // ambient condition or a value scale can, and re-aggregating nine actors 1800 times
+            // for a constant answer was the whole of the fight's time budget.
             StatsDependOnLiveState |=
-                held.Effect.Condition is not null || held.Effect.ValueScale is not null;
+                (held.Effect.Condition is not null && !contextGated) ||
+                held.Effect.ValueScale is not null;
         }
 
         StandingEffects = standing;

@@ -91,8 +91,10 @@ public sealed class HeroBuild
     /// <para>
     /// 🔴 <b>Computed on first read, not in the constructor, and that is a correctness fix rather
     /// than an optimisation.</b> The aggregation runs under
-    /// <see cref="StatAggregationSeams.Strict"/>, whose condition gate REFUSES an effect carrying a
-    /// condition — deliberately, because evaluating one needs the live fight. A fight does not need
+    /// <see cref="StatAggregationSeams.Strict"/>, whose condition gate REFUSES an effect carrying an
+    /// ambient condition — deliberately, because evaluating one needs the live fight. (A
+    /// context-gated effect is merely inactive there since D47's standing bucket; the refusal below
+    /// is the ambient conditions'.) A fight does not need
     /// this block at all: <c>RunBattle</c> is handed <see cref="BaseStats"/> and
     /// <see cref="Collected"/> and re-aggregates every pass with a gate of its own. So while this
     /// was computed eagerly, <b>drafting any perk with a conditional effect made every later command

@@ -1438,7 +1438,7 @@ internal sealed class BattleSimulation
         internal BattleConditionGate(EffectEvaluationContext context) => _context = context;
 
         public bool IsActive(EffectDefinition effect) =>
-            ConditionSubjects.CarriedBy(effect.Condition, _context) &&
+            _context.Carries(ConditionSubjects.Of(effect.Condition)) &&
             ConditionEvaluator.IsSatisfied(effect.Condition, _context);
     }
 

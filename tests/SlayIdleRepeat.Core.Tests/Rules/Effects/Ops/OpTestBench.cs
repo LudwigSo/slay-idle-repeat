@@ -162,7 +162,11 @@ internal sealed class OpTestBench
             bench.Record(nameof(DealTrueDamage), target.Id, amount, sourceEffectId);
 
         public void DealMaxHpPctDamage(
-            IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId)
+            IEffectActorView target,
+            double amount,
+            bool bypassesWards,
+            string sourceEffectId,
+            IEffectActorView? source = null)
         {
             bench.WardBypasses.Add(bypassesWards);
             bench.Record(nameof(DealMaxHpPctDamage), target.Id, amount, sourceEffectId);
