@@ -100,7 +100,7 @@
             "BLOCK": { "description": "05 §6.0 — BLOCK = 0.00.", "$ref": "#/$defs/ratio01" },
             "PEN": { "description": "05 §6.0 — PEN = 0.00.", "$ref": "#/$defs/ratio01" },
             "DMG_PCT": { "description": "05 §6.0 / 16 D46 — DMG% = 1.00, the bare multiplier's identity.", "$ref": "#/$defs/coefficient" },
-            "DR_PCT": { "description": "05 §6.0 / 16 D46 — DR% = 1.00, the damage-taken multiplier's identity.", "$ref": "#/$defs/ratio01" },
+            "DR_PCT": { "description": "05 §6.0 / 16 D46 — DR% = 1.00, the damage-taken multiplier's identity. Typed coefficient like DMG_PCT and HEAL_PCT: a bare multiplier is not a 0..1 ratio, and its shipped identity sits at ratio01's edge only by luck.", "$ref": "#/$defs/coefficient" },
             "HEAL_PCT": { "description": "05 §6.0 — HEAL% = 1.00.", "$ref": "#/$defs/coefficient" },
             "THORNS": { "description": "05 §6.0 — THORN = 0.00.", "$ref": "#/$defs/coefficient" }
           }
