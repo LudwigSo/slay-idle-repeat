@@ -124,9 +124,11 @@ public sealed class EffectOpValidationTests
     [InlineData(EffectOp.HEAL_LEECH, ValueMode.ATK_MULT)]
     [InlineData(EffectOp.DAMAGE, ValueMode.FLAT)]
     [InlineData(EffectOp.REFLECT, ValueMode.SELF_MAXHP_PCT)]
-    // NEGATE is SURVIVE_LETHAL's alone (16 D49) — the amount ops refuse it.
+    // NEGATE is SURVIVE_LETHAL's alone (16 D49) — the amount ops refuse it, and so must
+    // STAT_SET, the one op that admits the key without an OpValueRules row.
     [InlineData(EffectOp.HEAL, ValueMode.NEGATE)]
     [InlineData(EffectOp.SHIELD, ValueMode.NEGATE)]
+    [InlineData(EffectOp.STAT_SET, ValueMode.NEGATE)]
     public void A_value_mode_the_op_does_not_admit_is_a_problem(EffectOp op, ValueMode mode)
     {
         EffectOpValidation.Problems(Minimal(op) with { ValueMode = mode })
@@ -143,18 +145,22 @@ public sealed class EffectOpValidationTests
     }
 
     /// <summary>
-    /// The other half of the shape: under NEGATE a <c>value</c> (or a scale for one) is a
-    /// misreading — "negate at 250?" — and is refused rather than ignored, the FORCE_CRIT_NEXT
-    /// precedent.
+    /// The other half of the shape: under NEGATE a <c>value</c> is a misreading — "negate at
+    /// 250?" — and is refused rather than ignored, the FORCE_CRIT_NEXT precedent.
     /// </summary>
     [Fact]
-    public void A_NEGATE_SURVIVE_LETHAL_carrying_a_value_or_a_scale_is_a_problem()
+    public void A_NEGATE_SURVIVE_LETHAL_carrying_a_value_is_a_problem()
     {
         EffectOpValidation.Problems(Minimal(EffectOp.SURVIVE_LETHAL) with { ValueMode = ValueMode.NEGATE })
             .ShouldContain(p =>
                 p.Contains("NEGATE", StringComparison.Ordinal) &&
                 p.Contains("carries a value", StringComparison.Ordinal));
+    }
 
+    /// <summary>A scale for the value it does not have is the same misreading.</summary>
+    [Fact]
+    public void A_NEGATE_SURVIVE_LETHAL_carrying_a_valueScale_is_a_problem()
+    {
         EffectOpValidation.Problems(Minimal(EffectOp.SURVIVE_LETHAL) with
             {
                 ValueMode = ValueMode.NEGATE,

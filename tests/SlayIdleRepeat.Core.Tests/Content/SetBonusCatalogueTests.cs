@@ -50,6 +50,7 @@ public sealed class SetBonusCatalogueTests
 
         rows.Count.ShouldBe(3);
         rows[0].Effects.ShouldNotBeNull("Bloodmoon's two-piece is +10% Lifesteal");
+        rows[1].Effects.ShouldNotBeNull("its four-piece heals on kill");
         rows[2].Effects.ShouldBeNull("its six-piece needs pets, which do not exist");
     }
 

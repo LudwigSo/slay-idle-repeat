@@ -6,14 +6,14 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Values;
 
-/// <summary>The eight <c>valueMode</c>s: what an effect's <c>value</c> is a multiple of.</summary>
+/// <summary>The eight amount <c>valueMode</c>s — what an effect's <c>value</c> is a multiple of — plus <c>NEGATE</c>, which denotes no amount at all.</summary>
 /// <remarks>
 /// This evaluator owns the value; each op owns its use of the result. So every case here is stated as
 /// "this mode over these subjects is this number", never as "this op deals this damage".
 /// </remarks>
 public sealed class ValueModeEvaluatorTests
 {
-    // ───────────────────────────────────────────────────────────── the eight modes
+    // ───────────────────────────────────────────────────────── the eight amount modes
 
     /// <summary><c>value</c> is a multiple of the source's ATK — the default.</summary>
     [Fact]

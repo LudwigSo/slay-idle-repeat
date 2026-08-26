@@ -178,7 +178,10 @@ public sealed class DeathSaveTests
             });
 
         probe.EventsOf(CombatEventType.ActorDeath).ShouldBeEmpty();
-        probe.EventsOf(CombatEventType.Hit).Last().Value.ShouldBe(
+
+        var hits = probe.EventsOf(CombatEventType.Hit);
+        hits.Count.ShouldBe(2, "the chip and the voided blow — a swing with no event would draw as a miss");
+        hits.Last().Value.ShouldBe(
             0.0, "nothing came off HP, and the Hit event says so rather than reporting the lethal amount");
     }
 
@@ -189,9 +192,10 @@ public sealed class DeathSaveTests
             new[] { NegateLethal("SET_BONUS_HEAVY_6") },
             p =>
             {
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, 100.0, bypassesWards: true, "EFF_CHIP");
                 p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_1");
 
-                p.Hero.CurrentHp.ShouldBe(MaxHp, "the first lethal hit is the once-per-battle negate");
+                p.Hero.CurrentHp.ShouldBe(900.0, "the first lethal hit is the once-per-battle negate");
                 p.Hero.IsAlive.ShouldBeTrue();
 
                 p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_2");
