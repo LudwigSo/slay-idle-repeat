@@ -266,7 +266,9 @@ public sealed class GearDocumentsMatchesTuningDataTests
         { 6, "AFX_DODGE", 0.02, 0.08, ["BOOTS", "AMULET"], null },
         { 7, "AFX_BLOCK", 0.03, 0.12, ["ARMOR", "HELMET"], null },
         { 8, "AFX_LIFESTEAL", 0.02, 0.09, ["AMULET", "WEAPON"], null },
-        { 9, "AFX_DAMAGE_REDUCTION", 0.02, 0.08, ["ARMOR", "AMULET"], null },
+        // D46 re-sign: a flat add onto the 1.0 damage-taken multiplier, so "2 to 8 points
+        // less damage taken" authors as a negative range.
+        { 9, "AFX_DAMAGE_REDUCTION", -0.08, -0.02, ["ARMOR", "AMULET"], null },
         { 10, "AFX_GOLD_GAIN", 0.08, 0.3, ["RING", "AMULET"], null },
         { 11, "AFX_PET_AURA_POWER", 0.05, 0.2, ["AMULET", "RING"], null },
         { 12, "AFX_DAMAGE_VS_ELITES", 0.08, 0.25, ["WEAPON", "RING"], null },

@@ -187,7 +187,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData("BOSS_OSSUARY_KING_P1_COURT", 2.0, null, "§4: 'summons 2 GRUNT skeletons'")]
     [InlineData("BOSS_OSSUARY_KING_P1_RECALL", 2.0, 15.0, "§4: 'PERIODIC 15s — resummons any dead ones'")]
     [InlineData("BOSS_OSSUARY_KING_P2_OSSIFY_WARD", 0.20, 14.0, "§4: 'PERIODIC 14s — a WARD equal to 20% of its Max HP'")]
-    [InlineData("BOSS_OSSUARY_KING_P2_OSSIFY_DR", 0.30, 14.0, "§4: 'and DR% +30% until the ward breaks or 6 s pass'")]
+    [InlineData("BOSS_OSSUARY_KING_P2_OSSIFY_DR", -0.30, 14.0, "§4: 'and DR% +30% until the ward breaks or 6 s pass' (16 D46: re-signed — −0.30 on the damage-taken multiplier IS +30% reduction)")]
     [InlineData("BOSS_OSSUARY_KING_P3_RISE_AGAIN", 0.25, null, "§4: 'boss returns to 25% HP'")]
     [InlineData("BOSS_OSSUARY_KING_P3_RISEN_ATK", 0.40, null, "§4: 'ATK +40%'")]
     [InlineData("BOSS_OSSUARY_KING_P3_RISEN_ASPD", 0.25, null, "§4: 'ASPD +25%'")]
@@ -198,7 +198,7 @@ public sealed class AuthoredBossScriptTests
     // never fired. No number is authored for "refreshes all BURN stacks", so 3.0 is read from
     // SMOULDER_BURN's own per-application BURN duration two rows up.
     [InlineData("BOSS_CINDERMAW_P2_VENT_REFRESH", 3.00, 9.0, "§5: 'and refreshes all BURN stacks' (M2-R3: matches SMOULDER_BURN's own 3 s)")]
-    [InlineData("BOSS_CINDERMAW_P2_ERUPTION_DR", 0.20, null, "§5: 'boss DR% +20%'")]
+    [InlineData("BOSS_CINDERMAW_P2_ERUPTION_DR", -0.20, null, "§5: 'boss DR% +20%' (16 D46: re-signed — −0.20 on the damage-taken multiplier IS +20% reduction)")]
     [InlineData("BOSS_CINDERMAW_P3_MAGMA_VENT", 1.80, 7.0, "§5: 'PERIODIC 7s — Magma Vent continues'")]
     [InlineData("BOSS_CINDERMAW_P3_VENT_REFRESH", 3.00, 7.0, "§5: 'refreshes all BURN stacks' (M2-R3, phase 3's copy of the same fix)")]
     [InlineData("BOSS_CINDERMAW_P3_OVERHEAT_ATK", 0.60, null, "§5: 'Overheat: boss ATK +60%'")]

@@ -154,7 +154,10 @@ public sealed class ScalingAndPowerTests
         var baseline = PowerCalculator.Dps(PowerBlock((StatId.DMG_PCT, 1.0)), 10, ShippedHarness.Content);
         var boosted = PowerCalculator.Dps(PowerBlock((StatId.DMG_PCT, 1.15)), 10, ShippedHarness.Content);
 
-        (boosted / baseline).ShouldBe(1.15, tolerance: 1e-6);
+        // 1e-4, not 1e-6: the 4-dp rounding at each accumulation point leaves ~1e-6 of
+        // noise on the ratio itself (the additive reading lands at 1.0750011, not 1.075),
+        // and the two readings are 0.075 apart — 1e-4 keeps the row discriminating.
+        (boosted / baseline).ShouldBe(1.15, tolerance: 1e-4);
     }
 
     /// <summary>

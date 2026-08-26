@@ -32,11 +32,13 @@ public sealed class StatCapsTests
     /// <summary>
     /// Deliberately no floor: capping is one-directional, and inventing a lower clamp would be an
     /// unauthorised rule. Recorded as a case so the absence is a decision, not an oversight.
+    /// (`16` D46 authors a floor for <c>DR_PCT</c> alone, as content at aggregation step 9 — the
+    /// cap table itself still floors nothing, so the examples here are stats with no floor.)
     /// </summary>
     [Fact]
     public void A_negative_value_is_not_clamped_because_05_authorises_no_floor()
     {
-        StatFixtures.Caps().Apply(StatId.DR_PCT, -0.25).ShouldBe(-0.25);
+        StatFixtures.Caps().Apply(StatId.BLOCK, -0.25).ShouldBe(-0.25);
         StatFixtures.Caps().Apply(StatId.CRIT, -1.0).ShouldBe(-1.0);
     }
 
