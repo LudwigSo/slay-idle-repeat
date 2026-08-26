@@ -27,7 +27,13 @@ public sealed class RedisVolatileByteCache : IVolatileByteCache, IDisposable
                 nameof(configuration));
         }
 
-        return new RedisVolatileByteCache(ConnectionMultiplexer.Connect(configuration));
+        var options = ConfigurationOptions.Parse(configuration);
+
+        // A dead cache is latency, never an outage: without this, a Redis that is down at boot
+        // throws out of Connect and the whole API refuses to start over a rebuildable cache.
+        options.AbortOnConnectFail = false;
+
+        return new RedisVolatileByteCache(ConnectionMultiplexer.Connect(options));
     }
 
     /// <inheritdoc/>

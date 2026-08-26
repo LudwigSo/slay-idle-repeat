@@ -22,10 +22,13 @@ public static class BattleLogCompression
 
     /// <summary>The log's bytes back from storage.</summary>
     /// <param name="stored">Bytes previously produced by <see cref="Compress"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="stored"/> is null.</exception>
     /// <exception cref="InvalidDataException">The bytes are not gzip — a corrupt object, refused loudly rather than replayed as garbage.</exception>
-    public static byte[] Decompress(ReadOnlyMemory<byte> stored)
+    public static byte[] Decompress(byte[] stored)
     {
-        using var source = new MemoryStream(stored.ToArray(), writable: false);
+        ArgumentNullException.ThrowIfNull(stored);
+
+        using var source = new MemoryStream(stored, writable: false);
         using var gzip = new GZipStream(source, CompressionMode.Decompress);
         using var log = new MemoryStream();
 

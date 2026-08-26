@@ -76,16 +76,23 @@ public sealed class S3BattleLogStore : IBattleLogStore, IDisposable
 
         using var body = new MemoryStream(BattleLogCompression.Compress(log), writable: false);
 
-        await _client.PutObjectAsync(
-                new PutObjectRequest
-                {
-                    BucketName = _bucket,
-                    Key = name,
-                    InputStream = body,
-                    AutoCloseStream = false,
-                },
-                ct)
-            .ConfigureAwait(false);
+        try
+        {
+            await _client.PutObjectAsync(
+                    new PutObjectRequest
+                    {
+                        BucketName = _bucket,
+                        Key = name,
+                        InputStream = body,
+                        AutoCloseStream = false,
+                    },
+                    ct)
+                .ConfigureAwait(false);
+        }
+        catch (AmazonClientException vendor)
+        {
+            throw Unreachable(vendor);
+        }
     }
 
     /// <inheritdoc/>
@@ -105,13 +112,28 @@ public sealed class S3BattleLogStore : IBattleLogStore, IDisposable
 
             return BattleLogCompression.Decompress(stored.ToArray());
         }
-        catch (AmazonS3Exception missing) when (missing.StatusCode == HttpStatusCode.NotFound)
+        catch (AmazonS3Exception missing) when (
+            missing.StatusCode == HttpStatusCode.NotFound &&
+            missing.ErrorCode is "NoSuchKey" or "NotFound")
         {
-            // A vendor fault translated at the edge: an absent object is the port's null, never an
-            // exception the application would have to know the vendor to catch.
+            // A vendor fault translated at the edge: an absent OBJECT is the port's null. A missing
+            // BUCKET is also a 404 but is a broken deployment, and answering "no logs exist" for it
+            // would hide the misconfiguration forever — it falls through to the loud translation.
             return null;
         }
+        catch (AmazonClientException vendor)
+        {
+            throw Unreachable(vendor);
+        }
     }
+
+    /// <summary>Every non-absence vendor fault, translated: the application catches a BCL type, never the vendor's.</summary>
+    private static InvalidOperationException Unreachable(AmazonClientException vendor) =>
+        new(
+            "The battle-log store did not take the call: " + vendor.Message + ". A replay that " +
+            "cannot be read is a replay that cannot be offered — battle-log trouble never fails " +
+            "a command.",
+            vendor);
 
     /// <inheritdoc/>
     public void Dispose() => _client.Dispose();

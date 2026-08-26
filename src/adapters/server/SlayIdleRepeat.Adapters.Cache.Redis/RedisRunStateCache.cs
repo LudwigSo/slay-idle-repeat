@@ -16,14 +16,14 @@ public sealed class RedisRunStateCache : IRunStateStore
 {
     private readonly IVolatileByteCache _cache;
     private readonly IRunStateStore _inner;
-    private readonly CacheWriteFailureCounter _failures;
+    private readonly CacheFailureCounter _failures;
 
     /// <summary>Builds the cache layer over the authoritative store.</summary>
     /// <param name="cache">The volatile byte surface.</param>
     /// <param name="inner">The authoritative store underneath.</param>
     /// <param name="failures">Where absorbed cache failures are counted.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
-    public RedisRunStateCache(IVolatileByteCache cache, IRunStateStore inner, CacheWriteFailureCounter failures)
+    public RedisRunStateCache(IVolatileByteCache cache, IRunStateStore inner, CacheFailureCounter failures)
     {
         ArgumentNullException.ThrowIfNull(cache);
         ArgumentNullException.ThrowIfNull(inner);

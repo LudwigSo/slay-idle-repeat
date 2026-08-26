@@ -32,7 +32,7 @@ namespace SlayIdleRepeat.Server.Composition;
 /// rule.
 /// </para>
 /// </remarks>
-public sealed class PersistenceComposition
+public sealed class PersistenceComposition : IAsyncDisposable
 {
     private static readonly object InitializationGate = new();
     private static PersistenceComposition? _shared;
@@ -40,53 +40,66 @@ public sealed class PersistenceComposition
     /// <summary>How many battle logs may wait for the drain. A server-operations constant, not a game tunable: at one log per battle, 1024 is minutes of full outage before the first loss.</summary>
     private const int BattleLogQueueCapacity = 1024;
 
+    private readonly RedisVolatileByteCache? _redisCache;
+    private readonly S3BattleLogStore? _s3Store;
+
     private PersistenceComposition(IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("Postgres");
         var runTtl = TimeSpan.FromHours(configuration.GetValue("Cache:RunStateTtlHours", 48));
 
-        if (string.IsNullOrWhiteSpace(connectionString))
+        try
         {
-            WorldRows = new PlaceholderVolatileWorldStore();
-            Ledger = new VolatileCommandLedger();
-        }
-        else
-        {
-            Postgres = PostgresPersistence.Create(connectionString, runTtl);
-
-            var redisConfiguration = configuration.GetConnectionString("Redis");
-            IRunStateStore runs = Postgres.RunStates;
-            IIdempotencyStore idempotency = Postgres.Idempotency;
-
-            if (!string.IsNullOrWhiteSpace(redisConfiguration))
+            if (string.IsNullOrWhiteSpace(connectionString))
             {
-                var cache = RedisVolatileByteCache.Connect(redisConfiguration);
-                CacheFailures = new CacheWriteFailureCounter();
-                runs = new RedisRunStateCache(cache, runs, CacheFailures);
-                idempotency = new RedisIdempotencyCache(cache, idempotency, CacheFailures);
+                WorldRows = new PlaceholderVolatileWorldStore();
+                Ledger = new VolatileCommandLedger();
+            }
+            else
+            {
+                Postgres = PostgresPersistence.Create(connectionString, runTtl);
+
+                var redisConfiguration = configuration.GetConnectionString("Redis");
+                IRunStateStore runs = Postgres.RunStates;
+                IIdempotencyStore idempotency = Postgres.Idempotency;
+
+                if (!string.IsNullOrWhiteSpace(redisConfiguration))
+                {
+                    _redisCache = RedisVolatileByteCache.Connect(redisConfiguration);
+                    CacheFailures = new CacheFailureCounter();
+                    runs = new RedisRunStateCache(_redisCache, runs, CacheFailures);
+                    idempotency = new RedisIdempotencyCache(_redisCache, idempotency, CacheFailures);
+                }
+
+                Players = Postgres.Players;
+                RunStates = runs;
+                Idempotency = idempotency;
+                WorldRows = new RepositoryWorldRows(Postgres.Players, runs, runTtl);
+                Ledger = new DurableCommandLedger(idempotency, runTtl);
             }
 
-            Players = Postgres.Players;
-            RunStates = runs;
-            Idempotency = idempotency;
-            WorldRows = new RepositoryWorldRows(Postgres.Players, runs, runTtl);
-            Ledger = new DurableCommandLedger(idempotency, runTtl);
-        }
-
-        if (configuration["ObjectStore:ServiceUrl"] is { Length: > 0 } serviceUrl)
-        {
-            BattleLogLosses = new BattleLogLossCounter();
-            BattleLogQueue = new QueuedBattleLogStore(
-                S3BattleLogStore.Create(new S3ObjectStoreOptions(
+            if (configuration["ObjectStore:ServiceUrl"] is { Length: > 0 } serviceUrl)
+            {
+                BattleLogLosses = new BattleLogLossCounter();
+                _s3Store = S3BattleLogStore.Create(new S3ObjectStoreOptions(
                     serviceUrl,
                     configuration["ObjectStore:Region"] ?? "us-east-1",
                     configuration.GetValue("ObjectStore:ForcePathStyle", false),
                     configuration["ObjectStore:AccessKey"] ?? string.Empty,
                     configuration["ObjectStore:SecretKey"] ?? string.Empty,
-                    configuration["ObjectStore:BattleLogBucket"] ?? string.Empty)),
-                BattleLogQueueCapacity,
-                BattleLogLosses);
-            BattleLogs = BattleLogQueue;
+                    configuration["ObjectStore:BattleLogBucket"] ?? string.Empty));
+                BattleLogQueue = new QueuedBattleLogStore(_s3Store, BattleLogQueueCapacity, BattleLogLosses);
+                BattleLogs = BattleLogQueue;
+            }
+        }
+        catch
+        {
+            // A failed build is retried, never cached — so whatever this attempt already opened
+            // must close now, or every retry leaks another connection pool.
+            _redisCache?.Dispose();
+            _s3Store?.Dispose();
+            Postgres?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            throw;
         }
     }
 
@@ -109,7 +122,7 @@ public sealed class PersistenceComposition
     public IBattleLogStore? BattleLogs { get; }
 
     /// <summary>Absorbed cache-failure count, when the cache layer exists.</summary>
-    public CacheWriteFailureCounter? CacheFailures { get; }
+    public CacheFailureCounter? CacheFailures { get; }
 
     /// <summary>Dropped battle-log count, when the store exists.</summary>
     public BattleLogLossCounter? BattleLogLosses { get; }
@@ -135,6 +148,26 @@ public sealed class PersistenceComposition
         lock (InitializationGate)
         {
             return _shared ??= new PersistenceComposition(configuration);
+        }
+    }
+
+    /// <summary>Closes everything this composition opened. The lifecycle calls it at host shutdown, after the drain has stopped.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        _redisCache?.Dispose();
+        _s3Store?.Dispose();
+
+        if (Postgres is { } postgres)
+        {
+            await postgres.DisposeAsync().ConfigureAwait(false);
+        }
+
+        lock (InitializationGate)
+        {
+            if (ReferenceEquals(_shared, this))
+            {
+                _shared = null;
+            }
         }
     }
 }

@@ -531,13 +531,21 @@ public sealed class PostgresEconomyEventLog
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(records);
 
+        if (records.Count == 0)
+        {
+            return;
+        }
+
+        // One round-trip for the whole command's list: the appends ride inside the commit
+        // transaction, and a per-event round-trip would stretch it for nothing.
+        await using var batch = new NpgsqlBatch(connection, transaction);
+
         foreach (var record in records)
         {
-            await using var insert = new NpgsqlCommand(
+            var insert = new NpgsqlBatchCommand(
                 "INSERT INTO economy_events " +
                 "(player_id, run_id, command_id, sequence, occurred_at_utc, event_type, payload) " +
-                "VALUES (@player, @run, @command, @sequence, @occurred, @type, @payload);",
-                connection, transaction);
+                "VALUES (@player, @run, @command, @sequence, @occurred, @type, @payload);");
 
             insert.Parameters.AddWithValue("player", record.Player.Value);
             insert.Parameters.AddWithValue("run", (object?)record.Run?.Value ?? DBNull.Value);
@@ -547,8 +555,10 @@ public sealed class PostgresEconomyEventLog
             insert.Parameters.AddWithValue("type", record.EventType);
             insert.Parameters.Add(PostgresRows.JsonbOf("payload", record.PayloadJson));
 
-            await insert.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            batch.BatchCommands.Add(insert);
         }
+
+        await batch.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 }
 

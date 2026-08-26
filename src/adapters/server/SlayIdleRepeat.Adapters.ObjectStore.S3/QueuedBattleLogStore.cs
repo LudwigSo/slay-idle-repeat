@@ -105,7 +105,7 @@ public sealed class QueuedBattleLogStore : IBattleLogStore
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // The stop signal: whatever is still queued is process-lifetime state, and losing it on
             // shutdown is the same accounting as a full queue.
@@ -124,8 +124,12 @@ public sealed class QueuedBattleLogStore : IBattleLogStore
 
             return true;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            // Only the caller's own stop signal ends the drain. A foreign cancellation — an SDK's
+            // client-side timeout arrives as TaskCanceledException with OUR token untouched — is an
+            // ordinary failed upload, or one hiccup would kill the loop and drop every later log
+            // for the life of the process.
             _losses.Increment();
             throw;
         }

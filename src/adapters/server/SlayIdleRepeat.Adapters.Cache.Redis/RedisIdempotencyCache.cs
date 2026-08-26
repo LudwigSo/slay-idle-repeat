@@ -15,14 +15,14 @@ public sealed class RedisIdempotencyCache : IIdempotencyStore
 {
     private readonly IVolatileByteCache _cache;
     private readonly IIdempotencyStore _inner;
-    private readonly CacheWriteFailureCounter _failures;
+    private readonly CacheFailureCounter _failures;
 
     /// <summary>Builds the cache layer over the authoritative store.</summary>
     /// <param name="cache">The volatile byte surface.</param>
     /// <param name="inner">The authoritative store underneath.</param>
     /// <param name="failures">Where absorbed cache failures are counted.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
-    public RedisIdempotencyCache(IVolatileByteCache cache, IIdempotencyStore inner, CacheWriteFailureCounter failures)
+    public RedisIdempotencyCache(IVolatileByteCache cache, IIdempotencyStore inner, CacheFailureCounter failures)
     {
         ArgumentNullException.ThrowIfNull(cache);
         ArgumentNullException.ThrowIfNull(inner);
@@ -75,7 +75,12 @@ public sealed class RedisIdempotencyCache : IIdempotencyStore
         // bytes that can never change.
         await _inner.RecordAsync(scope, outcome, ttl, ct).ConfigureAwait(false);
 
-        await TrySetAsync(RedisKeys.ForRecord(scope, outcome.CommandId), outcome, ttl, ct).ConfigureAwait(false);
+        // A run record's bytes never change but its EXISTENCE follows the run row, which can end
+        // early — so its cache entry never promises longer than the short window, or a cache-on
+        // process would replay a record its authority already answers null for.
+        var cacheTtl = scope.Kind == IdempotencyScopeKind.Run ? RepopulateTtl : ttl;
+
+        await TrySetAsync(RedisKeys.ForRecord(scope, outcome.CommandId), outcome, cacheTtl, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>

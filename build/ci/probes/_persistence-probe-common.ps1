@@ -68,10 +68,12 @@ function Send-PlayerCommand {
 
     # Raw bytes matter: the idempotency guarantee is a BYTE-identical replay, so the probes compare
     # response bodies as strings, never re-parsed objects.
+    # -SkipHttpErrorCheck: without it pwsh throws on any non-2xx BEFORE the explicit status check
+    # below, replacing its diagnostic with a generic terminating error.
     $response = Invoke-WebRequest -Uri "$script:ApiBaseUrl/player/command" -Method Post `
         -Headers @{ Authorization = "Bearer $PlayerId" } `
         -ContentType 'application/json; charset=utf-8' `
-        -Body $envelope -TimeoutSec 30
+        -Body $envelope -TimeoutSec 30 -SkipHttpErrorCheck
 
     if ($response.StatusCode -ne 200) {
         throw "POST /player/command answered $($response.StatusCode) — the envelope should be an in-protocol 200 conversation."

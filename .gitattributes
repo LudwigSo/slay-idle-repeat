@@ -21,6 +21,8 @@
 # ---------------------------------------------------------- container inputs
 # Executed or parsed inside a Linux container: LF, always, everywhere.
 *.sh              text eol=lf
+# Migration files are checksummed into meta.migrations; pinned so every checkout embeds one text.
+*.sql             text eol=lf
 infra/**          text eol=lf
 docker-compose.yml     text eol=lf
 docker-compose.*.yml   text eol=lf

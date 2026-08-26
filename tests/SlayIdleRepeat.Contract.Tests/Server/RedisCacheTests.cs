@@ -104,11 +104,11 @@ public sealed class RedisRunStateCacheTests
     private static readonly TimeSpan Ttl = TimeSpan.FromHours(48);
 
     private static (RedisRunStateCache Cache, ScriptedByteCache Bytes, IRunStateStore Inner,
-        CacheWriteFailureCounter Failures) Build()
+        CacheFailureCounter Failures) Build()
     {
         var bytes = new ScriptedByteCache();
         var inner = new InMemoryRunStateStore(new AdjustableClock());
-        var failures = new CacheWriteFailureCounter();
+        var failures = new CacheFailureCounter();
 
         return (new RedisRunStateCache(bytes, inner, failures), bytes, inner, failures);
     }
@@ -137,7 +137,7 @@ public sealed class RedisRunStateCacheTests
 
         // The same byte surface under an EMPTY authority: only the cache layer can answer this.
         var overEmptyAuthority = new RedisRunStateCache(
-            bytes, new InMemoryRunStateStore(new AdjustableClock()), new CacheWriteFailureCounter());
+            bytes, new InMemoryRunStateStore(new AdjustableClock()), new CacheFailureCounter());
 
         var read = await overEmptyAuthority.GetAsync(run.Id, PersistenceWorlds.Cancel);
         read.ShouldNotBeNull("the entry is in the byte surface, and a hit never consults the authority.");
@@ -231,11 +231,11 @@ public sealed class RedisIdempotencyCacheTests
             """{"sequence":""" + sequence + "}");
 
     private static (RedisIdempotencyCache Cache, ScriptedByteCache Bytes, IIdempotencyStore Inner,
-        CacheWriteFailureCounter Failures) Build()
+        CacheFailureCounter Failures) Build()
     {
         var bytes = new ScriptedByteCache();
         var inner = new InMemoryIdempotencyStore(new AdjustableClock());
-        var failures = new CacheWriteFailureCounter();
+        var failures = new CacheFailureCounter();
 
         return (new RedisIdempotencyCache(bytes, inner, failures), bytes, inner, failures);
     }
@@ -252,7 +252,7 @@ public sealed class RedisIdempotencyCacheTests
 
         // The same byte surface under an EMPTY authority: only the cache layer can answer this.
         var overEmptyAuthority = new RedisIdempotencyCache(
-            bytes, new InMemoryIdempotencyStore(new AdjustableClock()), new CacheWriteFailureCounter());
+            bytes, new InMemoryIdempotencyStore(new AdjustableClock()), new CacheFailureCounter());
 
         (await overEmptyAuthority.GetRecordedOutcomeAsync(Scope, outcome.CommandId, PersistenceWorlds.Cancel))
             .ShouldBe(outcome,

@@ -5,12 +5,12 @@ namespace SlayIdleRepeat.Adapters.Cache.Redis;
 /// A failed cache write never fails a command — the decorators swallow it — so this counter is the
 /// only trace such a failure leaves until the telemetry task exports it. Monotone, thread-safe.
 /// </remarks>
-public sealed class CacheWriteFailureCounter
+public sealed class CacheFailureCounter
 {
     private long _count;
 
     /// <summary>The metric name this count is exported under.</summary>
-    public const string MetricName = "cache_write_failures_total";
+    public const string MetricName = "cache_failures_total";
 
     /// <summary>How many cache operations have been absorbed so far.</summary>
     public long Count => Interlocked.Read(ref _count);

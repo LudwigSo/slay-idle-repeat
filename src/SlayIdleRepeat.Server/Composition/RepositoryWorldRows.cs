@@ -84,9 +84,17 @@ public sealed class RepositoryWorldRows : ILocalCachePort
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        if (TryIdOf(key, PlayerPrefix) is not null)
+        if (TryIdOf(key, PlayerPrefix) is { } keyedPlayer)
         {
             var stored = SnapshotCodec.DecodeSlice(value.Span);
+
+            if (stored.Player.Id.Value != keyedPlayer)
+            {
+                throw new InvalidOperationException(
+                    "The key names player '" + keyedPlayer + "' and the document names '" +
+                    stored.Player.Id + "'. Committing under either would leave the other's row " +
+                    "silently untouched — a miswired caller fails here, loudly.");
+            }
 
             await _players.SaveAsync(new PlayerProfile(stored.Player, stored.Run), ct).ConfigureAwait(false);
 

@@ -61,6 +61,13 @@ public sealed class PersistenceLifecycle : IHostedService
     /// <inheritdoc/>
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        if (_stopped)
+        {
+            return;
+        }
+
+        _stopped = true;
+
         if (_drain is { } drain)
         {
             await _stopDrain.CancelAsync().ConfigureAwait(false);
@@ -68,7 +75,12 @@ public sealed class PersistenceLifecycle : IHostedService
         }
 
         _stopDrain.Dispose();
+
+        // The drain is down, so the stores it uploads through can close cleanly.
+        await PersistenceComposition.Shared(_configuration).DisposeAsync().ConfigureAwait(false);
     }
+
+    private bool _stopped;
 }
 
 /// <summary>The persistence area's one <c>Program.cs</c> line.</summary>

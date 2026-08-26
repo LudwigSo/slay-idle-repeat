@@ -90,7 +90,10 @@ public static partial class MigrationPlan
     {
         ArgumentNullException.ThrowIfNull(sql);
 
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sql)))
+        // The logical text, not the checkout's line endings: a Windows-built binary embedding CRLF
+        // must agree with the CI build embedding LF, or the second of the two to reach a database
+        // refuses to boot over a "changed" file nobody changed.
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sql.Replace("\r\n", "\n"))))
             .ToLowerInvariant();
     }
 }
