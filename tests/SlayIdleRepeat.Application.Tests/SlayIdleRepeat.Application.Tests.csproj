@@ -30,6 +30,11 @@
     <ProjectReference Include="..\..\tools\ContentValidator\SlayIdleRepeat.ContentValidator.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The wire projection's field-order pin (14 §16.6's discipline, applied to the wire). -->
+    <EmbeddedResource Include="Wire\WireProjectionFieldOrder.json" />
+  </ItemGroup>
+
   <!--
     Shared test vocabulary, linked rather than project-referenced. tests/Shared/ holds no
     .csproj on purpose: build/ci/test-suites.json discovers suites with the glob

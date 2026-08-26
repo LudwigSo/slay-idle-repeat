@@ -424,6 +424,8 @@ Two benefits beyond keeping the boundary intact:
 
 🔒 `InternalsVisibleTo` is permitted for **`SlayIdleRepeat.Core.Tests` only**, and for nothing else. An architecture test asserts that.
 
+⚠️ **The snapshots are the persisted shape, not the wire shape** *(M5-03, per the M5 kickoff's `runSeed` ruling — `02` §2 wins)*. What a client is sent, mirrors and hashes is the **client-visible wire projection** in `Application/Wire/` — `PlayerWireProjection` + `RunWireProjection`, field-for-field the snapshots minus `RunSnapshot.RunSeed` (never leaves the server) and `PlayerSnapshot.BattleHashMismatches` (`14` §9: never player-facing). The projections carry their own field-order pin (`WireProjectionFieldOrder.json`, keyed by `SchemaVersion`) and are hashed by the same `CanonicalStateWriter`; the snapshots themselves are unchanged, and no `SchemaVersion` bump rides on the projection's existence. See `14` §16.6.
+
 ### 11.4 Structure
 
 ```

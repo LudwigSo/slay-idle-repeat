@@ -88,9 +88,11 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// come from one reading rather than two.
 /// </para>
 /// <para>
-/// <see cref="MintRunId"/> derives a deterministic id from the player id and run counter rather than
-/// calling an ambient id generator, which nothing in <c>Core</c>/<c>Application</c> is allowed to
-/// call. It is a stand-in for the wire-issued, collision-checked id the server will allocate later.
+/// The run's identity is <c>GameContext.AllocatedRunId</c> when the host issued one — the wire
+/// regime, where the server allocates the id from <c>IIdGeneratorPort</c> — and otherwise
+/// <see cref="MintRunId"/>'s deterministic derivation from the player id and run counter, which is
+/// the in-process regime: nothing in <c>Core</c>/<c>Application</c> may call an ambient generator,
+/// and a local host's runs are worth more reproducible than opaque.
 /// </para>
 /// </remarks>
 internal static class StartRun
@@ -203,7 +205,7 @@ internal static class StartRun
 
         var snapshot = new RunSnapshot(
             SnapshotSchema.SchemaVersion,
-            MintRunId(player.Id, runCounter),
+            input.Context.AllocatedRunId ?? MintRunId(player.Id, runCounter),
             player.Id,
             runSeed,
             command.ChapterId,
@@ -262,7 +264,7 @@ internal static class StartRun
     /// </remarks>
     private const int OpeningDraftStage = 1;
 
-    /// <summary>A deterministic <see cref="RunId"/> stand-in — see <see cref="Handle"/>'s remarks.</summary>
+    /// <summary>The in-process regime's deterministic <see cref="RunId"/> — see <see cref="Handle"/>'s remarks.</summary>
     private static RunId MintRunId(PlayerId playerId, long runCounter) =>
         new("RUN_" + playerId.Value + "_" + runCounter.ToString(CultureInfo.InvariantCulture));
 }

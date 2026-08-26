@@ -1,10 +1,21 @@
-// M0 scope: just enough host to answer GET /health. Game endpoints, the
-// WebSocket hub, and DI composition arrive with later milestones.
+// COMPOSITION PATTERN (binding for every M5 task): each functional area gets its
+// own file(s) under Endpoints/ and Composition/, and exactly ONE extension-method
+// call line here — plus, for an area that must configure services or middleware
+// before the host is built (observability, auth), exactly one builder.AddX() line
+// above Build(), with any middleware ordering declared inside the area's own file.
+// Shared state (the content set, the world store, the command ledger, clock, ids)
+// is obtained from Composition/GameBackbone.Shared — never newed per area, or two
+// areas end up in two disjoint worlds. This file stays a table of contents: no
+// logic, no lambdas beyond /health's, no adapter type named directly.
+
+using SlayIdleRepeat.Server.Composition;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var app = builder.Build();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+app.MapGameCommandEndpoints();
 
 app.Run();
