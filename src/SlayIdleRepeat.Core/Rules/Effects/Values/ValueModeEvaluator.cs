@@ -78,6 +78,16 @@ internal static class ValueModeEvaluator
                 "the context is not an ON_HEAL context",
                 HealOnly),
 
+            // Not an amount at all: SURVIVE_LETHAL consumes NEGATE before value resolution, so a
+            // NEGATE that reaches this evaluator is a caller about to spend a number that does not
+            // exist — refused by name rather than answered.
+            ValueMode.NEGATE => throw new EffectContextException(
+                nameof(ValueMode.NEGATE),
+                $"'{effectId}' asks for its amount, and NEGATE is not an amount mode",
+                "16 D49: NEGATE voids the lethal hit and HP is unchanged — there is no HP number. " +
+                "SURVIVE_LETHAL arms the save without resolving a value, so nothing may reach this " +
+                "evaluator with it."),
+
             _ => throw new EffectContextException(
                 mode.ToString(),
                 $"'{effectId}' names a value mode that is not one of 18 §2.2's eight",

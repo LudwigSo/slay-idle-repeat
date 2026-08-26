@@ -381,7 +381,11 @@ internal sealed class AttackPipeline : IAttackPipeline
 
             if (target.Flow.ConsumeDeathSave(revive: false) is { } save)
             {
-                hpLost = Math.Max(0.0, StatRounding.Round(target.CurrentHp - save.Hp));
+                // A NEGATE save (16 D49) voids the hit outright — HP unchanged — where the classic
+                // save leaves the actor AT the armed HP.
+                hpLost = save.Negates
+                    ? 0.0
+                    : Math.Max(0.0, StatRounding.Round(target.CurrentHp - save.Hp));
             }
         }
 

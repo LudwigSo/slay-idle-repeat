@@ -1495,6 +1495,14 @@ internal sealed class BattleSimulation
                 hp, IsRevive: false, sourceEffectId, FiresOnce(actor, sourceEffectId)));
         }
 
+        public void ArmNegateLethal(IEffectActorView holder, string sourceEffectId)
+        {
+            var actor = Actor(holder);
+            actor.Flow.ArmDeathSave(new DeathSave(
+                Hp: 0.0, IsRevive: false, sourceEffectId, FiresOnce(actor, sourceEffectId),
+                Negates: true));
+        }
+
         public void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId)
         {
             var actor = Actor(holder);

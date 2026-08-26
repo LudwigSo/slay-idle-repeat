@@ -172,12 +172,13 @@ internal sealed record OpValueRules(
         new HashSet<ValueMode> { ValueMode.FLAT },
         "05 §4.2 adds REFLECT to THORN, and 05 §1 types THORN as a fraction of damage taken.");
 
-    /// <summary><c>SURVIVE_LETHAL</c> — default a fraction of Max HP, but also admits FLAT for an exact HP value (e.g. "survive at 1 HP").</summary>
+    /// <summary><c>SURVIVE_LETHAL</c> — default a fraction of Max HP; admits FLAT for an exact HP value ("survive at 1 HP") and NEGATE for a voided hit (16 D49).</summary>
     internal static OpValueRules SurviveLethal { get; } = new(
         ValueMode.SELF_MAXHP_PCT,
-        new HashSet<ValueMode> { ValueMode.SELF_MAXHP_PCT, ValueMode.FLAT },
-        "18 §2.4 words it as an HP fraction and 06 words PK_UNBREAKABLE as 1 HP; the valueMode key " +
-        "is what lets both be authored instead of one of them being chosen.");
+        new HashSet<ValueMode> { ValueMode.SELF_MAXHP_PCT, ValueMode.FLAT, ValueMode.NEGATE },
+        "18 §2.4 words it as an HP fraction, 06 words PK_UNBREAKABLE as 1 HP, and 16 D49's NEGATE " +
+        "voids the hit outright; the valueMode key is what lets all three be authored instead of " +
+        "one of them being chosen.");
 
     /// <summary><c>REVIVE</c> — a fraction of Max HP only, deliberately not widened the way <see cref="SurviveLethal"/> was — no authored content needs a flat revive.</summary>
     internal static OpValueRules Revive { get; } = new(

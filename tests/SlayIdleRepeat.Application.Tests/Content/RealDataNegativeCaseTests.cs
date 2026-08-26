@@ -707,14 +707,16 @@ public sealed class RealDataNegativeCaseTests
     [InlineData("content/gear/gear.json", 0)]
 
     // sets.json: new in M4-16, and its twelve holes are the two kinds this file's header
-    // distinguishes. SEVEN are deferred design decisions — of the four sets' twelve breakpoints,
-    // five are a standing stat modifier or a heal on a kill and are authored in full, while the
-    // other seven each need something that does not exist: pets (three of them), a conditional
-    // damage bucket, the Star die face (two), or a magnitude the design set never wrote down. Each
-    // of those carries its owner and its reason in GearAuthoringGapRegisterTests, whose second arm
-    // fails when that owner ships. The remaining FIVE are perks.json's kind: `condition: null` is
-    // the effect vocabulary's canonical "ungated", one per authored effect, and nothing can ever
-    // legitimately ask what its undecided value was.
+    // distinguishes. SIX are deferred design decisions — of the four sets' twelve breakpoints,
+    // six are now authored in full (M4-16g authored Ironvow's six-piece against 16 D49's NEGATE,
+    // which needs no magnitude), while the other six each need something that does not exist:
+    // pets (three of them), a conditional damage bucket, the Star die face (two), or a magnitude
+    // the design set never wrote down. Each of those carries its owner and its reason in
+    // GearAuthoringGapRegisterTests, whose second arm fails when that owner ships. The remaining
+    // SIX are perks.json's kind: `condition: null` is the effect vocabulary's canonical "ungated",
+    // one per authored effect, and nothing can ever legitimately ask what its undecided value was.
+    // The total stays 12 because authoring the six-piece closed one hole (effects: null) and
+    // opened one (its own condition: null) — the composition moved, not the count.
     [InlineData("content/sets/sets.json", 12)]
 
     // Bosses carry zero holes: where the design authorises nothing, the boss data omits the key

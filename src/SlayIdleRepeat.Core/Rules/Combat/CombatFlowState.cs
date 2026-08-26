@@ -13,14 +13,16 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 internal readonly record struct AttackMultiplierCharge(double Multiplier, int Charges, string SourceEffectId);
 
 /// <summary>One armed death save — <c>SURVIVE_LETHAL</c> or <c>REVIVE</c>.</summary>
-/// <param name="Hp">The HP the actor is left at.</param>
+/// <param name="Hp">The HP the actor is left at. Meaningless under <paramref name="Negates"/>, which leaves HP where it was.</param>
 /// <param name="IsRevive">
 /// <c>true</c> for <c>REVIVE</c>, which fires <c>ON_REVIVE</c>; <c>false</c> for
 /// <c>SURVIVE_LETHAL</c>, which does not, since the actor never died.
 /// </param>
 /// <param name="SourceEffectId">The effect id that armed it.</param>
 /// <param name="FiresOnce">The anti-loop rule: these effects fire at most their authored <c>once</c> count per battle.</param>
-internal readonly record struct DeathSave(double Hp, bool IsRevive, string SourceEffectId, bool FiresOnce);
+/// <param name="Negates"><c>SURVIVE_LETHAL</c> under <c>valueMode: NEGATE</c> (16 D49): the hit is voided and HP is unchanged.</param>
+internal readonly record struct DeathSave(
+    double Hp, bool IsRevive, string SourceEffectId, bool FiresOnce, bool Negates = false);
 
 /// <summary>Per-actor flow state — the charges, saves, buckets and multipliers the ops write and the damage pipeline reads.</summary>
 /// <remarks>

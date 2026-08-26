@@ -130,7 +130,7 @@ Wearing 2 / 4 / 6 pieces of a set grants escalating bonuses.
 | Set | Family axis | 2-piece | 4-piece | 6-piece |
 |---|---|---|---|---|
 | **Bloodmoon** | Balanced | +10% Lifesteal | Kills heal 8% Max HP | Lifesteal also applies to pet damage |
-| **Ironvow** | Heavy | +15% DEF | −15% damage taken from Elites/Bosses | Once per battle, negate a lethal hit |
+| **Ironvow** | Heavy | +15% DEF | −15% damage taken from Elites/Bosses | Once per battle, negate a lethal hit — authored in `sets.json` as `SURVIVE_LETHAL` with `valueMode: NEGATE` on `ON_LETHAL` `once` (`18` §10.1 E7): the hit is voided, HP unchanged, and **no HP number exists** because this table never wrote one. The owner ruled *that* it be implemented; the NEGATE shape is the conductor's call (`16` D49) |
 | **Stormcall** | Agile | +10% ASPD | Every 5th attack chains to all enemies | Attack speed also scales pet ability cooldowns |
 
 Because a set maps to a family axis, a full 6-piece set is also a full commitment to one build archetype. That is intentional: mixing axes is the flexible, safe play; committing to one is the high-ceiling play — **on the three axes that have a set.**
