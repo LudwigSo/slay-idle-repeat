@@ -75,6 +75,21 @@ public abstract class IIdempotencyStoreContractTests
     }
 
     [Fact]
+    public async Task The_counter_follows_every_record_not_just_the_first()
+    {
+        var store = Create();
+        var scope = IdempotencyScope.ForRun(Player, Run);
+        await store.OpenScopeAsync(scope, PersistenceWorlds.Cancel);
+        await store.RecordAsync(scope, Outcome(1, "CMD_1"), Ttl, PersistenceWorlds.Cancel);
+
+        await store.RecordAsync(scope, Outcome(2, "CMD_2"), Ttl, PersistenceWorlds.Cancel);
+
+        (await store.ReadLastSequenceAsync(scope, PersistenceWorlds.Cancel)).ShouldBe(2L,
+            "a counter hard-wired to the first record's value passes every single-record case and "
+            + "then refuses the run's third command forever.");
+    }
+
+    [Fact]
     public async Task A_scope_that_was_never_opened_has_no_counter()
     {
         var store = Create();
@@ -136,7 +151,8 @@ public abstract class IIdempotencyStoreContractTests
             .ShouldBeNull("…and another run's domain is just as foreign.");
 
         (await store.ReadLastSequenceAsync(playerScope, PersistenceWorlds.Cancel))
-            .ShouldNotBe(1L, "the run record must not have advanced the player's lifetime counter.");
+            .ShouldBeNull("the player scope was never opened or recorded to, so the run record "
+                + "must not have advanced — or even created — the player's lifetime counter.");
     }
 
     [Theory]

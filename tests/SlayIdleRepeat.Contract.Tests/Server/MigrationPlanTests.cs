@@ -113,7 +113,16 @@ public sealed class MigrationPlanTests
         var messages = MigrationPlan.Ordered(PostgresMigrations.All())
             .Single(s => s.FileName == "0004_player_messages.sql");
 
-        messages.Sql.ShouldContain("player_messages");
-        messages.Sql.ShouldContain("(player_id, expires_at_utc)");
+        // Whitespace-normalized so a reformat cannot break it; the statement itself must be there,
+        // not just the column pair somewhere in a comment.
+        var normalized = System.Text.RegularExpressions.Regex
+            .Replace(messages.Sql, @"\s+", " ")
+            .ToLowerInvariant();
+
+        normalized.ShouldContain(
+            "create index",
+            Case.Sensitive,
+            "the inbox reads by owner and expiry; without the index every read is a table scan.");
+        normalized.ShouldContain("on player_messages (player_id, expires_at_utc)", Case.Sensitive);
     }
 }

@@ -132,6 +132,25 @@ public abstract class IPlayerRepositoryContractTests
     }
 
     [Fact]
+    public async Task A_default_player_id_is_an_argument_fault_everywhere_it_can_arrive()
+    {
+        var repository = Create();
+        var headless = new PlayerProfile(
+            PersistenceWorlds.FreshProfile().Player with { Id = default }, ActiveRun: null);
+
+        await Should.ThrowAsync<ArgumentException>(
+            async () => await repository.GetAsync(default, PersistenceWorlds.Cancel),
+            "default(PlayerId) carries no text; a store that keyed on it would pool every such "
+            + "caller's state into one row.");
+
+        await Should.ThrowAsync<ArgumentException>(
+            async () => await repository.SaveAsync(headless, PersistenceWorlds.Cancel));
+
+        await Should.ThrowAsync<ArgumentException>(
+            async () => await repository.CreateAnonymousAsync(headless, PersistenceWorlds.Cancel));
+    }
+
+    [Fact]
     public async Task A_null_profile_is_a_null_argument_fault()
     {
         var repository = Create();

@@ -102,6 +102,24 @@ public abstract class IRunStateStoreContractTests
     }
 
     [Fact]
+    public async Task A_default_run_id_is_an_argument_fault_everywhere_it_can_arrive()
+    {
+        var store = Create();
+
+        await Should.ThrowAsync<ArgumentException>(
+            async () => await store.GetAsync(default, PersistenceWorlds.Cancel),
+            "default(RunId) carries no text; a store that keyed on it would pool every such "
+            + "caller's state into one row.");
+
+        await Should.ThrowAsync<ArgumentException>(
+            async () => await store.SaveAsync(
+                PersistenceWorlds.ARun() with { Id = default }, Ttl, PersistenceWorlds.Cancel));
+
+        await Should.ThrowAsync<ArgumentException>(
+            async () => await store.DeleteAsync(default, PersistenceWorlds.Cancel));
+    }
+
+    [Fact]
     public async Task A_null_run_is_a_null_argument_fault()
     {
         var store = Create();

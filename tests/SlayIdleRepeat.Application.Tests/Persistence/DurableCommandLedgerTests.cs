@@ -17,9 +17,10 @@ public sealed class DurableCommandLedgerTests
     private static readonly CancellationToken Cancel = CancellationToken.None;
     private static readonly TimeSpan Ttl = TimeSpan.FromHours(48);
 
-    private static readonly string PlayerScope = CommandScopes.ForPlayer(new PlayerId("PLAYER_1"));
-    private static readonly string RunScope =
-        CommandScopes.ForRun(new PlayerId("PLAYER_1"), new RunId("RUN_9"));
+    // Properties, not fields: a static initializer would turn any CommandScopes fault into a
+    // TypeInitializationException naming this class instead of the spelling that threw.
+    private static string PlayerScope => CommandScopes.ForPlayer(new PlayerId("PLAYER_1"));
+    private static string RunScope => CommandScopes.ForRun(new PlayerId("PLAYER_1"), new RunId("RUN_9"));
 
     private static (DurableCommandLedger Ledger, AdjustableClock Clock) Build()
     {

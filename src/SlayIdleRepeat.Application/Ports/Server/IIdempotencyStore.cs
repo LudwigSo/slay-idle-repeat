@@ -41,6 +41,12 @@ public interface IIdempotencyStore
     /// <param name="outcome">The record.</param>
     /// <param name="ttl">The record's lifetime, measured from now. Positive.</param>
     /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// A second record under an already-recorded (scope, commandId) is unreachable by contract —
+    /// the ledger reads before it appends, and a found record is replayed, never re-recorded — so
+    /// its behaviour is deliberately unspecified rather than pinned to whichever store's default
+    /// happened to win.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="ttl"/> is zero or negative.</exception>
     Task RecordAsync(IdempotencyScope scope, RecordedCommandOutcome outcome, TimeSpan ttl, CancellationToken ct);
 

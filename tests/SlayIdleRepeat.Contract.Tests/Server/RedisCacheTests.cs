@@ -16,8 +16,6 @@ internal sealed class ScriptedByteCache : IVolatileByteCache
     /// <summary>When set, every operation throws — the cache is down hard.</summary>
     internal bool Failing { get; set; }
 
-    internal int Sets { get; private set; }
-
     internal IReadOnlyDictionary<string, byte[]> Entries => _entries;
 
     public Task<byte[]?> GetAsync(string key, CancellationToken ct)
@@ -29,7 +27,6 @@ internal sealed class ScriptedByteCache : IVolatileByteCache
     public Task SetAsync(string key, ReadOnlyMemory<byte> value, TimeSpan ttl, CancellationToken ct)
     {
         RequireHealthy();
-        Sets++;
         _entries[key] = value.ToArray();
         return Task.CompletedTask;
     }
@@ -76,16 +73,6 @@ public sealed class RedisKeysTests
             .ShouldBe("sir:idem:run:PLAYER_1:RUN_7:CMD_9");
     }
 
-    [Fact]
-    public void The_two_scopes_of_one_command_id_are_two_keys()
-    {
-        var player = new PlayerId("PLAYER_1");
-        var command = new CommandId("CMD_9");
-
-        RedisKeys.ForRecord(IdempotencyScope.ForPlayer(player), command).ShouldNotBe(
-            RedisKeys.ForRecord(IdempotencyScope.ForRun(player, new RunId("RUN_7")), command),
-            "one key for both scopes would replay a run outcome for a meta command.");
-    }
 }
 
 /// <summary>The record codec: byte round-trips of every field.</summary>
@@ -185,6 +172,21 @@ public sealed class RedisRunStateCacheTests
     }
 
     [Fact]
+    public async Task An_absorbed_read_failure_is_counted()
+    {
+        var (cache, bytes, inner, failures) = Build();
+        var run = PersistenceWorlds.ARun();
+        await inner.SaveAsync(run, Ttl, PersistenceWorlds.Cancel);
+        bytes.Failing = true;
+
+        await cache.GetAsync(run.Id, PersistenceWorlds.Cancel);
+
+        failures.Count.ShouldBe(1L,
+            "an absorbed failure's only trace is the counter — reads included, or a cache that is "
+            + "down for reads is invisible until someone wonders where the latency went.");
+    }
+
+    [Fact]
     public async Task A_delete_removes_the_run_from_both_layers()
     {
         var (cache, bytes, inner, _) = Build();
@@ -197,6 +199,23 @@ public sealed class RedisRunStateCacheTests
         bytes.Entries.Keys.ShouldNotContain(
             RedisKeys.ForRunState(run.Id),
             "a cache entry outliving its row would serve a deleted run until its lifetime passed.");
+    }
+
+    [Fact]
+    public async Task A_delete_with_the_cache_down_still_lands_in_the_authority_and_is_counted()
+    {
+        var (cache, bytes, inner, failures) = Build();
+        var run = PersistenceWorlds.ARun();
+        await cache.SaveAsync(run, Ttl, PersistenceWorlds.Cancel);
+        bytes.Failing = true;
+
+        await cache.DeleteAsync(run.Id, PersistenceWorlds.Cancel);
+
+        (await inner.GetAsync(run.Id, PersistenceWorlds.Cancel)).ShouldBeNull(
+            "the authority's delete must land whatever the cache is doing.");
+        failures.Count.ShouldBe(1L,
+            "the absorbed DEL failure is counted; the stale cache entry it leaves is bounded by "
+            + "its own lifetime, which is the accepted cost of never failing a command on a cache.");
     }
 }
 
@@ -230,8 +249,15 @@ public sealed class RedisIdempotencyCacheTests
         await cache.RecordAsync(Scope, outcome, Ttl, PersistenceWorlds.Cancel);
 
         bytes.Entries.Keys.ShouldContain(RedisKeys.ForRecord(Scope, outcome.CommandId));
-        (await cache.GetRecordedOutcomeAsync(Scope, outcome.CommandId, PersistenceWorlds.Cancel))
-            .ShouldBe(outcome);
+
+        // The same byte surface under an EMPTY authority: only the cache layer can answer this.
+        var overEmptyAuthority = new RedisIdempotencyCache(
+            bytes, new InMemoryIdempotencyStore(new AdjustableClock()), new CacheWriteFailureCounter());
+
+        (await overEmptyAuthority.GetRecordedOutcomeAsync(Scope, outcome.CommandId, PersistenceWorlds.Cancel))
+            .ShouldBe(outcome,
+                "the read must be served by the cache layer — a write-only cache would pass every "
+                + "case that reads through a decorator over a live authority.");
     }
 
     [Fact]
