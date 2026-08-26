@@ -1,6 +1,6 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>The eight <c>valueMode</c> values — what an effect's <c>value</c> is a multiple of.</summary>
+/// <summary>The nine <c>valueMode</c> values — what an effect's <c>value</c> is a multiple of, or <see cref="NEGATE"/>, which carries no value at all.</summary>
 /// <remarks>
 /// <para>
 /// <see cref="ATK_MULT"/> is the documented default. Nothing says what an absent <c>valueMode</c>
@@ -42,4 +42,12 @@ public enum ValueMode
 
     /// <summary>The clipped excess of a heal. <c>ON_HEAL</c> contexts only.</summary>
     OVERHEAL_AMOUNT = 8,
+
+    /// <summary>
+    /// Not an amount: the armed save voids the lethal hit entirely and HP is unchanged.
+    /// <c>SURVIVE_LETHAL</c> only, and the effect carries no <c>value</c> — there is no number for
+    /// one to be a multiple of. 16 D49; the token is the conductor's shape for 08 §3.2's "negate a
+    /// lethal hit", which authors no HP fraction.
+    /// </summary>
+    NEGATE = 9,
 }

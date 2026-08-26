@@ -123,15 +123,32 @@ public sealed class ValueModeEvaluatorTests
 
         var modes = Enum.GetValues<ValueMode>();
 
-        modes.Length.ShouldBe(8, "18 §2.2 lists eight value modes");
-        expected.Keys.Order().ShouldBe(
-            modes.Order(), "a ninth mode is unhandled here until this table answers for it");
+        modes.Length.ShouldBe(9, "18 §2.2's eight amount modes plus NEGATE (16 D49)");
+        expected.Keys.Append(ValueMode.NEGATE).Order().ShouldBe(
+            modes.Order(), "a tenth mode is unhandled here until this table answers for it");
 
-        foreach (var mode in modes)
+        foreach (var mode in expected.Keys)
         {
             Resolve(mode, 1.0, Full()).ShouldBe(
                 expected[mode], $"18 §2.2's {mode} reached no handler of its own in ValueModeEvaluator");
         }
+    }
+
+    /// <summary>
+    /// The ninth mode's own arm: NEGATE denotes no amount — SURVIVE_LETHAL consumes it before value
+    /// resolution — so reaching this evaluator with it must fail by name, not answer a number some
+    /// caller would spend. The message fragment pins WHICH arm refused: the catch-all "not one of
+    /// 18 §2.2's" arm says nothing about an amount.
+    /// </summary>
+    [Fact]
+    public void NEGATE_reaching_amount_resolution_throws_and_names_itself()
+    {
+        var thrown = Should.Throw<EffectContextException>(
+            () => Resolve(ValueMode.NEGATE, 1.0, Full()));
+
+        thrown.Token.ShouldBe(nameof(ValueMode.NEGATE));
+        thrown.Message.ShouldContain("not an amount", Case.Sensitive);
+        thrown.Message.ShouldContain("SURVIVE_LETHAL", Case.Sensitive);
     }
 
     // ───────────────────────────────────────────── an absent SUBJECT throws, and says which

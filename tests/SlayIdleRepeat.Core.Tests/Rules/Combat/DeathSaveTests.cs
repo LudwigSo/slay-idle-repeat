@@ -154,6 +154,87 @@ public sealed class DeathSaveTests
     }
 
     /// <summary>
+    /// 16 D49: <c>valueMode: NEGATE</c> voids the lethal hit — HP exactly unchanged, not "survive
+    /// at an HP the effect names". The chip hit first puts the hero at 900, so an implementation
+    /// that restored to Max HP, survived at 1, or survived at a fraction all read differently from
+    /// the voided hit; it also proves a non-lethal hit neither consumes the save nor is itself
+    /// negated.
+    /// </summary>
+    [Fact]
+    public void A_NEGATE_save_voids_the_lethal_hit_and_leaves_HP_exactly_unchanged()
+    {
+        var probe = Fight(
+            new[] { NegateLethal("SET_BONUS_HEAVY_6") },
+            p =>
+            {
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, 100.0, bypassesWards: true, "EFF_CHIP");
+
+                p.Hero.CurrentHp.ShouldBe(900.0, "a survivable hit lands in full — NEGATE guards only a lethal one");
+
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL");
+
+                p.Hero.CurrentHp.ShouldBe(900.0, "the lethal hit is voided outright — the chip did not spend the save");
+                p.Hero.IsAlive.ShouldBeTrue();
+            });
+
+        probe.EventsOf(CombatEventType.ActorDeath).ShouldBeEmpty();
+        probe.EventsOf(CombatEventType.Hit).Last().Value.ShouldBe(
+            0.0, "nothing came off HP, and the Hit event says so rather than reporting the lethal amount");
+    }
+
+    [Fact]
+    public void Once_bounds_a_NEGATE_save_and_the_second_lethal_hit_kills()
+    {
+        Fight(
+            new[] { NegateLethal("SET_BONUS_HEAVY_6") },
+            p =>
+            {
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_1");
+
+                p.Hero.CurrentHp.ShouldBe(MaxHp, "the first lethal hit is the once-per-battle negate");
+                p.Hero.IsAlive.ShouldBeTrue();
+
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_2");
+
+                p.Hero.CurrentHp.ShouldBe(0.0, "once is spent — nothing negates the second lethal hit");
+                p.Hero.IsAlive.ShouldBeFalse();
+            });
+    }
+
+    /// <summary>
+    /// The order pin: an ON_LETHAL save is consumed BEFORE death, a REVIVE only after
+    /// <c>ON_DEATH</c>. Lethal hit 1 is negated with the held REVIVE untouched; lethal hit 2 kills
+    /// past the spent negate and the REVIVE then returns the actor, firing <c>ON_REVIVE</c> —
+    /// D49 moves neither half of that order.
+    /// </summary>
+    [Fact]
+    public void A_NEGATE_save_is_consumed_before_death_and_a_held_REVIVE_only_after_it()
+    {
+        var probe = Fight(
+            new[]
+            {
+                NegateLethal("SET_BONUS_HEAVY_6"),
+                Holding("PK_SECOND_WIND", EffectOp.REVIVE, 0.30, TriggerKind.ON_BATTLE_START),
+                Holding("PK_Z_ON_REVIVE_PROBE", EffectOp.SHIELD, 7.0, TriggerKind.ON_REVIVE),
+            },
+            p =>
+            {
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_1");
+
+                p.Hero.CurrentHp.ShouldBe(MaxHp, "the negate fires before death, so the REVIVE has nothing to answer");
+                p.Services.Log.Events.Count(e => e.Type == CombatEventType.Shield).ShouldBe(
+                    0, "no death, no return, no ON_REVIVE");
+
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_2");
+            },
+            maxTicks: 1);
+
+        probe.Result.HeroHpRemaining.ShouldBe(300.0, "0.30 x 1000 Max HP — the REVIVE answered the second hit");
+        probe.EventsOf(CombatEventType.ActorDeath).ShouldBeEmpty("the actor came back before the body was removed");
+        probe.EventsOf(CombatEventType.Shield).Count.ShouldBe(1, "ON_REVIVE fired for the REVIVE and only then");
+    }
+
+    /// <summary>
     /// Both anti-loop halves composed: two actors each holding an <c>ON_LETHAL</c>-armed
     /// <c>SURVIVE_LETHAL</c> and lethal <c>THORNS</c>. Without <c>once</c> bounding and
     /// thorns-never-retriggers-thorns, the exchange resaves both forever and the fight never resolves.
@@ -256,6 +337,17 @@ public sealed class DeathSaveTests
             Value = value,
             ValueMode = mode,
             Trigger = new EffectTrigger { Kind = TriggerKind.ON_LETHAL, Once = once },
+        });
+
+    /// <summary>Ironvow's six-piece shape (16 D49): a value-less <c>NEGATE</c> save on <c>ON_LETHAL</c>, once.</summary>
+    private static HeldEffect NegateLethal(string id) =>
+        new(new EffectDefinition
+        {
+            Id = id,
+            Op = EffectOp.SURVIVE_LETHAL,
+            Target = EffectTarget.SELF,
+            ValueMode = ValueMode.NEGATE,
+            Trigger = new EffectTrigger { Kind = TriggerKind.ON_LETHAL, Once = true },
         });
 
     /// <param name="once">
