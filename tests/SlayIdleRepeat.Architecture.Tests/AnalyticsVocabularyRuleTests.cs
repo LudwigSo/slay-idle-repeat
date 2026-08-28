@@ -88,11 +88,13 @@ public sealed class AnalyticsVocabularyRuleTests
     /// </remarks>
     private static readonly (string Event, string Owner, string Why)[] UnemittableEvents =
     {
-        new("battle_end", "M5-05",
+        new("battle_end", "M5-16",
             "The accepted CONFIRM_BATTLE_RESULT carries only a log hash and a won flag; 14 §10.1's "
-            + "payload (enemy, duration, hp remaining) exists only inside the battle log, which "
-            + "first exists server-side when M5-05's battle-log store lands. A bare name with the "
-            + "payload stripped would defeat the event's stated purpose."),
+            + "payload (enemy, duration, hp remaining) exists only inside the battle "
+            + "log. M5-05 landed the STORE, which this entry first named as its owner — but a "
+            + "store is not a producer: IBattleLogStore.PutAsync has no production caller, so no "
+            + "log exists to read a payload out of. M5-16 is the row that writes one. "
+            + "A bare name with the payload stripped would defeat the event's stated purpose."),
 
         new("perk_drafted", "M18-08",
             "PICK_PERK carries only an option index into a draft the post-command state no longer "
