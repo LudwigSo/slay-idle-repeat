@@ -1,5 +1,6 @@
 using System.Globalization;
 using SlayIdleRepeat.Application.Ports.Server;
+using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Inbox;
 
 namespace SlayIdleRepeat.Server.Composition;
@@ -151,7 +152,7 @@ public sealed class InboxExpiryLifecycle : IHostedService
             GameCalendarText(),
             limit);
 
-        _loop = Task.Run(() => RunAsync(job, backbone.Clock.UtcNow, limit, _stop.Token), CancellationToken.None);
+        _loop = Task.Run(() => RunAsync(job, backbone.Clock, limit, _stop.Token), CancellationToken.None);
 
         return Task.CompletedTask;
     }
@@ -176,13 +177,16 @@ public sealed class InboxExpiryLifecycle : IHostedService
     }
 
     private async Task RunAsync(
-        InboxExpiryJob job, DateTimeOffset startedAtUtc, int limit, CancellationToken ct)
+        InboxExpiryJob job, IClockPort clock, int limit, CancellationToken ct)
     {
-        var next = InboxExpirySchedule.NextSweepAfter(startedAtUtc);
+        // The backbone's clock throughout, never DateTimeOffset.UtcNow: the schedule and the wait
+        // have to read the same instant, and a loop that mixed two sources would wake at a boundary
+        // it then judged expiry against differently.
+        var next = InboxExpirySchedule.NextSweepAfter(clock.UtcNow);
 
         while (!ct.IsCancellationRequested)
         {
-            var wait = next - DateTimeOffset.UtcNow;
+            var wait = next - clock.UtcNow;
 
             if (wait > TimeSpan.Zero)
             {
