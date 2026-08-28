@@ -104,6 +104,7 @@ public sealed class MigrationPlanTests
             "0003_economy_events.sql",
             "0004_player_messages.sql",
             "0005_moderation.sql",
+            "0006_mail_segment_sends.sql",
         });
 
         shipped.ShouldAllBe(

@@ -56,9 +56,10 @@ public sealed class PortCatalogueTests
     /// floors are stated over the same set in three assemblies; one moving without the others is one
     /// of them having gained a member the other two cannot see. M5 raised it 6 → 12 across two tasks
     /// that each moved all three together: M5-05's four server persistence ports and M5-11's two
-    /// observability ports (<c>IAnalyticsSinkPort</c>, <c>ITelemetryPort</c>).
+    /// observability ports (<c>IAnalyticsSinkPort</c>, <c>ITelemetryPort</c>). M5-08 raised it
+    /// 12 → 13 for <c>IMessageRepository</c>, moving all three in the same commit.
     /// </remarks>
-    private const int DeclaredPortFloor = 12;
+    private const int DeclaredPortFloor = 13;
 
     /// <summary>
     /// Entries in the register. At zero, <see cref="No_port_deferral_outlives_the_port_it_defers"/>,

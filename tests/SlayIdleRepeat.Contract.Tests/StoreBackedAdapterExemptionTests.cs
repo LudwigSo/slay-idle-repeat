@@ -28,6 +28,7 @@ public sealed class StoreBackedAdapterExemptionTests
         ("SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresPlayerRepository", ExemptionOwnerKind.CiProbeScript),
         ("SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresRunStateStore", ExemptionOwnerKind.CiProbeScript),
         ("SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresIdempotencyStore", ExemptionOwnerKind.CiProbeScript),
+        ("SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresMessageRepository", ExemptionOwnerKind.CiProbeScript),
         ("SlayIdleRepeat.Adapters.Cache.Redis.RedisRunStateCache", ExemptionOwnerKind.CiProbeScript),
         ("SlayIdleRepeat.Adapters.Cache.Redis.RedisIdempotencyCache", ExemptionOwnerKind.CiProbeScript),
         ("SlayIdleRepeat.Adapters.ObjectStore.S3.S3BattleLogStore", ExemptionOwnerKind.CiProbeScript),

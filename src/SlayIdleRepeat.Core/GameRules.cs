@@ -126,7 +126,7 @@ public static class GameRules
         .Deferred<RerollQuestCommand>("REROLL_QUEST", CommandKind.Meta, "M4-09")
         .Deferred<ClaimAdRewardCommand>("CLAIM_AD_REWARD", CommandKind.Meta, "M15-03")
         .Deferred<ClaimCalendarCommand>("CLAIM_CALENDAR", CommandKind.Meta, "M4-09")
-        .Deferred<ClaimInboxCommand>("CLAIM_INBOX", CommandKind.Meta, "M5-08")
+        .Handled<ClaimInboxCommand>("CLAIM_INBOX", CommandKind.Meta, ClaimInbox.Handle)
         .Deferred<SpinWheelCommand>("SPIN_WHEEL", CommandKind.Meta, "M4-09")
         .Deferred<SetFocusCommand>("SET_FOCUS", CommandKind.Meta, "M4-04")
         .Deferred<ReforgeItemCommand>("REFORGE_ITEM", CommandKind.Meta, "M4-04")
@@ -544,15 +544,17 @@ public static class GameRules
             throw new InvalidOperationException(RoundTripFailure("Player", player.Error));
         }
 
+        // The inbox is carried across by reference, deliberately: it is an immutable projection the
+        // domain only reads, so there is no writable copy for a handler to be caught making.
         if (state.Run is null)
         {
-            return new WorldSlice(player.Value, null);
+            return new WorldSlice(player.Value, null, state.Inbox);
         }
 
         var run = Run.Rehydrate(state.Run.ToSnapshot());
 
         return run.IsSuccess
-            ? new WorldSlice(player.Value, run.Value)
+            ? new WorldSlice(player.Value, run.Value, state.Inbox)
             : throw new InvalidOperationException(RoundTripFailure("Run", run.Error));
     }
 

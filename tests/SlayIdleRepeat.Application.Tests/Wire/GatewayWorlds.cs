@@ -3,6 +3,7 @@ using System.Text.Json;
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Services.Events;
+using SlayIdleRepeat.Application.Services.Inbox;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.Tests.UseCases;
 using SlayIdleRepeat.Application.UseCases;
@@ -40,7 +41,8 @@ internal sealed class GatewayWorld
         ManualThrottle throttle,
         AdjustableClock clock,
         PlayerId player,
-        FeatureFlags flags)
+        FeatureFlags flags,
+        InMemoryMessageRepository messages)
     {
         Gateway = gateway;
         Store = store;
@@ -50,6 +52,7 @@ internal sealed class GatewayWorld
         Clock = clock;
         Player = player;
         Flags = flags;
+        Messages = messages;
     }
 
     internal CommandGateway Gateway { get; }
@@ -68,6 +71,9 @@ internal sealed class GatewayWorld
     internal PlayerId Player { get; }
 
     internal FeatureFlags Flags { get; }
+
+    /// <summary>The inbox the gateway's claim path reads and stamps — empty until a case fills it.</summary>
+    internal InMemoryMessageRepository Messages { get; }
 
     /// <summary>A world holding one starting player and nothing else.</summary>
     /// <param name="flags">The kill switches, defaulting to none thrown.</param>
@@ -100,8 +106,14 @@ internal sealed class GatewayWorld
 
         await store.SaveAsync(new WorldSlice(starting.Value, null), Worlds.Cancel);
 
+        // The inbox seam is composed here rather than left null: without it CLAIM_INBOX faults as
+        // the loading defect it is, and every case that submits one would be asserting on this
+        // fixture's wiring instead of on the gateway.
+        var messages = new InMemoryMessageRepository(clock);
+
         var gateway = new CommandGateway(
-            new ApplyCommandUseCase(store, new DomainEventDispatcher([])),
+            new ApplyCommandUseCase(
+                store, new DomainEventDispatcher([]), new InboxCommandSupport(messages)),
             clock,
             new CountingIdGenerator(),
             Worlds.Content,
@@ -110,7 +122,8 @@ internal sealed class GatewayWorld
             ledger ?? volatileLedger,
             throttle);
 
-        return new GatewayWorld(gateway, store, cache, volatileLedger, throttle, clock, player, resolvedFlags);
+        return new GatewayWorld(
+            gateway, store, cache, volatileLedger, throttle, clock, player, resolvedFlags, messages);
     }
 
     /// <summary>A second starting player in the same world, so cross-player claims compare two real principals.</summary>

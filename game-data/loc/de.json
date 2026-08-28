@@ -325,7 +325,20 @@
     "loc.campfire.read_unavailable.status": "##TODO_DE## Your run could not be read, so this tile cannot be opened.",
     "loc.campfire.shrine_unavailable.status": "##TODO_DE## This shrine is open, but what it drew could not be built from the game's data.",
     "loc.campfire.refused.status": "##TODO_DE## That was refused.",
-    "loc.campfire.host_unavailable.status": "##TODO_DE## The game did not answer, so nothing happened here. Try again."
+    "loc.campfire.host_unavailable.status": "##TODO_DE## The game did not answer, so nothing happened here. Try again.",
+
+    "loc.mail.announcement.maintenance.title": "##TODO_DE## Scheduled maintenance",
+    "loc.mail.announcement.maintenance.body": "##TODO_DE## The game will be unavailable from {startUtc} UTC for about {minutes} minutes while we carry out scheduled maintenance. Runs in progress are saved.",
+    "loc.mail.announcement.issue_resolved.title": "##TODO_DE## Issue resolved",
+    "loc.mail.announcement.issue_resolved.body": "##TODO_DE## The problem affecting {subject} has been fixed. Thank you for your patience.",
+    "loc.mail.compensation.outage.title": "##TODO_DE## Sorry about the downtime",
+    "loc.mail.compensation.outage.body": "##TODO_DE## The servers were unavailable for about {hours} hours on {dateUtc}. Here is something for the trouble.",
+    "loc.mail.reconciliation.event_currency.title": "##TODO_DE## {eventName} has closed",
+    "loc.mail.reconciliation.event_currency.body": "##TODO_DE## {eventName} is over. Your unspent event currency has been converted and is attached.",
+    "loc.mail.moderation.report_outcome.title": "##TODO_DE## About the report you filed",
+    "loc.mail.moderation.report_outcome.body": "##TODO_DE## We looked into the report you filed. The outcome was: {outcome}. Thank you for telling us.",
+    "loc.mail.account.new_device.title": "##TODO_DE## A new device signed in",
+    "loc.mail.account.new_device.body": "##TODO_DE## {deviceName} signed in to your account on {atUtc} UTC. If that was not you, unlink the device in Settings."
 
   }
 }

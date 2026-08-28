@@ -13,14 +13,20 @@ namespace SlayIdleRepeat.Core.Primitives;
 /// Every instant handed in is assumed UTC; <c>GameContext.RequireUtc</c> already refuses anything
 /// else on every path, so this type does not re-guard it.
 /// </para>
+/// <para>
+/// Public rather than internal since M5-08: the nightly inbox sweep runs at the authored daily
+/// boundary, and a hosted service outside this assembly would otherwise have to carry its own copy
+/// of 05:00 — which is precisely the second transcription this type was created to prevent. It
+/// answers questions and grants nothing, so nothing about the single-mutation rule changes.
+/// </para>
 /// </remarks>
-internal static class GameCalendar
+public static class GameCalendar
 {
     /// <summary>The UTC time of day every game day begins at: <b>05:00</b>.</summary>
-    internal static readonly TimeSpan DayStart = TimeSpan.FromHours(5);
+    public static readonly TimeSpan DayStart = TimeSpan.FromHours(5);
 
     /// <summary>The weekday every game week begins on: <b>Monday</b>.</summary>
-    internal const DayOfWeek WeekStart = DayOfWeek.Monday;
+    public const DayOfWeek WeekStart = DayOfWeek.Monday;
 
     /// <summary>The first game day the calendar can answer: <c>0001-01-01T05:00:00Z</c>.</summary>
     /// <remarks>
@@ -29,11 +35,11 @@ internal static class GameCalendar
     /// underflow. The calendar floors at this value instead. <c>0001-01-01</c> is itself a Monday in
     /// .NET's proleptic Gregorian calendar, so the weekly step-back cannot underflow either.
     /// </remarks>
-    internal static readonly DateTimeOffset FirstGameDay = new(1, 1, 1, 5, 0, 0, TimeSpan.Zero);
+    public static readonly DateTimeOffset FirstGameDay = new(1, 1, 1, 5, 0, 0, TimeSpan.Zero);
 
     /// <summary>The latest 05:00 UTC game-day boundary at or before <paramref name="nowUtc"/>, floored at <see cref="FirstGameDay"/>.</summary>
     /// <param name="nowUtc">A UTC instant.</param>
-    internal static DateTimeOffset GameDayStartAt(DateTimeOffset nowUtc)
+    public static DateTimeOffset GameDayStartAt(DateTimeOffset nowUtc)
     {
         if (nowUtc < FirstGameDay)
         {
@@ -56,7 +62,7 @@ internal static class GameCalendar
     /// </para>
     /// </remarks>
     /// <param name="nowUtc">A UTC instant.</param>
-    internal static DateTimeOffset GameWeekStartAt(DateTimeOffset nowUtc)
+    public static DateTimeOffset GameWeekStartAt(DateTimeOffset nowUtc)
     {
         var dayStart = GameDayStartAt(nowUtc);
         var daysIntoWeek = ((int)dayStart.DayOfWeek - (int)WeekStart + 7) % 7;
@@ -66,7 +72,7 @@ internal static class GameCalendar
 
     /// <summary>Whether <paramref name="instant"/> is itself a 05:00 UTC game-day boundary.</summary>
     /// <param name="instant">A UTC instant.</param>
-    internal static bool IsGameDayBoundary(DateTimeOffset instant) => instant.TimeOfDay == DayStart;
+    public static bool IsGameDayBoundary(DateTimeOffset instant) => instant.TimeOfDay == DayStart;
 
     /// <summary>Whether <paramref name="instant"/> is itself a Monday 05:00 UTC game-week boundary.</summary>
     /// <remarks>
@@ -74,6 +80,6 @@ internal static class GameCalendar
     /// every instant of Monday a boundary, including 00:00, which is still inside the previous week.
     /// </remarks>
     /// <param name="instant">A UTC instant.</param>
-    internal static bool IsGameWeekBoundary(DateTimeOffset instant) =>
+    public static bool IsGameWeekBoundary(DateTimeOffset instant) =>
         instant.DayOfWeek == WeekStart && IsGameDayBoundary(instant);
 }

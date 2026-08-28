@@ -50,8 +50,16 @@ internal static class ProductionAssemblies
     /// <c>Only_composition_roots_reference_adapter_projects</c> passes for a stated reason,
     /// rather than — as it did while the rule was scoped to <c>src/</c> — by never looking.
     /// </remarks>
+    /// <remarks>
+    /// 🔒 <c>InboxOps</c> (M5-08) joins it for the same reason and with a second one of its own: it
+    /// wires <c>Adapters.Persistence.Postgres</c> and <c>Adapters.Content.LocalFile</c> to the inbox
+    /// services in <c>Application</c>, and it exists as a console tool rather than an admin endpoint
+    /// precisely BECAUSE it composes adapters directly — there is no admin authentication anywhere
+    /// in this repository, so an HTTP surface able to send an attachment to a predicate would be an
+    /// unauthenticated economy-affecting endpoint.
+    /// </remarks>
     internal static IReadOnlyList<string> ToolCompositionRootNames { get; } =
-        new[] { "SlayIdleRepeat.ContentValidator" };
+        new[] { "SlayIdleRepeat.ContentValidator", "SlayIdleRepeat.InboxOps" };
 
     private static readonly Dictionary<string, ModuleDefinition> ModuleCache = new(StringComparer.Ordinal);
     private static readonly DefaultAssemblyResolver Resolver = CreateResolver();

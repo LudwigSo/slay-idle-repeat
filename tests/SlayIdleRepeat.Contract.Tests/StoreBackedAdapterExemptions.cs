@@ -124,6 +124,15 @@ internal static class StoreBackedAdapterExemptions
             "an API restart and demands the byte-identical stored response — which only the durable " +
             "record can produce."),
 
+        new("SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresMessageRepository",
+            ExemptionOwnerKind.CiProbeScript,
+            "build/ci/Invoke-InboxClaimProbe.ps1",
+            "Its only backing is a live Postgres, and its whole point is that the read a claim is " +
+            "judged from and the write the claim makes are the same row. The probe seeds a message " +
+            "holding Soul Shards, posts a real CLAIM_INBOX through the API, and demands BOTH " +
+            "effects: the wallet moved in the players document and the message is stamped claimed " +
+            "— the second being what stops the reward being paid again for ever."),
+
         new("SlayIdleRepeat.Adapters.Cache.Redis.RedisRunStateCache",
             ExemptionOwnerKind.CiProbeScript,
             "build/ci/Invoke-RedisRebuildProbe.ps1",

@@ -101,6 +101,19 @@ public sealed class CommandVocabularyTests
         "MERGE", "ENHANCE", "SALVAGE", "SAVE_PRESET", "APPLY_PRESET", "EQUIP", "UNEQUIP", "LOCK_ITEM",
     ];
 
+    /// <summary>
+    /// 🔒 The closed list of handled META rows for which a slice this fixture builds is a LOADING
+    /// defect rather than a legal move — the meta-tier counterpart of the run rows' missing-run
+    /// throw, and asserted the same way.
+    /// </summary>
+    /// <remarks>
+    /// <c>CLAIM_INBOX</c> reads the inbox projection, and <c>Worlds.OutsideARun()</c> carries none.
+    /// A handler that read a missing projection as an empty one would tell a player with unclaimed
+    /// compensation that they have nothing to collect, so it throws — and this list is what stops
+    /// that throw being mistaken for the row having no handler at all.
+    /// </remarks>
+    private static readonly string[] RowsNeedingAProjection = ["CLAIM_INBOX"];
+
     // ------------------------------------------------------------- the set, in both directions
 
     [Fact]
@@ -215,10 +228,11 @@ public sealed class CommandVocabularyTests
             "a mismatch means the loop skipped a deferred row rather than that the count moved.");
 
         deferred.ShouldBe(
-            23,
+            22,
             "the absolute number, because the assertion above compares the loop against the same " +
             "table it walks and would agree with itself if every row silently became Handled. Lower " +
-            "this by exactly the number of rows that gain a handler.");
+            "this by exactly the number of rows that gain a handler. M5-08 did exactly that for " +
+            "CLAIM_INBOX: 23 -> 22.");
     }
 
     /// <summary>
@@ -235,6 +249,12 @@ public sealed class CommandVocabularyTests
 
         RowsBuildCannotSatisfy.Length.ShouldBe(
             8, "the exemption is closed; a ninth row that stops accepting must take a diff here.");
+
+        RowsNeedingAProjection.Length.ShouldBe(
+            1,
+            "the projection exemption is closed too: a second row that starts throwing here must " +
+            "take a diff, or a handler that began faulting on an ordinary slice would read as " +
+            "'this row needs a projection'.");
 
         foreach (var (name, type) in Registry.OrderBy(r => r.Key, StringComparer.Ordinal))
         {
@@ -264,6 +284,19 @@ public sealed class CommandVocabularyTests
                 }
 
                 runRows++;
+                continue;
+            }
+
+            if (RowsNeedingAProjection.Contains(name, StringComparer.Ordinal))
+            {
+                Should.Throw<InvalidOperationException>(
+                        () => SlayIdleRepeat.Core.GameRules
+                            .Apply(Worlds.OutsideARun(), command, ContextFor(command)),
+                        $"'{name}' reads a projection this slice does not carry, which is a LOADING " +
+                        "defect (30 §4.1) at the meta tier — not a rejection, and not an empty answer.")
+                    .Message.ShouldContain($"{name} was dispatched", Case.Sensitive);
+
+                metaRows++;
                 continue;
             }
 

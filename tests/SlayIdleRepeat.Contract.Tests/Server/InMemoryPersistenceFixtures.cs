@@ -28,6 +28,24 @@ public sealed class InMemoryIdempotencyStoreContractTests : IIdempotencyStoreCon
     protected override IIdempotencyStore Create() => new InMemoryIdempotencyStore(new AdjustableClock());
 }
 
+/// <summary>Runs the shared inbox suite against the in-memory fake.</summary>
+/// <remarks>
+/// The clock is moved to the suite's own instant, so "expired an hour ago" and "expires in 29 days"
+/// are facts about the same timeline the cases assert over.
+/// </remarks>
+[ContractFixtureFor(typeof(InMemoryMessageRepository))]
+public sealed class InMemoryMessageRepositoryContractTests : IMessageRepositoryContractTests
+{
+    /// <inheritdoc/>
+    protected override IMessageRepository Create()
+    {
+        var clock = new AdjustableClock();
+        clock.Set(Now);
+
+        return new InMemoryMessageRepository(clock);
+    }
+}
+
 /// <summary>Runs the shared battle-log suite against the in-memory fake — the direct backing, so no settling.</summary>
 [ContractFixtureFor(typeof(InMemoryBattleLogStore))]
 public sealed class InMemoryBattleLogStoreContractTests : IBattleLogStoreContractTests

@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Application.Services.Events;
+using SlayIdleRepeat.Application.Services.Inbox;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Core;
 using SlayIdleRepeat.Core.Commands;
@@ -125,18 +126,26 @@ public sealed class ApplyCommandUseCase
 {
     private readonly WorldSliceStore _store;
     private readonly DomainEventDispatcher _dispatcher;
+    private readonly InboxCommandSupport? _inbox;
 
     /// <summary>Builds the use case over the store it commits through and the dispatcher it delivers through.</summary>
     /// <param name="store">Where state is loaded from and committed to.</param>
     /// <param name="dispatcher">Where an accepted command's events go.</param>
-    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
-    public ApplyCommandUseCase(WorldSliceStore store, DomainEventDispatcher dispatcher)
+    /// <param name="inbox">
+    /// The inbox seam, or <c>null</c> on a process with no message store. A null one loads no inbox,
+    /// so the one command that reads it fails as the loading defect it is rather than telling a
+    /// player their rewards are gone.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> or <paramref name="dispatcher"/> is null.</exception>
+    public ApplyCommandUseCase(
+        WorldSliceStore store, DomainEventDispatcher dispatcher, InboxCommandSupport? inbox = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(dispatcher);
 
         _store = store;
         _dispatcher = dispatcher;
+        _inbox = inbox;
     }
 
     /// <summary>Applies one command.</summary>
@@ -162,6 +171,11 @@ public sealed class ApplyCommandUseCase
             return ApplyCommandOutcome.Reject(RejectionReason.RUN_NOT_FOUND, slice);
         }
 
+        if (_inbox is { } inbox && InboxCommandSupport.Reads(request.Command))
+        {
+            slice = slice with { Inbox = await inbox.LoadAsync(request.Player, ct).ConfigureAwait(false) };
+        }
+
         var result = GameRules.Apply(slice, request.Command, context);
 
         // Branches on whether there is a rejection, never on which one it is: routing a refusal is
@@ -173,6 +187,13 @@ public sealed class ApplyCommandUseCase
         }
 
         await _store.SaveAsync(result.NewState, ct).ConfigureAwait(false);
+
+        // After the player's own commit, deliberately: the stamp says "this reward was paid", and a
+        // crash between the two must leave a reward paid and claimable rather than claimed and owed.
+        if (_inbox is { } claims)
+        {
+            await claims.ApplyClaimsAsync(request.Player, result.Events, ct).ConfigureAwait(false);
+        }
 
         var batch = new DispatchedEvents(request.Player, request.Command, result.NewState, result.Events);
         var failures = await _dispatcher.DispatchAsync(batch, ct).ConfigureAwait(false);

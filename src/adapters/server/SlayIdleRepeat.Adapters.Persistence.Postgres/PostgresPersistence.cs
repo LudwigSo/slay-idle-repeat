@@ -28,6 +28,8 @@ public sealed class PostgresPersistence : IAsyncDisposable
         RunStates = new PostgresRunStateStore(dataSource);
         Idempotency = new PostgresIdempotencyStore(dataSource);
         EconomyEvents = new PostgresEconomyEventLog(dataSource);
+        Messages = new PostgresMessageRepository(dataSource);
+        MailSegmentAudit = new PostgresMailSegmentAudit(dataSource);
     }
 
     /// <summary>Opens the adapter over one pooled data source.</summary>
@@ -65,6 +67,12 @@ public sealed class PostgresPersistence : IAsyncDisposable
 
     /// <summary>The append-only economy event log.</summary>
     public PostgresEconomyEventLog EconomyEvents { get; }
+
+    /// <summary>The inbox store.</summary>
+    public IMessageRepository Messages { get; }
+
+    /// <summary>The append-only segment-send audit log — read by ops, never by the game.</summary>
+    public PostgresMailSegmentAudit MailSegmentAudit { get; }
 
     /// <summary>Applies every pending migration, once per cluster, under the advisory lock.</summary>
     /// <param name="ct">Cancellation.</param>

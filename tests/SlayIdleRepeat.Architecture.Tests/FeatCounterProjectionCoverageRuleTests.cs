@@ -128,6 +128,15 @@ public sealed class FeatCounterProjectionCoverageRuleTests
          "the key is a CONTENT-DERIVED id formed by LuckTuning, so a counter id built from it would " +
          "hard-wire the authored key set into a lifetime counter nothing may rename. 16 O29 owns it, " +
          "same M16 kickoff as GearGranted"),
+        ("MailClaimed",
+         "M16-03",
+         "28 A's claim event. 'Messages claimed' and 'compensations collected' are both derivable " +
+         "straight off this payload — the message id and its category are on it — so the counters " +
+         "are available today and only the ID VOCABULARY is undecided, exactly the two rows above. " +
+         "⚠️ And there is a reason NOT to guess one here beyond O29: a feat that counted inbox " +
+         "claims would be a feat ops could hand a player by sending them mail, which is a decision " +
+         "about what an achievement means rather than about what an event carries. 16 O29 owns it, " +
+         "same M16 kickoff as GearGranted"),
     };
 
     /// <summary>

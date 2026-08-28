@@ -62,6 +62,26 @@ public sealed class AnalyticsVocabularyRuleTests
          "not in 14 §10.1's list; the M5-11 kickoff ruling 3 explicitly authorises currency events "
          + "where the domain events carry them — CurrencyChanged carries currency, delta and reason, "
          + "so nothing is invented (recorded as the run's assumption 2)"),
+
+        // 🔒 M5-08. 14 §10.1 is not the only document that AUTHORS an event name: 28 A6 names five
+        // mail_* names as the inbox's telemetry requirement. Two of them are produced by a real
+        // production path in this build and are emitted; the other three are not, and they are
+        // carried by InboxAbsences rather than by UnemittableEvents — that register is closed to
+        // 14 §10.1's own list by No_register_entry_names_an_event_the_document_does_not_author, and
+        // widening it to a second document would make every direction in this file quantify over a
+        // transcription it does not hold.
+        ("mail_claimed",
+         "not in 14 §10.1's list; 28 A6 authors it as one of the inbox's five required telemetry "
+         + "names, and it is the one of the five the accepted-command stream carries outright — an "
+         + "accepted CLAIM_INBOX emits a MailClaimed domain event per message, with the message id "
+         + "and its category on it, so nothing is invented"),
+
+        ("mail_expired_autogranted",
+         "not in 14 §10.1's list; 28 A6 authors it, and the nightly expiry sweep is a real "
+         + "production path with a real player id — it tracks through the port directly rather than "
+         + "through the accepted-command translator, because a hosted job is not a command. The "
+         + "properties are the message's own id, category and attachment count, all read off the "
+         + "row the sweep just paid"),
     };
 
     /// <summary>
@@ -265,8 +285,13 @@ public sealed class AnalyticsVocabularyRuleTests
     /// <summary>
     /// Emitted names. Below this, the emitted-vocabulary rules quantify over a set that has lost
     /// members — the translator was narrowed and nothing else says so.
+    /// <para>
+    /// 🔒 M5-08 raised it 5 → 7 for <c>mail_claimed</c> and <c>mail_expired_autogranted</c>. Both are
+    /// <see cref="DocumentedExtensions"/> rows rather than authored names, because they are `28` A6's
+    /// vocabulary rather than `14` §10.1's.
+    /// </para>
     /// </summary>
-    private const int EmittedFloor = 5;
+    private const int EmittedFloor = 7;
 
     /// <summary>
     /// Register entries. Below this, the stale/unanchored/owner directions report success over a

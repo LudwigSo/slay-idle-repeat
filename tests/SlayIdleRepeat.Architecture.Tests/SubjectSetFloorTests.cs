@@ -1405,8 +1405,9 @@ public sealed class SubjectSetFloorTests
     // platform ports to become declarable — with PortCatalogueTests.DeclaredPortFloor and
     // ContractSuiteCoverageTests.PortFloor, the two other floors over this same set. M5-05 raised
     // it 6 → 10 for its four server persistence ports and M5-11 raised it 10 → 12 for
-    // IAnalyticsSinkPort and ITelemetryPort, each moving all three floors together.
-    private const int PortFloor = 12;                // IContentSourcePort (M0-09) + M5-01's four + M7-01b's one + M5-05's four + M5-11's two
+    // IAnalyticsSinkPort and ITelemetryPort, and M5-08 raised it 12 → 13 for IMessageRepository —
+    // each moving all three floors together.
+    private const int PortFloor = 13;                // IContentSourcePort (M0-09) + M5-01's four + M7-01b's one + M5-05's four + M5-11's two + M5-08's one
     private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 
     // 🔒 M1-12. The constants whose register row carries a citation THIS assembly can resolve, and

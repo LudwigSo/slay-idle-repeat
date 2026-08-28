@@ -90,7 +90,8 @@ public static class GameCommandComposition
             ]);
 
             return _gateway = new CommandGateway(
-                new ApplyCommandUseCase(backbone.WorldStore, dispatcher),
+                new ApplyCommandUseCase(
+                    backbone.WorldStore, dispatcher, InboxComposition.CommandSupport(app.Configuration)),
                 backbone.Clock,
                 backbone.Ids,
                 backbone.Content,

@@ -14,26 +14,38 @@ namespace SlayIdleRepeat.Core;
 /// A pair of references, not a copy: constructing one does not clone the aggregates.
 /// <c>GameRules.Apply</c> is what clones, on the way in.
 /// </para>
+/// <para>
+/// <c>Inbox</c> is a third member and a different kind of one: a READ-ONLY projection rather than an
+/// aggregate, on the same resolution `30` §5 reaches for guilds. It is not cloned on the way in
+/// because it is immutable and the domain never writes it — a claim returns the messages it granted
+/// as events, and the Application layer is what stamps them.
+/// </para>
 /// </remarks>
 /// <param name="Player">The player the command is applied to. Never null: Run is modelled as a child of Player.</param>
 /// <param name="Run">
 /// The run in flight, or <c>null</c> outside a run. A <c>null</c> here for a run command is a
 /// loading defect, not a rejection.
 /// </param>
-public sealed record WorldSlice(Player Player, Run? Run)
+/// <param name="Inbox">
+/// The player's messages as a READ-ONLY projection, or <c>null</c> when this command's slice did not
+/// load them. Optional because loading a table on every command a claim is not is a read nobody
+/// asked for; a <c>null</c> here for a claim is a loading defect, not a rejection — and an empty
+/// inbox is <see cref="InboxView.Empty"/>, so the two are never confused.
+/// </param>
+public sealed record WorldSlice(Player Player, Run? Run, InboxView? Inbox = null)
 {
     private readonly Player _player = RequirePlayer(Player);
 
     private readonly Run? _run = RequireOwnedRun(Player, Run);
 
-    /// <inheritdoc cref="WorldSlice(Player, Run)" path="/param[@name='Player']"/>
+    /// <inheritdoc cref="WorldSlice(Player, Run, InboxView)" path="/param[@name='Player']"/>
     public Player Player
     {
         get => _player;
         init => _player = RequirePlayer(value);
     }
 
-    /// <inheritdoc cref="WorldSlice(Player, Run)" path="/param[@name='Run']"/>
+    /// <inheritdoc cref="WorldSlice(Player, Run, InboxView)" path="/param[@name='Run']"/>
     public Run? Run
     {
         get => _run;

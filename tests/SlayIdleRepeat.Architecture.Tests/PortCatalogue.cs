@@ -269,10 +269,13 @@ internal static class PortCatalogue
         // fixture; ContractSuiteCoverageTests' StoreBackedAdapterExemptions register is where that
         // exception lives, owner-expiring on the CI probe that exercises each of them.
 
-        new("IMessageRepository", "M5-08",
-            "The inbox store. Its only real implementation is Postgres, and its signature names a " +
-            "player message, a message id and the six categories the inbox milestone authors — none " +
-            "of which exists in Core, so the port cannot be typed without inventing them."),
+        // ⚠️ IMessageRepository was here, deferred to M5-08 for a reason that has expired: it read
+        // "its signature names a player message, a message id and the six categories the inbox
+        // milestone authors — none of which exists in Core". M5-08 authored MessageId,
+        // MessageCategory and MailAttachment, declared the port beside its InMemory fake and its
+        // shared contract suite, and this register FORCED the deletion in the declaring commit —
+        // exactly as it did for IPlatformInfoPort and for M5-05's four. Its real Postgres adapter
+        // carries no in-repo fixture; StoreBackedAdapterExemptions is where that exception lives.
 
         // ⚠️ M12-01, not M5-05. The tracker's M5-05 row enumerates the schema it builds — "profiles
         // JSONB/typed split, run snapshots, idempotency, economy event log, messages" — and ghosts
@@ -451,6 +454,20 @@ internal static class PortCatalogue
         {
             "PutAsync",
             "GetAsync",
+        }),
+
+        // 🔒 M5-08's inbox port, transcribed in the commit that declared it. All four of `23` §4.2's
+        // members are present; the declaration adds a fifth, DeleteAsync, because the expiry job's
+        // own requirement is "auto-grants attachments on expiring messages AND THEN DELETES THEM"
+        // and the section's four cannot express a deletion. Extra members are the declaration's
+        // business — only MISSING ones are what these directions can see — and the reason for this
+        // one is on the port itself.
+        new("23 §4.2", "IMessageRepository", new[]
+        {
+            "GetActiveAsync",
+            "AppendAsync",
+            "MarkClaimedAsync",
+            "DequeueExpiringAsync",
         }),
 
         // 🔒 M5-11's two observability server ports, transcribed in the commit that declared them —

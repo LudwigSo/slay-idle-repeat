@@ -44,13 +44,14 @@ public sealed class ContractSuiteCoverageTests
     /// 6 → 12 across two tasks that both moved the same three floors together: M5-05's four server
     /// persistence ports (<c>IPlayerRepository</c>, <c>IRunStateStore</c>, <c>IIdempotencyStore</c>,
     /// <c>IBattleLogStore</c>) and M5-11's two observability ports (<c>IAnalyticsSinkPort</c>,
-    /// <c>ITelemetryPort</c>).
+    /// <c>ITelemetryPort</c>). M5-08 then raised it 12 → 13 for <c>IMessageRepository</c>, the
+    /// inbox store, moving all three floors in the same commit.
     /// </remarks>
-    private const int PortFloor = 12;
+    private const int PortFloor = 13;
 
     /// <summary>Attributed suites in this assembly. At zero, rule 3's suite arm has nothing to check.</summary>
     /// <remarks>Moves with <see cref="PortFloor"/>: rule 1 is one suite per port, exactly.</remarks>
-    private const int SuiteFloor = 12;
+    private const int SuiteFloor = 13;
 
     /// <summary>
     /// Adapter assemblies the scan finds. At zero, rule 2 finds no implementations and reports
@@ -171,6 +172,11 @@ public sealed class ContractSuiteCoverageTests
         "SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry.OpenTelemetryTelemetry",
         "SlayIdleRepeat.Adapters.Telemetry.Sentry.SentryTelemetry",
         "SlayIdleRepeat.Adapters.InMemory.RecordingTelemetry",
+
+        // M5-08's inbox port. The Postgres real is named for the reason the other store-backed reals
+        // are: it carries no fixture, and the scan is what its exemption anchors to.
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryMessageRepository",
+        "SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresMessageRepository",
     };
 
     private const string PortsNamespace = "SlayIdleRepeat.Application.Ports";

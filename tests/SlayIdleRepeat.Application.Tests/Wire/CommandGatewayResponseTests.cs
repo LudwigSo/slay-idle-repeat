@@ -228,10 +228,13 @@ public sealed class CommandGatewayResponseTests
             world.Player, Envelopes.Body("START_DUEL", 1, "c-d", "{\"ghostId\": \"g1\"}"), Worlds.Cancel);
         Replies.Rejection(duel, "ILLEGAL_STATE");
 
-        // CLAIM_INBOX's registry row is Deferred to M5-08 — same construction as START_DUEL above.
+        // CLAIM_INBOX is HANDLED since M5-08, so its dispatch answer is an acceptance rather than
+        // ILLEGAL_STATE: the fixture player's inbox is empty, and claiming everything claimable out
+        // of an empty inbox grants nothing and refuses nothing. That is the stronger control here —
+        // the command reached the domain, which is the whole claim this case makes.
         var inbox = await world.Gateway.SubmitPlayerCommandAsync(
             world.Player, Envelopes.Body("CLAIM_INBOX", 2, "c-i", "{}"), Worlds.Cancel);
-        Replies.Rejection(inbox, "ILLEGAL_STATE");
+        Replies.Parse(inbox, expectedStatus: 200).TryGetProperty("rejected", out _).ShouldBeFalse();
 
         var start = await world.Gateway.SubmitPlayerCommandAsync(
             world.Player, Envelopes.StartRun(sequence: 3, commandId: "c-s"), Worlds.Cancel);
