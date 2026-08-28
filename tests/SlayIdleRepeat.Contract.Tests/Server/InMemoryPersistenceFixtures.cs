@@ -1,6 +1,9 @@
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Adapters.ObjectStore.S3;
 using SlayIdleRepeat.Application.Ports.Server;
+using SlayIdleRepeat.Application.Services.Events;
+using SlayIdleRepeat.Application.Wire;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Contract.Tests.Server;
 
@@ -26,6 +29,51 @@ public sealed class InMemoryIdempotencyStoreContractTests : IIdempotencyStoreCon
 {
     /// <inheritdoc/>
     protected override IIdempotencyStore Create() => new InMemoryIdempotencyStore(new AdjustableClock());
+}
+
+/// <summary>Runs the shared unit-of-work suite against the in-memory fake, over stores it can be read back through.</summary>
+[ContractFixtureFor(typeof(InMemoryUnitOfWork))]
+public sealed class InMemoryUnitOfWorkContractTests : IUnitOfWorkContractTests
+{
+    private readonly InMemoryPlayerRepository _players = new();
+    private readonly InMemoryIdempotencyStore _idempotency = new(new AdjustableClock());
+    private InMemoryUnitOfWork? _lastCreated;
+
+    /// <inheritdoc/>
+    protected override IUnitOfWork Create() => _lastCreated = new InMemoryUnitOfWork(_players, _idempotency);
+
+    /// <inheritdoc/>
+    protected override Task<PlayerProfile?> StoredProfileAsync(PlayerId player) =>
+        _players.GetAsync(player, PersistenceWorlds.Cancel);
+
+    /// <inheritdoc/>
+    protected override Task<RecordedCommandOutcome?> StoredOutcomeAsync(
+        IdempotencyScope scope, CommandId commandId) =>
+        _idempotency.GetRecordedOutcomeAsync(scope, commandId, PersistenceWorlds.Cancel);
+
+    /// <inheritdoc/>
+    protected override Task<long?> LastSequenceAsync(IdempotencyScope scope) =>
+        _idempotency.ReadLastSequenceAsync(scope, PersistenceWorlds.Cancel);
+
+    /// <inheritdoc/>
+    protected override Task<IReadOnlyList<EconomyEventRecord>> StoredEconomyEventsAsync() =>
+        Task.FromResult(Subject().EconomyEvents);
+
+    /// <inheritdoc/>
+    protected override void FailTheRecordHalf() => Subject().FailingRecordWrites = true;
+
+    /// <inheritdoc/>
+    protected override void FailTheSnapshotHalf() => Subject().FailingSnapshotWrites = true;
+
+    /// <remarks>
+    /// Loud rather than a silent no-op: a fault knob that quietly does nothing would turn the
+    /// atomicity cases into commits that were never asked to fail, which is the one shape those
+    /// cases cannot survive.
+    /// </remarks>
+    private InMemoryUnitOfWork Subject() =>
+        _lastCreated
+        ?? throw new InvalidOperationException(
+            "Create() has not been called, so there is no unit of work to arrange or read back.");
 }
 
 /// <summary>Runs the shared battle-log suite against the in-memory fake — the direct backing, so no settling.</summary>

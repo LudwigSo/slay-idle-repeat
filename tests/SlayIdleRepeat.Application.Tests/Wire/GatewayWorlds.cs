@@ -38,6 +38,7 @@ internal sealed class GatewayWorld
         WorldSliceStore store,
         InMemoryLocalCache cache,
         VolatileCommandLedger ledger,
+        RecordingUnitOfWork unitOfWork,
         ManualThrottle throttle,
         AdjustableClock clock,
         PlayerId player,
@@ -48,6 +49,7 @@ internal sealed class GatewayWorld
         Store = store;
         Cache = cache;
         Ledger = ledger;
+        UnitOfWork = unitOfWork;
         Throttle = throttle;
         Clock = clock;
         Player = player;
@@ -63,6 +65,8 @@ internal sealed class GatewayWorld
     internal InMemoryLocalCache Cache { get; }
 
     internal VolatileCommandLedger Ledger { get; }
+
+    internal RecordingUnitOfWork UnitOfWork { get; }
 
     internal ManualThrottle Throttle { get; }
 
@@ -80,11 +84,15 @@ internal sealed class GatewayWorld
     /// <param name="ledger">The ledger seam, defaulting to the placeholder — a case about the seam's failure shapes passes a decorated one.</param>
     /// <param name="currentFlags">The live flags source — a reload case swaps what it answers between commands; defaults to a constant read of <paramref name="flags"/>.</param>
     /// <param name="pins">The content pins, defaulting to an empty store over the shipped snapshot alone.</param>
+    /// <param name="sinks">The post-commit fan-out, defaulting to none — a case about delivery failure passes one that throws.</param>
+    /// <param name="order">A shared log the unit of work and the sinks write their step into, for the cases about what happens before what.</param>
     internal static async Task<GatewayWorld> WithAStartingPlayerAsync(
         FeatureFlags? flags = null,
         ICommandLedgerStore? ledger = null,
         Func<FeatureFlags>? currentFlags = null,
-        PinnedContent? pins = null)
+        PinnedContent? pins = null,
+        IReadOnlyList<IDomainEventSink>? sinks = null,
+        List<string>? order = null)
     {
         if (flags is not null && currentFlags is not null)
         {
@@ -111,8 +119,10 @@ internal sealed class GatewayWorld
 
         await store.SaveAsync(new WorldSlice(starting.Value, null), Worlds.Cancel);
 
+        var unitOfWork = new RecordingUnitOfWork(store, volatileLedger, Worlds.Content, order);
+
         var gateway = new CommandGateway(
-            new ApplyCommandUseCase(store, new DomainEventDispatcher([])),
+            new ApplyCommandUseCase(store, new DomainEventDispatcher(sinks ?? [])),
             clock,
             new CountingIdGenerator(),
             Worlds.Content,
@@ -120,10 +130,12 @@ internal sealed class GatewayWorld
             currentFlags ?? (() => resolvedFlags),
             ledger ?? volatileLedger,
             throttle,
-            resolvedPins.Pinning);
+            resolvedPins.Pinning,
+            unitOfWork);
 
         return new GatewayWorld(
-            gateway, store, cache, volatileLedger, throttle, clock, player, resolvedFlags, resolvedPins);
+            gateway, store, cache, volatileLedger, unitOfWork, throttle, clock, player, resolvedFlags,
+            resolvedPins);
     }
 
     /// <summary>A second starting player in the same world, so cross-player claims compare two real principals.</summary>

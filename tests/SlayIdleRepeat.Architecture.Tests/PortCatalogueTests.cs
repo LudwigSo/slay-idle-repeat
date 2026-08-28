@@ -56,9 +56,10 @@ public sealed class PortCatalogueTests
     /// floors are stated over the same set in three assemblies; one moving without the others is one
     /// of them having gained a member the other two cannot see. M5 raised it 6 → 12 across two tasks
     /// that each moved all three together: M5-05's four server persistence ports and M5-11's two
-    /// observability ports (<c>IAnalyticsSinkPort</c>, <c>ITelemetryPort</c>).
+    /// observability ports (<c>IAnalyticsSinkPort</c>, <c>ITelemetryPort</c>). M5-04 raised it
+    /// 12 → 13 for <c>IUnitOfWork</c>, moving all three again.
     /// </remarks>
-    private const int DeclaredPortFloor = 12;
+    private const int DeclaredPortFloor = 13;
 
     /// <summary>
     /// Entries in the register. At zero, <see cref="No_port_deferral_outlives_the_port_it_defers"/>,
@@ -473,11 +474,13 @@ public sealed class PortCatalogueTests
     [Fact]
     public void The_register_directions_fire_on_a_deliberately_bad_entry_and_are_silent_on_a_good_one()
     {
+        // The crafted subject has to be a port that is still DEFERRED, or the expired direction
+        // fires on the good entry itself. It was IUnitOfWork until M5-04 declared that one.
         var group = new PortCatalogue.SpecifiedPortGroup(
-            "23 §4.2", PortCatalogue.ServerPortsNamespace, new[] { "IUnitOfWork" });
+            "23 §4.2", PortCatalogue.ServerPortsNamespace, new[] { "IGhostRepository" });
 
         var good = new PortCatalogue.PortDeferral(
-            "IUnitOfWork", "M5-04", "a reason long enough to be worth falsifying at the next kickoff.");
+            "IGhostRepository", "M12-01", "a reason long enough to be worth falsifying at the next kickoff.");
 
         PortCatalogue.Undeclared(new[] { group }, new[] { good }).ShouldBeEmpty();
         PortCatalogue.Unanchored(new[] { group }, new[] { good }).ShouldBeEmpty();

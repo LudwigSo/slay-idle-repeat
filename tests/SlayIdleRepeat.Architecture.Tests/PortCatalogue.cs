@@ -295,11 +295,11 @@ internal static class PortCatalogue
         // no link, no Task<Uri>, no bare 'key'/'prefix'/'region'/'endpoint' parameter (23 §5 A4 was
         // read, not just tripwired). The AzureBlob sibling at M18-06a inherits that surface as-is.
 
-        new("IUnitOfWork", "M5-04",
-            "It spans exactly one Postgres transaction — the aggregate snapshots, the idempotency " +
-            "outcome and the appended domain events, committed together. A port whose entire meaning " +
-            "is a database transaction boundary cannot have a second implementation that is not a " +
-            "database, and a fake alone would make the commit rule untestable while looking tested."),
+        // 🔒 IUnitOfWork's deferral was here, and M5-04 declared the port under Application/Ports/
+        // Server/. Its argument — "a fake alone would make the commit rule untestable while looking
+        // tested" — is answered rather than routed around: the in-memory implementation carries the
+        // both-or-neither cases against a fault it can be told to raise, and the Postgres one is
+        // exempted to the round-trip probe that watches a real transaction.
 
         new("IStoreSubscriptionPort", "M15-05",
             "Its two real implementations are the Google Play Developer API and the App Store Server " +
@@ -445,6 +445,15 @@ internal static class PortCatalogue
         {
             "GetRecordedOutcomeAsync",
             "RecordAsync",
+        }),
+
+        // 🔒 M5-04's boundary. The section sketches a no-argument commit over an ambient session;
+        // the declaration takes what it commits instead, so the member name is the section's and
+        // the shape is the kickoff's — which is exactly the departure this register exists to make
+        // visible rather than silent.
+        new("23 §4.2", "IUnitOfWork", new[]
+        {
+            "CommitAsync",
         }),
 
         new("23 §4.2", "IBattleLogStore", new[]

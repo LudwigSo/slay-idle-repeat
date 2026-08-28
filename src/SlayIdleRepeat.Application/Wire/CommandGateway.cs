@@ -1,7 +1,9 @@
 using System.Globalization;
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Content;
+using SlayIdleRepeat.Application.Services.Events;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Contracts;
 using SlayIdleRepeat.Core;
@@ -81,6 +83,7 @@ public sealed class CommandGateway
     private readonly ICommandLedgerStore _ledger;
     private readonly ICommandThrottle _throttle;
     private readonly ContentPinning _pinning;
+    private readonly IUnitOfWork _unitOfWork;
 
     /// <summary>
     /// The striped gate pool, keyed by PLAYER — not by sequencing scope. A player's run and player
@@ -103,6 +106,7 @@ public sealed class CommandGateway
     /// <param name="ledger">Where sequencing state and idempotency records live.</param>
     /// <param name="throttle">The per-player application-level limit.</param>
     /// <param name="pinning">The run/session content pins and the snapshots they name.</param>
+    /// <param name="unitOfWork">The boundary one processed command is committed inside.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public CommandGateway(
         ApplyCommandUseCase apply,
@@ -113,7 +117,8 @@ public sealed class CommandGateway
         Func<FeatureFlags> currentFlags,
         ICommandLedgerStore ledger,
         ICommandThrottle throttle,
-        ContentPinning pinning)
+        ContentPinning pinning,
+        IUnitOfWork unitOfWork)
     {
         ArgumentNullException.ThrowIfNull(apply);
         ArgumentNullException.ThrowIfNull(clock);
@@ -124,6 +129,7 @@ public sealed class CommandGateway
         ArgumentNullException.ThrowIfNull(ledger);
         ArgumentNullException.ThrowIfNull(throttle);
         ArgumentNullException.ThrowIfNull(pinning);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
 
         _pinning = pinning;
         _apply = apply;
@@ -134,6 +140,7 @@ public sealed class CommandGateway
         _currentFlags = currentFlags;
         _ledger = ledger;
         _throttle = throttle;
+        _unitOfWork = unitOfWork;
     }
 
     /// <summary><c>POST /run/{runId}/command</c> — a run command, sequenced on that run.</summary>
@@ -243,7 +250,7 @@ public sealed class CommandGateway
         }
     }
 
-    /// <summary>The half that runs under the scope's gate: the 14 §16.3 rules, the dispatch, and the record.</summary>
+    /// <summary>The half that runs under the scope's gate: the 14 §16.3 rules, the dispatch, and the one commit.</summary>
     private async Task<GatewayReply> SubmitSequencedAsync(
         PlayerId player,
         RunId? routedRun,
@@ -274,16 +281,12 @@ public sealed class CommandGateway
                 return Rejection(envelope, RejectionReason.IDEMPOTENCY_CONFLICT);
             }
 
-            // The replay repairs the record-then-open seam: appending the acceptance and opening
-            // the new run's scope are two store calls, and a durable backing may fail between them.
-            // Without this, a START_RUN whose open never landed would replay a runId every command
-            // answers RUN_NOT_FOUND to, forever. OpenScopeAsync is idempotent, so the common case
-            // — the scope already open — re-opens nothing.
-            if (stored.OpensRunScope is { } openedScope)
-            {
-                await _ledger.OpenScopeAsync(openedScope, ct).ConfigureAwait(false);
-            }
-
+            // 🔒 A replay is a READ. It re-serves bytes that were committed; it writes nothing,
+            // repairs nothing, and never depends on a row it does not own still existing. The record
+            // and the run scope it names are established once, by the one commit that created both,
+            // so there is no longer a window in which one can exist without the other — and the
+            // repair that used to stand here is what turned a duplicate whose run had since expired
+            // into a fault where the first send had answered a run.
             return new GatewayReply(200, stored.ResponseBody);
         }
 
@@ -318,31 +321,28 @@ public sealed class CommandGateway
             flags,
             opensRun ? MintRunId() : null);
 
-        var outcome = await _apply
-            .ExecuteAsync(new ApplyCommandRequest(player, routedRun, command), context, ct)
-            .ConfigureAwait(false);
+        var request = new ApplyCommandRequest(player, routedRun, command);
+
+        // Decide, render, pin, commit, publish. The answer is rendered before the commit because the
+        // record the commit carries IS those bytes: a duplicate replays them, so they have to exist
+        // before the thing that stores them does.
+        var decision = await _apply.DecideAsync(request, context, ct).ConfigureAwait(false);
 
         var runScoped = routedRun is not null || opensRun;
-        var response = Respond(envelope, outcome, runScoped);
-        var responseBody = WireJson.Render(response);
+        var responseBody = WireJson.Render(Respond(envelope, decision, runScoped));
+        var actedOn = runScoped ? decision.State.Run?.Id : null;
+        var openedScope = decision.Accepted && opensRun && decision.State.Run is { } opened
+            ? IdempotencyScope.ForRun(player, opened.Id)
+            : (IdempotencyScope?)null;
 
-        var opensRunScope = outcome.Accepted && opensRun && outcome.State.Run is { } opened
-            ? RunScope(player, opened.Id)
-            : null;
-
-        await _ledger
-            .AppendAsync(
-                scope,
-                new LedgerRecord(envelope.CommandId, envelope.Sequence, command, responseBody, opensRunScope),
-                ct)
-            .ConfigureAwait(false);
-
-        // The pins land with the acceptance they belong to. A run pinned without its scope opened
-        // would hold a retention reference to a run nothing can address; a scope opened without a
-        // pin would let the run's second command read whatever is current by then.
-        if (outcome.Accepted)
+        // The pins go down BEFORE the commit that makes the run addressable, and they are the one
+        // thing here that does. A pin written for a commit that then fails is an orphan reference to
+        // a run id no client was ever told; a run whose scope opened without its pin would be judged
+        // against whatever content is current by its second command, silently and forever. The first
+        // costs a swept bundle a longer retention, the second is the wrong numbers.
+        if (decision.Accepted)
         {
-            if (opensRun && outcome.State.Run is { } pinned)
+            if (opensRun && decision.State.Run is { } pinned)
             {
                 await _pinning.Store
                     .WriteRunPinAsync(pinned.Id, _content.Version, now, ct)
@@ -357,13 +357,40 @@ public sealed class CommandGateway
             }
         }
 
-        // The other half of "the run's sequence starts at 1": the new run's own scope opens at 0,
-        // after the record above so a replayed START_RUN can repair a missing open — the record
-        // carries the scope key for exactly that.
-        if (opensRunScope is not null)
-        {
-            await _ledger.OpenScopeAsync(opensRunScope, ct).ConfigureAwait(false);
-        }
+        var commit = new CommandCommit(
+
+            // Resolved from the very key the sequence and the stored record were read under, rather
+            // than rebuilt from the route: two derivations of one domain are two things that must
+            // agree, and a command counted in one and recorded in the other would replay to nobody.
+            CommandScopes.Resolve(scope),
+            new RecordedCommandOutcome(
+                envelope.CommandId,
+                envelope.Sequence,
+                WireCommandCodec.WireNameOf(command),
+                WireCommandCodec.EncodePayload(command),
+                responseBody,
+                openedScope is { } opening ? CommandScopes.KeyOf(opening) : null),
+            GameRules.RunLifetime(_content),
+
+            // A refusal commits its record alone: nothing moved, so a snapshot or an economy row
+            // written here would describe a state no command ever produced.
+            decision.Accepted
+                ? new PlayerProfile(decision.State.Player.ToSnapshot(), decision.State.Run?.ToSnapshot())
+                : null,
+            decision.Accepted
+                ? EconomyEventEnricher.Enrich(
+                    player, actedOn, envelope.CommandId, context.NowUtc, decision.Events)
+                : Array.Empty<EconomyEventRecord>(),
+            openedScope);
+
+        // The moment the command happened. Everything above it is a decision nobody can see yet;
+        // everything below it is loss-tolerant.
+        await _unitOfWork.CommitAsync(commit, ct).ConfigureAwait(false);
+
+        // Analytics and telemetry, outside the transaction: a sink that cannot take the batch has no
+        // say in whether the command happened, and one delivered inside the commit would hold a
+        // player's command open on somebody else's endpoint.
+        await _apply.PublishAsync(request, decision, ct).ConfigureAwait(false);
 
         return new GatewayReply(200, responseBody);
     }
@@ -385,7 +412,7 @@ public sealed class CommandGateway
     /// player) hashes the player alone, there being no run snapshot on either end to hash.
     /// </remarks>
     private static CommandResponse Respond(
-        CommandEnvelope envelope, ApplyCommandOutcome outcome, bool runScoped)
+        CommandEnvelope envelope, ApplyCommandDecision outcome, bool runScoped)
     {
         var player = outcome.State.Player.ToSnapshot();
         var run = runScoped ? outcome.State.Run?.ToSnapshot() : null;

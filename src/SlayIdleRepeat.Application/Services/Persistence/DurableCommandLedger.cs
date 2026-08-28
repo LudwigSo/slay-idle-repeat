@@ -1,4 +1,3 @@
-using System.Text.Json;
 using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Wire;
 using SlayIdleRepeat.Contracts;
@@ -63,14 +62,26 @@ public sealed class DurableCommandLedger : ICommandLedgerStore
             .GetRecordedOutcomeAsync(CommandScopes.Resolve(scope), commandId, ct)
             .ConfigureAwait(false);
 
-        return stored is null ? null : ToLedgerRecord(stored);
+        return stored is null ? null : LedgerRecord.From(stored);
     }
 
-    /// <inheritdoc/>
+    /// <summary>Opens a scope at sequence 0. Idempotent, and never a reset.</summary>
+    /// <param name="scope">The scope key.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <inheritdoc cref="AppendAsync" path="/remarks"/>
     public Task OpenScopeAsync(string scope, CancellationToken ct) =>
         _store.OpenScopeAsync(CommandScopes.Resolve(scope), ct);
 
-    /// <inheritdoc/>
+    /// <summary>Records one processed command and advances the scope's last sequence, atomically.</summary>
+    /// <param name="scope">The scope key.</param>
+    /// <param name="record">The record.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// Its own public member rather than part of <see cref="ICommandLedgerStore"/>: a command's
+    /// record now lands inside the commit that carries the snapshots it describes, so the gateway
+    /// has no reason to write through the ledger at all and a seam offering it a second way to
+    /// would be a way to record a command without the state it produced.
+    /// </remarks>
     public Task AppendAsync(string scope, LedgerRecord record, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(record);
@@ -90,38 +101,24 @@ public sealed class DurableCommandLedger : ICommandLedgerStore
 
     /// <inheritdoc/>
     /// <remarks>
-    /// <para>
-    /// 🔒 Always "cannot enumerate", and deliberately so. The store beneath keys records on
-    /// (scope, commandId) and offers no read ordered by sequence, so this ledger has no way to walk
-    /// a scope's outcomes. An empty list here would be indistinguishable from "nothing was missed"
-    /// and would silently drop outcomes the client is owed; saying it cannot enumerate makes the
-    /// caller order a full resync instead, which is correct rather than merely safe.
-    /// </para>
-    /// <para>
-    /// The durable table itself already carries the sequence, so the capability exists physically —
-    /// it is the shape of the seam beneath that withholds it, not the storage. The cost is bounded:
-    /// a host on this backing still answers the authoritative state, and a client that missed
-    /// nothing is never sent here at all.
-    /// </para>
+    /// 🔒 The store's own list is projected, never filtered or padded. A record whose lifetime has
+    /// passed is simply absent, so the answer may have a hole — which the caller detects and answers
+    /// with a full resync. Closing the hole here would hand it a short list it would take for the
+    /// complete set of what it missed.
     /// </remarks>
-    public Task<MissedOutcomes> ReadOutcomesAfterAsync(string scope, long sinceSequence, CancellationToken ct) =>
-        Task.FromResult(MissedOutcomes.Unavailable);
-
-    /// <summary>One stored record back into the ledger's shape, its command re-decoded through the one codec.</summary>
-    private static LedgerRecord ToLedgerRecord(RecordedCommandOutcome stored)
+    public async Task<MissedOutcomes> ReadOutcomesAfterAsync(string scope, long sinceSequence, CancellationToken ct)
     {
-        using var payload = JsonDocument.Parse(stored.PayloadJson);
+        var stored = await _store
+            .ReadOutcomesAfterAsync(CommandScopes.Resolve(scope), sinceSequence, ct)
+            .ConfigureAwait(false);
 
-        var decode = WireCommandCodec.Decode(new CommandEnvelope(
-            WireProtocol.PROTOCOL_VERSION, stored.CommandId, stored.Sequence,
-            stored.CommandType, payload.RootElement.Clone()));
+        var missed = new ReplayedOutcome[stored.Count];
 
-        return decode.Command is { } command
-            ? new LedgerRecord(stored.CommandId, stored.Sequence, command, stored.ResponseBody, stored.OpensScope)
-            : throw new InvalidOperationException(
-                "The stored record for command '" + stored.CommandId + "' does not decode (" +
-                decode.Rejection + "). These bytes were produced by the codec's own encode, so a " +
-                "refusal here is a registry or codec change that stranded committed records — fail " +
-                "loudly rather than treating a committed command as never seen.");
+        for (var index = 0; index < stored.Count; index++)
+        {
+            missed[index] = new ReplayedOutcome(stored[index].Sequence, stored[index].ResponseBody);
+        }
+
+        return MissedOutcomes.Of(missed);
     }
 }

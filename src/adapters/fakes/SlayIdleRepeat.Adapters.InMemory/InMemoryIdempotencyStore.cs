@@ -53,6 +53,32 @@ public sealed class InMemoryIdempotencyStore : IIdempotencyStore
     }
 
     /// <inheritdoc/>
+    public Task<IReadOnlyList<RecordedCommandOutcome>> ReadOutcomesAfterAsync(
+        IdempotencyScope scope, long sinceSequence, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            if (!_scopes.TryGetValue(KeyOf(scope), out var state))
+            {
+                return Task.FromResult<IReadOnlyList<RecordedCommandOutcome>>(
+                    Array.Empty<RecordedCommandOutcome>());
+            }
+
+            // Ordered explicitly: the backing is a hash map, so insertion order is not an order at
+            // all, and a caller checking contiguity would read a shuffled list as a hole.
+            var live = state.Records.Values
+                .Where(entry => entry.ExpiresAtUtc > _clock.UtcNow && entry.Outcome.Sequence > sinceSequence)
+                .OrderBy(entry => entry.Outcome.Sequence)
+                .Select(entry => entry.Outcome)
+                .ToArray();
+
+            return Task.FromResult<IReadOnlyList<RecordedCommandOutcome>>(live);
+        }
+    }
+
+    /// <inheritdoc/>
     public Task RecordAsync(
         IdempotencyScope scope, RecordedCommandOutcome outcome, TimeSpan ttl, CancellationToken ct)
     {

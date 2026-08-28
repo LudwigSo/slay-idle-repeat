@@ -8,8 +8,9 @@ namespace SlayIdleRepeat.Adapters.Cache.Redis;
 /// Outcome records are safe to cache: a miss falls back to the store of record and a hit replays
 /// bytes that can never change. The sequence counter is NOT cached, deliberately — a stale cached
 /// counter after a lost write-behind would pass the gate for a sequence the store of record already
-/// consumed, which is a double-apply. <see cref="ReadLastSequenceAsync"/> and
-/// <see cref="OpenScopeAsync"/> therefore delegate straight through.
+/// consumed, which is a double-apply. <see cref="ReadLastSequenceAsync"/>,
+/// <see cref="OpenScopeAsync"/> and <see cref="ReadOutcomesAfterAsync"/> therefore delegate straight
+/// through.
 /// </remarks>
 public sealed class RedisIdempotencyCache : IIdempotencyStore
 {
@@ -84,6 +85,18 @@ public sealed class RedisIdempotencyCache : IIdempotencyStore
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Uncached, straight through, for the same reason the counter is: a key-value surface cannot
+    /// enumerate a scope by sequence, and a cache is rebuildable — never a system of record — so it
+    /// has no standing to say what a client missed. Answering from here would let an evicted entry
+    /// read as "nothing was recorded above that sequence", which is the one lie this contract's
+    /// empty list must never carry.
+    /// </remarks>
+    public Task<IReadOnlyList<RecordedCommandOutcome>> ReadOutcomesAfterAsync(
+        IdempotencyScope scope, long sinceSequence, CancellationToken ct) =>
+        _inner.ReadOutcomesAfterAsync(scope, sinceSequence, ct);
+
+    /// <inheritdoc/>
     public Task<long?> ReadLastSequenceAsync(IdempotencyScope scope, CancellationToken ct) =>
         _inner.ReadLastSequenceAsync(scope, ct);
 
@@ -92,7 +105,12 @@ public sealed class RedisIdempotencyCache : IIdempotencyStore
         _inner.OpenScopeAsync(scope, ct);
 
     /// <summary>What a repopulated entry rides with — its true remaining lifetime is the authority's business.</summary>
-    private static readonly TimeSpan RepopulateTtl = TimeSpan.FromHours(1);
+    /// <remarks>
+    /// Internal because the commit-time population layer keeps the same rule for a run-scoped
+    /// record, and the two answers to "how long may a cached record promise to exist" have to be
+    /// one answer.
+    /// </remarks>
+    internal static readonly TimeSpan RepopulateTtl = TimeSpan.FromHours(1);
 
     private async Task TrySetAsync(
         string key, RecordedCommandOutcome outcome, TimeSpan ttl, CancellationToken ct)

@@ -124,6 +124,15 @@ internal static class StoreBackedAdapterExemptions
             "an API restart and demands the byte-identical stored response — which only the durable " +
             "record can produce."),
 
+        new("SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresUnitOfWork",
+            ExemptionOwnerKind.CiProbeScript,
+            "build/ci/Invoke-CommandRoundTripProbe.ps1",
+            "Its whole meaning is a database transaction, and a fake cannot state that a real one " +
+            "rolls back — the in-memory sibling states the both-or-neither shape against a fault it " +
+            "can be told to raise, which is the part that IS statable here. The probe posts a real " +
+            "command through the API and asserts the player row, the run row and the stored outcome " +
+            "all landed together against the live database."),
+
         new("SlayIdleRepeat.Adapters.Cache.Redis.RedisRunStateCache",
             ExemptionOwnerKind.CiProbeScript,
             "build/ci/Invoke-RedisRebuildProbe.ps1",
@@ -131,6 +140,14 @@ internal static class StoreBackedAdapterExemptions
             "class underneath needs a live Redis. The probe flushes Redis mid-session and demands " +
             "the next command still succeed — the rebuild-from-Postgres claim, made against the " +
             "real pair."),
+
+        new("SlayIdleRepeat.Adapters.Cache.Redis.RedisCommitCache",
+            ExemptionOwnerKind.CiProbeScript,
+            "build/ci/Invoke-RedisRebuildProbe.ps1",
+            "The write-behind population above the authoritative commit. Its policy — commit first, " +
+            "populate after, absorb every cache fault — is unit-tested over a fake byte surface, but " +
+            "what a fixture cannot show is that a real flushed Redis still lets the next command " +
+            "succeed. The probe flushes mid-session against the live pair and demands exactly that."),
 
         new("SlayIdleRepeat.Adapters.Cache.Redis.RedisIdempotencyCache",
             ExemptionOwnerKind.CiProbeScript,
