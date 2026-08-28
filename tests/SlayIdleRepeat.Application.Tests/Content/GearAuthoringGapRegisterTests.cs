@@ -220,8 +220,11 @@ public sealed partial class GearAuthoringGapRegisterTests
             "M4-05 merged and is marked done, and it owns nothing in this register; a predicate that " +
             "cannot see a shipped task is not watching anything");
 
-        HasShipped(rows["M5-06"]).ShouldBeFalse(
-            "M5-06 has not started, and it owns nothing here either — so neither half of this control " +
+        // ⚠️ A hardcoded example of an UNSTARTED task expires when that task ships, which is what
+        // happened to M5-06 at its own merge. Re-point it rather than deleting the arm: without a
+        // false case the predicate could return true for everything and this control would pass.
+        HasShipped(rows["M18-08"]).ShouldBeFalse(
+            "M18-08 has not started, and it owns nothing here either — so neither half of this control " +
             "restates the rule it is controlling");
     }
 

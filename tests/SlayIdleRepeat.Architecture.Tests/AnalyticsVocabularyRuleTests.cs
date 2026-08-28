@@ -192,11 +192,13 @@ public sealed class AnalyticsVocabularyRuleTests
             + "dispatcher by design. M16-02's row owns the hoard/overflow telemetry beside the "
             + "Energy Reserve UI, which is where an energy-state emission belongs."),
 
-        new("session_end", "M5-06",
+        new("session_end", "M18-08",
             "No command carries a session's end — a mobile client is killed, not closed — so the "
-            + "fact is an inference from the session/auth model (token lifetime, silent renewal) "
-            + "that M5-06 builds. Nearest row: emission needs an authoritative last-seen, and "
-            + "M5-06's auth is the first place one exists."),
+            + "fact is an inference. M5-06 shipped the authoritative last-seen this entry was "
+            + "first pointed at, and emission still did not follow: what is missing is not data "
+            + "but a RULE for how long after last-seen a session is over, and no document "
+            + "authors one. Naming a number here would be the invention S6 forbids, so it waits "
+            + "for the telemetry review that decides what the window is worth."),
 
         new("level_up", "M16-03",
             "Legend XP is banked inside Apply with no level-up domain event; the resulting level is "
