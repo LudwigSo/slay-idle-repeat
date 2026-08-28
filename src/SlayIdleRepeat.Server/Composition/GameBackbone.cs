@@ -2,6 +2,7 @@ using System.Globalization;
 using SlayIdleRepeat.Adapters.Ambient.System;
 using SlayIdleRepeat.Adapters.Content.LocalFile;
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Persistence;
@@ -64,6 +65,7 @@ public sealed class GameBackbone
         var persistence = PersistenceComposition.Shared(configuration);
         WorldStore = new WorldSliceStore(persistence.WorldRows);
         Ledger = persistence.Ledger;
+        UnitOfWork = persistence.UnitOfWork;
 
         // M5-09: the shelf of published bundles, and the pins that decide which content a command
         // is judged against. Console.Error carries the [content-bundles] and [content-pin] markers
@@ -113,6 +115,9 @@ public sealed class GameBackbone
 
     /// <summary>The one sequencing/idempotency ledger.</summary>
     public ICommandLedgerStore Ledger { get; }
+
+    /// <summary>The one boundary a processed command commits inside.</summary>
+    public IUnitOfWork UnitOfWork { get; }
 
     /// <summary>The shelf behind <c>GET /content/{version}</c>.</summary>
     public ContentBundleStore Bundles { get; }

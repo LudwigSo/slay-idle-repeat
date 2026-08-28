@@ -192,6 +192,10 @@ internal static class ProgressionDocuments
     /// <summary>The run-end ad-double multiplier, as shipped.</summary>
     internal const decimal ShippedAdDoubleMultiplier = 2.0m;
 
+    /// <summary>How long a run stays live without an accepted run command of its own. 48 hours as shipped.</summary>
+    /// <inheritdoc cref="ShippedLegendLevelMin"/>
+    internal const int ShippedRunExpiryHours = 48;
+
     /// <summary>A snapshot holding exactly the shipped energy block.</summary>
     internal static ContentSnapshot Shipped { get; } = With();
 
@@ -299,6 +303,13 @@ internal static class ProgressionDocuments
             ["value"] = adDoubleMultiplier ?? ContentValue.Number(ShippedAdDoubleMultiplier),
         });
 
+        // The catch-up asks whether the run in the slice has lapsed on every single command, so a
+        // fixture set missing this block is one no command can be applied against at all.
+        var runLifetime = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["expiryHours"] = ContentValue.Number(ShippedRunExpiryHours),
+        });
+
         return Document(ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
             ["energy"] = energy,
@@ -308,6 +319,7 @@ internal static class ProgressionDocuments
             ["completionMultiplier"] = completionMultiplier,
             ["adDoubleMultiplier"] = adDoubleMultiplierBlock,
             ["chapterGating"] = chapterGating ?? ShippedChapterGating,
+            ["runLifetime"] = runLifetime,
         }));
     }
 

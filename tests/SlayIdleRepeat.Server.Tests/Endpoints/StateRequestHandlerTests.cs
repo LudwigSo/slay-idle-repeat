@@ -212,7 +212,8 @@ public sealed class StateRequestHandlerTests
             ledger,
             new AdmitEveryCommand(),
             new ContentPinning(
-                new VolatileContentPinStore(), Content.Value, _ => null, _ => { }));
+                new VolatileContentPinStore(), Content.Value, _ => null, _ => { }),
+            new VolatileUnitOfWork(store, ledger));
 
         var player = await SeedPlayerAsync(store, "PLAYER_state_handler");
         var stranger = await SeedPlayerAsync(store, "PLAYER_state_stranger");

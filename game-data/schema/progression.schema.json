@@ -5,7 +5,7 @@
   "description": "07 §1.1 (Legend XP curve, unlock ladder), 02 §5.1a (Legend XP income), 10 §3 (Energy), 10 §8 (catch-up / frontier curve).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "_status", "legendLevel", "unlocks", "runXp", "completionMultiplier", "adDoubleMultiplier", "energy", "chapterGating", "catchUp"],
+  "required": ["$schema", "_doc", "_status", "legendLevel", "unlocks", "runXp", "completionMultiplier", "adDoubleMultiplier", "energy", "chapterGating", "runLifetime", "catchUp"],
   "$defs": {
     "gate": {
       "type": "object",
@@ -148,6 +148,16 @@
         "NORMAL": { "$ref": "#/$defs/gate" },
         "HEROIC": { "$ref": "#/$defs/gate" },
         "MYTHIC": { "$ref": "#/$defs/gate" }
+      }
+    },
+    "runLifetime": {
+      "description": "14 §16.3 — how long a run stays live without an accepted run command of its own. Past it the run is over: run commands are refused RUN_EXPIRED and the next accepted command settles it as a death at the stage reached. The server's Cache:RunStateTtlHours default mirrors this number.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "expiryHours"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "expiryHours": { "type": "integer", "minimum": 1 }
       }
     },
     "catchUp": {

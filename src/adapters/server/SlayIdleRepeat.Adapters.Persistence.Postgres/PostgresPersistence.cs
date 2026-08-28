@@ -23,12 +23,20 @@ public sealed class PostgresPersistence : IAsyncDisposable
 
     private PostgresPersistence(NpgsqlDataSource dataSource, TimeSpan runTtl)
     {
+        var players = new PostgresPlayerRepository(dataSource, runTtl);
+        var idempotency = new PostgresIdempotencyStore(dataSource);
+        var economyEvents = new PostgresEconomyEventLog(dataSource);
+
         _dataSource = dataSource;
-        Players = new PostgresPlayerRepository(dataSource, runTtl);
+        Players = players;
         RunStates = new PostgresRunStateStore(dataSource);
-        Idempotency = new PostgresIdempotencyStore(dataSource);
-        EconomyEvents = new PostgresEconomyEventLog(dataSource);
+        Idempotency = idempotency;
+        EconomyEvents = economyEvents;
         ContentPins = new PostgresContentPinStore(dataSource);
+
+        // The unit of work composes the very stores exposed above rather than statements of its own:
+        // the SQL stays with the table it writes, and only the boundary is new.
+        UnitOfWork = new PostgresUnitOfWork(dataSource, players, idempotency, economyEvents);
     }
 
     /// <summary>Opens the adapter over one pooled data source.</summary>
@@ -69,6 +77,9 @@ public sealed class PostgresPersistence : IAsyncDisposable
 
     /// <summary>The run and session content pins.</summary>
     public PostgresContentPinStore ContentPins { get; }
+
+    /// <summary>The transaction boundary one processed command commits inside.</summary>
+    public PostgresUnitOfWork UnitOfWork { get; }
 
     /// <summary>Applies every pending migration, once per cluster, under the advisory lock.</summary>
     /// <param name="ct">Cancellation.</param>
@@ -349,44 +360,72 @@ public sealed class PostgresIdempotencyStore : IIdempotencyStore
 
     internal PostgresIdempotencyStore(NpgsqlDataSource dataSource) => _dataSource = dataSource;
 
+    private const string RecordColumns =
+        "ir.command_id, ir.sequence, ir.command_type, ir.payload::text, ir.response_body, ir.opens_scope";
+
+    // A player record carries its own expiry. A run record lives as long as its run's ROW does —
+    // existence, not liveness: whether the run is still playable is a game rule the domain
+    // decides from the row it loads, and a store that hid the record of an expired run would
+    // answer a duplicate with a fault where the first send answered a run. Both reads share this
+    // one spelling so the liveness rule can never drift between them.
+    private static string LiveRecordsOf(IdempotencyScope scope) =>
+        scope.Kind == IdempotencyScopeKind.Player
+            ? "FROM idempotency_records ir " +
+              "WHERE ir.scope_kind = 'player' AND ir.scope_key = @key AND ir.expires_at_utc > now()"
+            : "FROM idempotency_records ir JOIN runs r ON r.run_id = ir.run_id " +
+              "WHERE ir.scope_kind = 'run' AND ir.scope_key = @key";
+
     /// <inheritdoc/>
     public async Task<RecordedCommandOutcome?> GetRecordedOutcomeAsync(
         IdempotencyScope scope, CommandId commandId, CancellationToken ct)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
 
-        // A player record carries its own expiry; a run record lives exactly as long as its run —
-        // "a resumable run must be able to replay any of its outcomes" — so its liveness is the
-        // run row's, joined here rather than copied and drifting.
-        var sql = scope.Kind == IdempotencyScopeKind.Player
-            ? "SELECT ir.command_id, ir.sequence, ir.command_type, ir.payload::text, ir.response_body, ir.opens_scope " +
-              "FROM idempotency_records ir " +
-              "WHERE ir.scope_kind = 'player' AND ir.scope_key = @key AND ir.command_id = @command " +
-              "AND ir.expires_at_utc > now();"
-            : "SELECT ir.command_id, ir.sequence, ir.command_type, ir.payload::text, ir.response_body, ir.opens_scope " +
-              "FROM idempotency_records ir JOIN runs r ON r.run_id = ir.run_id " +
-              "WHERE ir.scope_kind = 'run' AND ir.scope_key = @key AND ir.command_id = @command " +
-              "AND r.expires_at_utc > now();";
-
-        await using var command = new NpgsqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(
+            "SELECT " + RecordColumns + " " + LiveRecordsOf(scope) + " AND ir.command_id = @command;",
+            connection);
         command.Parameters.AddWithValue("key", PostgresRows.ScopeKeyOf(scope));
         command.Parameters.AddWithValue("command", commandId.Value);
 
         await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
 
-        if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+        return await reader.ReadAsync(ct).ConfigureAwait(false)
+            ? await ReadOutcomeAsync(reader, ct).ConfigureAwait(false)
+            : null;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<RecordedCommandOutcome>> ReadOutcomesAfterAsync(
+        IdempotencyScope scope, long sinceSequence, CancellationToken ct)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
+
+        await using var command = new NpgsqlCommand(
+            "SELECT " + RecordColumns + " " + LiveRecordsOf(scope) +
+            " AND ir.sequence > @since ORDER BY ir.sequence;",
+            connection);
+        command.Parameters.AddWithValue("key", PostgresRows.ScopeKeyOf(scope));
+        command.Parameters.AddWithValue("since", sinceSequence);
+
+        await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        var outcomes = new List<RecordedCommandOutcome>();
+
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
-            return null;
+            outcomes.Add(await ReadOutcomeAsync(reader, ct).ConfigureAwait(false));
         }
 
-        return new RecordedCommandOutcome(
-            new CommandId(reader.GetString(0)),
+        return outcomes;
+    }
+
+    private static async Task<RecordedCommandOutcome> ReadOutcomeAsync(
+        NpgsqlDataReader reader, CancellationToken ct) =>
+        new(new CommandId(reader.GetString(0)),
             reader.GetInt64(1),
             reader.GetString(2),
             reader.GetString(3),
             reader.GetString(4),
             await reader.IsDBNullAsync(5, ct).ConfigureAwait(false) ? null : reader.GetString(5));
-    }
 
     /// <inheritdoc/>
     public async Task RecordAsync(
@@ -479,8 +518,13 @@ public sealed class PostgresIdempotencyStore : IIdempotencyStore
     {
         await using var connection = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
 
+        // 🔒 No expiry predicate, deliberately. A sequencing scope's existence is a durable fact
+        // about a run that was opened; a run being over is a GAME RULE, decided by the domain from
+        // the row it loads. Gated on liveness here, the transport answered RUN_NOT_FOUND — "your run
+        // never existed" — for every command addressed to a run that had merely gone quiet, and the
+        // domain was never invoked to say what had actually happened to it.
         var sql = scope.Kind == IdempotencyScopeKind.Run
-            ? "SELECT last_sequence FROM runs WHERE run_id = @id AND expires_at_utc > now();"
+            ? "SELECT last_sequence FROM runs WHERE run_id = @id;"
             : "SELECT last_meta_sequence FROM players WHERE player_id = @id;";
 
         await using var command = new NpgsqlCommand(sql, connection);
@@ -494,13 +538,35 @@ public sealed class PostgresIdempotencyStore : IIdempotencyStore
     public async Task OpenScopeAsync(IdempotencyScope scope, CancellationToken ct)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+        await OpenScopeAsync(connection, transaction, scope, ct).ConfigureAwait(false);
+
+        await transaction.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The open on a caller-owned transaction — the shape the unit of work composes.</summary>
+    /// <param name="connection">The open connection.</param>
+    /// <param name="transaction">The transaction the open commits with.</param>
+    /// <param name="scope">The sequencing domain to open.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// The overload the commit rule needs: the scope an accepted opening command creates has to land
+    /// with the record that names it, or a committed acceptance can point at a run nothing will ever
+    /// let the player address.
+    /// </remarks>
+    public async Task OpenScopeAsync(
+        NpgsqlConnection connection, NpgsqlTransaction transaction, IdempotencyScope scope, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
 
         // COALESCE is the whole of "idempotent, never a reset".
         var sql = scope.Kind == IdempotencyScopeKind.Run
             ? "UPDATE runs SET last_sequence = COALESCE(last_sequence, 0) WHERE run_id = @id;"
             : "UPDATE players SET last_meta_sequence = COALESCE(last_meta_sequence, 0) WHERE player_id = @id;";
 
-        await using var command = new NpgsqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue(
             "id", scope.Kind == IdempotencyScopeKind.Run ? scope.Run!.Value.Value : scope.Player.Value);
 
@@ -513,7 +579,7 @@ public sealed class PostgresIdempotencyStore : IIdempotencyStore
     }
 }
 
-/// <summary>The append-only economy event log. Not a port: the appends belong inside the commit transaction, whose composition is the unit-of-work task's.</summary>
+/// <summary>The append-only economy event log. Not a port: its appends ride inside the commit transaction the unit of work owns, and nothing outside that boundary may write one.</summary>
 public sealed class PostgresEconomyEventLog
 {
     /// <summary>
@@ -521,11 +587,11 @@ public sealed class PostgresEconomyEventLog
     /// <c>0003_economy_events.sql</c>'s own column list.
     /// </summary>
     /// <remarks>
-    /// 🔒 This class has no production caller yet — the appends ride inside the accepted command's
-    /// one transaction, and that composition is the unit-of-work task's — so nothing else would
-    /// notice a column renamed on one side of the pair. Exposed rather than inlined for exactly
-    /// that reason (steering S25): the drift is what a live database would catch, and the column
-    /// pin is what can catch it without one.
+    /// 🔒 The one caller is <see cref="PostgresUnitOfWork"/>, inside the accepted command's single
+    /// transaction, and no unit test reaches a live database — so nothing running here would notice
+    /// a column renamed on one side of the pair. Exposed rather than inlined for exactly that
+    /// reason (steering S25): the drift is what a live database would catch, and the column pin is
+    /// what can catch it without one.
     /// </remarks>
     public const string AppendStatement =
         "INSERT INTO economy_events " +

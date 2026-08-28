@@ -124,24 +124,49 @@ public sealed class DurableCommandLedgerTests
     }
 
     [Fact]
-    public async Task ReadOutcomesAfterAsync_says_it_cannot_enumerate_this_scope_by_sequence()
+    public async Task ReadOutcomesAfterAsync_enumerates_the_scope_above_the_bound()
     {
         var (ledger, _) = Build();
         await ledger.OpenScopeAsync(RunScope, Cancel);
         await ledger.AppendAsync(RunScope, Record(1), Cancel);
         await ledger.AppendAsync(RunScope, Record(2), Cancel);
+        await ledger.AppendAsync(RunScope, Record(3), Cancel);
 
-        // The control: this ledger really is holding the two outcomes it is about to say it cannot
-        // enumerate, so the refusal below is about the port's shape and not about an empty scope.
-        (await ledger.ReadLastSequenceAsync(RunScope, Cancel)).ShouldBe(2L);
+        var missed = await ledger.ReadOutcomesAfterAsync(RunScope, 1, Cancel);
+
+        missed.IsAvailable.ShouldBeTrue(
+            "the port beneath reads by sequence, so this ledger enumerates rather than refusing — "
+            + "which is what makes an incremental resume possible at all instead of costing every "
+            + "reconnecting client its whole local state.");
+        missed.Records.Select(record => record.Sequence).ShouldBe([2L, 3L],
+            "the bound is exclusive and the order is ascending: 1 is already held, and a client "
+            + "applying 3 before 2 would apply them backwards.");
+        missed.Records[0].ResponseBody.ShouldBe(Record(2).ResponseBody,
+            "the replayed bytes are the ones the first processing stored, never a re-rendering.");
+    }
+
+    [Fact]
+    public async Task ReadOutcomesAfterAsync_hands_back_the_hole_an_expired_record_left()
+    {
+        var (ledger, clock) = Build();
+        await ledger.OpenScopeAsync(RunScope, Cancel);
+        await ledger.AppendAsync(RunScope, Record(1), Cancel);
+
+        // Far enough that 1 has fallen out of its window and 2 has not — the state a run that was
+        // played across the record lifetime genuinely reaches.
+        clock.Advance(Ttl - TimeSpan.FromMinutes(1));
+        await ledger.AppendAsync(RunScope, Record(2), Cancel);
+        clock.Advance(TimeSpan.FromMinutes(2));
 
         var missed = await ledger.ReadOutcomesAfterAsync(RunScope, 0, Cancel);
 
-        missed.IsAvailable.ShouldBeFalse(
-            "the port beneath keys records on (scope, commandId) and offers no by-sequence read, so "
-            + "the honest answer is 'I cannot enumerate this' — an empty list would read as 'nothing "
-            + "was missed' and a reconnecting client would resume on top of two outcomes it never saw.");
-        missed.Records.ShouldBeEmpty();
+        missed.IsAvailable.ShouldBeTrue(
+            "the enumeration succeeded; that a record has expired out of it is a different fact "
+            + "from 'this backing cannot enumerate'.");
+        missed.Records.Select(record => record.Sequence).ShouldBe([2L],
+            "an expired record is simply absent, leaving a HOLE the caller detects and answers with "
+            + "a full resync. A ledger that padded or renumbered it would hand over a short list the "
+            + "caller would take for the complete set of what was missed.");
     }
 
     [Fact]

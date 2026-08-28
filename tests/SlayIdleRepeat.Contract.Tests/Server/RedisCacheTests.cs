@@ -12,11 +12,15 @@ namespace SlayIdleRepeat.Contract.Tests.Server;
 internal sealed class ScriptedByteCache : IVolatileByteCache
 {
     private readonly Dictionary<string, byte[]> _entries = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TimeSpan> _ttls = new(StringComparer.Ordinal);
 
     /// <summary>When set, every operation throws — the cache is down hard.</summary>
     internal bool Failing { get; set; }
 
     internal IReadOnlyDictionary<string, byte[]> Entries => _entries;
+
+    /// <summary>What each entry was written with. How long a cached copy promises to exist is a rule, not a detail.</summary>
+    internal IReadOnlyDictionary<string, TimeSpan> Ttls => _ttls;
 
     public Task<byte[]?> GetAsync(string key, CancellationToken ct)
     {
@@ -28,6 +32,7 @@ internal sealed class ScriptedByteCache : IVolatileByteCache
     {
         RequireHealthy();
         _entries[key] = value.ToArray();
+        _ttls[key] = ttl;
         return Task.CompletedTask;
     }
 
@@ -300,6 +305,23 @@ public sealed class RedisIdempotencyCacheTests
             + "write-behind would pass the gate for a sequence the authority already consumed, "
             + "which is a double-apply. Answering through a dead cache proves no cache is in the "
             + "path at all.");
+        failures.Count.ShouldBe(0L, "no cache call means no absorbed failure to count.");
+    }
+
+    [Fact]
+    public async Task The_missed_outcomes_are_answered_by_the_authority_even_with_the_cache_down_hard()
+    {
+        var (cache, bytes, inner, failures) = Build();
+        await inner.RecordAsync(Scope, Outcome(1), Ttl, PersistenceWorlds.Cancel);
+        await inner.RecordAsync(Scope, Outcome(2), Ttl, PersistenceWorlds.Cancel);
+        bytes.Failing = true;
+
+        (await cache.ReadOutcomesAfterAsync(Scope, 0, PersistenceWorlds.Cancel))
+            .Select(o => o.Sequence)
+            .ShouldBe(new[] { 1L, 2L },
+                "a key-value cache cannot enumerate a scope by sequence, and it is rebuildable — "
+                + "never a system of record — so it has no standing to say what a client missed. "
+                + "Answering through a dead cache proves no cache is in the path at all.");
         failures.Count.ShouldBe(0L, "no cache call means no absorbed failure to count.");
     }
 

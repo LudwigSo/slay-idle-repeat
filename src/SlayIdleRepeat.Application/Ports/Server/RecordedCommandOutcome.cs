@@ -8,7 +8,7 @@ namespace SlayIdleRepeat.Application.Ports.Server;
 /// <param name="CommandType">The command's wire type name — one half of the payload's identity.</param>
 /// <param name="PayloadJson">The command's payload as canonical JSON — the other half. Retained so a known command id sent with a different payload can be answered <c>IDEMPOTENCY_CONFLICT</c> instead of replayed.</param>
 /// <param name="ResponseBody">The exact response body the first processing produced. A duplicate replays these bytes, never a recomputation.</param>
-/// <param name="OpensScope">The run scope key this command's acceptance opened, or <c>null</c> — carried for the ledger's replay-repairs-the-open rule.</param>
+/// <param name="OpensScope">The run scope key this command's acceptance opened, or <c>null</c>. The durable audit of which run a command created — the scope itself was opened by the same commit that stored this record, so nothing reads this to repair anything.</param>
 /// <remarks>
 /// The payload travels as (type, JSON) rather than as a typed command because a durable store must
 /// hold what it can write down; the one codec (<c>WireCommandCodec</c>) re-decodes it on read, so

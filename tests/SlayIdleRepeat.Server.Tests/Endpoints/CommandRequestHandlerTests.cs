@@ -129,18 +129,25 @@ public sealed class CommandRequestHandlerTests
         reply.Body.ShouldBeEmpty();
     }
 
-    private static CommandGateway BuildGateway() => new(
-        new ApplyCommandUseCase(SharedStore.Value, new DomainEventDispatcher([])),
-        new SystemClock(),
-        new SystemIdGenerator(),
-        Content.Value,
-        LocalHostAmbience.NoSubscriptionResolved(),
-        LocalHostAmbience.NoRemoteConfigResolved,
-        new VolatileCommandLedger(),
-        // Wide enough that these tests never trip it: the limit itself is PlayerRateLimiterTests'.
-        new PlayerRateLimiter(new SystemClock(), RateLimitPolicy.PerSecond(1_000, burst: 1_000)),
-        new ContentPinning(
-            new VolatileContentPinStore(), Content.Value, _ => null, _ => { }));
+    private static CommandGateway BuildGateway()
+    {
+        var ledger = new VolatileCommandLedger();
+
+        return new CommandGateway(
+            new ApplyCommandUseCase(SharedStore.Value, new DomainEventDispatcher([])),
+            new SystemClock(),
+            new SystemIdGenerator(),
+            Content.Value,
+            LocalHostAmbience.NoSubscriptionResolved(),
+            LocalHostAmbience.NoRemoteConfigResolved,
+            ledger,
+
+            // Wide enough that these tests never trip it: the limit itself is PlayerRateLimiterTests'.
+            new PlayerRateLimiter(new SystemClock(), RateLimitPolicy.PerSecond(1_000, burst: 1_000)),
+            new ContentPinning(
+                new VolatileContentPinStore(), Content.Value, _ => null, _ => { }),
+            new VolatileUnitOfWork(SharedStore.Value, ledger));
+    }
 
     private static async Task<PlayerId> SeedPlayerAsync(string id)
     {

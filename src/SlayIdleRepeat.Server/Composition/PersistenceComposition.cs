@@ -53,8 +53,11 @@ public sealed class PersistenceComposition : IAsyncDisposable
         {
             if (string.IsNullOrWhiteSpace(connectionString))
             {
+                var volatileLedger = new VolatileCommandLedger();
+
                 WorldRows = new PlaceholderVolatileWorldStore();
-                Ledger = new VolatileCommandLedger();
+                Ledger = volatileLedger;
+                UnitOfWork = new VolatileUnitOfWork(new WorldSliceStore(WorldRows), volatileLedger);
                 ContentPins = new VolatileContentPinStore();
             }
             else
@@ -64,6 +67,7 @@ public sealed class PersistenceComposition : IAsyncDisposable
                 var redisConfiguration = configuration.GetConnectionString("Redis");
                 IRunStateStore runs = Postgres.RunStates;
                 IIdempotencyStore idempotency = Postgres.Idempotency;
+                IUnitOfWork unitOfWork = Postgres.UnitOfWork;
 
                 if (!string.IsNullOrWhiteSpace(redisConfiguration))
                 {
@@ -71,8 +75,13 @@ public sealed class PersistenceComposition : IAsyncDisposable
                     CacheFailures = new CacheFailureCounter();
                     runs = new RedisRunStateCache(_redisCache, runs, CacheFailures);
                     idempotency = new RedisIdempotencyCache(_redisCache, idempotency, CacheFailures);
+
+                    // Population rides OUTSIDE the transaction, so the cache decorates the unit of
+                    // work rather than anything the unit of work writes through.
+                    unitOfWork = new RedisCommitCache(_redisCache, unitOfWork, CacheFailures, runTtl);
                 }
 
+                UnitOfWork = unitOfWork;
                 Players = Postgres.Players;
                 RunStates = runs;
                 Idempotency = idempotency;
@@ -112,21 +121,25 @@ public sealed class PersistenceComposition : IAsyncDisposable
     /// <summary>The sequencing/idempotency ledger the backbone hands the gateway.</summary>
     public ICommandLedgerStore Ledger { get; }
 
+    /// <summary>The boundary one processed command commits inside — a real transaction with a database, the in-process write without one.</summary>
+    public IUnitOfWork UnitOfWork { get; }
+
     /// <summary>Where run and session content pins live — the runs' own column when a database is configured, process memory otherwise.</summary>
     public IContentPinStore ContentPins { get; }
 
-    // ⚠️ The six below have NO reader in this build — they are the handles the next tasks compose
-    // from, each named with its owner so a reader can tell "unused" from "abandoned" (steering
-    // S25's corollary: the seams are grepped, and these come back with nothing but their own
-    // assignment). Everything this process actually runs on goes through WorldRows and Ledger.
+    // ⚠️ The three stores below are composed — the unit of work, the world rows and the ledger are
+    // all built out of them above — and exposed for the operational surfaces that read a store
+    // directly. The three counters and queues after them still have NO reader in this build, each
+    // named with its owner so a reader can tell "unused" from "abandoned" (steering S25's
+    // corollary: the seams are grepped, and those come back with nothing but their own assignment).
 
-    /// <summary>The player store, or <c>null</c> on a volatile (no-database) process. Composed by the unit-of-work task (M5-04).</summary>
+    /// <summary>The player store the unit of work commits snapshots through, or <c>null</c> on a volatile (no-database) process.</summary>
     public IPlayerRepository? Players { get; }
 
-    /// <summary>The run store (cache-decorated when Redis is configured), or <c>null</c> on a volatile process. Composed by M5-04.</summary>
+    /// <summary>The run store (cache-decorated when Redis is configured), or <c>null</c> on a volatile process.</summary>
     public IRunStateStore? RunStates { get; }
 
-    /// <summary>The idempotency store (cache-decorated when Redis is configured), or <c>null</c> on a volatile process. Composed by M5-04.</summary>
+    /// <summary>The idempotency store the ledger reads and the unit of work records through, or <c>null</c> on a volatile process.</summary>
     public IIdempotencyStore? Idempotency { get; }
 
     /// <summary>The battle-log store behind its write-behind queue, or <c>null</c> when no object store is configured. Its first producer is the battle milestone's.</summary>

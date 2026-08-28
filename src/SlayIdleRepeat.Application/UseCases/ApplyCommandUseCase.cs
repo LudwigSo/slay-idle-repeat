@@ -100,6 +100,60 @@ public sealed record ApplyCommandOutcome
     }
 }
 
+/// <summary>What the domain decided about one command, before anything was written anywhere.</summary>
+/// <remarks>
+/// The half of <see cref="ApplyCommandOutcome"/> that exists before the command is committed, and
+/// therefore the half a caller that owns its own commit boundary needs: a caller can render the
+/// answer, build the commit from it, and only then let anything durable happen.
+/// </remarks>
+public sealed record ApplyCommandDecision
+{
+    private static readonly IReadOnlyList<DomainEvent> NoEvents = Array.AsReadOnly(Array.Empty<DomainEvent>());
+
+    private ApplyCommandDecision(
+        RejectionReason? rejection, WorldSlice state, IReadOnlyList<DomainEvent> events)
+    {
+        Rejection = rejection;
+        State = state;
+        Events = events;
+    }
+
+    /// <summary>Whether the domain accepted it. Exactly the negation of "there is a rejection".</summary>
+    public bool Accepted => Rejection is null;
+
+    /// <summary>Why it was refused, or <c>null</c>. Either tier.</summary>
+    public RejectionReason? Rejection { get; }
+
+    /// <summary>The state the domain produced, or the untouched loaded state on a refusal.</summary>
+    public WorldSlice State { get; }
+
+    /// <summary>The events it produced, in order. Empty on a refusal.</summary>
+    public IReadOnlyList<DomainEvent> Events { get; }
+
+    /// <summary>A decision to accept.</summary>
+    /// <param name="state">The state the domain produced.</param>
+    /// <param name="events">The events it produced.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    public static ApplyCommandDecision Accept(WorldSlice state, IReadOnlyList<DomainEvent> events)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(events);
+
+        return new ApplyCommandDecision(rejection: null, state, events);
+    }
+
+    /// <summary>A decision to refuse, from either tier.</summary>
+    /// <param name="rejection">Why.</param>
+    /// <param name="unchangedState">The state as it was loaded.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="unchangedState"/> is null.</exception>
+    public static ApplyCommandDecision Reject(RejectionReason rejection, WorldSlice unchangedState)
+    {
+        ArgumentNullException.ThrowIfNull(unchangedState);
+
+        return new ApplyCommandDecision(rejection, unchangedState, NoEvents);
+    }
+}
+
 /// <summary>The write side: load the slice, apply the command, commit it, then deliver its events.</summary>
 /// <remarks>
 /// <para>
@@ -152,6 +206,38 @@ public sealed class ApplyCommandUseCase
     public async Task<ApplyCommandOutcome> ExecuteAsync(
         ApplyCommandRequest request, GameContext context, CancellationToken ct)
     {
+        var decision = await DecideAsync(request, context, ct).ConfigureAwait(false);
+
+        // Branches on whether there is a rejection, never on which one it is: routing a refusal is
+        // this layer's job and deciding one is the domain's, and a switch here would be the second
+        // place the same situation is answered.
+        if (!decision.Accepted)
+        {
+            return ApplyCommandOutcome.Reject(decision.Rejection!.Value, decision.State);
+        }
+
+        await _store.SaveAsync(decision.State, ct).ConfigureAwait(false);
+
+        var failures = await PublishAsync(request, decision, ct).ConfigureAwait(false);
+
+        return ApplyCommandOutcome.Accept(decision.State, decision.Events, failures);
+    }
+
+    /// <summary>Decides one command: load, guard, apply. Writes nothing, anywhere.</summary>
+    /// <param name="request">Who, which run, and what.</param>
+    /// <param name="context">Everything ambient the rules read, already resolved by the caller.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <returns>Whether it was accepted, the resulting state, and its events.</returns>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="InvalidOperationException">The player has no stored state, or the stored state does not load.</exception>
+    /// <remarks>
+    /// Split out so a caller that owns a transaction boundary can render the answer and build its
+    /// commit before anything durable happens. <see cref="ExecuteAsync"/> is this plus the store's
+    /// own save plus <see cref="PublishAsync"/>, unchanged.
+    /// </remarks>
+    public async Task<ApplyCommandDecision> DecideAsync(
+        ApplyCommandRequest request, GameContext context, CancellationToken ct)
+    {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
@@ -159,24 +245,35 @@ public sealed class ApplyCommandUseCase
 
         if (request.Run is { } addressed && slice.Run?.Id != addressed)
         {
-            return ApplyCommandOutcome.Reject(RejectionReason.RUN_NOT_FOUND, slice);
+            return ApplyCommandDecision.Reject(RejectionReason.RUN_NOT_FOUND, slice);
         }
 
         var result = GameRules.Apply(slice, request.Command, context);
 
-        // Branches on whether there is a rejection, never on which one it is: routing a refusal is
-        // this layer's job and deciding one is the domain's, and a switch here would be the second
-        // place the same situation is answered.
-        if (!result.Accepted)
+        return result.Accepted
+            ? ApplyCommandDecision.Accept(result.NewState, result.Events)
+            : ApplyCommandDecision.Reject(result.Rejection!.Value, result.NewState);
+    }
+
+    /// <summary>Delivers an accepted command's events to the sinks, after it has been committed.</summary>
+    /// <param name="request">Who and what — the identity the domain's events do not carry.</param>
+    /// <param name="decision">What was decided and already committed.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <returns>The sinks that failed to receive them. Empty for a refusal.</returns>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    public async Task<IReadOnlyList<EventDispatchFailure>> PublishAsync(
+        ApplyCommandRequest request, ApplyCommandDecision decision, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(decision);
+
+        if (!decision.Accepted)
         {
-            return ApplyCommandOutcome.Reject(result.Rejection!.Value, result.NewState);
+            return Array.Empty<EventDispatchFailure>();
         }
 
-        await _store.SaveAsync(result.NewState, ct).ConfigureAwait(false);
+        var batch = new DispatchedEvents(request.Player, request.Command, decision.State, decision.Events);
 
-        var batch = new DispatchedEvents(request.Player, request.Command, result.NewState, result.Events);
-        var failures = await _dispatcher.DispatchAsync(batch, ct).ConfigureAwait(false);
-
-        return ApplyCommandOutcome.Accept(result.NewState, result.Events, failures);
+        return await _dispatcher.DispatchAsync(batch, ct).ConfigureAwait(false);
     }
 }

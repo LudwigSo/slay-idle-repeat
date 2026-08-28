@@ -234,6 +234,18 @@ public static class GameRules
         return RegistrationFor(command.GetType())?.OpensRun == true;
     }
 
+    /// <summary>How long a run stays live without an accepted run command of its own.</summary>
+    /// <param name="content">The content set the caller is serving this command from.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
+    /// <remarks>
+    /// The third public door onto an internal answer, and it exists for the same reason as the two
+    /// above it: the transport must stamp how long a processed command's recorded outcome replays,
+    /// and the honest answer is the window its run scope can still be addressed within — which is
+    /// authored content read by a <c>Content/</c> type that is internal. A transport constant would
+    /// be a second copy of the number, free to drift from the one the domain ends runs by.
+    /// </remarks>
+    public static TimeSpan RunLifetime(ContentSnapshot content) => RunLifetimeTuning.Read(content).Window;
+
     /// <summary><see cref="Apply"/>'s body, over an explicit dispatch table so the domain test suite can drive it against shapes never committed to production.</summary>
     /// <remarks>
     /// Internal, and not a second entry point: the architecture rule that <c>Apply</c> is the only
@@ -306,6 +318,17 @@ public static class GameRules
                     return CommandResult.Reject(RejectionReason.RUN_ALREADY_ENDED, state);
                 }
             }
+
+            // Ahead of the phase and draft arms below, so a run whose window has passed answers what
+            // actually happened rather than naming whichever of its open states was noticed first.
+            // START_RUN is exempted with the run-less guard's argument: it is the command that
+            // settles the lapsed run and opens the next one, so refusing it here is what would leave
+            // the player with no legal move at all.
+            else if (!registration.OpensRun &&
+                     RunExpiry.HasLapsed(state.Run, context.NowUtc, context.Content))
+            {
+                return CommandResult.Reject(RejectionReason.RUN_EXPIRED, state);
+            }
             else if (state.Run.Phase == RunPhase.BattlePending &&
                      command is not ConfirmBattleResultCommand &&
                      !registration.LeavesRun)
@@ -333,19 +356,24 @@ public static class GameRules
         // Everything from here works on a copy; the caller's slice is never written to.
         var working = Clone(state, context.Content);
 
-        // 🔒 Before the RunRngScope below, not after: the scope and committedPositions would
-        // otherwise be the FINISHED run's, and FoldRngPositions would compare them against the fresh
-        // run's empty map and raise a determinism defect. The only place Apply clears Run, and only
-        // for a run row whose job is to open one.
-        if (registration.OpensRun && working.Run is { Phase: RunPhase.Ended })
-        {
-            working = working with { Run = null };
-        }
-
         // The handler never receives the raw slice, only the one this produces, so nothing a
         // handler writes runs before the catch-up. Its events are prepended to the handler's since
         // they happened first.
         var caughtUp = AdvanceTime(working, context);
+
+        // 🔒 Before the RunRngScope below, not after: the scope and committedPositions would
+        // otherwise be the FINISHED run's, and FoldRngPositions would compare them against the fresh
+        // run's empty map and raise a determinism defect. The only place Apply clears Run, and only
+        // for a run row whose job is to open one.
+        //
+        // 🔒 And AFTER the catch-up, not before, which is what lets one accepted START_RUN both
+        // settle a run whose window lapsed and open the next one: the catch-up is what moves a
+        // lapsed run to Ended, and clearing first would hand the handler a live run it can only
+        // refuse, leaving the player with a run they can neither play nor replace.
+        if (registration.OpensRun && working.Run is { Phase: RunPhase.Ended })
+        {
+            working = working with { Run = null };
+        }
 
         // Gated on working.Run being non-null rather than merely Kind == Run: START_RUN is the one
         // row that can be Kind == Run with no run yet (its job is to create one), and it draws
@@ -581,9 +609,18 @@ public static class GameRules
     /// </para>
     /// <para>
     /// Deliberately does not touch: Plus expiry (entitlement is session data with no aggregate state
-    /// to roll forward), the run's sliding TTL (catch-up runs on meta commands too, and sliding a
-    /// run's TTL from outside the run would let a shop visit keep it alive), or quest/shop/event
-    /// expiry (not yet authored).
+    /// to roll forward), the run's sliding window (only an accepted run command stamps it, so a shop
+    /// visit cannot keep a run alive), or quest/shop/event expiry (not yet authored).
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Step 4 is where a run that was left alone too long is closed, and it is here for the
+    /// reason the catch-up exists at all.</b> A refused command's working copy is discarded, so the
+    /// run command that <em>discovers</em> the lapse cannot be the one that settles it — that
+    /// command is refused with <c>RUN_EXPIRED</c> and changes nothing. The settlement therefore
+    /// rides the next command the player is allowed to make, which is every meta command and
+    /// <c>START_RUN</c>. It pays what the run banked at the death rate for the stage it reached and
+    /// keeps whatever the run already produced; the session floor is deliberately not granted, since
+    /// it needs a draw this command has no run scope to take.
     /// </para>
     /// </remarks>
     /// <param name="state">The working slice — never the caller's.</param>
@@ -601,12 +638,12 @@ public static class GameRules
 
         // Player.AccrueEnergy takes both halves of one accrual together, so "banks written, anchor
         // forgotten" can't happen.
-        IReadOnlyList<DomainEvent> events = accrual.AnchorAdvance > TimeSpan.Zero
-            ? new DomainEvent[]
-            {
-                player.AccrueEnergy(accrual.Banks, accrual.AnchorAdvance, tuning, EnergyRegenReason),
-            }
-            : NoEvents;
+        var events = new List<DomainEvent>();
+
+        if (accrual.AnchorAdvance > TimeSpan.Zero)
+        {
+            events.Add(player.AccrueEnergy(accrual.Banks, accrual.AnchorAdvance, tuning, EnergyRegenReason));
+        }
 
         // ---------------------------------------------- 2 · 05:00 UTC game day
         var dayStart = GameCalendar.GameDayStartAt(context.NowUtc);
@@ -624,7 +661,15 @@ public static class GameRules
             player.ResetWeeklyCounters(weekStart);
         }
 
-        return events;
+        // ---------------------------------------------- 4 · the lapsed run's settlement
+        if (RunExpiry.HasLapsed(state.Run, context.NowUtc, context.Content))
+        {
+            var lapsed = state.Run!;
+
+            RunSettlement.Settle(player, lapsed, RunSettlement.OutcomeOf(lapsed), context.Content, events);
+        }
+
+        return events.Count == 0 ? NoEvents : events;
     }
 
     /// <summary>A <c>CommandKind.Meta</c> command may read the run it was handed but never write any part of it.</summary>

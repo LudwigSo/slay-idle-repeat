@@ -11,9 +11,12 @@ namespace SlayIdleRepeat.Server.Composition;
 /// Composition-root code: the shared state comes from <see cref="GameBackbone"/>, never newed
 /// here; what this area adds is its own — the gateway, and no placeholder left: the throttle and
 /// the account-standing decorator come from <see cref="AntiCheatComposition"/> (M5-14), the
-/// principal seam is the auth area's real one (M5-06), and the content pins the
-/// <c>CONTENT_VERSION_MISMATCH</c> arm checks against come from the backbone (M5-09), so the pin a
-/// command is judged by and the bundle the content endpoints serve are the same shelf.
+/// principal seam is the auth area's real one (M5-06), the content pins the
+/// <c>CONTENT_VERSION_MISMATCH</c> arm checks against come from the backbone (M5-09) — so the pin a
+/// command is judged by and the bundle the content endpoints serve are the same shelf — and the
+/// boundary each processed command commits inside comes from
+/// <see cref="PersistenceComposition"/> (M5-04), which is what makes the record, the snapshots it
+/// describes and the run scope it opens one effect rather than four calls in a row.
 /// </remarks>
 public static class GameCommandComposition
 {
@@ -98,7 +101,8 @@ public static class GameCommandComposition
                 () => backbone.Flags,
                 backbone.Ledger,
                 AntiCheatComposition.Throttle(app.Configuration),
-                backbone.ContentPins);
+                backbone.ContentPins,
+                backbone.UnitOfWork);
         }
     }
 

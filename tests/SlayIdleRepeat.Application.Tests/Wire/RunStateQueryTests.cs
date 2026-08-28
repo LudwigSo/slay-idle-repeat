@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Shouldly;
+using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.Tests.Persistence;
 using SlayIdleRepeat.Application.Tests.UseCases;
@@ -109,6 +110,48 @@ public sealed class RunStateQueryTests
         new(new ReadOwnStateUseCase(fixture.World.Store), ledger);
 
     private static ScriptedLedger Scripted(FiveExchanges fixture) => new(fixture.World.Ledger);
+
+    /// <summary>
+    /// The fixture's five exchanges copied into a REAL <see cref="DurableCommandLedger"/>, so a case
+    /// can drive the query over the ledger the server runs on rather than over a scripted answer.
+    /// </summary>
+    /// <param name="fixture">The run whose stored records are mirrored.</param>
+    /// <param name="clock">The clock the durable record lifetimes are measured against.</param>
+    /// <param name="expireBefore">Advance the clock past the record lifetime after this many records, so the earlier ones fall out. <c>0</c> keeps all five.</param>
+    /// <remarks>
+    /// Mirrored rather than shared because the gateway writes its records through the unit of work,
+    /// and no configuration of this suite starts a database — the durable ledger's own arm is what
+    /// is under test, and it is reached here through the in-memory store the contract suite runs on.
+    /// </remarks>
+    private static async Task<DurableCommandLedger> DurableCopyAsync(
+        FiveExchanges fixture, AdjustableClock clock, int expireBefore = 0)
+    {
+        var ttl = TimeSpan.FromHours(48);
+        var ledger = new DurableCommandLedger(new InMemoryIdempotencyStore(clock), ttl);
+        var scope = CommandScopes.ForRun(fixture.World.Player, fixture.Run);
+
+        await ledger.OpenScopeAsync(scope, Worlds.Cancel);
+
+        for (var sequence = 1; sequence <= 5; sequence++)
+        {
+            if (sequence == expireBefore + 1 && expireBefore > 0)
+            {
+                clock.Advance(ttl - TimeSpan.FromMinutes(1));
+            }
+
+            var record = await fixture.World.Ledger.ReadRecordAsync(
+                scope, new CommandId("c-run-" + sequence), Worlds.Cancel);
+
+            await ledger.AppendAsync(scope, record!, Worlds.Cancel);
+        }
+
+        if (expireBefore > 0)
+        {
+            clock.Advance(TimeSpan.FromMinutes(2));
+        }
+
+        return ledger;
+    }
 
     private static JsonElement Read(GatewayReply reply)
     {
@@ -289,6 +332,50 @@ public sealed class RunStateQueryTests
             "incrementally. A read that resynced whenever it had outcomes to hand over would pass " +
             "the case above for a reason that has nothing to do with the gap.");
         Read(contiguous).GetProperty("missedOutcomes").EnumerateArray().Count().ShouldBe(3);
+    }
+
+    /// <summary>
+    /// 🔒 The incremental arm over the ledger the server actually runs on. Every case above scripts
+    /// what the ledger answers; this one asks the durable ledger itself, which until its read was
+    /// wired could only ever answer "I cannot enumerate" — so the arm existed and nothing had ever
+    /// travelled it (steering S25).
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_replays_the_missed_envelopes_the_durable_ledger_enumerates()
+    {
+        var fixture = await ARunThatHasAnsweredFiveCommandsAsync();
+        var durable = await DurableCopyAsync(fixture, new AdjustableClock());
+        var query = new RunStateQuery(new ReadOwnStateUseCase(fixture.World.Store), durable);
+
+        var reply = await query.ReadAsync(fixture.World.Player, fixture.Run, 2, Worlds.Cancel);
+
+        var body = Read(reply);
+        body.TryGetProperty("resyncFull", out _).ShouldBeFalse(
+            "3, 4 and 5 are all still recorded and cover 3..5 exactly, so a durable-backed host now " +
+            "resumes a reconnecting client incrementally instead of degrading every one of them.");
+        body.GetProperty("missedOutcomes").EnumerateArray().Select(o => o.GetRawText()).ShouldBe(
+            new[] { fixture.Bodies[2], fixture.Bodies[3], fixture.Bodies[4] },
+            "the bytes the first processing stored, ascending — read back out of the durable ledger " +
+            "rather than handed to it by the case.");
+    }
+
+    [Fact]
+    public async Task ReadAsync_still_resyncs_when_the_durable_ledger_lost_a_record_to_its_lifetime()
+    {
+        var fixture = await ARunThatHasAnsweredFiveCommandsAsync();
+        var durable = await DurableCopyAsync(fixture, new AdjustableClock(), expireBefore: 3);
+        var query = new RunStateQuery(new ReadOwnStateUseCase(fixture.World.Store), durable);
+
+        var reply = await query.ReadAsync(fixture.World.Player, fixture.Run, 2, Worlds.Cancel);
+
+        var body = Read(reply);
+        body.GetProperty("resyncFull").GetBoolean().ShouldBeTrue(
+            "sequence 3 fell out under its 48 h lifetime while 4 and 5 survived, so the enumeration " +
+            "succeeds but does not cover 3..5 — wiring the read must not turn a genuinely expired " +
+            "record into a short list presented as the complete set of what was missed.");
+        body.GetProperty("missedOutcomes").EnumerateArray().ToArray().ShouldBeEmpty();
+        body.GetProperty("sequence").GetInt64().ShouldBe(
+            5L, "the counter outlives the records, so the client still learns where the run stands");
     }
 
     [Fact]
