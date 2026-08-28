@@ -8,8 +8,9 @@ namespace SlayIdleRepeat.Adapters.Cache.Redis;
 /// Outcome records are safe to cache: a miss falls back to the store of record and a hit replays
 /// bytes that can never change. The sequence counter is NOT cached, deliberately — a stale cached
 /// counter after a lost write-behind would pass the gate for a sequence the store of record already
-/// consumed, which is a double-apply. <see cref="ReadLastSequenceAsync"/> and
-/// <see cref="OpenScopeAsync"/> therefore delegate straight through.
+/// consumed, which is a double-apply. <see cref="ReadLastSequenceAsync"/>,
+/// <see cref="OpenScopeAsync"/> and <see cref="ReadOutcomesAfterAsync"/> therefore delegate straight
+/// through.
 /// </remarks>
 public sealed class RedisIdempotencyCache : IIdempotencyStore
 {
@@ -82,6 +83,18 @@ public sealed class RedisIdempotencyCache : IIdempotencyStore
 
         await TrySetAsync(RedisKeys.ForRecord(scope, outcome.CommandId), outcome, cacheTtl, ct).ConfigureAwait(false);
     }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Uncached, straight through, for the same reason the counter is: a key-value surface cannot
+    /// enumerate a scope by sequence, and a cache is rebuildable — never a system of record — so it
+    /// has no standing to say what a client missed. Answering from here would let an evicted entry
+    /// read as "nothing was recorded above that sequence", which is the one lie this contract's
+    /// empty list must never carry.
+    /// </remarks>
+    public Task<IReadOnlyList<RecordedCommandOutcome>> ReadOutcomesAfterAsync(
+        IdempotencyScope scope, long sinceSequence, CancellationToken ct) =>
+        _inner.ReadOutcomesAfterAsync(scope, sinceSequence, ct);
 
     /// <inheritdoc/>
     public Task<long?> ReadLastSequenceAsync(IdempotencyScope scope, CancellationToken ct) =>

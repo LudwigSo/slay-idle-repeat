@@ -71,4 +71,27 @@ public sealed class InMemoryStoreExpiryTests
         (await store.GetRecordedOutcomeAsync(scope, outcome.CommandId, PersistenceWorlds.Cancel))
             .ShouldBeNull("48 hours from the command, the record's window has closed.");
     }
+
+    [Fact]
+    public async Task An_expired_record_leaves_a_hole_in_the_outcomes_after_a_sequence()
+    {
+        var clock = new AdjustableClock();
+        var store = new InMemoryIdempotencyStore(clock);
+        var scope = IdempotencyScope.ForPlayer(new PlayerId("PLAYER_hole"));
+        await store.RecordAsync(scope, Outcome(1), Ttl, PersistenceWorlds.Cancel);
+        await store.RecordAsync(scope, Outcome(2), TimeSpan.FromHours(1), PersistenceWorlds.Cancel);
+        await store.RecordAsync(scope, Outcome(3), Ttl, PersistenceWorlds.Cancel);
+
+        clock.Advance(TimeSpan.FromHours(2));
+        var missed = await store.ReadOutcomesAfterAsync(scope, 0, PersistenceWorlds.Cancel);
+
+        missed.Select(o => o.Sequence).ShouldBe(new[] { 1L, 3L },
+            "a lapsed record is simply absent, so the answer has a visible GAP at 2 — and that is "
+            + "the point: a caller walking the sequences sees it and orders a full resync, where a "
+            + "silently renumbered list of two would have read as a complete replay.");
+    }
+
+    private static RecordedCommandOutcome Outcome(long sequence) =>
+        new(new CommandId("CMD_" + sequence), sequence, "BEGIN_SESSION", "{}",
+            """{"sequence":""" + sequence + "}");
 }

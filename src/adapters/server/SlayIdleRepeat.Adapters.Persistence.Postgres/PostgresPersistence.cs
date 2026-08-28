@@ -356,44 +356,72 @@ public sealed class PostgresIdempotencyStore : IIdempotencyStore
 
     internal PostgresIdempotencyStore(NpgsqlDataSource dataSource) => _dataSource = dataSource;
 
+    private const string RecordColumns =
+        "ir.command_id, ir.sequence, ir.command_type, ir.payload::text, ir.response_body, ir.opens_scope";
+
+    // A player record carries its own expiry. A run record lives as long as its run's ROW does —
+    // existence, not liveness: whether the run is still playable is a game rule the domain
+    // decides from the row it loads, and a store that hid the record of an expired run would
+    // answer a duplicate with a fault where the first send answered a run. Both reads share this
+    // one spelling so the liveness rule can never drift between them.
+    private static string LiveRecordsOf(IdempotencyScope scope) =>
+        scope.Kind == IdempotencyScopeKind.Player
+            ? "FROM idempotency_records ir " +
+              "WHERE ir.scope_kind = 'player' AND ir.scope_key = @key AND ir.expires_at_utc > now()"
+            : "FROM idempotency_records ir JOIN runs r ON r.run_id = ir.run_id " +
+              "WHERE ir.scope_kind = 'run' AND ir.scope_key = @key";
+
     /// <inheritdoc/>
     public async Task<RecordedCommandOutcome?> GetRecordedOutcomeAsync(
         IdempotencyScope scope, CommandId commandId, CancellationToken ct)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
 
-        // A player record carries its own expiry. A run record lives as long as its run's ROW does —
-        // existence, not liveness: whether the run is still playable is a game rule the domain
-        // decides from the row it loads, and a store that hid the record of an expired run would
-        // answer a duplicate with a fault where the first send answered a run.
-        var sql = scope.Kind == IdempotencyScopeKind.Player
-            ? "SELECT ir.command_id, ir.sequence, ir.command_type, ir.payload::text, ir.response_body, ir.opens_scope " +
-              "FROM idempotency_records ir " +
-              "WHERE ir.scope_kind = 'player' AND ir.scope_key = @key AND ir.command_id = @command " +
-              "AND ir.expires_at_utc > now();"
-            : "SELECT ir.command_id, ir.sequence, ir.command_type, ir.payload::text, ir.response_body, ir.opens_scope " +
-              "FROM idempotency_records ir JOIN runs r ON r.run_id = ir.run_id " +
-              "WHERE ir.scope_kind = 'run' AND ir.scope_key = @key AND ir.command_id = @command;";
-
-        await using var command = new NpgsqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(
+            "SELECT " + RecordColumns + " " + LiveRecordsOf(scope) + " AND ir.command_id = @command;",
+            connection);
         command.Parameters.AddWithValue("key", PostgresRows.ScopeKeyOf(scope));
         command.Parameters.AddWithValue("command", commandId.Value);
 
         await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
 
-        if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+        return await reader.ReadAsync(ct).ConfigureAwait(false)
+            ? await ReadOutcomeAsync(reader, ct).ConfigureAwait(false)
+            : null;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<RecordedCommandOutcome>> ReadOutcomesAfterAsync(
+        IdempotencyScope scope, long sinceSequence, CancellationToken ct)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
+
+        await using var command = new NpgsqlCommand(
+            "SELECT " + RecordColumns + " " + LiveRecordsOf(scope) +
+            " AND ir.sequence > @since ORDER BY ir.sequence;",
+            connection);
+        command.Parameters.AddWithValue("key", PostgresRows.ScopeKeyOf(scope));
+        command.Parameters.AddWithValue("since", sinceSequence);
+
+        await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        var outcomes = new List<RecordedCommandOutcome>();
+
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
-            return null;
+            outcomes.Add(await ReadOutcomeAsync(reader, ct).ConfigureAwait(false));
         }
 
-        return new RecordedCommandOutcome(
-            new CommandId(reader.GetString(0)),
+        return outcomes;
+    }
+
+    private static async Task<RecordedCommandOutcome> ReadOutcomeAsync(
+        NpgsqlDataReader reader, CancellationToken ct) =>
+        new(new CommandId(reader.GetString(0)),
             reader.GetInt64(1),
             reader.GetString(2),
             reader.GetString(3),
             reader.GetString(4),
             await reader.IsDBNullAsync(5, ct).ConfigureAwait(false) ? null : reader.GetString(5));
-    }
 
     /// <inheritdoc/>
     public async Task RecordAsync(

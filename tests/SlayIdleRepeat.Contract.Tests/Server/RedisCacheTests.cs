@@ -304,6 +304,23 @@ public sealed class RedisIdempotencyCacheTests
     }
 
     [Fact]
+    public async Task The_missed_outcomes_are_answered_by_the_authority_even_with_the_cache_down_hard()
+    {
+        var (cache, bytes, inner, failures) = Build();
+        await inner.RecordAsync(Scope, Outcome(1), Ttl, PersistenceWorlds.Cancel);
+        await inner.RecordAsync(Scope, Outcome(2), Ttl, PersistenceWorlds.Cancel);
+        bytes.Failing = true;
+
+        (await cache.ReadOutcomesAfterAsync(Scope, 0, PersistenceWorlds.Cancel))
+            .Select(o => o.Sequence)
+            .ShouldBe(new[] { 1L, 2L },
+                "a key-value cache cannot enumerate a scope by sequence, and it is rebuildable — "
+                + "never a system of record — so it has no standing to say what a client missed. "
+                + "Answering through a dead cache proves no cache is in the path at all.");
+        failures.Count.ShouldBe(0L, "no cache call means no absorbed failure to count.");
+    }
+
+    [Fact]
     public async Task Opening_a_scope_reaches_the_authority()
     {
         var (cache, bytes, inner, _) = Build();

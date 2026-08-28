@@ -14,7 +14,10 @@ namespace SlayIdleRepeat.Contract.Tests.Server;
 /// The atomicity of <c>RecordAsync</c> is asserted through its observable half — after a record,
 /// the counter IS the record's sequence — because the failure it forbids (record without advance,
 /// advance without record) is only distinguishable mid-crash, which no fixture can schedule.
-/// Record expiry is the fake's and the probes' business, for the run-store suite's reason.
+/// Record expiry is the fake's and the probes' business, for the run-store suite's reason — so the
+/// hole a lapsed record leaves in <c>ReadOutcomesAfterAsync</c> is pinned in
+/// <c>InMemoryStoreExpiryTests</c>, against a clock a case can move. What every implementation owns
+/// — the order, the exclusive bound, the scope boundary — is below.
 /// </remarks>
 [ContractSuiteFor(typeof(IIdempotencyStore))]
 public abstract class IIdempotencyStoreContractTests
@@ -155,6 +158,83 @@ public abstract class IIdempotencyStoreContractTests
                 + "must not have advanced — or even created — the player's lifetime counter.");
     }
 
+    [Fact]
+    public async Task Outcomes_after_a_sequence_come_back_ascending_whatever_order_they_were_recorded_in()
+    {
+        var store = Create();
+        var scope = IdempotencyScope.ForRun(Player, Run);
+        await store.OpenScopeAsync(scope, PersistenceWorlds.Cancel);
+
+        // Recorded 3, 1, 2 on purpose: a store that hands back its own insertion order passes an
+        // in-order arrangement and then feeds a catching-up client its commands out of order.
+        await store.RecordAsync(scope, Outcome(3, "CMD_3"), Ttl, PersistenceWorlds.Cancel);
+        await store.RecordAsync(scope, Outcome(1, "CMD_1"), Ttl, PersistenceWorlds.Cancel);
+        await store.RecordAsync(scope, Outcome(2, "CMD_2"), Ttl, PersistenceWorlds.Cancel);
+
+        var missed = await store.ReadOutcomesAfterAsync(scope, 0, PersistenceWorlds.Cancel);
+
+        missed.Select(o => o.Sequence).ShouldBe(new[] { 1L, 2L, 3L },
+            "the order IS the contract: a client replays what it missed in the order the run "
+            + "applied it, and a shuffled list is a replay of a history that never happened.");
+        missed[0].ShouldBe(Outcome(1, "CMD_1"),
+            "…and each entry is the whole record, because the response body is what gets replayed.");
+    }
+
+    [Fact]
+    public async Task The_sequence_bound_is_exclusive()
+    {
+        var store = Create();
+        var scope = IdempotencyScope.ForRun(Player, Run);
+        await store.OpenScopeAsync(scope, PersistenceWorlds.Cancel);
+        await store.RecordAsync(scope, Outcome(1, "CMD_1"), Ttl, PersistenceWorlds.Cancel);
+        await store.RecordAsync(scope, Outcome(2, "CMD_2"), Ttl, PersistenceWorlds.Cancel);
+
+        (await store.ReadOutcomesAfterAsync(scope, 1, PersistenceWorlds.Cancel))
+            .Select(o => o.Sequence)
+            .ShouldBe(new[] { 2L },
+                "the bound is the last sequence the caller already HOLDS: an inclusive bound would "
+                + "re-serve it the outcome it sent the bound to prove it had.");
+
+        (await store.ReadOutcomesAfterAsync(scope, 2, PersistenceWorlds.Cancel)).ShouldBeEmpty(
+            "and a caller level with the scope is up to date — empty means nothing above, never "
+            + "that the store declined to look.");
+    }
+
+    [Fact]
+    public async Task Outcomes_after_a_sequence_never_leak_across_scopes()
+    {
+        var store = Create();
+        var runScope = IdempotencyScope.ForRun(Player, Run);
+        var otherRunScope = IdempotencyScope.ForRun(Player, new RunId("RUN_other"));
+        var otherPlayerScope = IdempotencyScope.ForPlayer(new PlayerId("PLAYER_other"));
+        await store.OpenScopeAsync(runScope, PersistenceWorlds.Cancel);
+        await store.OpenScopeAsync(otherRunScope, PersistenceWorlds.Cancel);
+        await store.OpenScopeAsync(otherPlayerScope, PersistenceWorlds.Cancel);
+        await store.RecordAsync(otherRunScope, Outcome(1, "CMD_other-run"), Ttl, PersistenceWorlds.Cancel);
+        await store.RecordAsync(otherPlayerScope, Outcome(1, "CMD_other-player"), Ttl, PersistenceWorlds.Cancel);
+
+        await store.RecordAsync(runScope, Outcome(1, "CMD_mine"), Ttl, PersistenceWorlds.Cancel);
+
+        (await store.ReadOutcomesAfterAsync(runScope, 0, PersistenceWorlds.Cancel))
+            .Select(o => o.CommandId.Value)
+            .ShouldBe(new[] { "CMD_mine" },
+                "sequences restart per scope, so a read that filtered on the number alone would "
+                + "hand this run another run's outcomes — and another player's — under its own "
+                + "sequence numbers.");
+    }
+
+    [Fact]
+    public async Task A_scope_that_was_never_opened_has_no_missed_outcomes()
+    {
+        var store = Create();
+
+        (await store.ReadOutcomesAfterAsync(
+                IdempotencyScope.ForRun(Player, new RunId("RUN_unknown")), 0, PersistenceWorlds.Cancel))
+            .ShouldBeEmpty(
+                "an unknown scope has nothing recorded above any sequence — the answer is empty, "
+                + "and it is an answer, not a shrug.");
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -191,6 +271,9 @@ public abstract class IIdempotencyStoreContractTests
 
         await Should.ThrowAsync<OperationCanceledException>(
             async () => await store.RecordAsync(scope, Outcome(1), Ttl, source.Token));
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            async () => await store.ReadOutcomesAfterAsync(scope, 0, source.Token));
 
         await Should.ThrowAsync<OperationCanceledException>(
             async () => await store.ReadLastSequenceAsync(scope, source.Token));
