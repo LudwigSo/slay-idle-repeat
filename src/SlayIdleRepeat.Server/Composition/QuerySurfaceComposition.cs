@@ -25,6 +25,9 @@ namespace SlayIdleRepeat.Server.Composition;
 /// </remarks>
 public static class QuerySurfaceComposition
 {
+    /// <summary>What every answer from this area is marked with, refusals included.</summary>
+    private const string NeverCached = "no-store";
+
     private static readonly object QueryGate = new();
     private static RunStateQuery? _query;
 
@@ -80,6 +83,13 @@ public static class QuerySurfaceComposition
     private static async Task WriteAsync(HttpContext http, GatewayReply reply, CancellationToken ct)
     {
         http.Response.StatusCode = reply.StatusCode;
+
+        // The one header this area must send. A GET is cacheable by default to every proxy, browser
+        // and CDN between here and the client, and a cached copy of this answer is precisely the
+        // stale own-state read the whole design refuses: the client reconnects, is handed the state
+        // it had before the command it is reconnecting after, and its next command is a sequence
+        // gap. Cross-player read models are the reads that may be cached; this is not one.
+        http.Response.Headers.CacheControl = NeverCached;
 
         if (reply.Body.Length > 0)
         {

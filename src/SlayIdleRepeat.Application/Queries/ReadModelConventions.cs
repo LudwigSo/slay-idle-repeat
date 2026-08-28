@@ -39,6 +39,9 @@ public interface IReadModelView
 /// <para>
 /// It also states how stale its answer may be, and it takes that number from
 /// <typeparamref name="TView"/> rather than restating it, so the port and the view cannot disagree.
+/// ⚠️ Both members are reached through this interface, not through the implementing class — an
+/// adapter that wants to publish either on its own surface has to restate it, which is the one way
+/// the two can be made to disagree.
 /// </para>
 /// <para>
 /// 🔒 The player's own profile and run are never served through one of these. That read tolerates
