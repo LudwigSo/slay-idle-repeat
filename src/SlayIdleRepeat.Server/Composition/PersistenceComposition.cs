@@ -109,22 +109,27 @@ public sealed class PersistenceComposition : IAsyncDisposable
     /// <summary>The sequencing/idempotency ledger the backbone hands the gateway.</summary>
     public ICommandLedgerStore Ledger { get; }
 
-    /// <summary>The player store, or <c>null</c> on a volatile (no-database) process.</summary>
+    // ⚠️ The six below have NO reader in this build — they are the handles the next tasks compose
+    // from, each named with its owner so a reader can tell "unused" from "abandoned" (steering
+    // S25's corollary: the seams are grepped, and these come back with nothing but their own
+    // assignment). Everything this process actually runs on goes through WorldRows and Ledger.
+
+    /// <summary>The player store, or <c>null</c> on a volatile (no-database) process. Composed by the unit-of-work task (M5-04).</summary>
     public IPlayerRepository? Players { get; }
 
-    /// <summary>The run store (cache-decorated when Redis is configured), or <c>null</c> on a volatile process.</summary>
+    /// <summary>The run store (cache-decorated when Redis is configured), or <c>null</c> on a volatile process. Composed by M5-04.</summary>
     public IRunStateStore? RunStates { get; }
 
-    /// <summary>The idempotency store (cache-decorated when Redis is configured), or <c>null</c> on a volatile process.</summary>
+    /// <summary>The idempotency store (cache-decorated when Redis is configured), or <c>null</c> on a volatile process. Composed by M5-04.</summary>
     public IIdempotencyStore? Idempotency { get; }
 
-    /// <summary>The battle-log store behind its write-behind queue, or <c>null</c> when no object store is configured.</summary>
+    /// <summary>The battle-log store behind its write-behind queue, or <c>null</c> when no object store is configured. Its first producer is the battle milestone's.</summary>
     public IBattleLogStore? BattleLogs { get; }
 
-    /// <summary>Absorbed cache-failure count, when the cache layer exists.</summary>
+    /// <summary>Absorbed cache-failure count, when the cache layer exists. Read by the telemetry task (M5-11).</summary>
     public CacheFailureCounter? CacheFailures { get; }
 
-    /// <summary>Dropped battle-log count, when the store exists.</summary>
+    /// <summary>Dropped battle-log count, when the store exists. Read by M5-11.</summary>
     public BattleLogLossCounter? BattleLogLosses { get; }
 
     /// <summary>The queue the lifecycle drains, when the store exists.</summary>

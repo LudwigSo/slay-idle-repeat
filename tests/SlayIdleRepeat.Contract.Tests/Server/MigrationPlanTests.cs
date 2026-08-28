@@ -107,6 +107,71 @@ public sealed class MigrationPlanTests
             + "and leave the schema silently short.");
     }
 
+    /// <summary>
+    /// 🔒 The economy log's append names exactly the columns its table declares — the one drift a
+    /// live database would catch and nothing here otherwise could.
+    /// </summary>
+    /// <remarks>
+    /// Steering S25. <c>PostgresEconomyEventLog</c> has no production caller yet: the appends ride
+    /// inside the accepted command's one transaction, which the unit-of-work task composes. So a
+    /// column renamed on one side of the pair would sit undetected until that task's first live
+    /// run. The set comparison runs both ways — a column the table gained and the append forgot,
+    /// and a column the append writes that the table never had.
+    /// </remarks>
+    [Fact]
+    public void The_economy_log_append_names_exactly_the_columns_its_table_declares()
+    {
+        var declared = TableColumnsOf("0003_economy_events.sql", "economy_events")
+            // GENERATED ALWAYS AS IDENTITY: the database writes it, so the append must not.
+            .Where(column => column != "id")
+            .ToArray();
+
+        var written = InsertColumnsOf(PostgresEconomyEventLog.AppendStatement);
+
+        written.OrderBy(c => c, StringComparer.Ordinal).ShouldBe(
+            declared.OrderBy(c => c, StringComparer.Ordinal),
+            "0003_economy_events.sql and PostgresEconomyEventLog.AppendStatement are the two halves "
+            + "of one row, and no test reaches the pair through a database.");
+
+        ParameterCountOf(PostgresEconomyEventLog.AppendStatement).ShouldBe(
+            written.Length,
+            "a column list longer than its VALUES list is a statement Npgsql refuses at execute "
+            + "time — which, with no caller, is nowhere.");
+    }
+
+    /// <summary>The column names one CREATE TABLE declares, in declaration order.</summary>
+    private static string[] TableColumnsOf(string fileName, string table)
+    {
+        var sql = MigrationPlan.Ordered(PostgresMigrations.All())
+            .Single(s => s.FileName == fileName).Sql;
+
+        var body = sql[(sql.IndexOf("CREATE TABLE " + table + " (", StringComparison.Ordinal)
+            + ("CREATE TABLE " + table + " (").Length)..];
+        body = body[..body.IndexOf(");", StringComparison.Ordinal)];
+
+        // The first token of each definition line. Table constraints (UNIQUE, PRIMARY KEY, CHECK)
+        // are spelled upper-case and drop out; column names are lower snake by this repo's schema.
+        return body.Split('\n')
+            .Select(line => line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty)
+            .Where(token => System.Text.RegularExpressions.Regex.IsMatch(token, "^[a-z][a-z0-9_]*$"))
+            .ToArray();
+    }
+
+    /// <summary>The column names one INSERT writes.</summary>
+    private static string[] InsertColumnsOf(string statement)
+    {
+        var open = statement.IndexOf('(');
+
+        return statement[(open + 1)..statement.IndexOf(')', open)]
+            .Split(',')
+            .Select(column => column.Trim())
+            .ToArray();
+    }
+
+    /// <summary>How many <c>@name</c> placeholders one statement carries.</summary>
+    private static int ParameterCountOf(string statement) =>
+        System.Text.RegularExpressions.Regex.Matches(statement, "@[a-z]+").Count;
+
     [Fact]
     public void The_message_table_is_indexed_the_way_the_inbox_reads_it()
     {

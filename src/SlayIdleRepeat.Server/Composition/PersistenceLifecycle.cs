@@ -25,7 +25,9 @@ public sealed class PersistenceLifecycle : IHostedService
     private readonly IConfiguration _configuration;
     private readonly ILogger<PersistenceLifecycle> _logger;
     private readonly CancellationTokenSource _stopDrain = new();
+    private PersistenceComposition? _started;
     private Task? _drain;
+    private bool _stopped;
 
     /// <summary>Builds the lifecycle over the host's configuration.</summary>
     /// <param name="configuration">The host's configuration.</param>
@@ -43,7 +45,7 @@ public sealed class PersistenceLifecycle : IHostedService
     /// <inheritdoc/>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var persistence = PersistenceComposition.Shared(_configuration);
+        var persistence = _started = PersistenceComposition.Shared(_configuration);
 
         if (persistence.Postgres is { } postgres)
         {
@@ -76,11 +78,16 @@ public sealed class PersistenceLifecycle : IHostedService
 
         _stopDrain.Dispose();
 
-        // The drain is down, so the stores it uploads through can close cleanly.
-        await PersistenceComposition.Shared(_configuration).DisposeAsync().ConfigureAwait(false);
+        // The drain is down, so the stores it uploads through can close cleanly. The instance
+        // StartAsync built, never a fresh Shared() call: Shared rebuilds after a dispose, so
+        // shutting down a host that never started would OPEN a connection pool in order to close
+        // one.
+        if (_started is { } persistence)
+        {
+            await persistence.DisposeAsync().ConfigureAwait(false);
+            _started = null;
+        }
     }
-
-    private bool _stopped;
 }
 
 /// <summary>The persistence area's one <c>Program.cs</c> line.</summary>

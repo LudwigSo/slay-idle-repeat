@@ -5,9 +5,11 @@ using Xunit;
 namespace SlayIdleRepeat.Server.Tests.Composition;
 
 /// <summary>
-/// The M5-05 placeholder against the load-bearing halves of <c>ILocalCachePort</c>'s contract. It
-/// lives in the composition root rather than in <c>adapters/fakes</c>, so the shared contract
-/// suite never sees it — these cases stand in for that suite until M5-05's real stores retire it.
+/// The volatile fallback store against the load-bearing halves of <c>ILocalCachePort</c>'s
+/// contract. It lives in the composition root rather than in <c>adapters/fakes</c>, so the shared
+/// contract suite never sees it — these cases stand in for that suite. M5-05 did NOT retire it:
+/// the store of record took over wherever a database is configured, and this is what a
+/// database-less process (local tooling, the unit tier) still runs on.
 /// </summary>
 public sealed class PlaceholderVolatileWorldStoreTests
 {

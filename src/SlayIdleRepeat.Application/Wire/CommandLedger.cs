@@ -43,13 +43,14 @@ public sealed record LedgerRecord(
 /// <para>
 /// ⚠️ Record TTLs are storage semantics and deliberately absent from this seam's shape: the run
 /// scope lives exactly as long as the run state's sliding 48 h TTL and a player record 48 h from
-/// its command (14 §16.3), which the M5-05 Redis/Postgres backing enforces where expiry is real.
-/// This seam is what that task implements; <see cref="VolatileCommandLedger"/> is the placeholder
-/// until it does.
+/// its command (14 §16.3), which the durable backing enforces where expiry is real — through
+/// <c>IIdempotencyStore</c>, so this assembly never names a store technology.
+/// <c>DurableCommandLedger</c> is that implementation; <see cref="VolatileCommandLedger"/> stands
+/// only on a process configured with no database.
 /// </para>
 /// <para>
-/// 🔒 Two contract clauses a durable backing must honour, stated here so M5-05 never re-decides
-/// them. <b>One:</b> <see cref="AppendAsync"/> commits the record and the last-sequence advance as
+/// 🔒 Two contract clauses a durable backing must honour, stated here so no implementation
+/// re-decides them. <b>One:</b> <see cref="AppendAsync"/> commits the record and the last-sequence advance as
 /// ONE atomic effect — two statements with a crash between them would let a retry find no record,
 /// pass <c>last + 1</c>, and double-apply a committed command. <b>Two:</b> the caller guarantees
 /// one writer per scope within one process (the gateway's player gate); cross-instance sequencing

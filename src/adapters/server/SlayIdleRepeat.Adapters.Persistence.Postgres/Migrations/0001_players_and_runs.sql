@@ -22,10 +22,10 @@ CREATE TABLE players (
 COMMENT ON TABLE players IS
     'One row per player: doc = the canonical stored slice (player + inline active run), typed columns extracted from it. last_meta_sequence is the 14 16.3 lifetime counter, NULL until the first recorded meta command.';
 
--- Deliberately NO foreign key from runs to players: the run store''s contract accepts a run row
+-- Deliberately NO foreign key from runs to players: the run store's contract accepts a run row
 -- whose player this store has never seen (an archive restore, a probe seed), and the pair-move
 -- guarantee lives in the one transaction that writes both, not in a constraint that would make
--- half the port''s contract unimplementable.
+-- half the port's contract unimplementable.
 CREATE TABLE runs (
     run_id              text        PRIMARY KEY,
     player_id           text        NOT NULL,

@@ -512,6 +512,22 @@ public sealed class PostgresIdempotencyStore : IIdempotencyStore
 /// <summary>The append-only economy event log. Not a port: the appends belong inside the commit transaction, whose composition is the unit-of-work task's.</summary>
 public sealed class PostgresEconomyEventLog
 {
+    /// <summary>
+    /// The append statement, named so a unit test can hold it against
+    /// <c>0003_economy_events.sql</c>'s own column list.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 This class has no production caller yet — the appends ride inside the accepted command's
+    /// one transaction, and that composition is the unit-of-work task's — so nothing else would
+    /// notice a column renamed on one side of the pair. Exposed rather than inlined for exactly
+    /// that reason (steering S25): the drift is what a live database would catch, and the column
+    /// pin is what can catch it without one.
+    /// </remarks>
+    public const string AppendStatement =
+        "INSERT INTO economy_events " +
+        "(player_id, run_id, command_id, sequence, occurred_at_utc, event_type, payload) " +
+        "VALUES (@player, @run, @command, @sequence, @occurred, @type, @payload);";
+
     private readonly NpgsqlDataSource _dataSource;
 
     internal PostgresEconomyEventLog(NpgsqlDataSource dataSource) => _dataSource = dataSource;
@@ -542,10 +558,7 @@ public sealed class PostgresEconomyEventLog
 
         foreach (var record in records)
         {
-            var insert = new NpgsqlBatchCommand(
-                "INSERT INTO economy_events " +
-                "(player_id, run_id, command_id, sequence, occurred_at_utc, event_type, payload) " +
-                "VALUES (@player, @run, @command, @sequence, @occurred, @type, @payload);");
+            var insert = new NpgsqlBatchCommand(AppendStatement);
 
             insert.Parameters.AddWithValue("player", record.Player.Value);
             insert.Parameters.AddWithValue("run", (object?)record.Run?.Value ?? DBNull.Value);
