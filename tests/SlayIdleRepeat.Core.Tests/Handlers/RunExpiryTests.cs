@@ -155,6 +155,38 @@ public sealed class RunExpiryTests
     }
 
     /// <summary>
+    /// 🔒 One command both closes the lapsed run and opens the next one, which is the whole reason
+    /// the catch-up runs before the finished run is cleared. Cleared first, the handler is handed a
+    /// live run it can only refuse, and the player is left holding one they can neither play (every
+    /// run command is refused as expired) nor replace.
+    /// </summary>
+    [Fact]
+    public void START_RUN_settles_the_lapsed_run_and_opens_the_next_one_in_the_same_command()
+    {
+        var state = Live(bankedLegendXp: 100, pendingStage: 2);
+        var before = state.Player.LegendXp;
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state,
+            new StartRunCommand(1, DifficultyTier.NORMAL),
+            MetaContextAt(GearGrantWorlds.NowUtc.AddHours(WindowHours)) with { AllocatedRunId = NextRun });
+
+        result.Accepted.ShouldBeTrue(
+            "refused here, the lapsed run is a run the player can neither play nor replace — every "
+            + "run command answers RUN_EXPIRED and this is the only command that clears one.");
+        result.NewState.Run!.Id.ShouldBe(
+            NextRun, "the command opened the next run, at the identity the host allocated for it.");
+        result.NewState.Run.Phase.ShouldBe(RunPhase.InProgress);
+        (result.NewState.Player.LegendXp - before).ShouldBe(
+            40,
+            "…and the lapsed run was settled on the way, at the stage-2 death rate, rather than "
+            + "discarded unpaid by the clear that makes room for the new one.");
+    }
+
+    /// <summary>The identity a host allocates for the run <c>START_RUN</c> opens.</summary>
+    private static readonly RunId NextRun = new("RUN_4b71e0000000000000000000000000c3");
+
+    /// <summary>
     /// 🔒 The window is the number the content authors, and this is the only case that can tell that
     /// apart from a 48 folded into the rule: every other case here reads identically against a
     /// constant, because the shipped document authors the same 48 they are written around.
