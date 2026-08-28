@@ -59,24 +59,33 @@ public sealed class RedisCommitCache : IUnitOfWork
         // is a cache serving a state the store of record may never reach.
         await _inner.CommitAsync(commit, ct).ConfigureAwait(false);
 
+        // A run-scoped record's bytes never change, but its EXISTENCE follows the run it belongs to,
+        // which can end long before the window is out. Promising it the full window would let a
+        // cache-on process replay a record the authority has already stopped answering — the same
+        // rule the record cache's own write path keeps, kept here rather than restated.
+        var recordTtl = commit.Scope.Kind == IdempotencyScopeKind.Run
+            ? RedisIdempotencyCache.RepopulateTtl
+            : _ttl;
+
         await TrySetAsync(
                 RedisKeys.ForRecord(commit.Scope, commit.Outcome.CommandId),
                 RedisRecordCodec.Encode(commit.Outcome),
+                recordTtl,
                 ct)
             .ConfigureAwait(false);
 
         if (commit.State?.ActiveRun is { } run)
         {
-            await TrySetAsync(RedisKeys.ForRunState(run.Id), SnapshotCodec.EncodeRun(run), ct)
+            await TrySetAsync(RedisKeys.ForRunState(run.Id), SnapshotCodec.EncodeRun(run), _ttl, ct)
                 .ConfigureAwait(false);
         }
     }
 
-    private async Task TrySetAsync(string key, byte[] value, CancellationToken ct)
+    private async Task TrySetAsync(string key, byte[] value, TimeSpan ttl, CancellationToken ct)
     {
         try
         {
-            await _cache.SetAsync(key, value, _ttl, ct).ConfigureAwait(false);
+            await _cache.SetAsync(key, value, ttl, ct).ConfigureAwait(false);
         }
         catch (Exception failure) when (RedisRunStateCache.IsAbsorbable(failure))
         {

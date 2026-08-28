@@ -105,7 +105,12 @@ public sealed class RedisIdempotencyCache : IIdempotencyStore
         _inner.OpenScopeAsync(scope, ct);
 
     /// <summary>What a repopulated entry rides with — its true remaining lifetime is the authority's business.</summary>
-    private static readonly TimeSpan RepopulateTtl = TimeSpan.FromHours(1);
+    /// <remarks>
+    /// Internal because the commit-time population layer keeps the same rule for a run-scoped
+    /// record, and the two answers to "how long may a cached record promise to exist" have to be
+    /// one answer.
+    /// </remarks>
+    internal static readonly TimeSpan RepopulateTtl = TimeSpan.FromHours(1);
 
     private async Task TrySetAsync(
         string key, RecordedCommandOutcome outcome, TimeSpan ttl, CancellationToken ct)

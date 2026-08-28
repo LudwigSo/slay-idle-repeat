@@ -109,6 +109,34 @@ public sealed class RedisCommitCacheTests
             0L, "an absorbed failure that is never counted is an outage nobody can see.");
     }
 
+    /// <summary>
+    /// How long a cached record may promise to exist, per scope. A player's record outlives nothing;
+    /// a run's outlives its run, which can be closed and paid out long before the window is out.
+    /// </summary>
+    [Fact]
+    public async Task A_runs_cached_record_never_promises_to_outlive_its_run()
+    {
+        var bytes = new ScriptedByteCache();
+        var cache = new RedisCommitCache(bytes, new RecordingInnerUnitOfWork(), new CacheFailureCounter(), Ttl);
+        var run = Commit();
+        var meta = Commit();
+
+        await cache.CommitAsync(run with { Scope = IdempotencyScope.ForRun(Player, RunOf(run)) }, PersistenceWorlds.Cancel);
+        await cache.CommitAsync(meta, PersistenceWorlds.Cancel);
+
+        bytes.Ttls[RedisKeys.ForRecord(IdempotencyScope.ForRun(Player, RunOf(run)), run.Outcome.CommandId)]
+            .ShouldBeLessThan(
+                Ttl,
+                "a run's record cached for the whole window is replayed by a cache-on process after "
+                + "the run it belongs to has stopped answering for it at all.");
+        bytes.Ttls[RedisKeys.ForRecord(meta.Scope, meta.Outcome.CommandId)].ShouldBe(
+            Ttl,
+            "…and the player's own record is bounded by the window itself, so shortening it here "
+            + "would only make every duplicate pay a database read.");
+    }
+
+    private static RunId RunOf(CommandCommit commit) => commit.State!.ActiveRun!.Id;
+
     private static CommandCommit Commit()
     {
         var profile = PersistenceWorlds.ProfileInARun();

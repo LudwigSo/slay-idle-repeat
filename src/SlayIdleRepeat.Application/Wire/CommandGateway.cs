@@ -295,9 +295,11 @@ public sealed class CommandGateway
             : (IdempotencyScope?)null;
 
         var commit = new CommandCommit(
-            routedRun is { } addressed
-                ? IdempotencyScope.ForRun(player, addressed)
-                : IdempotencyScope.ForPlayer(player),
+
+            // Resolved from the very key the sequence and the stored record were read under, rather
+            // than rebuilt from the route: two derivations of one domain are two things that must
+            // agree, and a command counted in one and recorded in the other would replay to nobody.
+            CommandScopes.Resolve(scope),
             new RecordedCommandOutcome(
                 envelope.CommandId,
                 envelope.Sequence,

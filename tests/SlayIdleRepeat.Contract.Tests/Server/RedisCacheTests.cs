@@ -12,11 +12,15 @@ namespace SlayIdleRepeat.Contract.Tests.Server;
 internal sealed class ScriptedByteCache : IVolatileByteCache
 {
     private readonly Dictionary<string, byte[]> _entries = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TimeSpan> _ttls = new(StringComparer.Ordinal);
 
     /// <summary>When set, every operation throws — the cache is down hard.</summary>
     internal bool Failing { get; set; }
 
     internal IReadOnlyDictionary<string, byte[]> Entries => _entries;
+
+    /// <summary>What each entry was written with. How long a cached copy promises to exist is a rule, not a detail.</summary>
+    internal IReadOnlyDictionary<string, TimeSpan> Ttls => _ttls;
 
     public Task<byte[]?> GetAsync(string key, CancellationToken ct)
     {
@@ -28,6 +32,7 @@ internal sealed class ScriptedByteCache : IVolatileByteCache
     {
         RequireHealthy();
         _entries[key] = value.ToArray();
+        _ttls[key] = ttl;
         return Task.CompletedTask;
     }
 

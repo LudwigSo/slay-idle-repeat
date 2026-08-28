@@ -51,5 +51,9 @@ public sealed class VolatileUnitOfWork : IUnitOfWork
         {
             await _ledger.OpenScopeAsync(CommandScopes.KeyOf(opened), ct).ConfigureAwait(false);
         }
+
+        // The economy rows are dropped, and that is the arrangement rather than an omission: this
+        // process has no economy log to append them to, and inventing an in-memory one would be a
+        // ledger nobody can audit that a restart silently empties.
     }
 }
