@@ -178,6 +178,66 @@ public sealed class MigrationPlanTests
     private static int ParameterCountOf(string statement) =>
         System.Text.RegularExpressions.Regex.Matches(statement, "@[a-z]+").Count;
 
+    /// <summary>
+    /// 🔒 The segment-send audit's append names exactly the columns its table declares — the same
+    /// drift, on the same seam, for the same reason.
+    /// </summary>
+    /// <remarks>
+    /// Steering S25 again: <c>PostgresMailSegmentAudit.AppendAsync</c>'s only caller is an ops
+    /// console tool that nothing in the unit tier runs, so a column renamed on one side of the pair
+    /// would sit undetected until an operator executed a real segment send — which is the moment a
+    /// missing audit row is least recoverable.
+    /// </remarks>
+    [Fact]
+    public void The_segment_send_audit_append_names_exactly_the_columns_its_table_declares()
+    {
+        var declared = TableColumnsOf("0006_mail_segment_sends.sql", "mail_segment_sends")
+            // bigserial: the database writes it, so the append must not.
+            .Where(column => column != "send_id")
+            .ToArray();
+
+        var written = InsertColumnsOf(PostgresMailSegmentAudit.AppendStatement);
+
+        written.OrderBy(c => c, StringComparer.Ordinal).ShouldBe(
+            declared.OrderBy(c => c, StringComparer.Ordinal),
+            "0006_mail_segment_sends.sql and PostgresMailSegmentAudit.AppendStatement are the two "
+            + "halves of one row, and no test reaches the pair through a database.");
+
+        ParameterCountOf(PostgresMailSegmentAudit.AppendStatement).ShouldBe(
+            written.Length,
+            "a column list longer than its VALUES list is a statement Npgsql refuses at execute "
+            + "time — which, for a tool run by hand, is in front of an operator mid-incident.");
+    }
+
+    /// <summary>
+    /// 🔒 The claim's stamp names the message table's own columns, and keeps the first stamp.
+    /// </summary>
+    /// <remarks>
+    /// Not an INSERT, so the column pin above does not apply — what matters here is the two things
+    /// the statement must never lose. <c>player_id</c> is what stops one player's stamp spending
+    /// another's message; <c>claimed_at_utc IS NULL</c> is what makes a re-stamp keep the moment the
+    /// reward was ACTUALLY paid, which is the fact an auditor reads the column for.
+    /// </remarks>
+    [Fact]
+    public void The_claim_stamp_is_scoped_to_its_owner_and_keeps_the_first_moment()
+    {
+        var statement = PostgresMessageRepository.MarkClaimedStatement;
+        var columns = TableColumnsOf("0004_player_messages.sql", "player_messages");
+
+        foreach (var column in new[] { "player_id", "message_id", "claimed_at_utc" })
+        {
+            columns.ShouldContain(
+                column, $"0004_player_messages.sql must declare '{column}' for the stamp to name it.");
+            statement.ShouldContain(column, Case.Sensitive);
+        }
+
+        statement.ShouldContain(
+            "claimed_at_utc IS NULL",
+            Case.Sensitive,
+            "without it a replayed claim moves the timestamp forward and the row dates the payment "
+            + "to whichever retry happened last.");
+    }
+
     [Fact]
     public void The_message_table_is_indexed_the_way_the_inbox_reads_it()
     {
