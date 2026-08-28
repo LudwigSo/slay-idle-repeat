@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Events;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.Tests.UseCases;
@@ -39,7 +40,8 @@ internal sealed class GatewayWorld
         ManualThrottle throttle,
         AdjustableClock clock,
         PlayerId player,
-        FeatureFlags flags)
+        FeatureFlags flags,
+        PinnedContent pins)
     {
         Gateway = gateway;
         Store = store;
@@ -48,6 +50,7 @@ internal sealed class GatewayWorld
         Clock = clock;
         Player = player;
         Flags = flags;
+        Pins = pins;
     }
 
     internal CommandGateway Gateway { get; }
@@ -64,12 +67,19 @@ internal sealed class GatewayWorld
 
     internal FeatureFlags Flags { get; }
 
+    /// <summary>The content pins this world's gateway judges against, and the store behind them.</summary>
+    internal PinnedContent Pins { get; }
+
     /// <summary>A world holding one starting player and nothing else.</summary>
     /// <param name="flags">The kill switches, defaulting to none thrown.</param>
     /// <param name="ledger">The ledger seam, defaulting to the placeholder — a case about the seam's failure shapes passes a decorated one.</param>
     /// <param name="currentFlags">The live flags source — a reload case swaps what it answers between commands; defaults to a constant read of <paramref name="flags"/>.</param>
+    /// <param name="pins">The content pins, defaulting to an empty store over the shipped snapshot alone.</param>
     internal static async Task<GatewayWorld> WithAStartingPlayerAsync(
-        FeatureFlags? flags = null, ICommandLedgerStore? ledger = null, Func<FeatureFlags>? currentFlags = null)
+        FeatureFlags? flags = null,
+        ICommandLedgerStore? ledger = null,
+        Func<FeatureFlags>? currentFlags = null,
+        PinnedContent? pins = null)
     {
         if (flags is not null && currentFlags is not null)
         {
@@ -85,6 +95,7 @@ internal sealed class GatewayWorld
         var volatileLedger = new VolatileCommandLedger();
         var throttle = new ManualThrottle();
         var resolvedFlags = flags ?? LocalHostAmbience.NoRemoteConfigResolved();
+        var resolvedPins = pins ?? PinnedContent.OverTheShippedSnapshot();
 
         var player = new PlayerId("PLAYER_wire");
         var starting = PlayerAggregate.CreateStartingNamedAfterItsOwnId(player, clock.UtcNow, Worlds.Content);
@@ -103,9 +114,11 @@ internal sealed class GatewayWorld
             LocalHostAmbience.NoSubscriptionResolved(),
             currentFlags ?? (() => resolvedFlags),
             ledger ?? volatileLedger,
-            throttle);
+            throttle,
+            resolvedPins.Pinning);
 
-        return new GatewayWorld(gateway, store, volatileLedger, throttle, clock, player, resolvedFlags);
+        return new GatewayWorld(
+            gateway, store, volatileLedger, throttle, clock, player, resolvedFlags, resolvedPins);
     }
 
     /// <summary>A second starting player in the same world, so cross-player claims compare two real principals.</summary>
@@ -127,9 +140,10 @@ internal sealed class GatewayWorld
     /// A world whose player stands in a started run — <c>START_RUN</c> accepted through the
     /// gateway itself, so the run scope is genuinely open. Player sequence 1 is consumed.
     /// </summary>
-    internal static async Task<(GatewayWorld World, RunId Run)> InAStartedRunAsync()
+    /// <param name="pins">The content pins, defaulting to an empty store over the shipped snapshot alone.</param>
+    internal static async Task<(GatewayWorld World, RunId Run)> InAStartedRunAsync(PinnedContent? pins = null)
     {
-        var world = await WithAStartingPlayerAsync();
+        var world = await WithAStartingPlayerAsync(pins: pins);
 
         var reply = await world.Gateway.SubmitPlayerCommandAsync(
             world.Player, Envelopes.StartRun(sequence: 1, commandId: "c-start"), Worlds.Cancel);

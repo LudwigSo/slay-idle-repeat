@@ -1,6 +1,7 @@
 using System.Globalization;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Shared;
+using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Contracts;
 using SlayIdleRepeat.Core;
@@ -90,6 +91,7 @@ public sealed class CommandGateway
     /// <param name="currentFlags">The kill switches' live source; the composition root's reloading config swaps what it answers. Read exactly once per submitted command, so the gate and the <c>GameContext</c> always see the same snapshot.</param>
     /// <param name="ledger">Where sequencing state and idempotency records live.</param>
     /// <param name="throttle">The per-player application-level limit.</param>
+    /// <param name="pinning">The run/session content pins and the snapshots they name.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public CommandGateway(
         ApplyCommandUseCase apply,
@@ -99,7 +101,8 @@ public sealed class CommandGateway
         Entitlements entitlements,
         Func<FeatureFlags> currentFlags,
         ICommandLedgerStore ledger,
-        ICommandThrottle throttle)
+        ICommandThrottle throttle,
+        ContentPinning? pinning = null)
     {
         ArgumentNullException.ThrowIfNull(apply);
         ArgumentNullException.ThrowIfNull(clock);
