@@ -312,6 +312,35 @@ public sealed class ContentBundleStoreTests : IDisposable
         _warnings.ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// An unusable root degrades exactly like an unset one. A misconfigured or unmounted volume must
+    /// not be able to take the API down with it — losing retained history is a far smaller failure
+    /// than losing the server, and the current version needs no disk at all.
+    /// </summary>
+    [Fact]
+    public void A_root_that_cannot_be_used_degrades_instead_of_faulting()
+    {
+        // A file where a directory is wanted: Directory.CreateDirectory refuses it on every
+        // platform, and no privilege or platform-specific ACL is needed to set it up.
+        Directory.CreateDirectory(_root);
+        var blocker = Path.Combine(_root, "occupied");
+        File.WriteAllText(blocker, "not a directory");
+
+        var current = Current;
+        var store = Store(current, Path.Combine(blocker, "bundles"));
+
+        Should.NotThrow(() => store.Publish());
+
+        store.TryRead(current.Version).ShouldNotBeNull("the current bundle never needed the shelf");
+        store.TryRead(Older.Version).ShouldBeNull();
+        store.ListStored().ShouldBeEmpty();
+
+        _warnings.Count.ShouldBe(1);
+        _warnings[0].ShouldContain("[content-bundles]", Case.Sensitive);
+        _warnings[0].ShouldContain(
+            blocker, Case.Sensitive, "the line names the root that could not be used, not just that one could not");
+    }
+
     [Fact]
     public void A_configured_root_that_does_not_exist_yet_is_created_rather_than_refused()
     {

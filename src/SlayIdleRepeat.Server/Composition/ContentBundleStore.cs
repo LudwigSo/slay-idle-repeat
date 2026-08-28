@@ -182,27 +182,53 @@ public sealed class ContentBundleStore
     }
 
     /// <summary>The shelf directory, or <c>null</c> when there is none — announced exactly once.</summary>
+    /// <remarks>
+    /// An unusable root degrades exactly like an unset one rather than faulting. A misconfigured or
+    /// unmounted volume must not be able to take the whole API down: content the process already
+    /// holds is still servable, and losing HISTORY is a smaller failure than losing the server.
+    /// </remarks>
     private string? Shelf()
     {
         if (!string.IsNullOrWhiteSpace(BundleRoot))
         {
-            Directory.CreateDirectory(BundleRoot);
-            return BundleRoot;
-        }
-
-        lock (_shelfGate)
-        {
-            if (!_announced)
+            try
             {
-                _announced = true;
-                Warn(
-                    Marker + " no bundle root is configured, so no content version but the current " +
-                    "one can be served and nothing is retained across a deploy. A client pinned to " +
-                    "an older version has nothing to fetch and must re-sync onto current. Set " +
-                    "Content__BundleRoot to a writable directory to turn retention on.");
+                Directory.CreateDirectory(BundleRoot);
+                return BundleRoot;
+            }
+            catch (Exception fault) when (fault is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                Announce(
+                    "the bundle root '" + BundleRoot + "' cannot be used (" + fault.Message + "), so " +
+                    "no content version but the current one can be served and nothing is retained. " +
+                    "Point Content__BundleRoot at a writable directory.");
+                return null;
             }
         }
 
+        Announce(
+            "no bundle root is configured, so no content version but the current one can be served " +
+            "and nothing is retained across a deploy. A client pinned to an older version has " +
+            "nothing to fetch and must re-sync onto current. Set Content__BundleRoot to a writable " +
+            "directory to turn retention on.");
+
         return null;
+    }
+
+    /// <summary>Says the shelf is unusable, once for the life of this store.</summary>
+    /// <remarks>Once, not per call: a warning on every request is a log flood, which is a signal nobody reads.</remarks>
+    private void Announce(string why)
+    {
+        lock (_shelfGate)
+        {
+            if (_announced)
+            {
+                return;
+            }
+
+            _announced = true;
+        }
+
+        Warn(Marker + " " + why);
     }
 }

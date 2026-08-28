@@ -78,12 +78,7 @@ public sealed class GameBackbone
         Bundles.Publish();
 
         ContentPins = new ContentPinning(
-            persistence.ContentPins,
-            Content,
-            version => Bundles.TryRead(version) is { } bundle
-                ? ContentBundle.Open(bundle, version)
-                : null,
-            Console.Error.WriteLine);
+            persistence.ContentPins, Content, ResolvePinnedSnapshot, Console.Error.WriteLine);
 
         Entitlements = LocalHostAmbience.NoSubscriptionResolved();
 
@@ -125,6 +120,36 @@ public sealed class GameBackbone
 
     /// <summary>The run/session pins and the snapshots they resolve to.</summary>
     public ContentPinning ContentPins { get; }
+
+    private readonly object _pinnedGate = new();
+    private readonly Dictionary<string, ContentSnapshot?> _pinnedSnapshots = new(StringComparer.Ordinal);
+
+    /// <summary>An older pinned version's snapshot, unpacked once and kept.</summary>
+    /// <remarks>
+    /// Memoised because this is on the path of every command on a pinned run, and resolving means
+    /// gunzipping the whole content set, parsing it and re-hashing it. A miss is cached too: a
+    /// version whose bundle has been swept must not be re-read from disk once per command for the
+    /// rest of that run's life. The map is bounded by what the shelf retains, which the sweep keeps
+    /// small.
+    /// </remarks>
+    private ContentSnapshot? ResolvePinnedSnapshot(ContentVersion version)
+    {
+        lock (_pinnedGate)
+        {
+            if (_pinnedSnapshots.TryGetValue(version.Value, out var known))
+            {
+                return known;
+            }
+
+            var resolved = Bundles.TryRead(version) is { } bundle
+                ? ContentBundle.Open(bundle, version)
+                : null;
+
+            _pinnedSnapshots[version.Value] = resolved;
+
+            return resolved;
+        }
+    }
 
     /// <summary>The real clock.</summary>
     public IClockPort Clock { get; }
