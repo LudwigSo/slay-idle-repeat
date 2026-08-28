@@ -108,9 +108,14 @@ public sealed class CommandLedgerReplayTests
         nothingMissed.Records.ShouldBeEmpty();
         MissedOutcomes.Unavailable.Records.ShouldBeEmpty();
 
-        nothingMissed.IsAvailable.ShouldNotBe(
-            MissedOutcomes.Unavailable.IsAvailable,
-            "both carry no records, so the record list cannot tell them apart — and the caller must, " +
-            "because one means 'you are up to date' and the other means 'resync everything'.");
+        // Both sides pinned absolutely rather than merely "different": a pair that had swapped
+        // meanings would satisfy an inequality and order a full resync on every clean reconnect.
+        nothingMissed.IsAvailable.ShouldBeTrue(
+            "the record list cannot tell these two apart, so IsAvailable has to — and this one means " +
+            "'this ledger looked, and you are up to date'.");
+        MissedOutcomes.Unavailable.IsAvailable.ShouldBeFalse(
+            "and this one means 'this ledger cannot look', which costs the client its whole local " +
+            "state. Reading the flag the wrong way round is the one mistake that is silent in both " +
+            "directions.");
     }
 }

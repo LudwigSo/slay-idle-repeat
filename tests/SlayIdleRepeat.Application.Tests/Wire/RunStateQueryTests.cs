@@ -81,8 +81,8 @@ public sealed class RunStateQueryTests
             world.Player, run, Envelopes.Body("SKIP_DRAFT", 1, "c-run-1"), Worlds.Cancel);
         bodies.Add(Body(opening, 1));
 
-        // REVIVE on a living run is refused by the domain — and a refusal is a decided, recorded,
-        // sequence-consuming answer (14 §16.2), which is exactly what a replay has to hand back.
+        // REVIVE on a living run is refused by the domain, and a refusal is still a decided,
+        // recorded, sequence-consuming answer — which is exactly what a replay has to hand back.
         for (var sequence = 2; sequence <= 5; sequence++)
         {
             var reply = await world.Gateway.SubmitRunCommandAsync(
@@ -128,6 +128,10 @@ public sealed class RunStateQueryTests
         var body = Read(reply);
         var rows = await fixture.World.RowsAsync();
 
+        body.GetProperty("protocolVersion").GetInt32().ShouldBe(
+            1,
+            "the answer states the version the SERVER speaks, and a client that reads this field to " +
+            "decide whether it may apply the state would apply an envelope it cannot parse");
         body.GetProperty("runId").GetString().ShouldBe(fixture.Run.Value);
         body.GetProperty("sinceSequence").GetInt64().ShouldBe(5L, "the accepted value is echoed as accepted");
         body.GetProperty("sequence").GetInt64().ShouldBe(
@@ -168,18 +172,35 @@ public sealed class RunStateQueryTests
 
         var reply = await query.ReadAsync(fixture.World.Player, fixture.Run, 5, Worlds.Cancel);
 
-        var rows = await fixture.World.RowsAsync();
-        var expected = WireProjections.HashPlayerAndRun(rows.Player, rows.Run!);
+        // 🔒 The expectation is the hash the COMMAND path itself wrote into the last stored envelope,
+        // not one recomputed here: an expected value produced by the same call the answer is supposed
+        // to have made would agree with a second hashing path just as happily as with the first.
+        var lastCommandsHash = JsonDocument.Parse(fixture.Bodies[4]).RootElement
+            .GetProperty("stateHash").GetString();
+
+        lastCommandsHash.ShouldNotBeNullOrEmpty(
+            "the fixture's last command must have carried a state hash, or the comparison below has " +
+            "nothing to be a comparison against");
 
         Read(reply).GetProperty("stateHash").GetString().ShouldBe(
-            expected,
-            "the client verifies this answer against the stateHash its last command returned; a " +
-            "second hashing path would make the two disagree over identical state.");
+            lastCommandsHash,
+            "the client verifies this answer against the stateHash its last command returned, and " +
+            "sequence 5 changed nothing after it; a second hashing path would make the two disagree " +
+            "over identical state and every reconnect would order a full resync.");
 
-        // The negative control: a state the player is not in hashes differently, so the assertion
-        // above is a claim about these rows rather than about any rows at all.
+        var rows = await fixture.World.RowsAsync();
+        var overTheseRows = WireProjections.HashPlayerAndRun(rows.Player, rows.Run!);
+
+        overTheseRows.ShouldBe(
+            lastCommandsHash,
+            "the control on the fixture: the stored envelope's hash really is the hash of the rows " +
+            "standing now, so the claim above is about this state rather than about a stale number " +
+            "both sides happen to copy.");
+
+        // The negative control: a state the player is not in hashes differently, so none of the
+        // above is an equality that would hold whatever the run contained.
         WireProjections.HashPlayerAndRun(rows.Player, rows.Run! with { Gold = rows.Run!.Gold + 1 })
-            .ShouldNotBe(expected);
+            .ShouldNotBe(lastCommandsHash);
     }
 
     [Fact]
@@ -249,6 +270,25 @@ public sealed class RunStateQueryTests
         Read(reply).GetProperty("resyncFull").GetBoolean().ShouldBeTrue(
             "sequence 3 fell out under the 48 h TTL, so 4 and 5 do not cover 3..5 — handing them " +
             "over alone would apply two outcomes on top of a state the third never reached.");
+
+        // The control that makes the claim about the GAP rather than about the scripting: the same
+        // three sequences, contiguous, are replayed with no resync ordered.
+        var whole = MissedOutcomes.Of(
+        [
+            new ReplayedOutcome(3, fixture.Bodies[2]),
+            new ReplayedOutcome(4, fixture.Bodies[3]),
+            new ReplayedOutcome(5, fixture.Bodies[4]),
+        ]);
+        var contiguous = await QueryOver(fixture, Scripted(fixture).AnsweringOutcomes(whole))
+            .ReadAsync(fixture.World.Player, fixture.Run, 2, Worlds.Cancel);
+
+        contiguous.Body.ShouldNotContain(
+            "resyncFull",
+            Case.Sensitive,
+            "3, 4 and 5 cover 3..5 exactly, so nothing is missing and the client can resume " +
+            "incrementally. A read that resynced whenever it had outcomes to hand over would pass " +
+            "the case above for a reason that has nothing to do with the gap.");
+        Read(contiguous).GetProperty("missedOutcomes").EnumerateArray().Count().ShouldBe(3);
     }
 
     [Fact]
@@ -308,7 +348,10 @@ public sealed class RunStateQueryTests
 
         var reply = await query.ReadAsync(new PlayerId("PLAYER_never_created"), fixture.Run, 0, Worlds.Cancel);
 
-        reply.StatusCode.ShouldBe(404);
+        reply.StatusCode.ShouldBe(
+            404,
+            "nothing is stored for that id, and the read side answers an unknown player exactly as it " +
+            "answers a run that is not theirs — a distinct code here would confirm which ids exist");
         reply.Body.ShouldBeEmpty("a refusal carries no contract shape, and a body here would say whose");
     }
 

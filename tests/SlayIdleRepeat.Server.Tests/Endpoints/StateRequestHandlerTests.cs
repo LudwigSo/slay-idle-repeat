@@ -3,6 +3,7 @@ using Shouldly;
 using SlayIdleRepeat.Adapters.Ambient.System;
 using SlayIdleRepeat.Adapters.Content.LocalFile;
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Events;
 using SlayIdleRepeat.Application.Services.Persistence;
@@ -35,6 +36,33 @@ public sealed class StateRequestHandlerTests
     /// <summary>One player standing in one started run, plus a second player's run nobody may read.</summary>
     private sealed record World(RunStateQuery Query, PlayerId Player, RunId Run, RunId StrangersRun);
 
+    /// <summary>A byte store that refuses to be read, so any state lookup through it is an exception.</summary>
+    private sealed class UnreadableRows : ILocalCachePort
+    {
+        internal const string Refusal = "the handler read state on a request it was about to refuse";
+
+        public Task<byte[]?> ReadAsync(string key, CancellationToken ct) =>
+            throw new InvalidOperationException(Refusal + ": ReadAsync('" + key + "').");
+
+        public Task WriteAsync(string key, ReadOnlyMemory<byte> value, CancellationToken ct) =>
+            throw new InvalidOperationException(Refusal + ": WriteAsync('" + key + "').");
+
+        public Task DeleteAsync(string key, CancellationToken ct) =>
+            throw new InvalidOperationException(Refusal + ": DeleteAsync('" + key + "').");
+    }
+
+    /// <summary>
+    /// A query that cannot answer at all: every refusal arm is handed this one, so "the query is
+    /// never consulted" is enforced rather than implied.
+    /// </summary>
+    /// <remarks>
+    /// A 401 that had already read the player's rows still answers 401, and the assertion would hold
+    /// while the endpoint loaded state for a caller who produced no credentials — and touched the
+    /// primary once per unauthenticated request, which is the shape a probe floods it with.
+    /// </remarks>
+    private static RunStateQuery Untouchable() =>
+        new(new ReadOwnStateUseCase(new WorldSliceStore(new UnreadableRows())), new VolatileCommandLedger());
+
     // One world for the whole class: loading and validating the shipped content set is the
     // expensive half, and no case here writes through it.
     private static readonly PlaceholderVolatileWorldStore Rows = new();
@@ -51,7 +79,7 @@ public sealed class StateRequestHandlerTests
 
         var reply = await StateRequestHandler.HandleRunStateAsync(
             new FixedResolver(PrincipalResolution.Unauthorized()),
-            world.Query, authorizationHeader: null, world.Run.Value, "0", Cancel);
+            Untouchable(), authorizationHeader: null, world.Run.Value, "0", Cancel);
 
         reply.StatusCode.ShouldBe(401);
         reply.Body.ShouldBeEmpty(
@@ -66,10 +94,15 @@ public sealed class StateRequestHandlerTests
 
         var reply = await StateRequestHandler.HandleRunStateAsync(
             new FixedResolver(PrincipalResolution.Locked()),
-            world.Query, "Bearer whoever", world.Run.Value, "0", Cancel);
+            Untouchable(), "Bearer whoever", world.Run.Value, "0", Cancel);
 
-        reply.StatusCode.ShouldBe(403);
-        reply.Body.ShouldBeEmpty();
+        reply.StatusCode.ShouldBe(
+            403,
+            "a locked account is refused rather than told it does not exist: 401 would send the " +
+            "client into the token-refresh loop it can never leave, and 404 would say the run is gone");
+        reply.Body.ShouldBeEmpty(
+            "the account state screen is the whole answer — a body here would serve a sanctioned " +
+            "account exactly the state the sanction exists to withhold");
     }
 
     [Theory]
@@ -81,9 +114,12 @@ public sealed class StateRequestHandlerTests
 
         var reply = await StateRequestHandler.HandleRunStateAsync(
             new FixedResolver(PrincipalResolution.Resolved(world.Player)),
-            world.Query, "Bearer " + world.Player.Value, runId, "0", Cancel);
+            Untouchable(), "Bearer " + world.Player.Value, runId, "0", Cancel);
 
-        reply.StatusCode.ShouldBe(404);
+        reply.StatusCode.ShouldBe(
+            404,
+            "the principal resolved and the sequence parses, so nothing but the empty segment is left " +
+            "to refuse — a run id made of whitespace names no run and is never looked up");
         reply.Body.ShouldBeEmpty();
     }
 
@@ -94,7 +130,7 @@ public sealed class StateRequestHandlerTests
 
         var reply = await StateRequestHandler.HandleRunStateAsync(
             new FixedResolver(PrincipalResolution.Resolved(world.Player)),
-            world.Query, "Bearer " + world.Player.Value, world.Run.Value, sinceSequence: null, Cancel);
+            Untouchable(), "Bearer " + world.Player.Value, world.Run.Value, sinceSequence: null, Cancel);
 
         reply.StatusCode.ShouldBe(
             400,
@@ -114,7 +150,7 @@ public sealed class StateRequestHandlerTests
 
         var reply = await StateRequestHandler.HandleRunStateAsync(
             new FixedResolver(PrincipalResolution.Resolved(world.Player)),
-            world.Query, "Bearer " + world.Player.Value, world.Run.Value, sinceSequence, Cancel);
+            Untouchable(), "Bearer " + world.Player.Value, world.Run.Value, sinceSequence, Cancel);
 
         reply.StatusCode.ShouldBe(
             400,

@@ -127,8 +127,13 @@ public sealed class DurableCommandLedgerTests
     public async Task ReadOutcomesAfterAsync_says_it_cannot_enumerate_this_scope_by_sequence()
     {
         var (ledger, _) = Build();
+        await ledger.OpenScopeAsync(RunScope, Cancel);
         await ledger.AppendAsync(RunScope, Record(1), Cancel);
         await ledger.AppendAsync(RunScope, Record(2), Cancel);
+
+        // The control: this ledger really is holding the two outcomes it is about to say it cannot
+        // enumerate, so the refusal below is about the port's shape and not about an empty scope.
+        (await ledger.ReadLastSequenceAsync(RunScope, Cancel)).ShouldBe(2L);
 
         var missed = await ledger.ReadOutcomesAfterAsync(RunScope, 0, Cancel);
 

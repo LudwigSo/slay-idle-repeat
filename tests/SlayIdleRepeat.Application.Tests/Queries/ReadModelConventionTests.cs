@@ -11,7 +11,7 @@ namespace SlayIdleRepeat.Application.Tests.Queries;
 /// </summary>
 public sealed class ReadModelConventionTests
 {
-    /// <summary>A stand-in for `30` §12.4's ten-minute ladder, so the convention has a subject today.</summary>
+    /// <summary>A stand-in for the ten-minute ladder view, so the convention has a subject today.</summary>
     private sealed record ProbeLadderView(string PlayerId, int Rank) : IReadModelView
     {
         public static TimeSpan StalenessBudget => TimeSpan.FromMinutes(10);
@@ -80,5 +80,25 @@ public sealed class ReadModelConventionTests
             ReadRouting.Primary,
             "routing that could only ever be one value would be decoration — a read whose freshness " +
             "cannot tolerate a replica must be able to say so and be believed.");
+
+        query.StalenessBudget.ShouldBe(
+            TimeSpan.FromMinutes(10),
+            "and stating the routing does not disturb the budget: the two are declared in different " +
+            "places on purpose, and a port that had to restate both would have two numbers to drift.");
+    }
+
+    [Fact]
+    public void Routing_has_no_value_a_type_falls_into_by_saying_nothing()
+    {
+        Enum.IsDefined(typeof(ReadRouting), default(ReadRouting)).ShouldBeFalse(
+            "an uninitialised field, a zeroed struct or a missing JSON member must not silently mean " +
+            "'primary' or 'replica'. Where a read is served from is argued for and named; the one " +
+            "spelling nobody chose has to be no answer at all.");
+
+        Enum.GetValues<ReadRouting>().ShouldBe(
+            new[] { ReadRouting.Primary, ReadRouting.ReplicaEligible },
+            ignoreOrder: true,
+            customMessage: "two destinations exist and no more — one Postgres with an eligible " +
+            "replica is the ceiling, so a third name here would be a topology nothing can route to.");
     }
 }

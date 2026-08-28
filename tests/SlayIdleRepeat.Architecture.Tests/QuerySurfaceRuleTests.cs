@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Shouldly;
@@ -37,6 +38,7 @@ namespace SlayIdleRepeat.Architecture.Tests;
 public sealed class QuerySurfaceRuleTests
 {
     private const string QueriesNamespace = "SlayIdleRepeat.Application.Queries";
+    private const string OwnStateNamespace = "SlayIdleRepeat.Application.UseCases";
     private const string AggregateNamespace = "SlayIdleRepeat.Core.Model";
     private const string ViewInterfaceName = "IReadModelView";
     private const string QueryInterfaceName = "IReadModelQuery`1";
@@ -56,9 +58,22 @@ public sealed class QuerySurfaceRuleTests
     /// <summary>A read model that has deliberately not been built, and the task that builds it.</summary>
     private sealed record Deferral(string View, string Owner, string Why);
 
+    /// <summary>The document this register transcribes, and the heading its table sits under.</summary>
+    private const string DesignDocument = "30_DOMAIN_MODEL.md";
+
+    private const string ViewTableHeading = "### 12.4 The read models";
+
+    /// <summary>
+    /// The one row of that table which is not a read model, named so the count below is a count of
+    /// views. The document calls it "fully async": nothing reads it, so it declares no budget.
+    /// </summary>
+    private static readonly string[] NotAReadModel = { "Analytics / PostHog" };
+
     /// <summary>
     /// 🔒 `30` §12.4's six views, transcribed by hand from the document's table. A list derived from
-    /// the code would say the code is complete because the code says so.
+    /// the code would say the code is complete because the code says so — so it is derived from
+    /// neither, and <see cref="Untranscribed"/> resolves every name and every number here against the
+    /// document itself.
     /// </summary>
     private static readonly ReadModel[] Views =
     {
@@ -120,35 +135,77 @@ public sealed class QuerySurfaceRuleTests
     /// budget or carried by a deferral with an owning milestone task.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The count is the literal <b>6</b> rather than the transcription's own length: a count taken
     /// from the list cannot notice the list being trimmed, which is the one edit a self-referential
     /// floor would survive (steering S3).
+    /// </para>
+    /// <para>
+    /// <b>The numbers are resolved, not quoted (steering S9).</b> Every transcribed name and budget
+    /// is read back out of the document's own table, in both directions: a budget edited here to
+    /// something the document does not say fails, and a seventh view added to the document that
+    /// nobody transcribed fails too. Without that, the transcription is an assertion about itself.
+    /// </para>
+    /// <para>
+    /// <b>The convention half is driven against a real subject.</b> No cross-player view exists, so
+    /// <see cref="BreaksTheConvention"/> — the part of this rule that actually decides whether an
+    /// authored view is well formed — would otherwise be code nothing has ever run. The last check
+    /// below points the register at <c>OwnStateView</c>, which breaks the convention in three ways
+    /// at once, so the enforcement is shown to bite without a violation ever being committed.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_read_model_the_design_enumerates_is_authored_or_declared_deferred()
     {
         Views.Length.ShouldBe(
             6,
-            "30 §12.4's table has six view rows (the seventh, Analytics/PostHog, is 'fully async' and " +
-            "is not a read model at all). A transcription that shrank would stop asking about the row " +
-            "it dropped, and nothing else in this repository enumerates them.");
+            "30 §12.4's table has six view rows. A transcription that shrank would stop asking about " +
+            "the row it dropped, and nothing else in this repository enumerates them.");
 
         Views.Select(v => v.View).Distinct(StringComparer.Ordinal).Count().ShouldBe(
             6, "a duplicated name would keep the count at six while one row went untranscribed.");
 
         ArchRule.Empty(
-            Unbuilt(Views, Deferred),
+            Untranscribed(Views),
+            "Every transcribed read model is one 30 §12.4 names, at the budget 30 §12.4 spells for it.");
+
+        ArchRule.Empty(
+            Unbuilt(Views, Deferred, QueriesNamespace),
             "Every 30 §12.4 read model is authored to its budget or declared deferred with an owner.");
 
         // The teeth, driven against crafted input so the rule is shown to bite without a violation
         // ever being committed — the same construction GapRegisterTests uses.
-        Unbuilt(new[] { new ReadModel("AViewNoMilestoneOwns", TimeSpan.FromMinutes(1)) }, Array.Empty<Deferral>())
+        Unbuilt(
+                new[] { new ReadModel("AViewNoMilestoneOwns", TimeSpan.FromMinutes(1)) },
+                Array.Empty<Deferral>(),
+                QueriesNamespace)
             .ShouldHaveSingleItem()
             .ShouldContain("no deferral names it", Case.Sensitive);
 
-        Unbuilt(new[] { Views[0] }, new[] { new Deferral("LadderView", "soon", "a reason long enough to be worth falsifying.") })
+        Unbuilt(
+                new[] { Views[0] },
+                new[] { new Deferral("LadderView", "soon", "a reason long enough to be worth falsifying.") },
+                QueriesNamespace)
             .ShouldHaveSingleItem()
             .ShouldContain("not a milestone task id", Case.Sensitive);
+
+        var authoredButWrong = Unbuilt(
+            new[] { new ReadModel(OwnStateViewName, TimeSpan.FromMinutes(10)) },
+            Array.Empty<Deferral>(),
+            OwnStateNamespace);
+
+        authoredButWrong.ShouldNotBeEmpty(
+            "OwnStateView is authored, tolerates no staleness rather than the ten minutes asked for " +
+            "here, hands two persisted rows out on its public surface and is reached through no query " +
+            "port — so the convention half of this rule must report it. A convention nothing has ever " +
+            "been measured against is a paragraph, not a rule, and the first real view would land " +
+            "wearing whatever shape its author chose.");
+
+        authoredButWrong.Any(offence => offence.Contains("no deferral names it", StringComparison.Ordinal))
+            .ShouldBeFalse(
+                "the authored branch is the one under test: an offender reading 'no deferral names it' " +
+                "would mean the lookup never found the type, and the check above would prove only that " +
+                "an unknown name is unknown.");
     }
 
     /// <summary>
@@ -212,12 +269,113 @@ public sealed class QuerySurfaceRuleTests
             "and a type that inherits that default has already lost the argument 30 §12.2 makes.");
     }
 
+    /// <summary>Every transcribed row the document does not corroborate, and every view it names that nobody transcribed.</summary>
+    /// <remarks>
+    /// Both directions matter. A budget mistyped here would otherwise govern the code while the
+    /// document said something else, and a seventh view added to `30` §12.4 would arrive with no
+    /// deferral, no owner and nothing asking about it.
+    /// </remarks>
+    private static IReadOnlyList<string> Untranscribed(IReadOnlyList<ReadModel> views)
+    {
+        var documented = DocumentedViews();
+        var offenders = new List<string>();
+
+        foreach (var model in views)
+        {
+            if (!documented.TryGetValue(model.View, out var spelling))
+            {
+                offenders.Add(
+                    $"'{model.View}' is transcribed here and {DesignDocument}'s read-model table names " +
+                    "no such view. A transcription of a table that does not say this is a rule " +
+                    "enforcing a document nobody wrote.");
+                continue;
+            }
+
+            if (SpelledBudget(spelling) != model.Budget)
+            {
+                offenders.Add(
+                    $"'{model.View}' is transcribed at {model.Budget} and {DesignDocument} spells " +
+                    $"'{spelling}'. The cache honours this number and the UI states it, so the two " +
+                    "drifting apart is the product quietly disagreeing with its own specification.");
+            }
+        }
+
+        var transcribed = views.Select(v => v.View).ToHashSet(StringComparer.Ordinal);
+
+        offenders.AddRange(
+            documented.Keys
+                .Where(view => !transcribed.Contains(view) && !NotAReadModel.Contains(view, StringComparer.Ordinal))
+                .Select(view =>
+                    $"{DesignDocument}'s read-model table names '{view}' and nothing here transcribes " +
+                    "it. A view the design added after this register was written is a view with no " +
+                    "owner, no budget anyone checks and no commit that has to notice it arriving."));
+
+        return offenders;
+    }
+
+    /// <summary>The read-model table's own rows: the view's name against the staleness the document spells.</summary>
+    private static IReadOnlyDictionary<string, string> DocumentedViews()
+    {
+        var path = Path.Combine(RepoLayout.RepoRoot, "game-design", DesignDocument);
+        var lines = File.ReadAllLines(path);
+        var heading = Array.FindIndex(lines, line => line.StartsWith(ViewTableHeading, StringComparison.Ordinal));
+
+        if (heading < 0)
+        {
+            throw new InvalidOperationException(
+                $"'{path}' carries no section headed '{ViewTableHeading}'. Every name and number this " +
+                "register transcribes is resolved against that table, and a lookup that found nothing " +
+                "would take the whole resolution quiet (steering S9).");
+        }
+
+        var rows = lines
+            .Skip(heading + 1)
+            .TakeWhile(line => !line.StartsWith("### ", StringComparison.Ordinal))
+            .Select(line => line.Split('|'))
+            .Where(cells => cells.Length >= 5)
+            .Select(cells => (View: Cell(cells[1]), Staleness: Cell(cells[3])))
+            .Where(row => row.View.Length > 0 && row.View != "View" && !row.View.All(c => c == '-'))
+            .ToDictionary(row => row.View, row => row.Staleness, StringComparer.Ordinal);
+
+        return rows.Count > 0
+            ? rows
+            : throw new InvalidOperationException(
+                $"'{path}' has a '{ViewTableHeading}' section with no table rows under it. An empty " +
+                "lookup would report every transcribed view as absent, or — read the other way — " +
+                "corroborate none of them.");
+    }
+
+    /// <summary>One markdown table cell, stripped of the document's code ticks and emphasis.</summary>
+    private static string Cell(string raw) => raw.Trim().Trim('`', '*', ' ');
+
+    /// <summary>The document's spelling of a staleness budget as a duration, or <c>null</c> when it names none.</summary>
+    private static TimeSpan? SpelledBudget(string spelling)
+    {
+        var value = spelling.Split(' ');
+
+        if (value.Length != 2 || !int.TryParse(value[0], NumberStyles.None, CultureInfo.InvariantCulture, out var amount))
+        {
+            return null;
+        }
+
+        return value[1] switch
+        {
+            "min" => TimeSpan.FromMinutes(amount),
+            "s" => TimeSpan.FromSeconds(amount),
+            _ => null,
+        };
+    }
+
     /// <summary>Every transcribed view that is neither authored to its budget nor properly deferred.</summary>
     /// <remarks>
-    /// Takes both lists as parameters rather than reading the fields, so the rule above can drive it
-    /// with crafted input and prove it bites — the construction <c>GapRegister.Expired</c> uses.
+    /// Takes the lists and the namespace as parameters rather than reading the fields, so the rule
+    /// above can drive it with crafted input and prove it bites — the construction
+    /// <c>GapRegister.Expired</c> uses. The namespace is a parameter for the same reason: the
+    /// convention checks have no authored subject in <c>Queries</c> today, and pointing them at a
+    /// namespace that does hold one is the only way to run them at all.
     /// </remarks>
-    private static IReadOnlyList<string> Unbuilt(IEnumerable<ReadModel> views, IEnumerable<Deferral> deferrals)
+    private static IReadOnlyList<string> Unbuilt(
+        IEnumerable<ReadModel> views, IEnumerable<Deferral> deferrals, string queriesNamespace)
     {
         var declared = deferrals.ToArray();
         var offenders = new List<string>();
@@ -226,7 +384,7 @@ public sealed class QuerySurfaceRuleTests
         {
             var authored = ApplicationTypes.FirstOrDefault(
                 t => t.Name.Equals(model.View, StringComparison.Ordinal) &&
-                     string.Equals(t.Namespace, QueriesNamespace, StringComparison.Ordinal));
+                     string.Equals(t.Namespace, queriesNamespace, StringComparison.Ordinal));
 
             if (authored is not null)
             {
@@ -239,7 +397,7 @@ public sealed class QuerySurfaceRuleTests
             if (deferral is null)
             {
                 offenders.Add(
-                    $"30 §12.4 specifies '{model.View}'. It is not authored under {QueriesNamespace}, and " +
+                    $"30 §12.4 specifies '{model.View}'. It is not authored under {queriesNamespace}, and " +
                     "no deferral names it. An undeclared read model is indistinguishable from one " +
                     "nobody noticed: either author it, or add an entry naming the task that will.");
                 continue;
