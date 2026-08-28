@@ -9,10 +9,11 @@ namespace SlayIdleRepeat.Server.Composition;
 /// <summary>The command endpoints' functional area: composes the pipeline over the shared backbone and maps the two routes.</summary>
 /// <remarks>
 /// Composition-root code: the shared state comes from <see cref="GameBackbone"/>, never newed
-/// here; what this area adds is its own — the gateway, and two placeholders each greppable by
-/// name: <see cref="PlaceholderBearerPlayerIdResolver"/> (M5-06's auth) and
-/// <see cref="UnlimitedCommandThrottle"/> (M5-14's limiter). <c>CONTENT_VERSION_MISMATCH</c> has
-/// no arm anywhere yet — the content pinning it checks against is M5-09's.
+/// here; what this area adds is its own — the gateway, and one placeholder still greppable by
+/// name: <see cref="PlaceholderBearerPlayerIdResolver"/> (M5-06's auth). The throttle and the
+/// account-standing decorator both come from <see cref="AntiCheatComposition"/>, which owns them.
+/// <c>CONTENT_VERSION_MISMATCH</c> has no arm anywhere yet — the content pinning it checks against
+/// is M5-09's.
 /// </remarks>
 public static class GameCommandComposition
 {
@@ -27,6 +28,10 @@ public static class GameCommandComposition
         ArgumentNullException.ThrowIfNull(app);
 
         IPrincipalResolver principals = new PlaceholderBearerPlayerIdResolver();
+
+        // The account-standing check decorates whatever resolves the caller: an authenticated player
+        // whose account carries a live account action is refused with 403 before any command is read.
+        principals = AntiCheatComposition.WithAccountStanding(principals, app.Configuration);
 
         // The server's only tracing: no ASP.NET auto-instrumentation package is pinned, so a
         // command that is not wrapped here appears on no trace at all.
@@ -92,7 +97,7 @@ public static class GameCommandComposition
                 backbone.Entitlements,
                 () => backbone.Flags,
                 backbone.Ledger,
-                new UnlimitedCommandThrottle());
+                AntiCheatComposition.Throttle(app.Configuration));
         }
     }
 

@@ -137,7 +137,8 @@ public sealed class CommandRequestHandlerTests
         LocalHostAmbience.NoSubscriptionResolved(),
         LocalHostAmbience.NoRemoteConfigResolved,
         new VolatileCommandLedger(),
-        new UnlimitedCommandThrottle());
+        // Wide enough that these tests never trip it: the limit itself is PlayerRateLimiterTests'.
+        new PlayerRateLimiter(new SystemClock(), RateLimitPolicy.PerSecond(1_000, burst: 1_000)));
 
     private static async Task<PlayerId> SeedPlayerAsync(string id)
     {

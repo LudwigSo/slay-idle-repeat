@@ -19,6 +19,18 @@
     <PackageReference Include="Serilog.AspNetCore" />
   </ItemGroup>
 
+  <!--
+    M5-14: the composition root's own seams — which throttle this process installs,
+    which resolver wraps which — are internal because nothing outside the root may
+    name them, and they are the very claims worth testing. The grant names the one
+    unit-test assembly for this project and nothing else. (The Core rule that
+    InternalsVisibleTo may name only Core.Tests is about SlayIdleRepeat.Core; this
+    is a composition root, whose whole surface is wiring.)
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SlayIdleRepeat.Server.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
 
