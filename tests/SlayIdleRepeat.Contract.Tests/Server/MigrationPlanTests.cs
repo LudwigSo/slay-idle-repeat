@@ -89,7 +89,7 @@ public sealed class MigrationPlanTests
     /// a broken embed manifests here as the missing file's name, not as a quietly shorter list.
     /// </summary>
     [Fact]
-    public void The_shipped_history_is_exactly_the_four_M5_05_files_in_order()
+    public void The_shipped_history_is_exactly_the_five_migration_files_in_order()
     {
         var shipped = MigrationPlan.Ordered(PostgresMigrations.All());
 
@@ -99,11 +99,12 @@ public sealed class MigrationPlanTests
             "0002_idempotency.sql",
             "0003_economy_events.sql",
             "0004_player_messages.sql",
+            "0005_auth.sql",
         });
 
         shipped.ShouldAllBe(
             s => s.Sql.Contains("CREATE TABLE", StringComparison.Ordinal),
-            "every M5-05 file creates its tables; an empty or truncated embed would apply cleanly "
+            "every shipped file creates its tables; an empty or truncated embed would apply cleanly "
             + "and leave the schema silently short.");
     }
 
@@ -139,6 +140,89 @@ public sealed class MigrationPlanTests
             + "time — which, with no caller, is nowhere.");
     }
 
+    /// <summary>Each auth table paired with the INSERT that writes its rows.</summary>
+    public static TheoryData<string, string> AuthInserts() => new()
+    {
+        { "auth_devices", PostgresAuthStore.InsertDeviceStatement },
+        { "auth_token_families", PostgresAuthStore.InsertFamilyStatement },
+        { "auth_refresh_tokens", PostgresAuthStore.InsertRefreshTokenStatement },
+        { "auth_account_deletions", PostgresAuthStore.InsertAccountDeletionStatement },
+        { "auth_deletion_tombstones", PostgresAuthStore.InsertDeletionTombstoneStatement },
+    };
+
+    /// <summary>Each auth table paired with an UPDATE that mutates its rows.</summary>
+    public static TheoryData<string, string> AuthUpdates() => new()
+    {
+        { "auth_token_families", PostgresAuthStore.RevokeFamilyStatement },
+        { "auth_refresh_tokens", PostgresAuthStore.RotateRefreshTokenStatement },
+    };
+
+    /// <summary>
+    /// 🔒 Every auth INSERT names exactly the columns its table declares — the same S25 pin the
+    /// economy log carries, for the same reason: <c>PostgresAuthStore</c> speaks to a database no
+    /// tier here starts, so a column renamed on one side would surface only on a live run.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AuthInserts))]
+    public void An_auth_insert_names_exactly_the_columns_its_table_declares(string table, string statement)
+    {
+        var declared = TableColumnsOf("0005_auth.sql", table);
+        var written = InsertColumnsOf(statement);
+
+        written.OrderBy(c => c, StringComparer.Ordinal).ShouldBe(
+            declared.OrderBy(c => c, StringComparer.Ordinal),
+            "0005_auth.sql and PostgresAuthStore." + table + "'s INSERT are the two halves of one "
+            + "row. The comparison runs both ways: a column the table gained and the INSERT forgot, "
+            + "and a column the INSERT writes that the table never had.");
+
+        ParameterCountOf(statement).ShouldBe(
+            written.Length,
+            "a column list longer than its VALUES list is a statement Npgsql refuses at execute "
+            + "time — which, with no caller yet, is nowhere.");
+    }
+
+    /// <summary>🔒 Every auth UPDATE touches only columns its table declares, one parameter each.</summary>
+    [Theory]
+    [MemberData(nameof(AuthUpdates))]
+    public void An_auth_update_touches_only_columns_its_table_declares(string table, string statement)
+    {
+        var declared = TableColumnsOf("0005_auth.sql", table);
+        var touched = ParameterisedColumnsOf(statement);
+
+        touched.ShouldNotBeEmpty(
+            "an UPDATE that binds no column by name is either a full-table write or a statement "
+            + "this reader no longer understands; both must fail here rather than pass vacuously.");
+
+        touched.Except(declared, StringComparer.Ordinal).ShouldBeEmpty(
+            "the revocation and rotation stamps are the only writes these rows ever take, and a "
+            + "column name that drifted from the migration would refuse at execute time.");
+
+        ParameterCountOf(statement).ShouldBe(
+            touched.Length,
+            "one parameter per bound column; a spare @name is a parameter Npgsql never fills.");
+    }
+
+    /// <summary>🔒 The device lookup reads back exactly the row the migration declares.</summary>
+    [Fact]
+    public void The_device_lookup_selects_exactly_the_columns_its_table_declares()
+    {
+        var declared = TableColumnsOf("0005_auth.sql", "auth_devices");
+        var selected = SelectColumnsOf(PostgresAuthStore.SelectDeviceStatement);
+
+        selected.OrderBy(c => c, StringComparer.Ordinal).ShouldBe(
+            declared.OrderBy(c => c, StringComparer.Ordinal),
+            "a SELECT that misses a column the table declares reads a device row with a field "
+            + "missing, and one that names a column the table dropped fails at execute time.");
+
+        ParameterisedColumnsOf(PostgresAuthStore.SelectDeviceStatement)
+            .Except(declared, StringComparer.Ordinal).ShouldBeEmpty(
+                "the WHERE clause keys on a column this table declares, or it keys on nothing.");
+
+        ParameterCountOf(PostgresAuthStore.SelectDeviceStatement).ShouldBe(
+            ParameterisedColumnsOf(PostgresAuthStore.SelectDeviceStatement).Length,
+            "one parameter per bound column.");
+    }
+
     /// <summary>The column names one CREATE TABLE declares, in declaration order.</summary>
     private static string[] TableColumnsOf(string fileName, string table)
     {
@@ -163,6 +247,25 @@ public sealed class MigrationPlanTests
         var open = statement.IndexOf('(');
 
         return statement[(open + 1)..statement.IndexOf(')', open)]
+            .Split(',')
+            .Select(column => column.Trim())
+            .ToArray();
+    }
+
+    /// <summary>The column names one statement binds a parameter to — <c>column = @name</c>.</summary>
+    private static string[] ParameterisedColumnsOf(string statement) =>
+        System.Text.RegularExpressions.Regex
+            .Matches(statement, "([a-z][a-z0-9_]*)\\s*=\\s*@")
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+
+    /// <summary>The column names one SELECT reads back.</summary>
+    private static string[] SelectColumnsOf(string statement)
+    {
+        const string select = "SELECT ";
+
+        return statement[(statement.IndexOf(select, StringComparison.Ordinal) + select.Length)
+                ..statement.IndexOf(" FROM ", StringComparison.Ordinal)]
             .Split(',')
             .Select(column => column.Trim())
             .ToArray();

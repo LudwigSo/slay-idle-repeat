@@ -287,6 +287,21 @@ internal static class Domain
     /// the modifier arithmetic. Every entry point takes an already-public snapshot and grants
     /// nothing. ⚠️ <c>RunDie</c> and <c>DieFaceCodec</c> were named here too and are gone.
     /// </para>
+    /// <para>
+    /// 🔒 <b>M5-06 adds <c>HeroNames</c> (with <c>HeroNameDecision</c>), and it is the one entry here
+    /// that is not a view.</b> The name filter is <c>internal</c> and so is the constructor of the name
+    /// it mints, so account creation and the in-process host — both outside <c>Core</c> — had no way to
+    /// reach it at all, and the only alternatives were a second filter or an unfiltered write. The
+    /// facade is a door, not a widening: it takes a content snapshot and hands back the accepted name or
+    /// which check refused it.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Its machinery stays internal too.</b> <c>HeroNameRule</c>, <c>HeroNameVerdict</c>,
+    /// <c>NameNormalisation</c> and <c>ProfanityLexicon</c> are all still <c>internal</c>, and
+    /// <c>HeroNameDecision</c> deliberately carries LESS than the verdict beneath it: the matched term
+    /// stays inside <c>Core</c>, because the caller on the far side of this seam writes response bodies
+    /// and log lines.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[]
     {
@@ -319,6 +334,8 @@ internal static class Domain
         "RunEndCounterKind",
         "ShopView",
         "ShopSlotRow",
+        "HeroNames",
+        "HeroNameDecision",
     };
 
     /// <summary>

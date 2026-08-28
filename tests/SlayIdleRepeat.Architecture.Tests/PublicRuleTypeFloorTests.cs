@@ -127,8 +127,16 @@ public sealed class PublicRuleTypeFloorTests
     /// screen inferring both — telling a player who never revived that they had used their one, and
     /// captioning boss kills as Elite ones.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Thirty-one since M5-06 added <c>HeroNames</c> and <c>HeroNameDecision</c>.</b> One entry
+    /// point — the hero-name filter, whose consumers are account creation on the server and the
+    /// in-process host — plus the one type its public members name. Raised in the same commit and by
+    /// exactly the two names it adds. The slack it closes: this facade is the only public reading of
+    /// the name filter at all, and a floor left at twenty-nine would let it be deleted, returning both
+    /// callers to naming an account after whatever text reached them.
+    /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 29;
+    private const int ResolvedPublicRuleTypeFloor = 31;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -380,7 +388,13 @@ public sealed class PublicRuleTypeFloorTests
         // menu nor the die projection has anything left to describe. So RunShopOffer, RunShopContext,
         // ShopPricing, ShopTuning and RunModifierTotals stay internal: what leaves is the offer as
         // priced, never the price formula.
-        if (Domain.PublicRuleTypes.Count > 29)
+        // 🔒 THIRTY-ONE since M5-06. ONE entry point — HeroNames, whose consumers are the server's
+        // account creation and the in-process host, neither of which could reach the filter at all
+        // while both it and the name's constructor were internal — plus the one type its public
+        // members name, HeroNameDecision. Raised by exactly those two, so HeroNameRule,
+        // HeroNameVerdict and NameNormalisation stay internal: what leaves is the decision, and
+        // deliberately not the term it matched.
+        if (Domain.PublicRuleTypes.Count > 31)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +
