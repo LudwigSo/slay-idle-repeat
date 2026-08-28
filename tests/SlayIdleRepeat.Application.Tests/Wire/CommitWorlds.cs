@@ -49,12 +49,6 @@ internal sealed class RecordingUnitOfWork : IUnitOfWork
     /// <summary>Every commit this unit of work was handed, in order.</summary>
     internal IReadOnlyList<CommandCommit> Commits => _commits;
 
-    /// <summary>The only commit, for the many cases that send exactly one command.</summary>
-    internal CommandCommit Single => _commits.Count == 1
-        ? _commits[0]
-        : throw new InvalidOperationException(
-            $"Expected exactly one commit, and {_commits.Count} were made.");
-
     /// <inheritdoc/>
     public async Task CommitAsync(CommandCommit commit, CancellationToken ct)
     {
@@ -188,12 +182,6 @@ internal sealed class OrderedSink : IDomainEventSink
 /// <summary>Envelope bodies for the commands the commit suite sends.</summary>
 internal static class CommitEnvelopes
 {
-    /// <summary>A meta command every starting player accepts.</summary>
-    internal static string BeginSession(long sequence, string commandId) =>
-        Envelopes.Body(
-            "BEGIN_SESSION", sequence, commandId,
-            "{\"clientVersion\": \"1.0\", \"contentHash\": \"h\"}");
-
     /// <summary>A meta command the domain refuses on a starting player: an item nobody owns cannot be locked.</summary>
     internal static string LockUnownedItem(long sequence, string commandId) =>
         Envelopes.Body(

@@ -1,6 +1,7 @@
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Adapters.ObjectStore.S3;
 using SlayIdleRepeat.Application.Ports.Server;
+using SlayIdleRepeat.Application.Services.Events;
 using SlayIdleRepeat.Application.Wire;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -55,13 +56,24 @@ public sealed class InMemoryUnitOfWorkContractTests : IUnitOfWorkContractTests
         _idempotency.ReadLastSequenceAsync(scope, PersistenceWorlds.Cancel);
 
     /// <inheritdoc/>
-    protected override void FailTheRecordHalf()
-    {
-        if (_lastCreated is { } unitOfWork)
-        {
-            unitOfWork.FailingRecordWrites = true;
-        }
-    }
+    protected override Task<IReadOnlyList<EconomyEventRecord>> StoredEconomyEventsAsync() =>
+        Task.FromResult(Subject().EconomyEvents);
+
+    /// <inheritdoc/>
+    protected override void FailTheRecordHalf() => Subject().FailingRecordWrites = true;
+
+    /// <inheritdoc/>
+    protected override void FailTheSnapshotHalf() => Subject().FailingSnapshotWrites = true;
+
+    /// <remarks>
+    /// Loud rather than a silent no-op: a fault knob that quietly does nothing would turn the
+    /// atomicity cases into commits that were never asked to fail, which is the one shape those
+    /// cases cannot survive.
+    /// </remarks>
+    private InMemoryUnitOfWork Subject() =>
+        _lastCreated
+        ?? throw new InvalidOperationException(
+            "Create() has not been called, so there is no unit of work to arrange or read back.");
 }
 
 /// <summary>Runs the shared battle-log suite against the in-memory fake — the direct backing, so no settling.</summary>

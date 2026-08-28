@@ -61,6 +61,43 @@ public sealed class RunExpiryTests
         result.NewState.Run!.Phase.ShouldBe(RunPhase.InProgress);
     }
 
+    /// <summary>
+    /// The two stamps pulled apart: the player was here an hour ago and the run was not touched for
+    /// the whole window. Without this the fixtures' two anchors sit a second apart and a window
+    /// measured off the wrong one answers every other case in this file identically.
+    /// </summary>
+    [Fact]
+    public void The_window_is_measured_from_the_runs_own_last_command_and_not_the_players()
+    {
+        var at = GearGrantWorlds.NowUtc.AddHours(WindowHours);
+        var state = Live(pendingStage: null, playerLastAppliedAtUtc: at.AddHours(-1));
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(state, new RollDiceCommand(), RunContextAt(at));
+
+        result.Rejection.ShouldBe(
+            RejectionReason.RUN_EXPIRED,
+            "the run is what expires. Measured off the player instead, a shop visit or a daily "
+            + "claim would keep a run nobody is playing alive forever.");
+    }
+
+    /// <summary>
+    /// The reason a settled run answers with. Both rules can see this slice, and only one of them
+    /// describes it.
+    /// </summary>
+    [Fact]
+    public void A_run_that_already_ended_is_refused_as_ended_rather_than_as_expired()
+    {
+        var state = Live(pendingStage: null, phase: RunPhase.Ended);
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, new RollDiceCommand(), RunContextAt(GearGrantWorlds.NowUtc.AddHours(WindowHours)));
+
+        result.Rejection.ShouldBe(
+            RejectionReason.RUN_ALREADY_ENDED,
+            "the run was closed and paid out; telling the client it expired invites it to wait for "
+            + "a settlement that already happened instead of starting the next run.");
+    }
+
     [Fact]
     public void The_next_accepted_command_settles_an_expired_run_as_a_death_at_the_stage_reached()
     {
@@ -83,7 +120,7 @@ public sealed class RunExpiryTests
     }
 
     [Fact]
-    public void A_settled_expired_run_keeps_the_gear_it_produced_and_grants_no_session_floor()
+    public void A_settled_expired_run_keeps_the_gear_it_produced()
     {
         var state = Live(bankedLegendXp: 100, pendingStage: 3, holdingGear: true);
 
@@ -92,11 +129,22 @@ public sealed class RunExpiryTests
 
         result.NewState.Run!.Phase.ShouldBe(
             RunPhase.Ended, "the settlement this case is about has to have run at all.");
-
         result.NewState.Player.Inventory.Stored.Count.ShouldBe(
             1, "the run's drops are the player's the moment they are picked up; expiry settles the "
             + "run, it does not take the session back.");
+    }
 
+    /// <summary>🔒 The recorded assumption of D5, stated as a case so it cannot drift silently.</summary>
+    [Fact]
+    public void A_settled_expired_run_grants_no_session_floor()
+    {
+        var state = Live(bankedLegendXp: 100, pendingStage: 3, holdingGear: true);
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, BeginSessions.Command, MetaContextAt(GearGrantWorlds.NowUtc.AddHours(WindowHours)));
+
+        result.NewState.Run!.Phase.ShouldBe(
+            RunPhase.Ended, "the settlement this case is about has to have run at all.");
         result.Events.OfType<GearGranted>().ShouldBeEmpty(
             "the floor is what a run that was genuinely played out is owed, and it needs a draw "
             + "this command has no run scope to draw from — a settlement that granted it would be "
@@ -107,10 +155,17 @@ public sealed class RunExpiryTests
     /// <param name="bankedLegendXp">What the run has banked so far, which the settlement pays out of.</param>
     /// <param name="pendingStage">The stage of the tile the run stopped on, or <c>null</c> for a run standing on nothing — the shape a roll is legal from.</param>
     /// <param name="holdingGear">Whether the player already holds an item the run produced.</param>
+    /// <param name="playerLastAppliedAtUtc">When the PLAYER last acted. Defaults to the fixtures' own anchor.</param>
+    /// <param name="phase">The run's phase. Defaults to a live run.</param>
     private static WorldSlice Live(
-        long bankedLegendXp = 0, int? pendingStage = 1, bool holdingGear = false) =>
+        long bankedLegendXp = 0,
+        int? pendingStage = 1,
+        bool holdingGear = false,
+        DateTimeOffset? playerLastAppliedAtUtc = null,
+        RunPhase phase = RunPhase.InProgress) =>
         new(
             Worlds.Rehydrated(PlayerSnapshots.With(
+                lastAppliedAtUtc: playerLastAppliedAtUtc,
                 inventory: holdingGear ? Inventories.Stock(1) : null)),
             Worlds.NewRun(RunSnapshots.With(
                 position: 0,
@@ -120,7 +175,7 @@ public sealed class RunExpiryTests
                 pendingTileKind: pendingStage is null ? RunSnapshots.NoPendingTile : (int)TileKind.Enemy,
                 pendingTileLinearIndex: pendingStage is null ? 0 : 7,
                 pendingTileStage: pendingStage ?? 0,
-                phase: RunPhase.InProgress,
+                phase: phase,
                 bankedLegendXp: bankedLegendXp)));
 
     // The whole shipped set, because the settlement reads the completion multipliers and the meta

@@ -40,8 +40,14 @@ public abstract class IUnitOfWorkContractTests
     /// <summary>The scope's counter, or <c>null</c> when the scope was never opened.</summary>
     protected abstract Task<long?> LastSequenceAsync(IdempotencyScope scope);
 
+    /// <summary>Every economy-log row this unit of work has committed, in commit order.</summary>
+    protected abstract Task<IReadOnlyList<EconomyEventRecord>> StoredEconomyEventsAsync();
+
     /// <summary>Tells the unit of work under test to fail the record half of its next commit.</summary>
     protected abstract void FailTheRecordHalf();
+
+    /// <summary>Tells the unit of work under test to fail the snapshot half of its next commit.</summary>
+    protected abstract void FailTheSnapshotHalf();
 
     [Fact]
     public async Task An_accepted_commands_snapshots_record_and_counter_all_land()
@@ -53,8 +59,15 @@ public abstract class IUnitOfWorkContractTests
 
         await unitOfWork.CommitAsync(commit, PersistenceWorlds.Cancel);
 
-        (await StoredProfileAsync(profile.Player.Id)).ShouldNotBeNull(
-            "the snapshots are half of what makes the command have happened at all.");
+        var stored = await StoredProfileAsync(profile.Player.Id);
+        stored.ShouldNotBeNull("the snapshots are half of what makes the command have happened at all.");
+
+        // Canonical bytes, never record equality: the snapshots hold collections, whose synthesized
+        // equality is reference equality, so "same" would pass a differently-populated profile.
+        PersistenceWorlds.CanonicalBytes(stored).ShouldBe(
+            PersistenceWorlds.CanonicalBytes(profile),
+            "the state committed is the state the command produced. A store that lands a profile of "
+            + "the right shape and the wrong contents is the torn write nothing downstream can see.");
         (await StoredOutcomeAsync(scope, commit.Outcome.CommandId)).ShouldBe(
             commit.Outcome,
             "the record holds the bytes a duplicate replays, and every field of it is what an "
@@ -63,6 +76,10 @@ public abstract class IUnitOfWorkContractTests
             1L,
             "a counter still behind the record it was committed with is the torn state that lets a "
             + "retry pass the sequence gate and double-apply a committed command.");
+        (await StoredEconomyEventsAsync()).ShouldBe(
+            commit.EconomyEvents,
+            "the economy log is what the currency ledger is later audited from. Rows appended "
+            + "outside the commit can be lost while the command that produced them still stands.");
     }
 
     [Fact]
@@ -79,6 +96,8 @@ public abstract class IUnitOfWorkContractTests
         (await StoredProfileAsync(Player)).ShouldBeNull(
             "a refused command changed nothing, so a snapshot written here is a state no command "
             + "ever produced.");
+        (await StoredEconomyEventsAsync()).ShouldBeEmpty(
+            "nothing moved, so there is nothing for the economy log to have recorded.");
     }
 
     [Fact]
@@ -98,6 +117,34 @@ public abstract class IUnitOfWorkContractTests
             + "find, so the retry decides it a second time against state it already changed.");
         (await LastSequenceAsync(scope)).ShouldBeNull(
             "…and the counter must not have moved either.");
+        (await StoredEconomyEventsAsync()).ShouldBeEmpty(
+            "…nor may the log keep rows describing currency the stored player never gained.");
+    }
+
+    /// <summary>
+    /// The other direction, which is not the same rule read backwards: the halves are written in
+    /// some order, and only whichever one goes second is protected by an implementation that
+    /// abandons on the first fault rather than by a real boundary.
+    /// </summary>
+    [Fact]
+    public async Task A_commit_whose_snapshot_half_fails_records_no_outcome_and_moves_no_counter()
+    {
+        var unitOfWork = Create();
+        var scope = IdempotencyScope.ForPlayer(Player);
+        var profile = PersistenceWorlds.ProfileInARun();
+        var commit = Commit(scope, profile, sequence: 1);
+        FailTheSnapshotHalf();
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            async () => await unitOfWork.CommitAsync(commit, PersistenceWorlds.Cancel));
+
+        (await StoredOutcomeAsync(scope, commit.Outcome.CommandId)).ShouldBeNull(
+            "a record standing without its snapshot replays an acceptance to a client whose stored "
+            + "player never made the move — the answer and the state disagree forever after.");
+        (await LastSequenceAsync(scope)).ShouldBeNull(
+            "…and a counter advanced past a command that did not happen refuses the client's honest "
+            + "retry as out of sequence.");
+        (await StoredEconomyEventsAsync()).ShouldBeEmpty();
     }
 
     [Fact]

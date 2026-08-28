@@ -24,6 +24,12 @@ public sealed class CommandCommitTests
         await world.Gateway.SubmitRunCommandAsync(
             world.Player, run, Envelopes.Body("PICK_PERK", 1, "c-perk", PickPerkPayload), Worlds.Cancel);
 
+        // The two states are told apart by the run's own applied-at stamp rather than by anything
+        // the store holds afterwards: the store holds whatever was committed, so comparing the two
+        // would compare the commit with itself.
+        var applied = Worlds.Start.AddMinutes(5);
+        world.Clock.Set(applied);
+
         var reply = await world.Gateway.SubmitRunCommandAsync(
             world.Player, run, Envelopes.Body("ROLL_DICE", 2, "c-roll"), Worlds.Cancel);
 
@@ -45,9 +51,10 @@ public sealed class CommandCommitTests
             "an accepted command moved the aggregates, and a record committed without them is the "
             + "torn state where a replay answers with a move the stored player never made.");
         commit.State!.ActiveRun.ShouldNotBeNull();
-        commit.State.ActiveRun!.Position.ShouldBe(
-            (await world.RowsAsync()).Run!.Position,
-            "the snapshot committed is the one the command produced, not the one it was loaded with.");
+        commit.State.ActiveRun!.LastAppliedAtUtc.ShouldBe(
+            applied,
+            "the snapshot committed is the one this command produced, not the one it was loaded "
+            + "with — the loaded run was last applied five minutes earlier.");
     }
 
     [Fact]
