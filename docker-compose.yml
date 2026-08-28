@@ -129,12 +129,11 @@ services:
 
       # ---- 14 §1.1 "Configuration | Environment variables only (12-factor)" --
       #
-      # ⚠️ THE SERVER READS ONLY THE RemoteConfig__* PAIR BELOW (M5-10) SO FAR.
-      # The rest are defined ahead of the adapters that consume them — M5-05
-      # (Postgres/Redis/S3) and M5-11 (observability) — with the names M5 will
-      # bind to, so that the wiring is a reviewable artefact instead of folklore
-      # — and so M5 changes code, not this file. If M5 needs a different name,
-      # change it in BOTH places in the same commit and update infra/README.md.
+      # ⚠️ THE SERVER READS EVERY GROUP BELOW: RemoteConfig__* (M5-10),
+      # ConnectionStrings__* / Cache__* / ObjectStore__* (M5-05, except
+      # GhostSnapshotBucket) and OTEL_* / Sentry__Dsn / PostHog__* (M5-11). A
+      # name changed here is a name changed in the binding code, in the SAME
+      # commit, with infra/README.md's variable table updated to match.
       #
       # `__` is the ASP.NET Core configuration separator: `ConnectionStrings__Postgres`
       # binds to configuration key `ConnectionStrings:Postgres`. No vendor config

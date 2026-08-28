@@ -238,8 +238,10 @@ used.
   `docker compose up` something developers avoid — and the first thing anyone
   would do is comment them out, at which point the stack is lying about what it
   boots.
-- Neither is on the critical path for anything before M5-11, because they are
-  sinks for data the server does not yet emit.
+- Neither was on the critical path before M5-11, and neither is one now: M5-11
+  registered both adapters, and both stay switched off in this stack by
+  configuration (below), so the data they would carry has somewhere to go the
+  moment a deployment supplies a DSN and a project key.
 
 The **adapters exist and are registered** (`Adapters.Analytics.PostHog` behind
 `IAnalyticsSinkPort`, Sentry initialised unconditionally at startup) but are
