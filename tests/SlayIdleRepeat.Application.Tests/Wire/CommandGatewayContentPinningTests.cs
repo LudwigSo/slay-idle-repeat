@@ -63,6 +63,7 @@ public sealed class CommandGatewayContentPinningTests
     public async Task A_session_begin_refused_for_content_never_pays_the_days_grants()
     {
         var world = await GatewayWorld.WithAStartingPlayerAsync();
+        var before = (await world.RowsAsync()).Player;
 
         var refused = await world.Gateway.SubmitPlayerCommandAsync(
             world.Player,
@@ -77,8 +78,16 @@ public sealed class CommandGatewayContentPinningTests
         rows.Player.DailyCounters.ContainsKey("begin_session").ShouldBeFalse(
             "a transport-tier refusal is decided before the domain is called, so the day the player " +
             "never got to begin is still unpaid and still theirs to claim after they update");
+
+        // Compared against what the row held BEFORE, not against a written-down number: the calendar
+        // is counted from 1, so a constant here would agree with a handler that had run and left the
+        // player on their opening day anyway.
         rows.Player.LoginCalendarDay.ShouldBe(
-            0, "the calendar advance rides the same first-call-of-the-day path the counter marks");
+            before.LoginCalendarDay,
+            "the calendar advance rides the same first-call-of-the-day path the counter marks, so a " +
+            "refused begin must leave the player on exactly the day they were already on");
+        rows.Player.Energy.ShouldBe(
+            before.Energy, "the daily free refill is granted on that same path and must not have run");
     }
 
     [Fact]

@@ -55,9 +55,35 @@ public sealed class ContentBundleStore
 
     private Action<string> Warn { get; }
 
+    private readonly object _shelfGate = new();
+
+    private byte[]? _currentBundle;
+
+    private bool _announced;
+
     /// <summary>Writes the current snapshot's bundle to the shelf, if there is a shelf.</summary>
     /// <remarks>Idempotent: republishing a version already on the shelf leaves its bytes alone.</remarks>
-    public void Publish() => throw new NotImplementedException();
+    public void Publish()
+    {
+        if (Shelf() is not { } root)
+        {
+            return;
+        }
+
+        var destination = Path.Combine(root, Current.Version.Value + BundleSuffix);
+        if (File.Exists(destination))
+        {
+            // Not "the bytes match": the file's write time is what a sweep reads, so rewriting an
+            // identical bundle would silently restart every version's retention clock on restart.
+            return;
+        }
+
+        // Written aside and moved: a reader is served a file name it can only find complete, never
+        // a half-written stream whose hash would not check out.
+        var staging = destination + ".partial";
+        File.WriteAllBytes(staging, CurrentBundle());
+        File.Move(staging, destination, overwrite: true);
+    }
 
     /// <summary>The bytes of one retained version, or <c>null</c> when the shelf does not hold it.</summary>
     /// <param name="version">The requested stamp.</param>
@@ -67,12 +93,53 @@ public sealed class ContentBundleStore
     {
         ArgumentNullException.ThrowIfNull(version);
 
-        throw new NotImplementedException();
+        // The current version is rendered from the loaded snapshot, so it is servable on a host
+        // with no shelf at all — which is what keeps a misconfigured deployment merely unable to
+        // serve HISTORY rather than unable to serve content.
+        if (version.Equals(Current.Version))
+        {
+            return CurrentBundle();
+        }
+
+        if (Shelf() is not { } root)
+        {
+            return null;
+        }
+
+        var file = Path.Combine(root, version.Value + BundleSuffix);
+
+        // The cast is load-bearing. Without it the conditional's natural type is byte[], and a null
+        // byte[] converts to an EMPTY ReadOnlyMemory rather than to no value at all — so "the shelf
+        // does not hold this" would arrive at the endpoint as a zero-byte bundle served with a 200.
+        return File.Exists(file) ? File.ReadAllBytes(file) : (ReadOnlyMemory<byte>?)null;
     }
 
     /// <summary>Every version on the shelf, stamped with the file's last write time.</summary>
     /// <returns>The inventory a sweep is handed, ordinal-sorted by stamp.</returns>
-    public IReadOnlyList<RetainedVersion> ListStored() => throw new NotImplementedException();
+    public IReadOnlyList<RetainedVersion> ListStored()
+    {
+        if (Shelf() is not { } root)
+        {
+            return [];
+        }
+
+        var found = new List<RetainedVersion>();
+
+        foreach (var file in Directory.EnumerateFiles(root, "*" + BundleSuffix))
+        {
+            var name = Path.GetFileName(file);
+            var stamp = name[..^BundleSuffix.Length];
+
+            // The file name IS the stamp, so anything that does not parse as one is not a bundle
+            // this store owns — an operator's note, a half-written .partial, a foreign artefact.
+            if (ContentVersion.TryFromHex(stamp, out var version))
+            {
+                found.Add(new RetainedVersion(version!, new DateTimeOffset(File.GetLastWriteTimeUtc(file))));
+            }
+        }
+
+        return found.OrderBy(r => r.Version.Value, StringComparer.Ordinal).ToArray();
+    }
 
     /// <summary>Deletes the bundles <see cref="ContentRetention.Sweep"/> says are past the window.</summary>
     /// <param name="nowUtc">The moment the sweep runs, supplied by the caller.</param>
@@ -82,6 +149,60 @@ public sealed class ContentBundleStore
     {
         ArgumentNullException.ThrowIfNull(liveReferences);
 
-        throw new NotImplementedException();
+        if (Shelf() is not { } root)
+        {
+            return;
+        }
+
+        // A live reference is restamped to now before the policy runs, so "still pinned" and
+        // "recently written" reach the rule as the same fact and the rule stays a pure function of
+        // its inventory.
+        var live = liveReferences.Select(version => new RetainedVersion(version, nowUtc));
+
+        var inventory = ListStored()
+            .Where(stored => !liveReferences.Any(reference => reference.Equals(stored.Version)))
+            .Concat(live)
+            .ToArray();
+
+        foreach (var version in ContentRetention.Sweep(
+                     nowUtc, Current.Version, inventory, ContentRetention.WindowAlignedToRunTtl))
+        {
+            File.Delete(Path.Combine(root, version.Value + BundleSuffix));
+        }
+    }
+
+    /// <summary>The current snapshot's bundle, packed once and kept.</summary>
+    private byte[] CurrentBundle()
+    {
+        lock (_shelfGate)
+        {
+            return _currentBundle ??=
+                ContentBundle.Pack(Current.DocumentPaths.Select(Current.GetDocument));
+        }
+    }
+
+    /// <summary>The shelf directory, or <c>null</c> when there is none — announced exactly once.</summary>
+    private string? Shelf()
+    {
+        if (!string.IsNullOrWhiteSpace(BundleRoot))
+        {
+            Directory.CreateDirectory(BundleRoot);
+            return BundleRoot;
+        }
+
+        lock (_shelfGate)
+        {
+            if (!_announced)
+            {
+                _announced = true;
+                Warn(
+                    Marker + " no bundle root is configured, so no content version but the current " +
+                    "one can be served and nothing is retained across a deploy. A client pinned to " +
+                    "an older version has nothing to fetch and must re-sync onto current. Set " +
+                    "Content__BundleRoot to a writable directory to turn retention on.");
+            }
+        }
+
+        return null;
     }
 }

@@ -88,8 +88,14 @@ public sealed class MigrationPlanTests
     /// 🔒 Steering S3: the shipped history this runner exists for, by identity. A resource rename or
     /// a broken embed manifests here as the missing file's name, not as a quietly shorter list.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ The ordinals settle at MERGE ORDER, not at authoring time. A task adding a migration takes
+    /// <c>current + 1</c> over the history on its own base and the integrator renumbers on collision
+    /// — reserving a higher number instead leaves a GAP, and a gap is what the runner refuses at
+    /// boot. So this list is expected to be re-sorted by whoever merges, and never to grow a hole.
+    /// </remarks>
     [Fact]
-    public void The_shipped_history_is_exactly_the_four_M5_05_files_in_order()
+    public void The_shipped_history_is_exactly_the_files_this_build_carries_in_order()
     {
         var shipped = MigrationPlan.Ordered(PostgresMigrations.All());
 
@@ -99,12 +105,14 @@ public sealed class MigrationPlanTests
             "0002_idempotency.sql",
             "0003_economy_events.sql",
             "0004_player_messages.sql",
+            "0005_content_pinning.sql",
         });
 
         shipped.ShouldAllBe(
-            s => s.Sql.Contains("CREATE TABLE", StringComparison.Ordinal),
-            "every M5-05 file creates its tables; an empty or truncated embed would apply cleanly "
-            + "and leave the schema silently short.");
+            s => s.Sql.Contains("CREATE TABLE", StringComparison.Ordinal) ||
+                 s.Sql.Contains("ALTER TABLE", StringComparison.Ordinal),
+            "every file in the history shapes the schema; an empty or truncated embed would apply "
+            + "cleanly and leave it silently short.");
     }
 
     /// <summary>

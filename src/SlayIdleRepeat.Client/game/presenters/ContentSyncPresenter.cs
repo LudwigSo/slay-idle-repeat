@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Core.Content;
 
@@ -99,5 +100,75 @@ public sealed class ContentSyncPresenter
 
     /// <summary>Runs the whole sequence, ending in <see cref="SyncState.UpToDate"/>, <see cref="SyncState.Updated"/> or <see cref="SyncState.Failed"/>.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task RunAsync(CancellationToken ct) => throw new NotImplementedException();
+    public async Task RunAsync(CancellationToken ct)
+    {
+        State = SyncState.Checking;
+
+        string named;
+        try
+        {
+            named = await Client.FetchCurrentVersionAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception fault) when (fault is not OperationCanceledException)
+        {
+            Stop(ContentSyncFailureKind.Unreachable, "the content pointer could not be read — " + fault.Message);
+            return;
+        }
+
+        if (!ContentVersion.TryFromHex(named, out var served))
+        {
+            Stop(
+                ContentSyncFailureKind.VersionMalformed,
+                "the server named " + (named.Length == 0 ? "an empty stamp" : "'" + named + "'") +
+                ", which is not the 64 lowercase hex characters a content stamp is");
+            return;
+        }
+
+        if (served!.Equals(Installed.Version))
+        {
+            State = SyncState.UpToDate;
+            return;
+        }
+
+        State = SyncState.Downloading;
+
+        ReadOnlyMemory<byte> bundle;
+        try
+        {
+            bundle = await Client.FetchBundleAsync(served.Value, ct).ConfigureAwait(false);
+        }
+        catch (Exception fault) when (fault is not OperationCanceledException)
+        {
+            // A download that never arrived is not a rejected bundle: one is ops or the player's
+            // network, the other is the distribution pipeline, and they are fixed by different
+            // people.
+            Stop(ContentSyncFailureKind.Unreachable, "the bundle could not be fetched — " + fault.Message);
+            return;
+        }
+
+        State = SyncState.Verifying;
+
+        try
+        {
+            // Re-stamped, never trusted. The stamp arrived from the same place as the bytes, so
+            // only recomputing it over the unpacked documents distinguishes the content set the
+            // server named from whatever the network handed us.
+            Downloaded = ContentBundle.Open(bundle, served);
+        }
+        catch (ContentBundleFormatException fault)
+        {
+            Stop(ContentSyncFailureKind.BundleRejected, fault.Message);
+            return;
+        }
+
+        State = SyncState.Updated;
+    }
+
+    /// <summary>Ends the sync in a named failure, leaving nothing half-verified behind.</summary>
+    private void Stop(ContentSyncFailureKind kind, string detail)
+    {
+        Downloaded = null;
+        Failure = new ContentSyncFailure(kind, detail);
+        State = SyncState.Failed;
+    }
 }

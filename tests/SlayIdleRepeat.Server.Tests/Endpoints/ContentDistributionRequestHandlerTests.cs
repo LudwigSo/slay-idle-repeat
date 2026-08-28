@@ -26,8 +26,12 @@ public sealed class ContentDistributionRequestHandlerTests
     private static readonly byte[] Bytes = [0x1f, 0x8b, 0x08, 0x00, 0x42];
 
     /// <summary>A shelf holding exactly the named versions.</summary>
+    /// <remarks>
+    /// The cast spells out "no value": a null <c>byte[]</c> in a conditional converts to an EMPTY
+    /// <c>ReadOnlyMemory</c>, which is a shelf that answers every request with zero bytes.
+    /// </remarks>
     private static Func<ContentVersion, ReadOnlyMemory<byte>?> Shelf(params ContentVersion[] held) =>
-        version => held.Any(h => h.Equals(version)) ? Bytes : null;
+        version => held.Any(h => h.Equals(version)) ? Bytes : (ReadOnlyMemory<byte>?)null;
 
     // ------------------------------------------------------------------ C4
 

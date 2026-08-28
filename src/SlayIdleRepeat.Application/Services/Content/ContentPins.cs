@@ -115,5 +115,28 @@ public sealed class ContentPinning
     /// <summary>The snapshot a pinned version resolves to, falling back — loudly — to <see cref="Current"/>.</summary>
     /// <param name="pinned">The pinned version, or <c>null</c> when there is no pin.</param>
     /// <returns>The pinned snapshot, or <see cref="Current"/> when there is no pin or the pin no longer resolves.</returns>
-    public ContentSnapshot SnapshotFor(ContentVersion? pinned) => throw new NotImplementedException();
+    public ContentSnapshot SnapshotFor(ContentVersion? pinned)
+    {
+        if (pinned is null || pinned.Equals(Current.Version))
+        {
+            return Current;
+        }
+
+        if (ResolveSnapshot(pinned) is { } resolved)
+        {
+            return resolved;
+        }
+
+        Warn(
+            ContentPinMarker + " the pinned content version " + pinned.Short + " is no longer " +
+            "retained, so this command is being judged against the current set (" +
+            Current.Version.Short + ") instead. Something was pinned to a bundle a sweep already " +
+            "removed — the retention window is too short, or the sweep ran against a stale " +
+            "reference list.");
+
+        return Current;
+    }
+
+    /// <summary>What a fallback line is greppable by in a container's log stream.</summary>
+    private const string ContentPinMarker = "[content-pin]";
 }

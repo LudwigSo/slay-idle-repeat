@@ -1,5 +1,4 @@
 using System.Globalization;
-using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Tests.Content;
 using SlayIdleRepeat.Application.Tests.UseCases;
@@ -76,7 +75,7 @@ internal sealed class PinnedContent
     private PinnedContent(ContentSnapshot current, IEnumerable<ContentSnapshot> alsoResolvable)
     {
         Current = current;
-        Store = new RecordingContentPinStore(new InMemoryContentPinStore());
+        Store = new RecordingContentPinStore(new VolatileContentPinStore());
 
         foreach (var snapshot in alsoResolvable)
         {

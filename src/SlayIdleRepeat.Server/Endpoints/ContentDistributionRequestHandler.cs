@@ -33,6 +33,12 @@ public sealed record ContentBundleReply(int StatusCode, ReadOnlyMemory<byte> Bod
 /// </remarks>
 public static class ContentDistributionRequestHandler
 {
+    /// <summary>The route a bundle is served on, named by the pointer document so a client never builds it.</summary>
+    public const string BundleRoute = "/content/";
+
+    /// <summary>A bundle can never change under its URL, because its URL is the hash of its bytes.</summary>
+    private const string ImmutableForAYear = "public, max-age=31536000, immutable";
+
     /// <summary>Answers the pointer request with the version this server is serving now.</summary>
     /// <param name="current">The current content stamp.</param>
     /// <returns>200, the pointer document, and <c>no-cache</c>.</returns>
@@ -41,7 +47,13 @@ public static class ContentDistributionRequestHandler
     {
         ArgumentNullException.ThrowIfNull(current);
 
-        throw new NotImplementedException();
+        // Hand-written rather than serialised: the document is two fields whose spelling is the
+        // contract, and a stamp is 64 characters from a closed alphabet with nothing to escape.
+        var body =
+            "{\"contentVersion\":\"" + current.Value + "\"," +
+            "\"bundleUrl\":\"" + BundleRoute + current.Value + "\"}";
+
+        return new ContentCurrentReply(200, body, "application/json; charset=utf-8", "no-cache");
     }
 
     /// <summary>Answers a bundle request out of whatever the shelf holds.</summary>
@@ -55,6 +67,23 @@ public static class ContentDistributionRequestHandler
         ArgumentNullException.ThrowIfNull(requestedVersion);
         ArgumentNullException.ThrowIfNull(read);
 
-        throw new NotImplementedException();
+        // Parsed before the shelf is touched. The segment is untrusted text off a URL and the shelf
+        // names its files after stamps, so anything that is not one must not reach a file name.
+        if (!ContentVersion.TryFromHex(requestedVersion, out var version))
+        {
+            return NotFound;
+        }
+
+        return read(version!) is { } bundle
+            ? new ContentBundleReply(200, bundle, "application/gzip", ImmutableForAYear)
+            : NotFound;
     }
+
+    /// <summary>
+    /// The one refusal, shared by both causes. A malformed segment and a swept version are
+    /// indistinguishable on purpose — an honest client does the same thing either way, and telling
+    /// them apart would report which stamps this server has ever held.
+    /// </summary>
+    private static ContentBundleReply NotFound =>
+        new(404, ReadOnlyMemory<byte>.Empty, string.Empty, string.Empty);
 }

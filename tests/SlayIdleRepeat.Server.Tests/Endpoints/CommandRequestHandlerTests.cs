@@ -137,7 +137,9 @@ public sealed class CommandRequestHandlerTests
         LocalHostAmbience.NoSubscriptionResolved(),
         LocalHostAmbience.NoRemoteConfigResolved,
         new VolatileCommandLedger(),
-        new UnlimitedCommandThrottle());
+        new UnlimitedCommandThrottle(),
+        new ContentPinning(
+            new VolatileContentPinStore(), Content.Value, _ => null, _ => { }));
 
     private static async Task<PlayerId> SeedPlayerAsync(string id)
     {

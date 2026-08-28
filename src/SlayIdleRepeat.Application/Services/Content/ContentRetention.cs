@@ -59,6 +59,17 @@ public static class ContentRetention
         ArgumentNullException.ThrowIfNull(stored);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(window, TimeSpan.Zero);
 
-        throw new NotImplementedException();
+        var cutoff = nowUtc - window;
+
+        // Grouped by stamp and reduced to the LATEST reference: one version can be named by a run
+        // pin and a session pin at once, and a sweep that took whichever row it met first would
+        // delete a bundle something newer still wants.
+        return stored
+            .Where(entry => !entry.Version.Equals(current))
+            .GroupBy(entry => entry.Version.Value, StringComparer.Ordinal)
+            .Where(group => group.Max(entry => entry.LastReferencedAtUtc) < cutoff)
+            .Select(group => group.First().Version)
+            .OrderBy(version => version.Value, StringComparer.Ordinal)
+            .ToArray();
     }
 }

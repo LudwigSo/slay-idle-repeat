@@ -65,6 +65,26 @@ public sealed class GameBackbone
         WorldStore = new WorldSliceStore(persistence.WorldRows);
         Ledger = persistence.Ledger;
 
+        // M5-09: the shelf of published bundles, and the pins that decide which content a command
+        // is judged against. Console.Error carries the [content-bundles] and [content-pin] markers
+        // for the same reason the remote-config warn sink does — they must be greppable in the
+        // container's log stream, and a degraded shelf is exactly what nobody notices otherwise.
+        var configuredBundleRoot = configuration["Content:BundleRoot"];
+        BundleRoot = string.IsNullOrWhiteSpace(configuredBundleRoot) || Path.IsPathRooted(configuredBundleRoot)
+            ? configuredBundleRoot
+            : Path.Combine(environment.ContentRootPath, configuredBundleRoot);
+
+        Bundles = new ContentBundleStore(BundleRoot, Content, Console.Error.WriteLine);
+        Bundles.Publish();
+
+        ContentPins = new ContentPinning(
+            persistence.ContentPins,
+            Content,
+            version => Bundles.TryRead(version) is { } bundle
+                ? ContentBundle.Open(bundle, version)
+                : null,
+            Console.Error.WriteLine);
+
         Entitlements = LocalHostAmbience.NoSubscriptionResolved();
 
         var configuredConfigPath = configuration["RemoteConfig:Path"];
@@ -96,6 +116,15 @@ public sealed class GameBackbone
 
     /// <summary>The one sequencing/idempotency ledger.</summary>
     public ICommandLedgerStore Ledger { get; }
+
+    /// <summary>The shelf behind <c>GET /content/{version}</c>.</summary>
+    public ContentBundleStore Bundles { get; }
+
+    /// <summary>Where the bundle shelf lives, or <c>null</c> when retention is off.</summary>
+    public string? BundleRoot { get; }
+
+    /// <summary>The run/session pins and the snapshots they resolve to.</summary>
+    public ContentPinning ContentPins { get; }
 
     /// <summary>The real clock.</summary>
     public IClockPort Clock { get; }

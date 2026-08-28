@@ -11,8 +11,9 @@ namespace SlayIdleRepeat.Server.Composition;
 /// Composition-root code: the shared state comes from <see cref="GameBackbone"/>, never newed
 /// here; what this area adds is its own — the gateway, and two placeholders each greppable by
 /// name: <see cref="PlaceholderBearerPlayerIdResolver"/> (M5-06's auth) and
-/// <see cref="UnlimitedCommandThrottle"/> (M5-14's limiter). <c>CONTENT_VERSION_MISMATCH</c> has
-/// no arm anywhere yet — the content pinning it checks against is M5-09's.
+/// <see cref="UnlimitedCommandThrottle"/> (M5-14's limiter). The content pins the
+/// <c>CONTENT_VERSION_MISMATCH</c> arm checks against come from the backbone, so the pin a command
+/// is judged by and the bundle the content endpoints serve are the same shelf.
 /// </remarks>
 public static class GameCommandComposition
 {
@@ -92,7 +93,8 @@ public static class GameCommandComposition
                 backbone.Entitlements,
                 () => backbone.Flags,
                 backbone.Ledger,
-                new UnlimitedCommandThrottle());
+                new UnlimitedCommandThrottle(),
+                backbone.ContentPins);
         }
     }
 
