@@ -2,6 +2,7 @@ using System.Globalization;
 using SlayIdleRepeat.Adapters.Ambient.System;
 using SlayIdleRepeat.Adapters.Content.LocalFile;
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Persistence;
@@ -64,6 +65,7 @@ public sealed class GameBackbone
         var persistence = PersistenceComposition.Shared(configuration);
         WorldStore = new WorldSliceStore(persistence.WorldRows);
         Ledger = persistence.Ledger;
+        UnitOfWork = persistence.UnitOfWork;
 
         Entitlements = LocalHostAmbience.NoSubscriptionResolved();
 
@@ -96,6 +98,9 @@ public sealed class GameBackbone
 
     /// <summary>The one sequencing/idempotency ledger.</summary>
     public ICommandLedgerStore Ledger { get; }
+
+    /// <summary>The one boundary a processed command commits inside.</summary>
+    public IUnitOfWork UnitOfWork { get; }
 
     /// <summary>The real clock.</summary>
     public IClockPort Clock { get; }

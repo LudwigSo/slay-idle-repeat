@@ -28,6 +28,7 @@ public sealed class PostgresPersistence : IAsyncDisposable
         RunStates = new PostgresRunStateStore(dataSource);
         Idempotency = new PostgresIdempotencyStore(dataSource);
         EconomyEvents = new PostgresEconomyEventLog(dataSource);
+        UnitOfWork = new PostgresUnitOfWork(dataSource, runTtl);
     }
 
     /// <summary>Opens the adapter over one pooled data source.</summary>
@@ -65,6 +66,9 @@ public sealed class PostgresPersistence : IAsyncDisposable
 
     /// <summary>The append-only economy event log.</summary>
     public PostgresEconomyEventLog EconomyEvents { get; }
+
+    /// <summary>The transaction boundary one processed command commits inside.</summary>
+    public PostgresUnitOfWork UnitOfWork { get; }
 
     /// <summary>Applies every pending migration, once per cluster, under the advisory lock.</summary>
     /// <param name="ct">Cancellation.</param>

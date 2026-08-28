@@ -1,5 +1,6 @@
 using System.Globalization;
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Contracts;
@@ -69,6 +70,7 @@ public sealed class CommandGateway
     private readonly Func<FeatureFlags> _currentFlags;
     private readonly ICommandLedgerStore _ledger;
     private readonly ICommandThrottle _throttle;
+    private readonly IUnitOfWork _unitOfWork;
 
     /// <summary>
     /// The striped gate pool, keyed by PLAYER — not by sequencing scope. A player's run and player
@@ -90,6 +92,7 @@ public sealed class CommandGateway
     /// <param name="currentFlags">The kill switches' live source; the composition root's reloading config swaps what it answers. Read exactly once per submitted command, so the gate and the <c>GameContext</c> always see the same snapshot.</param>
     /// <param name="ledger">Where sequencing state and idempotency records live.</param>
     /// <param name="throttle">The per-player application-level limit.</param>
+    /// <param name="unitOfWork">The boundary one processed command is committed inside.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public CommandGateway(
         ApplyCommandUseCase apply,
@@ -99,7 +102,8 @@ public sealed class CommandGateway
         Entitlements entitlements,
         Func<FeatureFlags> currentFlags,
         ICommandLedgerStore ledger,
-        ICommandThrottle throttle)
+        ICommandThrottle throttle,
+        IUnitOfWork unitOfWork)
     {
         ArgumentNullException.ThrowIfNull(apply);
         ArgumentNullException.ThrowIfNull(clock);
@@ -109,6 +113,7 @@ public sealed class CommandGateway
         ArgumentNullException.ThrowIfNull(currentFlags);
         ArgumentNullException.ThrowIfNull(ledger);
         ArgumentNullException.ThrowIfNull(throttle);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
 
         _apply = apply;
         _clock = clock;
@@ -118,6 +123,7 @@ public sealed class CommandGateway
         _currentFlags = currentFlags;
         _ledger = ledger;
         _throttle = throttle;
+        _unitOfWork = unitOfWork;
     }
 
     /// <summary><c>POST /run/{runId}/command</c> — a run command, sequenced on that run.</summary>

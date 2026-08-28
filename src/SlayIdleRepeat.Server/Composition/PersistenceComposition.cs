@@ -52,8 +52,11 @@ public sealed class PersistenceComposition : IAsyncDisposable
         {
             if (string.IsNullOrWhiteSpace(connectionString))
             {
+                var volatileLedger = new VolatileCommandLedger();
+
                 WorldRows = new PlaceholderVolatileWorldStore();
-                Ledger = new VolatileCommandLedger();
+                Ledger = volatileLedger;
+                UnitOfWork = new VolatileUnitOfWork(new WorldSliceStore(WorldRows), volatileLedger);
             }
             else
             {
@@ -62,6 +65,7 @@ public sealed class PersistenceComposition : IAsyncDisposable
                 var redisConfiguration = configuration.GetConnectionString("Redis");
                 IRunStateStore runs = Postgres.RunStates;
                 IIdempotencyStore idempotency = Postgres.Idempotency;
+                IUnitOfWork unitOfWork = Postgres.UnitOfWork;
 
                 if (!string.IsNullOrWhiteSpace(redisConfiguration))
                 {
@@ -69,8 +73,13 @@ public sealed class PersistenceComposition : IAsyncDisposable
                     CacheFailures = new CacheFailureCounter();
                     runs = new RedisRunStateCache(_redisCache, runs, CacheFailures);
                     idempotency = new RedisIdempotencyCache(_redisCache, idempotency, CacheFailures);
+
+                    // Population rides OUTSIDE the transaction, so the cache decorates the unit of
+                    // work rather than anything the unit of work writes through.
+                    unitOfWork = new RedisCommitCache(_redisCache, unitOfWork, CacheFailures, runTtl);
                 }
 
+                UnitOfWork = unitOfWork;
                 Players = Postgres.Players;
                 RunStates = runs;
                 Idempotency = idempotency;
@@ -108,6 +117,9 @@ public sealed class PersistenceComposition : IAsyncDisposable
 
     /// <summary>The sequencing/idempotency ledger the backbone hands the gateway.</summary>
     public ICommandLedgerStore Ledger { get; }
+
+    /// <summary>The boundary one processed command commits inside — a real transaction with a database, the in-process write without one.</summary>
+    public IUnitOfWork UnitOfWork { get; }
 
     // ⚠️ The six below have NO reader in this build — they are the handles the next tasks compose
     // from, each named with its owner so a reader can tell "unused" from "abandoned" (steering

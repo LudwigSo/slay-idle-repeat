@@ -129,15 +129,21 @@ public sealed class CommandRequestHandlerTests
         reply.Body.ShouldBeEmpty();
     }
 
-    private static CommandGateway BuildGateway() => new(
-        new ApplyCommandUseCase(SharedStore.Value, new DomainEventDispatcher([])),
-        new SystemClock(),
-        new SystemIdGenerator(),
-        Content.Value,
-        LocalHostAmbience.NoSubscriptionResolved(),
-        LocalHostAmbience.NoRemoteConfigResolved,
-        new VolatileCommandLedger(),
-        new UnlimitedCommandThrottle());
+    private static CommandGateway BuildGateway()
+    {
+        var ledger = new VolatileCommandLedger();
+
+        return new CommandGateway(
+            new ApplyCommandUseCase(SharedStore.Value, new DomainEventDispatcher([])),
+            new SystemClock(),
+            new SystemIdGenerator(),
+            Content.Value,
+            LocalHostAmbience.NoSubscriptionResolved(),
+            LocalHostAmbience.NoRemoteConfigResolved,
+            ledger,
+            new UnlimitedCommandThrottle(),
+            new VolatileUnitOfWork(SharedStore.Value, ledger));
+    }
 
     private static async Task<PlayerId> SeedPlayerAsync(string id)
     {
