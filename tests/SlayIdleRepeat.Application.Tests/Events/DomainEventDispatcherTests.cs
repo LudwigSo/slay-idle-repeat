@@ -1,5 +1,7 @@
 using Shouldly;
 using SlayIdleRepeat.Application.Services.Events;
+using SlayIdleRepeat.Application.Tests.UseCases;
+using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
 using Xunit;
@@ -14,9 +16,21 @@ public sealed class DomainEventDispatcherTests
 {
     private static readonly CancellationToken Cancel = CancellationToken.None;
 
-    /// <summary>One stamped event, enough to tell "delivered" from "delivered something else".</summary>
-    private static IReadOnlyList<DomainEvent> Batch() =>
-        [new CurrencyChanged(1, CurrencyId.GOLD, 5, "test")];
+    /// <summary>
+    /// One command's delivery, carrying one stamped event — enough to tell "delivered" from
+    /// "delivered something else".
+    /// </summary>
+    private static DispatchedEvents Batch() => Batch([new CurrencyChanged(1, CurrencyId.GOLD, 5, "test")]);
+
+    /// <summary>One command's delivery around a real player and state, carrying <paramref name="events"/>.</summary>
+    private static DispatchedEvents Batch(IReadOnlyList<DomainEvent> events)
+    {
+        var game = Worlds.Game();
+        var player = game.CreatePlayer();
+
+        return new DispatchedEvents(
+            player, new BeginSessionCommand("1.0.0", "content"), game.State(player), events);
+    }
 
     [Fact]
     public async Task DispatchAsync_delivers_the_same_batch_to_every_sink_in_registration_order()
@@ -33,8 +47,8 @@ public sealed class DomainEventDispatcherTests
             Case.Sensitive,
             "sinks are delivered to in the order they were registered, so a durable log registered " +
             "ahead of a best-effort one keeps that priority.");
-        first.Batches[0].ShouldBe(batch, "the first sink was handed something other than the batch.");
-        second.Batches[0].ShouldBe(batch, "the second sink was handed something other than the batch.");
+        first.Batches[0].ShouldBeSameAs(batch, "the first sink was handed something other than the batch.");
+        second.Batches[0].ShouldBeSameAs(batch, "the second sink was handed something other than the batch.");
     }
 
     [Fact]
@@ -125,11 +139,20 @@ public sealed class DomainEventDispatcherTests
     }
 
     [Fact]
-    public async Task DispatchAsync_delivers_an_empty_batch_without_reporting_a_failure()
+    public async Task DispatchAsync_refuses_a_null_batch()
+    {
+        var dispatcher = new DomainEventDispatcher([new RecordingSink()]);
+
+        (await Should.ThrowAsync<ArgumentNullException>(() => dispatcher.DispatchAsync(null!, Cancel)))
+            .ParamName.ShouldBe("batch", "the failure has to name the argument the caller got wrong.");
+    }
+
+    [Fact]
+    public async Task DispatchAsync_delivers_an_eventless_batch_without_reporting_a_failure()
     {
         var sink = new RecordingSink();
 
-        var failures = await new DomainEventDispatcher([sink]).DispatchAsync([], Cancel);
+        var failures = await new DomainEventDispatcher([sink]).DispatchAsync(Batch([]), Cancel);
 
         failures.ShouldBeEmpty("an accepted command that produced no events has not failed.");
         sink.Batches.Count.ShouldBe(

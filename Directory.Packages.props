@@ -98,6 +98,16 @@
   </ItemGroup>
 
   <!--
+    Logging. Not a vendor SDK: Serilog writes structured JSON to stdout, so the
+    log backend is whatever scrapes the container's output — nothing here can
+    lock the project in. Referenced by SlayIdleRepeat.Server only, and
+    allow-listed in build/ci/non-vendor-packages.json (M5-11).
+  -->
+  <ItemGroup>
+    <PackageVersion Include="Serilog.AspNetCore" Version="9.0.0" />
+  </ItemGroup>
+
+  <!--
     Vendor SDKs. 14 §1.1 🔒: each of these belongs to exactly ONE adapter
     project, and Test-VendorPackageUniqueness.ps1 fails the build if a second
     project references one. Listing a version here does not grant anyone the

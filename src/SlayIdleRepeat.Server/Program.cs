@@ -12,9 +12,13 @@ using SlayIdleRepeat.Server.Composition;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Observability first: it installs the logger every later area logs through.
+builder.AddObservability();
 builder.AddPersistence();
 
 var app = builder.Build();
+
+app.UseObservability();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
