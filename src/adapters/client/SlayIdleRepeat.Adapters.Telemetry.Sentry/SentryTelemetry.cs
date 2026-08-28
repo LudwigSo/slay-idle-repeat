@@ -44,10 +44,20 @@ public sealed class SentryTelemetry : ITelemetryPort
         ThrowIfBlank(name);
         ArgumentNullException.ThrowIfNull(tags);
 
+        // Indexer rather than ToDictionary: a repeated tag key is a caller's slip, and the port
+        // promises only bad arguments throw — ToDictionary would turn it into an exception raised
+        // by telemetry itself, on a path the OTel implementation of this same port accepts.
+        var data = new Dictionary<string, string>(tags.Length, StringComparer.Ordinal);
+
+        foreach (var (key, tagValue) in tags)
+        {
+            data[key] = tagValue;
+        }
+
         SentrySdk.AddBreadcrumb(
             message: name + "=" + value.ToString(CultureInfo.InvariantCulture),
             category: "metric",
-            data: tags.ToDictionary(tag => tag.Key, tag => tag.Value, StringComparer.Ordinal));
+            data: data);
     }
 
     private static void ThrowIfBlank(string name)

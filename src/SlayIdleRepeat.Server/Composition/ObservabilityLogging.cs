@@ -31,7 +31,17 @@ public static class ObservabilityLogging
     private sealed class CompactJsonTextWriterSink(TextWriter output) : ILogEventSink
     {
         private readonly CompactJsonFormatter _formatter = new();
+        private readonly object _writeGate = new();
 
-        public void Emit(LogEvent logEvent) => _formatter.Format(logEvent, output);
+        public void Emit(LogEvent logEvent)
+        {
+            // The formatter writes an event as several writes, and sinks are called concurrently:
+            // unsynchronised, two events interleave into lines that no JSON reader can parse, which
+            // is the one property everything downstream of stdout depends on.
+            lock (_writeGate)
+            {
+                _formatter.Format(logEvent, output);
+            }
+        }
     }
 }

@@ -37,7 +37,10 @@ public static class ObservabilityComposition
         ArgumentNullException.ThrowIfNull(builder);
 
         Log.Logger = ObservabilityLogging.CreateLogger(Console.Out);
-        builder.Host.UseSerilog(Log.Logger);
+
+        // dispose: true hands the logger's lifetime to the host, so a stopping process closes and
+        // flushes it instead of leaving whatever the pipeline still held unwritten.
+        builder.Host.UseSerilog(Log.Logger, dispose: true);
 
         builder.Services.AddSlayIdleRepeatOpenTelemetry();
 
@@ -48,6 +51,15 @@ public static class ObservabilityComposition
             Log.Warning(
                 "PostHog analytics is DISABLED (PostHog:Enabled=false): every analytics event this "
                 + "process produces is dropped at the sink and reaches no backend");
+        }
+        else if (string.IsNullOrWhiteSpace(area.PostHogOptions.Host)
+                 || string.IsNullOrWhiteSpace(area.PostHogOptions.ProjectKey))
+        {
+            // Enabled without an address or a key posts nothing and, by the port's never-throw
+            // promise, says nothing either — so the one place that can still see it says it here.
+            Log.Error(
+                "PostHog analytics is ENABLED but misconfigured (PostHog:Host or PostHog:ProjectKey "
+                + "is blank): every batch will fail at the adapter's edge and be dropped silently");
         }
 
         builder.Services.AddHostedService(_ => new PostHogFlushLoop(area.Analytics));
@@ -136,7 +148,7 @@ public static class ObservabilityComposition
             {
                 while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
                 {
-                    await sink.FlushAsync(stoppingToken).ConfigureAwait(false);
+                    await Drain(stoppingToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)
@@ -144,7 +156,26 @@ public static class ObservabilityComposition
                 // Shutdown: fall through to the final drain.
             }
 
-            await sink.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+            await Drain(CancellationToken.None).ConfigureAwait(false);
+        }
+
+        // An unhandled exception out of ExecuteAsync stops the whole host, so a side channel that
+        // is allowed to fail must not be allowed to escape — not on a tick, and least of all on the
+        // shutdown drain, where the failure would replace an orderly stop with a crash.
+        private async Task Drain(CancellationToken ct)
+        {
+            try
+            {
+                await sink.FlushAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Shutdown interrupted this tick's flush; the final drain still runs.
+            }
+            catch (Exception error)
+            {
+                Log.Warning(error, "The analytics flush failed; the buffered batch was dropped");
+            }
         }
     }
 }

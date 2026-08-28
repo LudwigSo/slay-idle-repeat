@@ -38,7 +38,8 @@ public interface IAnalyticsSinkPort
 /// </param>
 /// <param name="Properties">
 /// The event's properties. Never null (empty is fine), every key non-blank, and every value already
-/// rendered invariantly by the caller — this type carries text, it formats nothing.
+/// rendered invariantly by the caller — this type carries text, it formats nothing. Copied on
+/// construction, so an event is safe to hand to a background sender whatever the caller does next.
 /// </param>
 public sealed record AnalyticsEvent(string Name, IReadOnlyDictionary<string, string> Properties)
 {
@@ -61,24 +62,47 @@ public sealed record AnalyticsEvent(string Name, IReadOnlyDictionary<string, str
         return name;
     }
 
-    private static bool IsLowerSnake(string name) =>
-        name.Length > 0
-        && name[0] is >= 'a' and <= 'z'
-        && name.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_');
+    private static bool IsLowerSnake(string name)
+    {
+        if (name.Length == 0 || name[0] is < 'a' or > 'z')
+        {
+            return false;
+        }
+
+        foreach (var character in name)
+        {
+            if (character is not ((>= 'a' and <= 'z') or (>= '0' and <= '9') or '_'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private static IReadOnlyDictionary<string, string> ValidProperties(
         IReadOnlyDictionary<string, string> properties)
     {
         ArgumentNullException.ThrowIfNull(properties, nameof(Properties));
 
-        if (properties.Keys.Any(string.IsNullOrWhiteSpace))
+        // Copied while validating, in one pass: an event is queued here and serialised later on a
+        // flush thread, so a caller that kept its dictionary and went on writing to it would
+        // otherwise be mutating a live batch — and the validation above it would already be stale.
+        var owned = new Dictionary<string, string>(properties.Count, StringComparer.Ordinal);
+
+        foreach (var (key, value) in properties)
         {
-            throw new ArgumentException(
-                "A property key is blank. A blank key names nothing, so its value would arrive at "
-                + "the backend unaddressable.",
-                nameof(Properties));
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                throw new ArgumentException(
+                    "A property key is blank. A blank key names nothing, so its value would arrive "
+                    + "at the backend unaddressable.",
+                    nameof(Properties));
+            }
+
+            owned[key] = value;
         }
 
-        return properties;
+        return owned;
     }
 }

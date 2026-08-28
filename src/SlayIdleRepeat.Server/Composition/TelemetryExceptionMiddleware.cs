@@ -35,11 +35,35 @@ public sealed class TelemetryExceptionMiddleware
         {
             await _next(context).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // A client that hung up is not a fault of this process. Recording it would bury the
+            // exceptions somebody must act on under one entry per flaky mobile connection.
+            throw;
+        }
         catch (Exception error)
         {
-            _telemetry.RecordException(error);
+            Record(error);
 
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Records on the port, absorbing a port that throws. The port promises it will not, but if an
+    /// implementation ever breaks that promise its exception would replace the request's real one —
+    /// the pipeline would report a telemetry bug instead of the fault that actually happened.
+    /// </summary>
+    private void Record(Exception error)
+    {
+        try
+        {
+            _telemetry.RecordException(error);
+        }
+        catch (Exception)
+        {
+            // Deliberately swallowed, and nowhere else to put it: the telemetry port IS this
+            // middleware's only reporting channel. The request's own exception still propagates.
         }
     }
 }

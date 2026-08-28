@@ -21,7 +21,11 @@ public sealed class OpenTelemetryTelemetry : ITelemetryPort, IDisposable
 
     private readonly ActivitySource _source = new(ActivitySourceName);
     private readonly Meter _meter = new(MeterName);
-    private readonly ConcurrentDictionary<string, Histogram<double>> _histograms = new(StringComparer.Ordinal);
+    // Lazy, not a bare factory: ConcurrentDictionary may run a value factory on several threads at
+    // once, and every extra run would publish a second instrument of the same name to every
+    // listening exporter — one series arriving twice, forever.
+    private readonly ConcurrentDictionary<string, Lazy<Histogram<double>>> _histograms =
+        new(StringComparer.Ordinal);
 
     /// <inheritdoc/>
     public void RecordException(Exception error, IReadOnlyDictionary<string, string>? context = null)
@@ -64,7 +68,12 @@ public sealed class OpenTelemetryTelemetry : ITelemetryPort, IDisposable
         ThrowIfBlank(name);
         ArgumentNullException.ThrowIfNull(tags);
 
-        var histogram = _histograms.GetOrAdd(name, metric => _meter.CreateHistogram<double>(metric));
+        var histogram = _histograms.GetOrAdd(
+            name,
+            static (metric, meter) => new Lazy<Histogram<double>>(
+                () => meter.CreateHistogram<double>(metric), LazyThreadSafetyMode.ExecutionAndPublication),
+            _meter).Value;
+
         var tagList = new TagList();
 
         foreach (var (key, tagValue) in tags)

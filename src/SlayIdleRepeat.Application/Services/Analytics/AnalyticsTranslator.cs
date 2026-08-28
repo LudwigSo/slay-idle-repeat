@@ -16,6 +16,9 @@ namespace SlayIdleRepeat.Application.Services.Analytics;
 /// </remarks>
 public static class AnalyticsTranslator
 {
+    private static readonly IReadOnlyList<AnalyticsEvent> Nothing =
+        Array.AsReadOnly(Array.Empty<AnalyticsEvent>());
+
     /// <summary>The analytics events <paramref name="batch"/> carries, in emission order.</summary>
     /// <param name="batch">One accepted command's delivery.</param>
     /// <returns>Zero or more events. Empty when the batch carries nothing the vocabulary names.</returns>
@@ -24,13 +27,15 @@ public static class AnalyticsTranslator
     {
         ArgumentNullException.ThrowIfNull(batch);
 
-        var emitted = new List<AnalyticsEvent>();
+        // Built only once something is emitted: this runs on every accepted command, and most
+        // commands carry no analytics fact at all.
+        List<AnalyticsEvent>? emitted = null;
 
         // The command's own fact first, then the domain events in the order the domain produced them.
         switch (batch.Command)
         {
             case StartRunCommand when batch.State.Run is { } opened:
-                emitted.Add(new AnalyticsEvent(AnalyticsVocabulary.RunStart, new Dictionary<string, string>
+                (emitted ??= []).Add(new AnalyticsEvent(AnalyticsVocabulary.RunStart, new Dictionary<string, string>
                 {
                     ["run_id"] = opened.Id.Value,
                     ["chapter"] = Invariant(opened.ChapterId),
@@ -39,7 +44,7 @@ public static class AnalyticsTranslator
                 break;
 
             case EndRunCommand when batch.State.Run is { } ended:
-                emitted.Add(new AnalyticsEvent(AnalyticsVocabulary.RunEnd, new Dictionary<string, string>
+                (emitted ??= []).Add(new AnalyticsEvent(AnalyticsVocabulary.RunEnd, new Dictionary<string, string>
                 {
                     ["run_id"] = ended.Id.Value,
                     ["victory"] = ended.ToSnapshot().BossDefeated ? "true" : "false",
@@ -47,7 +52,7 @@ public static class AnalyticsTranslator
                 break;
 
             case BeginSessionCommand session:
-                emitted.Add(new AnalyticsEvent(AnalyticsVocabulary.SessionStart, new Dictionary<string, string>
+                (emitted ??= []).Add(new AnalyticsEvent(AnalyticsVocabulary.SessionStart, new Dictionary<string, string>
                 {
                     ["client_version"] = session.ClientVersion,
                     ["content_hash"] = session.ContentHash,
@@ -60,15 +65,15 @@ public static class AnalyticsTranslator
             switch (domainEvent)
             {
                 case DiceRolled rolled:
-                    emitted.Add(DieRolled(rolled.Pips, "rolled"));
+                    (emitted ??= []).Add(DieRolled(rolled.Pips, "rolled"));
                     break;
 
                 case FixedDieUsed spent:
-                    emitted.Add(DieRolled(spent.Pips, "fixed"));
+                    (emitted ??= []).Add(DieRolled(spent.Pips, "fixed"));
                     break;
 
                 case CurrencyChanged moved:
-                    emitted.Add(new AnalyticsEvent(
+                    (emitted ??= []).Add(new AnalyticsEvent(
                         AnalyticsVocabulary.CurrencyChanged,
                         new Dictionary<string, string>
                         {
@@ -80,7 +85,7 @@ public static class AnalyticsTranslator
             }
         }
 
-        return emitted;
+        return emitted ?? Nothing;
     }
 
     private static AnalyticsEvent DieRolled(int pips, string source) =>

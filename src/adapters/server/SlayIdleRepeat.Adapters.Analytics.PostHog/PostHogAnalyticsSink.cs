@@ -26,6 +26,10 @@ public sealed class PostHogAnalyticsSink : IAnalyticsSinkPort, IDisposable
     // Roughly a busy hour of buffered events; beyond it the oldest are the least valuable.
     private const int QueueCapacity = 10_000;
 
+    // The default 100s would let one hung backend stall the shutdown drain for longer than the
+    // host's own stop timeout; a timed-out batch is dropped like any other failed POST.
+    private static readonly TimeSpan PostTimeout = TimeSpan.FromSeconds(10);
+
     private readonly PostHogOptions _options;
     private readonly HttpClient _client;
     private readonly ConcurrentQueue<CaptureEntry> _queue = new();
@@ -41,7 +45,7 @@ public sealed class PostHogAnalyticsSink : IAnalyticsSinkPort, IDisposable
         ArgumentNullException.ThrowIfNull(handler);
 
         _options = options;
-        _client = new HttpClient(handler, disposeHandler: false);
+        _client = new HttpClient(handler, disposeHandler: false) { Timeout = PostTimeout };
     }
 
     /// <inheritdoc/>
@@ -109,9 +113,15 @@ public sealed class PostHogAnalyticsSink : IAnalyticsSinkPort, IDisposable
                 .PostAsync(_options.Host.TrimEnd('/') + "/batch", content, ct)
                 .ConfigureAwait(false);
         }
-        catch (Exception) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
         {
             // A backend that is down is the adapter's problem at its own edge: the batch is dropped.
+            // Filtering on the token instead would rethrow a backend failure that merely coincided
+            // with a shutdown, which is the one moment the caller can least afford an exception.
         }
     }
 

@@ -56,6 +56,68 @@ public sealed class TelemetryExceptionMiddlewareTests
     }
 
     [Fact]
+    public async Task A_client_that_hung_up_is_rethrown_but_not_recorded()
+    {
+        var telemetry = new CapturingTelemetryPort();
+        var context = new DefaultHttpContext();
+        using var aborted = new CancellationTokenSource();
+        aborted.Cancel();
+        context.RequestAborted = aborted.Token;
+
+        var middleware = new TelemetryExceptionMiddleware(
+            _ => throw new OperationCanceledException(aborted.Token), telemetry);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => middleware.InvokeAsync(context));
+
+        telemetry.Exceptions.ShouldBeEmpty(
+            "a disconnected client is not an incident anyone can act on, and one entry per flaky " +
+            "mobile connection would bury the exceptions that are.");
+    }
+
+    [Fact]
+    public async Task A_cancellation_the_client_did_not_cause_is_still_recorded()
+    {
+        var telemetry = new CapturingTelemetryPort();
+        var error = new OperationCanceledException("a timeout inside the handler");
+        var middleware = new TelemetryExceptionMiddleware(_ => throw error, telemetry);
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => middleware.InvokeAsync(new DefaultHttpContext()));
+
+        telemetry.Exceptions.ShouldHaveSingleItem(
+                "the carve-out is for a client that hung up, not for the exception TYPE — a " +
+                "handler that cancelled itself is a real fault and must still be reported.")
+            .ShouldBeSameAs(error);
+    }
+
+    [Fact]
+    public async Task A_telemetry_port_that_throws_does_not_replace_the_exception_that_escaped()
+    {
+        var error = new InvalidOperationException("the endpoint blew up");
+        var middleware = new TelemetryExceptionMiddleware(_ => throw error, new ThrowingTelemetryPort());
+
+        var escaped = await Should.ThrowAsync<InvalidOperationException>(
+            () => middleware.InvokeAsync(new DefaultHttpContext()));
+
+        escaped.ShouldBeSameAs(
+            error,
+            "the port promises it never throws, but if one implementation ever breaks that promise " +
+            "the caller must still see the fault that actually happened, not the telemetry bug.");
+    }
+
+    /// <summary>A port double that breaks the never-throws promise.</summary>
+    private sealed class ThrowingTelemetryPort : ITelemetryPort
+    {
+        public void RecordException(Exception error, IReadOnlyDictionary<string, string>? context = null) =>
+            throw new InvalidOperationException("the telemetry backend adapter is broken");
+
+        public IDisposable BeginSpan(string name) => throw new NotSupportedException();
+
+        public void RecordMetric(string name, double value, params (string Key, string Value)[] tags) =>
+            throw new NotSupportedException();
+    }
+
+    [Fact]
     public async Task A_healthy_request_passes_through_and_records_nothing()
     {
         var telemetry = new CapturingTelemetryPort();
