@@ -306,14 +306,22 @@ public secret — so there is neither.
 
 > 📄 **Doc errata — `14` §16.5's 📐 markers on the three token lifetimes.**
 > §16.5 marks the access-token lifetime, the refresh lifetime and the silent-renewal
-> fraction with 📐, but `21` §6 says a 📐-marked number outside `game-data/tuning/`
-> is a bug — while §16.5's own **Config home** row says these three are *"server-operations
+> fraction with 📐, but `21` §3.1 ("Rule 1 — every tunable number lives in one
+> directory") says *"a 📐 TUNABLE number that is not in this directory is a bug"*
+> — while §16.5's own **Config home** row says these three are *"server-operations
 > numbers: **environment configuration** … deliberately **not** in `game-data/tuning/`
 > — they are not economy tunables and must never ride a content push."* The two
 > statements cannot both hold. The Config-home row is the ruling and is what this
 > stack implements: the numbers are `Auth__*` environment variables. **The 📐 markers
 > in §16.5 should be struck**; recorded here rather than silently ignored, because
 > the next reader of §16.5 will otherwise reach the opposite conclusion.
+>
+> ⚠️ Nothing mechanical will catch this for you. `21` §3.1 backs its rule with "a
+> build-time check [that] enumerates every `📐` marker in the documentation set
+> against the schema keys" — **that check was built and has since been removed**
+> (see the header of `build/ci/Invoke-ContentValidation.ps1`, which says so). So the
+> contradiction is unenforced in both directions today, and this note is the only
+> record of it.
 
 ### The M5 checklist
 

@@ -51,6 +51,59 @@ ON CONFLICT (player_id) DO NOTHING;
 "@ | Out-Null
 }
 
+# One access token per probe player, minted once and reused. A JWT is stateless, so a token minted
+# before the idempotent-replay probe restarts the API is still the token it presents afterwards.
+$script:ProbeAccessTokens = @{}
+
+function Get-ProbeAccessToken {
+    param([Parameter(Mandatory)][string]$PlayerId)
+
+    if ($script:ProbeAccessTokens.ContainsKey($PlayerId)) {
+        return $script:ProbeAccessTokens[$PlayerId]
+    }
+
+    # 🔒 The probes authenticate for real. Naming a player at the door used to be enough, and that
+    # was the placeholder resolver M5-06 deleted — refusing a bare player id is the entire point of
+    # what replaced it, so a probe that still sent one would be asserting against a 401.
+    #
+    # The device row is seeded through psql exactly as the player row is, rather than by calling
+    # POST /auth/device: that endpoint mints its OWN player id, and these probes assert against a
+    # player id they choose and a committed seed document whose bytes are pinned by a unit test.
+    # Seeding the credential keeps both, while the token itself still comes from the real
+    # POST /auth/session — so the session path, and the auth store under it, are exercised live.
+    $deviceId = "DEVICE_ci_probe_$PlayerId"
+    $secret = "ci-probe-device-secret-$PlayerId"
+
+    $digest = [System.Security.Cryptography.SHA256]::HashData(
+        [System.Text.Encoding]::UTF8.GetBytes($secret))
+    $hex = ($digest | ForEach-Object { $_.ToString('x2') }) -join ''
+
+    Invoke-ProbePsql @"
+INSERT INTO auth_devices (device_id, player_id, secret_hash, created_at_utc, last_seen_at_utc)
+VALUES ('$deviceId', '$PlayerId', decode('$hex', 'hex'), now(), now())
+ON CONFLICT (device_id) DO NOTHING;
+"@ | Out-Null
+
+    $credentials = @{ deviceId = $deviceId; deviceSecret = $secret } | ConvertTo-Json -Compress
+
+    $response = Invoke-WebRequest -Uri "$script:ApiBaseUrl/auth/session" -Method Post `
+        -ContentType 'application/json; charset=utf-8' `
+        -Body $credentials -TimeoutSec 30 -SkipHttpErrorCheck
+
+    if ($response.StatusCode -ne 200) {
+        throw "POST /auth/session answered $($response.StatusCode) for the seeded probe device — the probe cannot authenticate, so nothing below it is being exercised."
+    }
+
+    $token = ($response.Content | ConvertFrom-Json).accessToken
+
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        throw "POST /auth/session answered 200 with no accessToken. A probe carrying an empty bearer would fail as a 401 and read as a persistence fault."
+    }
+
+    $script:ProbeAccessTokens[$PlayerId] = $token
+    return $token
+}
+
 function Send-PlayerCommand {
     param(
         [Parameter(Mandatory)][string]$PlayerId,
@@ -71,7 +124,7 @@ function Send-PlayerCommand {
     # -SkipHttpErrorCheck: without it pwsh throws on any non-2xx BEFORE the explicit status check
     # below, replacing its diagnostic with a generic terminating error.
     $response = Invoke-WebRequest -Uri "$script:ApiBaseUrl/player/command" -Method Post `
-        -Headers @{ Authorization = "Bearer $PlayerId" } `
+        -Headers @{ Authorization = "Bearer $(Get-ProbeAccessToken -PlayerId $PlayerId)" } `
         -ContentType 'application/json; charset=utf-8' `
         -Body $envelope -TimeoutSec 30 -SkipHttpErrorCheck
 

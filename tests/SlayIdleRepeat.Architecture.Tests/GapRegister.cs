@@ -240,16 +240,24 @@ internal static class GapRegister
         //     Sorting and comparison need no command at all: §2.3's own table records them as purely
         //     local.
 
-        // 🔴 The deleted M4-05 note said the same requirement "could not have one, because its
-        // subject was a call that must eventually EXIST rather than one that must not yet." M4-15
-        // showed that reasoning was wrong: a witness for a call that must not yet exist can assert
-        // the BEHAVIOUR its absence produces, which is decidable today and stops being true on the
-        // commit that adds the call. It wrote one — a whole run driven through commands, with the
-        // player's stock compared by canonical bytes across it — and M7-00d turned it red by wiring
-        // the drop path, which is the whole mechanism working: that case is now the POSITIVE claim
-        // (MetaLoopTests.A_run_banks_gear_into_the_players_own_stock) and the note it guarded is
-        // gone. Recorded here rather than dropped, because a register that records an obligation as
-        // unwitnessable is a register nobody will try to witness.
+        // 🔴 A METHODOLOGICAL LESSON THIS REGISTER KEEPS, now that both notes it was written beside
+        // have been discharged and deleted. The deleted M4-05 note claimed an obligation of this
+        // shape "could not have a witness, because its subject was a call that must eventually EXIST
+        // rather than one that must not yet." M4-15 showed that reasoning was wrong: a witness for a
+        // call that must not yet exist can assert the BEHAVIOUR its absence produces, which is
+        // decidable today and stops being true on the commit that adds the call. It wrote one — a
+        // whole run driven through commands, with the player's stock compared by canonical bytes
+        // across it — and M7-00d turned it red by wiring the drop path, which is the whole mechanism
+        // working: that case is now the POSITIVE claim
+        // (MetaLoopTests.A_run_banks_gear_into_the_players_own_stock).
+        //
+        // ✅ IT HAS NOW WORKED TWICE. The hero-name note that used to stand here carried a witness
+        // stated in the same direction — "nothing in production calls the name filter yet, and this
+        // fails when something does" — and M5-06 turned it red by name, on both entry points, in the
+        // commit that wired account creation to the filter. Its own failure message asked to be
+        // deleted together with the note it guarded, and both went in that commit. Recorded rather
+        // than dropped, because a register that records an obligation as unwitnessable is a register
+        // nobody will try to witness.
         //
         // ✅ M4-10 ALSO LEFT AN OBLIGATION ON A SIBLING TASK, and it went undischarged until the M4
         // milestone review. Player.Rehydrate refuses a row whose loadout names an item the stock does
