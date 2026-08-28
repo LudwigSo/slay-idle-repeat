@@ -88,6 +88,25 @@ public sealed class DurableCommandLedger : ICommandLedgerStore
             ct);
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// 🔒 Always "cannot enumerate", and deliberately so. The store beneath keys records on
+    /// (scope, commandId) and offers no read ordered by sequence, so this ledger has no way to walk
+    /// a scope's outcomes. An empty list here would be indistinguishable from "nothing was missed"
+    /// and would silently drop outcomes the client is owed; saying it cannot enumerate makes the
+    /// caller order a full resync instead, which is correct rather than merely safe.
+    /// </para>
+    /// <para>
+    /// The durable table itself already carries the sequence, so the capability exists physically —
+    /// it is the shape of the seam beneath that withholds it, not the storage. The cost is bounded:
+    /// a host on this backing still answers the authoritative state, and a client that missed
+    /// nothing is never sent here at all.
+    /// </para>
+    /// </remarks>
+    public Task<MissedOutcomes> ReadOutcomesAfterAsync(string scope, long sinceSequence, CancellationToken ct) =>
+        Task.FromResult(MissedOutcomes.Unavailable);
+
     /// <summary>One stored record back into the ledger's shape, its command re-decoded through the one codec.</summary>
     private static LedgerRecord ToLedgerRecord(RecordedCommandOutcome stored)
     {

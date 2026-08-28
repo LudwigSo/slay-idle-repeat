@@ -25,6 +25,50 @@ public sealed record LedgerRecord(
     string ResponseBody,
     string? OpensRunScope = null);
 
+/// <summary>One outcome a reconnecting client missed: the sequence it was decided at, and the bytes the first processing answered.</summary>
+/// <param name="Sequence">The sequence the command consumed.</param>
+/// <param name="ResponseBody">The stored response body, replayed verbatim — a replay is the first processing's answer, never a second rendering of it.</param>
+public sealed record ReplayedOutcome(long Sequence, string ResponseBody);
+
+/// <summary>
+/// Either the outcomes a scope decided after a sequence, or the statement that this ledger cannot
+/// produce them at all.
+/// </summary>
+/// <remarks>
+/// 🔒 The two are different answers and the record list cannot tell them apart, which is why
+/// <see cref="IsAvailable"/> exists. "Nothing after that sequence" tells a client it is up to date;
+/// "I cannot enumerate this" costs it its whole local state. A backing that spelled the second as
+/// an empty list would let a client resume on top of outcomes it never saw, and nothing would go
+/// red.
+/// </remarks>
+public sealed class MissedOutcomes
+{
+    private MissedOutcomes(bool isAvailable, IReadOnlyList<ReplayedOutcome> records)
+    {
+        IsAvailable = isAvailable;
+        Records = records;
+    }
+
+    /// <summary>The answer of a ledger whose backing offers no read ordered by sequence.</summary>
+    public static MissedOutcomes Unavailable { get; } = new(false, Array.Empty<ReplayedOutcome>());
+
+    /// <summary>The outcomes a ledger enumerated — possibly none, which means the client missed nothing.</summary>
+    /// <param name="records">The records, ascending by sequence.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="records"/> is null.</exception>
+    public static MissedOutcomes Of(IReadOnlyList<ReplayedOutcome> records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+
+        return new MissedOutcomes(true, records);
+    }
+
+    /// <summary>Whether this ledger could enumerate the scope. <c>false</c> only on <see cref="Unavailable"/>.</summary>
+    public bool IsAvailable { get; }
+
+    /// <summary>The outcomes, ascending by sequence. Empty when nothing was missed, and empty on <see cref="Unavailable"/>.</summary>
+    public IReadOnlyList<ReplayedOutcome> Records { get; }
+}
+
 /// <summary>Where the sequencing state and idempotency records of 14 §16.3 live.</summary>
 /// <remarks>
 /// <para>
@@ -86,6 +130,18 @@ public interface ICommandLedgerStore
     /// <param name="record">The record.</param>
     /// <param name="ct">Cancellation.</param>
     Task AppendAsync(string scope, LedgerRecord record, CancellationToken ct);
+
+    /// <summary>The outcomes a scope decided after a sequence, ascending — what a reconnecting client missed.</summary>
+    /// <param name="scope">The scope key.</param>
+    /// <param name="sinceSequence">The last sequence the client was answered at. Records above it are the missed ones.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// 🔒 A scope this ledger holds nothing for is answered with an empty enumeration, not with
+    /// <see cref="MissedOutcomes.Unavailable"/>: what an unknown scope means is the caller's to
+    /// decide from the last sequence. <see cref="MissedOutcomes.Unavailable"/> says one thing only —
+    /// this backing cannot enumerate by sequence.
+    /// </remarks>
+    Task<MissedOutcomes> ReadOutcomesAfterAsync(string scope, long sinceSequence, CancellationToken ct);
 }
 
 /// <summary>
@@ -154,5 +210,23 @@ public sealed class VolatileCommandLedger : ICommandLedgerStore
             });
 
         return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public Task<MissedOutcomes> ReadOutcomesAfterAsync(string scope, long sinceSequence, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+
+        // Ordered here rather than trusted from the store: records arrive keyed by command id, and a
+        // client applying 5 before 3 would apply them backwards.
+        var missed = _scopes.TryGetValue(scope, out var state)
+            ? state.Records.Values
+                .Where(record => record.Sequence > sinceSequence)
+                .OrderBy(record => record.Sequence)
+                .Select(record => new ReplayedOutcome(record.Sequence, record.ResponseBody))
+                .ToArray()
+            : [];
+
+        return Task.FromResult(MissedOutcomes.Of(missed));
     }
 }

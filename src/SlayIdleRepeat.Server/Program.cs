@@ -23,6 +23,7 @@ app.UseObservability();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.MapGameCommandEndpoints();
+app.MapQuerySurfaceEndpoints();
 app.MapRemoteConfigEndpoint();
 
 app.Run();
