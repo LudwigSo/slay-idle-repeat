@@ -265,15 +265,17 @@ environment variable, listed in the `api` service in `docker-compose.yml`.
 > ⚠️ **Every group below is read by the server now.** M5-10 landed the
 > `RemoteConfig__*` pair, M5-05 the `ConnectionStrings__*` / `Cache__*` /
 > `ObjectStore__*` groups, M5-11 the `OTEL_*`, `Sentry__Dsn` and `PostHog__*`
-> groups, and M5-06 the `Auth__*` group. The one exception is called out in its
-> own row: `ObjectStore__GhostSnapshotBucket`, defined ahead of the code that will
-> bind it. `__` is ASP.NET Core's configuration separator:
-> `ConnectionStrings__Postgres` binds to the key `ConnectionStrings:Postgres`.
+> groups, M5-06 the `Auth__*` group, and M5-09 `Content__BundleRoot`. The one
+> exception is called out in its own row: `ObjectStore__GhostSnapshotBucket`,
+> defined ahead of the code that will bind it. `__` is ASP.NET Core's
+> configuration separator: `ConnectionStrings__Postgres` binds to the key
+> `ConnectionStrings:Postgres`.
 
 | Variable | Value in this stack | Consumed by |
 |---|---|---|
 | `RemoteConfig__Path` | `/app/remote-config/flags.json` (the committed identity document, mounted read-only) | **M5-10 — shipped, the server reads this** |
 | `RemoteConfig__ReloadSeconds` | `60` (an ops number, `14` §16.5 — not a tunable) | **M5-10 — shipped, the server reads this** |
+| `Content__BundleRoot` | `/app/content-bundles` (a writable named volume, so retained versions survive a `compose up` and a redeploy) | **M5-09 — shipped, the server reads this** |
 | `ConnectionStrings__Postgres` | `Host=postgres;Port=5432;Database=slayidlerepeat;Username=sir_app;…` | **M5-05 — shipped, the server reads this** |
 | `ConnectionStrings__Redis` | `redis:6379,abortConnect=false` | **M5-05 — shipped, the server reads this** |
 | `Cache__RunStateTtlHours` | `48` (`14` §7.1: "Run-state cache TTL 48 h") | **M5-05 — shipped, the server reads this** |
@@ -322,6 +324,27 @@ public secret — so there is neither.
 > (see the header of `build/ci/Invoke-ContentValidation.ps1`, which says so). So the
 > contradiction is unenforced in both directions today, and this note is the only
 > record of it.
+
+**M5-09 shipped the content endpoints and the bundle shelf.** `GET /content/current`
+answers `{"contentVersion","bundleUrl"}` — the stamp bare, 64 lowercase hex, no
+algorithm prefix — and `GET /content/{version}` serves that version's gzipped
+canonical bundle as `application/gzip`, immutable for a year because a bundle's
+URL is the hash of its own bytes. The shelf is the directory `Content__BundleRoot`
+names: one `<stamp>.bundle.gz` per version, published on first use and swept on
+the retention rule below.
+
+⚠️ **Leave `Content__BundleRoot` unset and retention is OFF** — only the current
+version can be served, so a client pinned to an older one has nothing to fetch
+and must re-sync. That is a degraded mode, not a default, and the server says so
+once through a `[content-bundles]` log line. A run whose pinned bundle has been
+swept falls back to current and logs `[content-pin]`.
+
+⚠️ **The retention window is 48 h, and that number is an inference, not a spec
+value.** No retention interval is authored in any design document or any
+configuration; 48 h is taken from the run TTL (`Cache__RunStateTtlHours`), on the
+reasoning that a bundle stops being needed once the last run that could still be
+pinned to it has itself expired. If somebody authors a real interval, it should
+replace this rather than be reconciled with it.
 
 ### The M5 checklist
 

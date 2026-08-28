@@ -9,12 +9,11 @@ namespace SlayIdleRepeat.Server.Composition;
 /// <summary>The command endpoints' functional area: composes the pipeline over the shared backbone and maps the two routes.</summary>
 /// <remarks>
 /// Composition-root code: the shared state comes from <see cref="GameBackbone"/>, never newed
-/// here; what this area adds is its own — the gateway, and one placeholder still greppable by
-/// name: none. The throttle and the account-standing decorator come from
-/// <see cref="AntiCheatComposition"/> (M5-14) and the principal seam is the auth area's real one
-/// (M5-06), so both of this area's former placeholders are retired.
-/// <c>CONTENT_VERSION_MISMATCH</c> has no arm anywhere yet — the content pinning it checks
-/// against is M5-09's.
+/// here; what this area adds is its own — the gateway, and no placeholder left: the throttle and
+/// the account-standing decorator come from <see cref="AntiCheatComposition"/> (M5-14), the
+/// principal seam is the auth area's real one (M5-06), and the content pins the
+/// <c>CONTENT_VERSION_MISMATCH</c> arm checks against come from the backbone (M5-09), so the pin a
+/// command is judged by and the bundle the content endpoints serve are the same shelf.
 /// </remarks>
 public static class GameCommandComposition
 {
@@ -98,7 +97,8 @@ public static class GameCommandComposition
                 backbone.Entitlements,
                 () => backbone.Flags,
                 backbone.Ledger,
-                AntiCheatComposition.Throttle(app.Configuration));
+                AntiCheatComposition.Throttle(app.Configuration),
+                backbone.ContentPins);
         }
     }
 

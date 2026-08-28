@@ -138,7 +138,9 @@ public sealed class CommandRequestHandlerTests
         LocalHostAmbience.NoRemoteConfigResolved,
         new VolatileCommandLedger(),
         // Wide enough that these tests never trip it: the limit itself is PlayerRateLimiterTests'.
-        new PlayerRateLimiter(new SystemClock(), RateLimitPolicy.PerSecond(1_000, burst: 1_000)));
+        new PlayerRateLimiter(new SystemClock(), RateLimitPolicy.PerSecond(1_000, burst: 1_000)),
+        new ContentPinning(
+            new VolatileContentPinStore(), Content.Value, _ => null, _ => { }));
 
     private static async Task<PlayerId> SeedPlayerAsync(string id)
     {

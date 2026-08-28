@@ -3,6 +3,7 @@ using SlayIdleRepeat.Adapters.ObjectStore.S3;
 using SlayIdleRepeat.Adapters.Persistence.Postgres;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Server;
+using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.Wire;
 
@@ -54,6 +55,7 @@ public sealed class PersistenceComposition : IAsyncDisposable
             {
                 WorldRows = new PlaceholderVolatileWorldStore();
                 Ledger = new VolatileCommandLedger();
+                ContentPins = new VolatileContentPinStore();
             }
             else
             {
@@ -76,6 +78,7 @@ public sealed class PersistenceComposition : IAsyncDisposable
                 Idempotency = idempotency;
                 WorldRows = new RepositoryWorldRows(Postgres.Players, runs, runTtl);
                 Ledger = new DurableCommandLedger(idempotency, runTtl);
+                ContentPins = Postgres.ContentPins;
             }
 
             if (configuration["ObjectStore:ServiceUrl"] is { Length: > 0 } serviceUrl)
@@ -108,6 +111,9 @@ public sealed class PersistenceComposition : IAsyncDisposable
 
     /// <summary>The sequencing/idempotency ledger the backbone hands the gateway.</summary>
     public ICommandLedgerStore Ledger { get; }
+
+    /// <summary>Where run and session content pins live — the runs' own column when a database is configured, process memory otherwise.</summary>
+    public IContentPinStore ContentPins { get; }
 
     // ⚠️ The six below have NO reader in this build — they are the handles the next tasks compose
     // from, each named with its owner so a reader can tell "unused" from "abandoned" (steering

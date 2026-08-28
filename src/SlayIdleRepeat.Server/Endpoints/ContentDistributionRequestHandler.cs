@@ -1,0 +1,89 @@
+using SlayIdleRepeat.Core.Content;
+
+namespace SlayIdleRepeat.Server.Endpoints;
+
+/// <summary>What <c>GET /content/current</c> writes back — status, body and the two pinned headers.</summary>
+/// <param name="StatusCode">Always 200: the server always knows which content it is serving.</param>
+/// <param name="Body">The pointer document naming the current stamp and where its bundle lives.</param>
+/// <param name="ContentType">The declared content type.</param>
+/// <param name="CacheControl">The declared cache policy — this document is the thing that changes.</param>
+public sealed record ContentCurrentReply(int StatusCode, string Body, string ContentType, string CacheControl);
+
+/// <summary>What <c>GET /content/{version}</c> writes back — status, bytes and the two pinned headers.</summary>
+/// <param name="StatusCode">200 when the version is retained, 404 when it is unknown or malformed.</param>
+/// <param name="Body">The gzip bundle, or empty on a 404.</param>
+/// <param name="ContentType">The declared content type.</param>
+/// <param name="CacheControl">The declared cache policy — a bundle is named by its own hash and can never change.</param>
+public sealed record ContentBundleReply(int StatusCode, ReadOnlyMemory<byte> Body, string ContentType, string CacheControl);
+
+/// <summary>The two content-distribution handlers as the plain functions they are — no ASP.NET in any signature.</summary>
+/// <remarks>
+/// <para>
+/// The pair is deliberately asymmetric about caching. The pointer document is the one thing that
+/// moves, so it is <c>no-cache</c>: a client that cached it would keep fetching a content set the
+/// server has already replaced. A bundle is named by the hash of its own bytes, so it can never
+/// change under its URL and is served immutable for a year.
+/// </para>
+/// <para>
+/// 🔒 A malformed version and an unretained one both answer 404 with an empty body, and neither
+/// says which it was. There is nothing an honest client can do differently between the two — both
+/// mean "go and read the pointer again" — and distinguishing them would tell a prober which stamps
+/// this server has ever held.
+/// </para>
+/// </remarks>
+public static class ContentDistributionRequestHandler
+{
+    /// <summary>The route a bundle is served on, named by the pointer document so a client never builds it.</summary>
+    public const string BundleRoute = "/content/";
+
+    /// <summary>A bundle can never change under its URL, because its URL is the hash of its bytes.</summary>
+    private const string ImmutableForAYear = "public, max-age=31536000, immutable";
+
+    /// <summary>Answers the pointer request with the version this server is serving now.</summary>
+    /// <param name="current">The current content stamp.</param>
+    /// <returns>200, the pointer document, and <c>no-cache</c>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="current"/> is null.</exception>
+    public static ContentCurrentReply Current(ContentVersion current)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+
+        // Hand-written rather than serialised: the document is two fields whose spelling is the
+        // contract, and a stamp is 64 characters from a closed alphabet with nothing to escape.
+        var body =
+            "{\"contentVersion\":\"" + current.Value + "\"," +
+            "\"bundleUrl\":\"" + BundleRoute + current.Value + "\"}";
+
+        return new ContentCurrentReply(200, body, "application/json; charset=utf-8", "no-cache");
+    }
+
+    /// <summary>Answers a bundle request out of whatever the shelf holds.</summary>
+    /// <param name="requestedVersion">The stamp as it arrived on the route — untrusted text, not yet a version.</param>
+    /// <param name="read">Reads one retained bundle, answering <c>null</c> when the shelf does not hold it.</param>
+    /// <returns>200 with the gzip bundle, or 404 with an empty body.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="requestedVersion"/> or <paramref name="read"/> is null.</exception>
+    public static ContentBundleReply Bundle(
+        string requestedVersion, Func<ContentVersion, ReadOnlyMemory<byte>?> read)
+    {
+        ArgumentNullException.ThrowIfNull(requestedVersion);
+        ArgumentNullException.ThrowIfNull(read);
+
+        // Parsed before the shelf is touched. The segment is untrusted text off a URL and the shelf
+        // names its files after stamps, so anything that is not one must not reach a file name.
+        if (!ContentVersion.TryFromHex(requestedVersion, out var version))
+        {
+            return NotFound;
+        }
+
+        return read(version!) is { } bundle
+            ? new ContentBundleReply(200, bundle, "application/gzip", ImmutableForAYear)
+            : NotFound;
+    }
+
+    /// <summary>
+    /// The one refusal, shared by both causes. A malformed segment and a swept version are
+    /// indistinguishable on purpose — an honest client does the same thing either way, and telling
+    /// them apart would report which stamps this server has ever held.
+    /// </summary>
+    private static ContentBundleReply NotFound =>
+        new(404, ReadOnlyMemory<byte>.Empty, string.Empty, string.Empty);
+}

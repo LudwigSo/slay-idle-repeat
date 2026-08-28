@@ -1,6 +1,7 @@
 using System.Globalization;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Shared;
+using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Contracts;
 using SlayIdleRepeat.Core;
@@ -48,9 +49,19 @@ public sealed record GatewayReply(int StatusCode, string Body);
 /// <c>GameRules.OpensRun</c> names.
 /// </para>
 /// <para>
-/// ⚠️ <c>CONTENT_VERSION_MISMATCH</c> is the one transport-tier reason with no arm here: the
-/// envelope carries no content hash and no per-run/session content pinning exists yet — both are
-/// M5-09's, and the arm lands beside the version check when the pin does.
+/// The content-version arm sits between the kill switches and the run-scope check, and it is
+/// stateless like everything above the ledger: a client on content the server no longer serves
+/// consumes no sequence and resends the same envelope once it has fetched the right bundle. Only
+/// <c>BEGIN_SESSION</c> states which content the client loaded, so it is the only command the arm
+/// can disagree with — everything else is judged against the content its RUN was opened on, which
+/// is a different question and is answered where the <c>GameContext</c> is built.
+/// </para>
+/// <para>
+/// 🔒 The run pin is what makes a balance patch safe mid-run. A fresh command on an existing run is
+/// applied against the snapshot that run opened against, not against whatever is current when the
+/// command arrives. A replayed command needs none of this: the idempotency record replays the
+/// stored outcome rather than re-executing, so there is no command left for a snapshot to be
+/// chosen for.
 /// </para>
 /// </remarks>
 public sealed class CommandGateway
@@ -69,6 +80,7 @@ public sealed class CommandGateway
     private readonly Func<FeatureFlags> _currentFlags;
     private readonly ICommandLedgerStore _ledger;
     private readonly ICommandThrottle _throttle;
+    private readonly ContentPinning _pinning;
 
     /// <summary>
     /// The striped gate pool, keyed by PLAYER — not by sequencing scope. A player's run and player
@@ -90,6 +102,7 @@ public sealed class CommandGateway
     /// <param name="currentFlags">The kill switches' live source; the composition root's reloading config swaps what it answers. Read exactly once per submitted command, so the gate and the <c>GameContext</c> always see the same snapshot.</param>
     /// <param name="ledger">Where sequencing state and idempotency records live.</param>
     /// <param name="throttle">The per-player application-level limit.</param>
+    /// <param name="pinning">The run/session content pins and the snapshots they name.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public CommandGateway(
         ApplyCommandUseCase apply,
@@ -99,7 +112,8 @@ public sealed class CommandGateway
         Entitlements entitlements,
         Func<FeatureFlags> currentFlags,
         ICommandLedgerStore ledger,
-        ICommandThrottle throttle)
+        ICommandThrottle throttle,
+        ContentPinning pinning)
     {
         ArgumentNullException.ThrowIfNull(apply);
         ArgumentNullException.ThrowIfNull(clock);
@@ -109,7 +123,9 @@ public sealed class CommandGateway
         ArgumentNullException.ThrowIfNull(currentFlags);
         ArgumentNullException.ThrowIfNull(ledger);
         ArgumentNullException.ThrowIfNull(throttle);
+        ArgumentNullException.ThrowIfNull(pinning);
 
+        _pinning = pinning;
         _apply = apply;
         _clock = clock;
         _ids = ids;
@@ -183,6 +199,21 @@ public sealed class CommandGateway
         if (FeatureGate.IsDisabled(command, flags))
         {
             return Rejection(envelope, RejectionReason.FEATURE_DISABLED);
+        }
+
+        if (ContentVersionCheck.MakesAContentClaim(command))
+        {
+            // The session's own pin when it has one, current otherwise: a client waved through once
+            // must not be turned back by the very stamp its last hello established, and a client
+            // that has never said hello has nothing but current to be compared against.
+            var expected =
+                await _pinning.Store.ReadSessionPinAsync(player, ct).ConfigureAwait(false)
+                ?? _pinning.Current.Version;
+
+            if (ContentVersionCheck.Check(command, expected) is { } mismatch)
+            {
+                return Rejection(envelope, mismatch);
+            }
         }
 
         var scope = routedRun is { } addressed
@@ -268,11 +299,21 @@ public sealed class CommandGateway
         }
 
         var opensRun = GameRules.OpensRun(command);
+        var now = _clock.UtcNow;
+
+        // The run's OWN content, not the process's. A run opened before a balance patch keeps
+        // being played against the numbers it opened on, which is what makes shipping content
+        // without an app update safe for runs already in flight. Reached only from here, after the
+        // replay arm above has already returned: a duplicate answers from its record and never
+        // needs a snapshot chosen for it.
+        var pinnedRun = routedRun is { } addressed
+            ? await _pinning.Store.ReadRunPinAsync(addressed, ct).ConfigureAwait(false)
+            : null;
 
         var context = new GameContext(
-            _clock.UtcNow,
+            now,
             GameRules.RequiresCommandSeed(command) ? CommandSeedSource.Fresh(_ids) : null,
-            _content,
+            routedRun is null ? _content : _pinning.SnapshotFor(pinnedRun),
             _entitlements,
             flags,
             opensRun ? MintRunId() : null);
@@ -295,6 +336,26 @@ public sealed class CommandGateway
                 new LedgerRecord(envelope.CommandId, envelope.Sequence, command, responseBody, opensRunScope),
                 ct)
             .ConfigureAwait(false);
+
+        // The pins land with the acceptance they belong to. A run pinned without its scope opened
+        // would hold a retention reference to a run nothing can address; a scope opened without a
+        // pin would let the run's second command read whatever is current by then.
+        if (outcome.Accepted)
+        {
+            if (opensRun && outcome.State.Run is { } pinned)
+            {
+                await _pinning.Store
+                    .WriteRunPinAsync(pinned.Id, _content.Version, now, ct)
+                    .ConfigureAwait(false);
+            }
+
+            if (command is BeginSessionCommand)
+            {
+                await _pinning.Store
+                    .WriteSessionPinAsync(player, _content.Version, now, ct)
+                    .ConfigureAwait(false);
+            }
+        }
 
         // The other half of "the run's sequence starts at 1": the new run's own scope opens at 0,
         // after the record above so a replayed START_RUN can repair a missing open — the record

@@ -28,5 +28,6 @@ app.MapAuthEndpoints();
 app.MapGameCommandEndpoints();
 app.MapQuerySurfaceEndpoints();
 app.MapRemoteConfigEndpoint();
+app.MapContentDistributionEndpoints();
 
 app.Run();

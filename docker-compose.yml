@@ -133,6 +133,7 @@ services:
       # ConnectionStrings__* / Cache__* / ObjectStore__* (M5-05, except
       # GhostSnapshotBucket), OTEL_* / Sentry__Dsn / PostHog__* (M5-11) and
       # Auth__* (M5-06). A name changed here is a name changed in the binding
+      # Content__* (M5-09). A name changed here is a name changed in the binding
       # code, in the SAME commit, with infra/README.md's variable table updated
       # to match.
       #
@@ -147,6 +148,20 @@ services:
       # ops number (14 §16.5), not a tunable.
       RemoteConfig__Path: '/app/remote-config/flags.json'
       RemoteConfig__ReloadSeconds: '60'
+
+      # Content distribution — the shelf behind GET /content/{version}. One
+      # <stamp>.bundle.gz per retained version, published on first use. A writable
+      # named volume, NOT a bind mount: the point of retention is that versions
+      # survive a redeploy so a run pinned to an older one can still fetch what it
+      # was played against. Leave this unset and retention is off — only the
+      # current version is servable, announced once with a [content-bundles] line.
+      #
+      # The sweep keeps the current version plus everything a live run or session
+      # still pins, and drops the rest 48 h after their last reference. ⚠️ That 48 h
+      # is INFERRED from the run TTL below, not authored anywhere as a retention
+      # rule — a bundle stops being needed once the last run that could be pinned
+      # to it has expired.
+      Content__BundleRoot: '/app/content-bundles'
 
       # Postgres — 14 §7.1 🔒 "The system of record for everything, per command".
       ConnectionStrings__Postgres: 'Host=postgres;Port=5432;Database=slayidlerepeat;Username=sir_app;Password=sir_local_dev_password;Include Error Detail=true'
@@ -197,6 +212,10 @@ services:
       # The flags document RemoteConfig__Path points at. Read-only: the server
       # only ever reads it; an operator edits the file on the host side.
       - ./infra/remote-config:/app/remote-config:ro
+      # The bundle shelf Content__BundleRoot points at. Writable, and a named
+      # volume rather than a bind mount: these are generated artefacts keyed by
+      # content hash, not something anybody edits or commits.
+      - content-bundles:/app/content-bundles
     depends_on:
       postgres:
         condition: service_healthy
@@ -586,6 +605,9 @@ volumes:
   grafana-data:
   # Staging area for the static busybox the distroless collector is probed with.
   otel-probe:
+  # The retained content bundles, one gzip per version. Named rather than bound
+  # so a redeploy keeps the versions live runs are still pinned to.
+  content-bundles:
   # NOTE: there is deliberately no redis volume — see the redis service.
 
 networks:

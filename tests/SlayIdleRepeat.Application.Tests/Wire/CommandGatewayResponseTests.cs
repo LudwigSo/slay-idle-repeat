@@ -102,7 +102,7 @@ public sealed class CommandGatewayResponseTests
         // BEGIN_SESSION draws, so this also proves the gateway issued it a CommandSeed.
         var reply = await world.Gateway.SubmitPlayerCommandAsync(
             world.Player,
-            Envelopes.Body("BEGIN_SESSION", 2, "c-day", "{\"clientVersion\": \"1.0\", \"contentHash\": \"h\"}"),
+            SessionEnvelopes.BeginSession(2, "c-day", Worlds.Content.Version.Value),
             Worlds.Cancel);
 
         var body = Replies.Parse(reply, expectedStatus: 200);
@@ -283,7 +283,7 @@ public sealed class CommandGatewayResponseTests
 
         await world.Gateway.SubmitPlayerCommandAsync(
             world.Player,
-            Envelopes.Body("BEGIN_SESSION", 2, "c-2", "{\"clientVersion\": \"1.0\", \"contentHash\": \"h\"}"),
+            SessionEnvelopes.BeginSession(2, "c-2", Worlds.Content.Version.Value),
             Worlds.Cancel);
         (reads - baseline).ShouldBe(2);
     }

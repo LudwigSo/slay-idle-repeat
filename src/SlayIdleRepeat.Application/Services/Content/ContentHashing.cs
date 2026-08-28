@@ -23,13 +23,16 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// </remarks>
 public static class ContentHashing
 {
-    private const byte TagUnauthorised = 0x00;
-    private const byte TagFalse = 0x01;
-    private const byte TagTrue = 0x02;
-    private const byte TagNumber = 0x03;
-    private const byte TagText = 0x04;
-    private const byte TagArray = 0x05;
-    private const byte TagObject = 0x06;
+    // Internal rather than private: ContentBundle READS this encoding, and a reader working from
+    // its own copy of these numbers is a second definition of the format that can drift from the
+    // one the stamp is taken over.
+    internal const byte TagUnauthorised = 0x00;
+    internal const byte TagFalse = 0x01;
+    internal const byte TagTrue = 0x02;
+    internal const byte TagNumber = 0x03;
+    internal const byte TagText = 0x04;
+    internal const byte TagArray = 0x05;
+    internal const byte TagObject = 0x06;
 
     /// <summary>Version of the canonical encoding, mixed into the hash.</summary>
     public const byte CanonicalFormatVersion = 1;

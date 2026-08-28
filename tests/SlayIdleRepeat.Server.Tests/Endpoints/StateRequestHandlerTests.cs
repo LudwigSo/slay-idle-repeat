@@ -210,7 +210,9 @@ public sealed class StateRequestHandlerTests
             LocalHostAmbience.NoSubscriptionResolved(),
             LocalHostAmbience.NoRemoteConfigResolved,
             ledger,
-            new AdmitEveryCommand());
+            new AdmitEveryCommand(),
+            new ContentPinning(
+                new VolatileContentPinStore(), Content.Value, _ => null, _ => { }));
 
         var player = await SeedPlayerAsync(store, "PLAYER_state_handler");
         var stranger = await SeedPlayerAsync(store, "PLAYER_state_stranger");
