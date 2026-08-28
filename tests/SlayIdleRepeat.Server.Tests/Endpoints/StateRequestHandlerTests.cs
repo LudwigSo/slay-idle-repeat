@@ -210,7 +210,7 @@ public sealed class StateRequestHandlerTests
             LocalHostAmbience.NoSubscriptionResolved(),
             LocalHostAmbience.NoRemoteConfigResolved,
             ledger,
-            new UnlimitedCommandThrottle());
+            new AdmitEveryCommand());
 
         var player = await SeedPlayerAsync(store, "PLAYER_state_handler");
         var stranger = await SeedPlayerAsync(store, "PLAYER_state_stranger");
@@ -272,5 +272,13 @@ public sealed class StateRequestHandlerTests
 
         throw new InvalidOperationException(
             "No game-data directory above " + AppContext.BaseDirectory + " — this suite reads the shipped content set.");
+    }
+
+    // The state handler is not the throttle's test. M5-03's UnlimitedCommandThrottle was retired
+    // when M5-14 shipped PlayerRateLimiter, so the fixture states its own indifference rather
+    // than borrowing a limiter whose settings would then silently matter here.
+    private sealed class AdmitEveryCommand : ICommandThrottle
+    {
+        public bool ShouldReject(PlayerId player) => false;
     }
 }
