@@ -142,6 +142,14 @@ internal sealed class RecordingDisplayNamePolicy : IDisplayNamePolicy
 /// <summary>A principal seam pinned to one answer, so each HTTP arm is reachable directly.</summary>
 internal sealed class FixedPrincipalResolver(PrincipalResolution resolution) : IPrincipalResolver
 {
+    /// <summary>Every header the caller asked about, in order — <c>null</c> included.</summary>
+    internal List<string?> Headers { get; } = new();
+
     /// <inheritdoc/>
-    public PrincipalResolution Resolve(string? authorizationHeader) => resolution;
+    public PrincipalResolution Resolve(string? authorizationHeader)
+    {
+        Headers.Add(authorizationHeader);
+
+        return resolution;
+    }
 }

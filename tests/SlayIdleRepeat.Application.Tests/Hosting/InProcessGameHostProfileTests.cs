@@ -7,6 +7,8 @@ using SlayIdleRepeat.Application.Tests.Persistence;
 using SlayIdleRepeat.Application.Tests.UseCases;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Hero;
 using SlayIdleRepeat.Core.Testing;
 using Xunit;
 
@@ -236,10 +238,14 @@ public sealed class InProcessGameHostProfileTests
             .Load(RepoData.SourceWithEdit(EnglishWordList, "\"wanker\"", "\"wanderer\""))
             .Require();
 
-        hostile.ReadText(EnglishWordList + "#/terms/10").ShouldBe(
-            "wanderer",
-            "the edit did not take, so this case would be running against the shipped word lists and " +
-            "an unfiltered host would satisfy it.");
+        HeroNames.Decide("Wanderer", Worlds.Content).Refusal.ShouldBeNull(
+            "the shipped word lists already refuse the default name, so the refusal below would say " +
+            "nothing about whether this case's edit reached the filter.");
+
+        HeroNames.Decide("Wanderer", hostile).Refusal.ShouldBe(
+            HeroNameRefusal.PROFANE_EN,
+            "the edit did not take, so this case would be running against word lists that accept the " +
+            "default and an unfiltered host would satisfy it.");
 
         var host = Hosts.Over(new InMemoryLocalCache(), content: hostile);
 

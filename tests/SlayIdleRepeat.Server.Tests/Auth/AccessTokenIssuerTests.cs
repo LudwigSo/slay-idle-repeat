@@ -184,6 +184,28 @@ public sealed class AccessTokenIssuerTests
             "anybody typed.");
     }
 
+    /// <summary>
+    /// The rule is "an algorithm this service does not verify", not "the literal string none".
+    /// </summary>
+    /// <remarks>
+    /// Signed with the CORRECT key and an otherwise valid payload, so the only thing wrong with it is
+    /// the declared algorithm. A validator that special-cased <c>none</c> and let everything else fall
+    /// through to the signature check would answer SIGNATURE_MISMATCH here and name the wrong rule.
+    /// </remarks>
+    [Theory]
+    [InlineData("HS512")]
+    [InlineData("RS256")]
+    public void Validate_refuses_an_algorithm_it_does_not_verify(string algorithm)
+    {
+        var token = AuthFixtures.Sign(
+            "{\"alg\":\"" + algorithm + "\",\"typ\":\"JWT\"}",
+            AuthFixtures.PayloadJson(),
+            AuthFixtures.SigningKey);
+
+        Issuer().Validate(token, AuthFixtures.Now).Refusal.ShouldBe(
+            AccessTokenRefusal.UNSUPPORTED_ALGORITHM);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

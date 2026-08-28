@@ -17,10 +17,17 @@ public sealed class JwtPrincipalResolverTests
 
     private const string Device = "DEVICE_bearer_holder";
 
-    /// <summary>A locked-account reader pinned to one answer.</summary>
+    /// <summary>A locked-account reader pinned to one answer, recording who it was asked about.</summary>
     private sealed class FixedAccountStatus(bool locked) : IAccountStatusReader
     {
-        public bool IsLocked(PlayerId player) => locked;
+        internal List<PlayerId> Asked { get; } = new();
+
+        public bool IsLocked(PlayerId player)
+        {
+            Asked.Add(player);
+
+            return locked;
+        }
     }
 
     private static AdjustableClock ClockAt(DateTimeOffset instant)
@@ -117,12 +124,43 @@ public sealed class JwtPrincipalResolverTests
     [Fact]
     public void Resolve_is_locked_for_a_soft_deleted_or_locked_account()
     {
-        var resolution = Resolver(locked: true).Resolve("Bearer " + MintedToken());
+        var accounts = new FixedAccountStatus(locked: true);
+
+        var resolution = new JwtPrincipalResolver(
+                new AccessTokenIssuer(AuthFixtures.Options()), accounts, ClockAt(AuthFixtures.Now))
+            .Resolve("Bearer " + MintedToken());
 
         resolution.Player.ShouldBeNull();
         resolution.RefusalStatus.ShouldBe(
             403,
             "the token is perfectly valid, so refreshing it cures nothing — this is the " +
             "account-state screen, not a token problem.");
+
+        accounts.Asked.Count.ShouldBe(1);
+        accounts.Asked[0].ShouldBe(
+            Player,
+            "the account state is read for the subject the token names. Asked about anyone else — or " +
+            "not asked at all — the 403 above is a constant rather than an answer about this account.");
+    }
+
+    /// <summary>
+    /// The negative control for the arm above: the same token, an unlocked account, and the reader
+    /// still consulted.
+    /// </summary>
+    [Fact]
+    public void Resolve_admits_an_account_the_state_reader_reports_unlocked()
+    {
+        var accounts = new FixedAccountStatus(locked: false);
+
+        var resolution = new JwtPrincipalResolver(
+                new AccessTokenIssuer(AuthFixtures.Options()), accounts, ClockAt(AuthFixtures.Now))
+            .Resolve("Bearer " + MintedToken());
+
+        resolution.RefusalStatus.ShouldBeNull();
+        accounts.Asked.Count.ShouldBe(1);
+        accounts.Asked[0].ShouldBe(
+            Player,
+            "a resolver that never consults the reader passes the locked case only by accident, and " +
+            "would keep admitting an account after it was deleted.");
     }
 }

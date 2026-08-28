@@ -32,6 +32,24 @@ public sealed class AccountDeletionScopeTests
             "is player data surviving a deletion the account was promised.");
     }
 
+    /// <summary>Each named family by identity, so the floor above cannot be met by seven of anything.</summary>
+    [Theory]
+    [InlineData("player")]
+    [InlineData("run")]
+    [InlineData("message")]
+    [InlineData("battle")]
+    [InlineData("economy")]
+    [InlineData("cache")]
+    [InlineData("auth")]
+    public void All_names_the_family_the_deletion_design_calls_for(string family)
+    {
+        AccountDeletionScope.All
+            .Any(scope => scope.Name.Contains(family, StringComparison.OrdinalIgnoreCase))
+            .ShouldBeTrue(
+                "the sweep no longer names this family at all. A count alone is met by seven rows of " +
+                "anything, and the row that went missing is the one whose data survives the deletion.");
+    }
+
     [Fact]
     public void All_names_every_family_exactly_once()
     {

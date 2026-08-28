@@ -279,6 +279,48 @@ public sealed class AuthRequestHandlerTests
 
         store.Rotations.Count.ShouldBe(1);
         store.Rotations[0].Accepted.ShouldBeTrue();
+        store.Rotations[0].IssuedToken.ShouldNotBeNull();
+        store.Rotations[0].IssuedToken!.TokenDigest.ShouldBe(
+            AuthFixtures.Digest(BodyOf(reply).GetProperty("refreshToken").GetString()!),
+            "the token handed back and the digest written down are the two halves of one credential; " +
+            "a replacement whose digest was never stored 401s on the very next renewal.");
+    }
+
+    /// <summary>The refusals that are not a reuse write nothing at all — the control on the one that does.</summary>
+    [Fact]
+    public async Task Refresh_answers_an_unknown_token_with_the_refreshable_status_and_writes_nothing()
+    {
+        var store = new FakeAuthStore().WithDevice(RegisteredDevice());
+
+        var reply = await AuthRequestHandler.HandleRefreshAsync(
+            store, Issuer(), Options, AuthFixtures.Now,
+            RefreshRequest("fixture-refresh-token-never-issued"), Cancel);
+
+        reply.StatusCode.ShouldBe(401);
+        store.Rotations.ShouldBeEmpty(
+            "a digest nobody issued names no family, so there is nothing to revoke. A handler that " +
+            "applied a decision on every refusal would burn a stranger's family on a typo.");
+    }
+
+    [Fact]
+    public async Task Session_mints_an_access_token_this_service_validates_for_the_authenticated_device()
+    {
+        var store = new FakeAuthStore().WithDevice(RegisteredDevice());
+
+        var reply = await AuthRequestHandler.HandleSessionAsync(
+            store, Issuer(), Options, AuthFixtures.Now, SessionRequest(DeviceId, DeviceSecret), Cancel);
+
+        var validation = Issuer().Validate(
+            BodyOf(reply).GetProperty("accessToken").GetString(), AuthFixtures.Now);
+
+        validation.Refusal.ShouldBeNull(
+            "the token this endpoint hands out is the token the gateway seam has to accept; anything " +
+            "else is a session that is 401 on its first request.");
+        validation.Claims!.Player.ShouldBe(Player);
+        validation.Claims.DeviceId.ShouldBe(
+            DeviceId,
+            "the session belongs to the device that authenticated, not to whichever device the " +
+            "handler happened to have in hand.");
     }
 
     [Fact]
@@ -394,20 +436,24 @@ public sealed class AuthRequestHandlerTests
         string? header)
     {
         var store = new FakeAuthStore().WithDevice(RegisteredDevice());
+        var principals = new FixedPrincipalResolver(PrincipalResolution.Unauthorized());
 
         var reply = await AuthRequestHandler.HandleAccountDeletionAsync(
-            store,
-            new FixedPrincipalResolver(PrincipalResolution.Unauthorized()),
-            header,
-            AuthFixtures.Now,
-            "{\"deviceSecret\": \"" + DeviceSecret + "\"}",
-            Cancel);
+            store, principals, header, AuthFixtures.Now,
+            "{\"deviceSecret\": \"" + DeviceSecret + "\"}", Cancel);
 
         reply.StatusCode.ShouldBe(401);
         store.SoftDeletes.ShouldBeEmpty();
         store.IsLive(Player).ShouldBeTrue(
             "the right secret with no token deletes nothing — both halves are required, and the " +
             "token half is checked first.");
+
+        principals.Headers.Count.ShouldBe(1);
+        principals.Headers[0].ShouldBe(
+            header,
+            "the seam is asked about the header this request actually carried. A handler that " +
+            "substituted its own value — or never asked at all — would refuse every request here " +
+            "whatever it did with a real one.");
     }
 
     [Fact]
@@ -463,6 +509,7 @@ public sealed class AuthRequestHandlerTests
         {
             registrationStore.Created[0].Device.SecretDigest,
             sessionStore.Opened[0].Token.TokenDigest,
+            refreshStore.Rotations[0].IssuedToken!.TokenDigest,
             AuthFixtures.Digest(DeviceSecret),
         };
 
