@@ -14,6 +14,7 @@ internal sealed class RecordingCache : ILocalCachePort
     private readonly ILocalCachePort _inner;
     private readonly List<string> _writes = [];
     private string? _refuses;
+    private bool _refusesEverything;
 
     /// <summary>Wraps a cache.</summary>
     /// <param name="inner">The cache that actually stores the bytes.</param>
@@ -35,6 +36,15 @@ internal sealed class RecordingCache : ILocalCachePort
         return this;
     }
 
+    /// <summary>Makes every write throw, whatever its key — the shape a read path must survive.</summary>
+    /// <returns>This cache, so a fixture reads as one expression.</returns>
+    internal RecordingCache RefusingEveryWrite()
+    {
+        _refusesEverything = true;
+
+        return this;
+    }
+
     /// <inheritdoc/>
     public Task<byte[]?> ReadAsync(string key, CancellationToken ct) => _inner.ReadAsync(key, ct);
 
@@ -43,7 +53,7 @@ internal sealed class RecordingCache : ILocalCachePort
     {
         _writes.Add(key);
 
-        return string.Equals(key, _refuses, StringComparison.Ordinal)
+        return _refusesEverything || string.Equals(key, _refuses, StringComparison.Ordinal)
             ? throw new IOException(RefusalMessage + ": '" + key + "'")
             : _inner.WriteAsync(key, value, ct);
     }

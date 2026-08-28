@@ -84,14 +84,23 @@ public sealed class UseCaseSourceRuleTests
 
     /// <summary>The read side's own files, whose absence would take the rules below green with them.</summary>
     /// <remarks>
+    /// <para>
     /// 🔒 <b>Two files since M7-06b, and the second one is why this is a list.</b> The rule was
     /// written when the layer had one query, and "the read side" was spelled as that file's name — so
     /// a second query arrived governed by nothing, which is exactly the shape of drift the subject
     /// floors in this file exist to catch. A read use case added without an entry here is a read the
     /// two rules below do not see.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Three since M5-07, and the third one does not end in <c>UseCase.cs</c>.</b> The query
+    /// surface's own read assembles the wire answer rather than orchestrating a use case, so
+    /// <c>ReadSide</c>'s directory sweep — which classifies files by that suffix — would never have
+    /// asked about it: a read that names <c>Rehydrate</c> or a run's phase would have slipped in
+    /// governed by nothing at all, which is the precise gap the second entry was added to close.
+    /// </para>
     /// </remarks>
     private static readonly string[] ReadSideFiles =
-        ["ReadOwnStateUseCase.cs", "SimulatePendingBattleUseCase.cs"];
+        ["ReadOwnStateUseCase.cs", "SimulatePendingBattleUseCase.cs", "RunStateQuery.cs"];
 
     /// <summary>The write side's files, across which every term the rule below bans is legitimately named.</summary>
     private static readonly string[] WriteSideFiles = ["ApplyCommandUseCase.cs", "WorldSliceStore.cs"];

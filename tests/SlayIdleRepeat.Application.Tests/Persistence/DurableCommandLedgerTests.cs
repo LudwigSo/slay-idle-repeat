@@ -124,6 +124,22 @@ public sealed class DurableCommandLedgerTests
     }
 
     [Fact]
+    public async Task ReadOutcomesAfterAsync_says_it_cannot_enumerate_this_scope_by_sequence()
+    {
+        var (ledger, _) = Build();
+        await ledger.AppendAsync(RunScope, Record(1), Cancel);
+        await ledger.AppendAsync(RunScope, Record(2), Cancel);
+
+        var missed = await ledger.ReadOutcomesAfterAsync(RunScope, 0, Cancel);
+
+        missed.IsAvailable.ShouldBeFalse(
+            "the port beneath keys records on (scope, commandId) and offers no by-sequence read, so "
+            + "the honest answer is 'I cannot enumerate this' — an empty list would read as 'nothing "
+            + "was missed' and a reconnecting client would resume on top of two outcomes it never saw.");
+        missed.Records.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task A_scope_key_this_repository_never_spelled_is_refused()
     {
         var (ledger, _) = Build();
