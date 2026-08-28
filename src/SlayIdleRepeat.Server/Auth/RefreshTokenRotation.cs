@@ -52,11 +52,68 @@ public static class RefreshTokenRotation
         byte[] presentedDigest,
         byte[] replacementDigest,
         TimeSpan refreshTokenLifetime,
-        DateTimeOffset nowUtc) =>
-        throw new NotImplementedException(
-            "M5-06 Phase 3: match the digest; a live token rotates into the same family with an " +
-            "expiry capped at the family's own horizon (created + refreshTokenLifetime); an " +
-            "already-rotated token revokes every token in that family with REFRESH_REUSE and " +
-            "refuses; a revoked family, an expired token and an unknown digest refuse and revoke " +
-            "nothing extra.");
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        var presented = state.Tokens.FirstOrDefault(
+            token => DeviceCredentialFactory.DigestsMatch(token.TokenDigest, presentedDigest));
+
+        // Matching on the DIGEST and nothing else is what keeps several live families — several
+        // devices — from rotating each other out.
+        if (presented is null ||
+            state.Families.FirstOrDefault(family => family.FamilyId == presented.FamilyId) is not { } family)
+        {
+            return Refused(RefreshRefusal.UNKNOWN_TOKEN, familyId: null);
+        }
+
+        // Ahead of the reuse rule: a closed family must keep the reason it was closed for.
+        if (family.RevokedAtUtc is not null)
+        {
+            return Refused(RefreshRefusal.FAMILY_REVOKED, family.FamilyId);
+        }
+
+        if (presented.RotatedAtUtc is not null)
+        {
+            return new RefreshRotationDecision(
+                RefreshRefusal.ALREADY_ROTATED,
+                family.FamilyId,
+                IssuedToken: null,
+                RotatedTokenDigest: null,
+                state.Tokens
+                    .Where(token => token.FamilyId == family.FamilyId)
+                    .Select(token => token.TokenDigest)
+                    .ToArray(),
+                TokenFamilyRevocation.REFRESH_REUSE);
+        }
+
+        if (presented.ExpiresAtUtc <= nowUtc)
+        {
+            return Refused(RefreshRefusal.EXPIRED, family.FamilyId);
+        }
+
+        // The horizon belongs to the family, not to the token: measured from the device-secret
+        // authentication that opened it, so refreshing can never make a family immortal.
+        var horizon = family.CreatedAtUtc.Add(refreshTokenLifetime);
+        var expiresAt = horizon < nowUtc.Add(refreshTokenLifetime) ? horizon : nowUtc.Add(refreshTokenLifetime);
+
+        return new RefreshRotationDecision(
+            Refusal: null,
+            family.FamilyId,
+            new AuthRefreshToken(
+                replacementDigest,
+                family.FamilyId,
+                presented.DeviceId,
+                presented.Player,
+                nowUtc,
+                expiresAt,
+                RotatedAtUtc: null),
+            presentedDigest,
+            Array.Empty<byte[]>(),
+            FamilyRevocation: null);
+    }
+
+    private static RefreshRotationDecision Refused(RefreshRefusal refusal, string? familyId) =>
+        new(refusal, familyId, IssuedToken: null, RotatedTokenDigest: null,
+            Array.Empty<byte[]>(), FamilyRevocation: null);
 }

@@ -240,47 +240,6 @@ internal static class GapRegister
         //     Sorting and comparison need no command at all: §2.3's own table records them as purely
         //     local.
 
-        // ⚠️ M4-10 BUILT THE HERO NAME FILTER AND NOTHING CALLS IT, and that is written here rather
-        // than as an entry because this register keys on a TYPE and the gap is a missing CALLER.
-        // The same shape, and the same treatment, as M4-05's "nothing calls Inventory.Place yet"
-        // note, which used to stand above and which M7-00d DELETED in the commit that wired the
-        // first caller — the note's own text asked for exactly that. An obligation with an owner is
-        // the most this mechanism can do for a gap it cannot hold; being deleted on the wiring
-        // commit is what stops it becoming a comment nobody owns.
-        //
-        // WHAT EXISTS: Rules.Hero.HeroNameRule (07 §1's twelve characters, 27 §1's EN + DE lists, at
-        // creation and on every edit), Content.ProfanityLexicon, the two word lists under
-        // content/profanity/, Primitives.HeroName — a name only the rule can construct — and
-        // Player.Rename, which takes that type and nothing else. No name a PLAYER chooses can reach
-        // the aggregate without passing the filter, because there is no door that takes one.
-        //
-        // WHAT DOES NOT EXIST: a caller. 14 §2.3's registry is EXHAUSTIVE and authors no rename
-        // command, so setting a name is not a command at all — it happens when an account is created.
-        //
-        // ⚠️ M7-09 CHANGED THE SECOND HALF OF THIS NOTE AND IT IS RESTATED RATHER THAN LEFT TO ROT.
-        // An account-creation path now exists: Application.Hosting.InProcessGameHost.OpenProfileAsync
-        // mints an identity and commits a starting row. It does NOT weaken 27 §1, because it names the
-        // profile after the identity it minted and no player text reaches DisplayName — nothing has
-        // asked a player for a name yet, which is still the whole of this gap. What DID move is where
-        // the unfiltered write lives: it used to be inside Core.Testing.InMemoryGame.CreatePlayer,
-        // excused because that harness runs on hermetic content sets carrying no word lists. The row
-        // is now built once, by the public Core.Model.Player.CreateStarting, which takes a plain
-        // string and stores it exactly as given; the harness and the in-process host both go through
-        // it, and its own remarks record the limit. So the unfiltered door is public on the aggregate
-        // rather than private to a harness, and M5-06 inherits a wider surface than this note used to
-        // describe: it has to route ITS name through HeroNameRule, not merely add a caller.
-        //
-        // OWNER: M5-06, "Auth: anonymous device accounts (keystore-held secret)" — the task that
-        // first creates an account, and therefore the first place a hero name is set. It calls
-        // HeroNameRule.Validate for a player-chosen name and HeroNameRule.Default for the "Wanderer"
-        // 07 §1 gives every account that has not chosen one. Until it lands, the filter is reachable
-        // and unused, and no player-facing name has ever been through it.
-        //
-        // 🔒 THIS NOTE HAS A FAILING WITNESS, which is what separates it from a comment nobody owns:
-        // HeroNameWritePathRuleTests.Nothing_in_production_calls_the_name_filter_yet_and_this_fails_
-        // when_something_does goes RED on the commit that wires the first caller, and its failure
-        // message says to delete both itself and this note in that commit.
-        //
         // 🔴 The deleted M4-05 note said the same requirement "could not have one, because its
         // subject was a call that must eventually EXIST rather than one that must not yet." M4-15
         // showed that reasoning was wrong: a witness for a call that must not yet exist can assert

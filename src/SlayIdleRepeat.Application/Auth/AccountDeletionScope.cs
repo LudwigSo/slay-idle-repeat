@@ -10,9 +10,20 @@ namespace SlayIdleRepeat.Application.Auth;
 public readonly record struct AccountDeletionScope(string Name)
 {
     /// <summary>Every family the sweep clears, in the order it clears them.</summary>
-    public static IReadOnlyList<AccountDeletionScope> All =>
-        throw new NotImplementedException(
-            "AccountDeletionScope.All has no body yet. It enumerates the row families a hard delete " +
-            "clears: the player rows, run state, messages, battle logs, economy events, cache keys " +
-            "and the auth rows themselves.");
+    /// <remarks>
+    /// The auth rows go last: they are what a request still in flight authenticates against, so
+    /// clearing them first would leave the rest of the sweep running for an account nothing can
+    /// identify any more. Guild membership and contribution anonymisation are deliberately absent —
+    /// they belong to the milestone that owns the guild schema, and nothing here keys on a guild.
+    /// </remarks>
+    public static IReadOnlyList<AccountDeletionScope> All { get; } =
+    [
+        new("player rows"),
+        new("run state"),
+        new("messages"),
+        new("battle logs"),
+        new("economy events"),
+        new("cache keys"),
+        new("auth rows"),
+    ];
 }

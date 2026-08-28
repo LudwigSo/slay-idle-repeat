@@ -44,23 +44,28 @@ public static class UnauthorizedRecoveryPolicy
 {
     /// <summary>A fresh attempt for one command, with no rung taken yet.</summary>
     /// <param name="commandId">The idempotency key the retry must carry.</param>
-    public static UnauthorizedRecoveryAttempt Begin(CommandId commandId) =>
-        throw new NotImplementedException(
-            "UnauthorizedRecoveryPolicy.Begin has no body yet. It answers an attempt for this " +
-            "command with no recovery step taken.");
+    public static UnauthorizedRecoveryAttempt Begin(CommandId commandId) => new(commandId, null);
 
     /// <summary>The rung to take now that this attempt has been refused again.</summary>
     /// <param name="attempt">The attempt as it stands.</param>
     /// <returns>The step, and the attempt advanced past it.</returns>
-    public static UnauthorizedRecoveryDecision OnUnauthorized(UnauthorizedRecoveryAttempt attempt) =>
-        throw new NotImplementedException(
-            "UnauthorizedRecoveryPolicy.OnUnauthorized has no body yet. It climbs one rung: refresh, " +
-            "then device-secret re-authentication, then surfacing to the player.");
+    public static UnauthorizedRecoveryDecision OnUnauthorized(UnauthorizedRecoveryAttempt attempt)
+    {
+        // The top rung is terminal rather than throwing: a caller's error path must not depend on how
+        // many times it has already asked.
+        var step = attempt.LastStep switch
+        {
+            null => UnauthorizedRecoveryStep.REFRESH_THE_ACCESS_TOKEN,
+            UnauthorizedRecoveryStep.REFRESH_THE_ACCESS_TOKEN =>
+                UnauthorizedRecoveryStep.REAUTHENTICATE_WITH_THE_DEVICE_SECRET,
+            _ => UnauthorizedRecoveryStep.SURFACE_TO_THE_PLAYER,
+        };
+
+        return new UnauthorizedRecoveryDecision(step, attempt with { LastStep = step });
+    }
 
     /// <summary>The attempt after a request finally succeeded — the ladder starts from the bottom again.</summary>
     /// <param name="attempt">The attempt as it stands.</param>
     public static UnauthorizedRecoveryAttempt OnAuthorized(UnauthorizedRecoveryAttempt attempt) =>
-        throw new NotImplementedException(
-            "UnauthorizedRecoveryPolicy.OnAuthorized has no body yet. It answers the same command " +
-            "with the ladder reset, so a later expiry in the same session is cured silently too.");
+        attempt with { LastStep = null };
 }

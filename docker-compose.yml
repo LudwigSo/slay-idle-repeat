@@ -131,9 +131,10 @@ services:
       #
       # ⚠️ THE SERVER READS EVERY GROUP BELOW: RemoteConfig__* (M5-10),
       # ConnectionStrings__* / Cache__* / ObjectStore__* (M5-05, except
-      # GhostSnapshotBucket) and OTEL_* / Sentry__Dsn / PostHog__* (M5-11). A
-      # name changed here is a name changed in the binding code, in the SAME
-      # commit, with infra/README.md's variable table updated to match.
+      # GhostSnapshotBucket), OTEL_* / Sentry__Dsn / PostHog__* (M5-11) and
+      # Auth__* (M5-06). A name changed here is a name changed in the binding
+      # code, in the SAME commit, with infra/README.md's variable table updated
+      # to match.
       #
       # `__` is the ASP.NET Core configuration separator: `ConnectionStrings__Postgres`
       # binds to configuration key `ConnectionStrings:Postgres`. No vendor config
@@ -173,6 +174,19 @@ services:
       OTEL_SERVICE_NAME: 'slayidlerepeat-server'
       OTEL_RESOURCE_ATTRIBUTES: 'service.namespace=slayidlerepeat,deployment.environment=local'
       OTEL_TRACES_SAMPLER: 'always_on'          # local only; production samples.
+
+      # Auth — 14 §16.5. The signing key has NO default in code: absence fails
+      # the first auth request loudly, naming the variable. This value is a
+      # local dev default like every other in this file and is NOT a secret; a
+      # deployed environment injects a real one (14 §1.1 "Secrets | Injected as
+      # environment variables"). The three numbers are 14 §16.5's own defaults,
+      # and its Config-home row says they are environment configuration that
+      # must never ride a content push — which is why they are here and not in
+      # game-data/tuning/. See infra/README.md's doc-errata note.
+      Auth__JwtSigningKey: 'sir_local_dev_jwt_signing_key_not_a_secret'
+      Auth__AccessTokenLifetimeMinutes: '60'
+      Auth__RefreshTokenLifetimeDays: '30'
+      Auth__SilentRenewalFraction: '0.8'
 
       # Sentry / PostHog — see the header. Adapters exist, sinks are local no-ops.
       # An empty Sentry DSN is the SDK's own documented "disabled" value, so the

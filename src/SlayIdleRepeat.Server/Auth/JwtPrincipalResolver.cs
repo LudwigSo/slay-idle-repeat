@@ -53,8 +53,27 @@ public sealed class JwtPrincipalResolver : IPrincipalResolver
     internal IClockPort Clock => _clock;
 
     /// <inheritdoc/>
-    public PrincipalResolution Resolve(string? authorizationHeader) => throw new NotImplementedException(
-        "M5-06 Phase 3: require the Bearer prefix, validate the JWT against the injected clock, " +
-        "resolve sub as the player, and answer Locked() when the account is soft-deleted. A bare " +
-        "player id is not a credential and must be Unauthorized().");
+    public PrincipalResolution Resolve(string? authorizationHeader)
+    {
+        if (authorizationHeader is null ||
+            !authorizationHeader.StartsWith(BearerPrefix, StringComparison.Ordinal))
+        {
+            return PrincipalResolution.Unauthorized();
+        }
+
+        var presented = authorizationHeader[BearerPrefix.Length..];
+
+        // Every way a token can be wrong is one status: which rule fired is a diagnosis for this
+        // server's logs, not something a caller may probe for one refusal at a time.
+        if (_issuer.Validate(presented, _clock.UtcNow).Claims is not { } claims)
+        {
+            return PrincipalResolution.Unauthorized();
+        }
+
+        return _accounts.IsLocked(claims.Player)
+            ? PrincipalResolution.Locked()
+            : PrincipalResolution.Resolved(claims.Player);
+    }
+
+    private const string BearerPrefix = "Bearer ";
 }

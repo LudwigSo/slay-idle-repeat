@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Rules.Hero;
 using SlayIdleRepeat.Server.Auth;
 
 namespace SlayIdleRepeat.Server.Composition;
@@ -23,8 +24,17 @@ public sealed class HeroNameDisplayNamePolicy : IDisplayNamePolicy
     internal ContentSnapshot Content => _content;
 
     /// <inheritdoc/>
-    public DisplayNameDecision Decide(string? candidate) => throw new NotImplementedException(
-        "M5-06 Phase 3: a null candidate takes the rules library's validated default; anything else " +
-        "goes through its public hero-name entry point, and a refusal crosses this boundary as the " +
-        "refusal value alone — never the matched term.");
+    public DisplayNameDecision Decide(string? candidate)
+    {
+        if (candidate is null)
+        {
+            return DisplayNameDecision.Accepted(HeroNames.Default(_content).Value);
+        }
+
+        var decided = HeroNames.Decide(candidate, _content);
+
+        return decided.Refusal is { } refusal
+            ? DisplayNameDecision.Refused(refusal)
+            : DisplayNameDecision.Accepted(decided.Name!.Value);
+    }
 }

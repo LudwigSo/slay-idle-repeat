@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Microsoft.Extensions.Configuration;
 
 namespace SlayIdleRepeat.Server.Auth;
@@ -56,8 +58,8 @@ public sealed class AuthOptions
     /// What every session body tells the client: renew after this many seconds. Derived here so the
     /// fraction stays server-side configuration instead of being duplicated in client code.
     /// </summary>
-    public long RenewAfterSeconds => throw new NotImplementedException(
-        "M5-06 Phase 3: floor(AccessTokenLifetime.TotalSeconds * SilentRenewalFraction).");
+    public long RenewAfterSeconds =>
+        (long)Math.Floor(AccessTokenLifetime.TotalSeconds * SilentRenewalFraction);
 
     /// <summary>Binds the four settings, applying the documented defaults and refusing the rest.</summary>
     /// <param name="configuration">The host's configuration.</param>
@@ -66,9 +68,85 @@ public sealed class AuthOptions
     /// The signing key is absent, blank or too short, or one of the three numbers is out of range.
     /// The message names the environment variable, so a failed boot is greppable.
     /// </exception>
-    public static AuthOptions Bind(IConfiguration configuration) => throw new NotImplementedException(
-        "M5-06 Phase 3: read Auth:JwtSigningKey (required, no default), " +
-        "Auth:AccessTokenLifetimeMinutes (60), Auth:RefreshTokenLifetimeDays (30) and " +
-        "Auth:SilentRenewalFraction (0.8), refusing an absent key, a key under 32 UTF-8 bytes, a " +
-        "non-positive lifetime and a fraction outside (0, 1).");
+    public static AuthOptions Bind(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var section = configuration.GetSection(SectionName);
+
+        var signingKey = section["JwtSigningKey"];
+        if (string.IsNullOrWhiteSpace(signingKey))
+        {
+            throw Misconfigured(
+                "JwtSigningKey",
+                "no value. It has no default: a generated one would invalidate every live token on " +
+                "each restart while looking like it worked, and a baked-in one would ship a public " +
+                "secret.");
+        }
+
+        // HS256's own digest is 256 bits; a key shorter than that is the weakest link in a chain
+        // whose whole point is that it has none.
+        if (Encoding.UTF8.GetByteCount(signingKey) < MinimumSigningKeyBytes)
+        {
+            throw Misconfigured(
+                "JwtSigningKey",
+                "a key of fewer than " + MinimumSigningKeyBytes + " UTF-8 bytes.");
+        }
+
+        var minutes = Number(section, "AccessTokenLifetimeMinutes", 60d);
+        if (minutes <= 0)
+        {
+            throw Misconfigured(
+                "AccessTokenLifetimeMinutes",
+                "a value at or below zero, which expires every token at or before it is issued.");
+        }
+
+        var days = Number(section, "RefreshTokenLifetimeDays", 30d);
+        if (days <= 0)
+        {
+            throw Misconfigured(
+                "RefreshTokenLifetimeDays",
+                "a value at or below zero, which expires every token family at birth.");
+        }
+
+        var fraction = Number(section, "SilentRenewalFraction", 0.8d);
+        if (fraction is <= 0 or >= 1)
+        {
+            throw Misconfigured(
+                "SilentRenewalFraction",
+                "a value outside the open interval (0, 1). At or below zero the client renews " +
+                "continuously; at or above one it renews only once the token it was renewing has " +
+                "already expired.");
+        }
+
+        return new AuthOptions(
+            signingKey, TimeSpan.FromMinutes(minutes), TimeSpan.FromDays(days), fraction);
+    }
+
+    /// <summary>The signing-key floor, in UTF-8 bytes: HS256's own digest width.</summary>
+    private const int MinimumSigningKeyBytes = 32;
+
+    private static double Number(IConfiguration section, string name, double fallback)
+    {
+        var configured = section[name];
+
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return fallback;
+        }
+
+        if (!double.TryParse(configured, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+        {
+            throw Misconfigured(name, "a value that is not a number.");
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// The failure a deployment reads. It spells the variable the way the compose file does — with
+    /// the double underscore — so a failed boot is greppable straight into the environment.
+    /// </summary>
+    private static InvalidOperationException Misconfigured(string setting, string problem) =>
+        new(SectionName + "__" + setting + " carries " + problem);
 }

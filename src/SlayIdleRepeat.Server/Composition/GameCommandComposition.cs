@@ -9,10 +9,10 @@ namespace SlayIdleRepeat.Server.Composition;
 /// <summary>The command endpoints' functional area: composes the pipeline over the shared backbone and maps the two routes.</summary>
 /// <remarks>
 /// Composition-root code: the shared state comes from <see cref="GameBackbone"/>, never newed
-/// here; what this area adds is its own — the gateway, and two placeholders each greppable by
-/// name: <see cref="PlaceholderBearerPlayerIdResolver"/> (M5-06's auth) and
-/// <see cref="UnlimitedCommandThrottle"/> (M5-14's limiter). <c>CONTENT_VERSION_MISMATCH</c> has
-/// no arm anywhere yet — the content pinning it checks against is M5-09's.
+/// here; what this area adds is its own — the gateway, and one placeholder still greppable by
+/// name, <see cref="UnlimitedCommandThrottle"/> (M5-14's limiter). The principal seam is the auth
+/// area's real one. <c>CONTENT_VERSION_MISMATCH</c> has no arm anywhere yet — the content pinning
+/// it checks against is M5-09's.
 /// </remarks>
 public static class GameCommandComposition
 {
@@ -26,7 +26,7 @@ public static class GameCommandComposition
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        IPrincipalResolver principals = new PlaceholderBearerPlayerIdResolver();
+        IPrincipalResolver principals = AuthComposition.Principals(app);
 
         // The server's only tracing: no ASP.NET auto-instrumentation package is pinned, so a
         // command that is not wrapped here appears on no trace at all.
