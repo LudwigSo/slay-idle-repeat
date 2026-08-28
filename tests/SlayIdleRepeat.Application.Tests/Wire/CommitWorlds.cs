@@ -117,9 +117,9 @@ internal sealed class RecordingUnitOfWork : IUnitOfWork
 /// </remarks>
 internal sealed class ScriptedLedger : ICommandLedgerStore
 {
-    private readonly ICommandLedgerStore _inner;
+    private readonly VolatileCommandLedger _inner;
 
-    internal ScriptedLedger(ICommandLedgerStore inner) => _inner = inner;
+    internal ScriptedLedger(VolatileCommandLedger inner) => _inner = inner;
 
     /// <summary>How many times the gateway asked for a scope to be opened.</summary>
     internal int ScopeOpens { get; private set; }
@@ -138,7 +138,12 @@ internal sealed class ScriptedLedger : ICommandLedgerStore
     public Task<LedgerRecord?> ReadRecordAsync(string scope, CommandId commandId, CancellationToken ct) =>
         _inner.ReadRecordAsync(scope, commandId, ct);
 
-    /// <inheritdoc/>
+    /// <summary>The write half the ledger seam no longer carries, kept here as the fixture's own.</summary>
+    /// <remarks>
+    /// The gateway holds this fixture as an <c>ICommandLedgerStore</c>, which is a read seam — it
+    /// cannot reach either of the two members below at all. The counters are what a case seeds a
+    /// record through, and what would report a caller that found its way back to them.
+    /// </remarks>
     public Task OpenScopeAsync(string scope, CancellationToken ct)
     {
         ScopeOpens++;
@@ -149,7 +154,7 @@ internal sealed class ScriptedLedger : ICommandLedgerStore
             : _inner.OpenScopeAsync(scope, ct);
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc cref="OpenScopeAsync"/>
     public Task AppendAsync(string scope, LedgerRecord record, CancellationToken ct)
     {
         Appends++;

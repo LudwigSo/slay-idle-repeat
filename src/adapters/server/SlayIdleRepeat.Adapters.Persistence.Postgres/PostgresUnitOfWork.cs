@@ -20,18 +20,57 @@ namespace SlayIdleRepeat.Adapters.Persistence.Postgres;
 public sealed class PostgresUnitOfWork : IUnitOfWork
 {
     private readonly NpgsqlDataSource _dataSource;
-    private readonly TimeSpan _runTtl;
+    private readonly PostgresPlayerRepository _players;
+    private readonly PostgresIdempotencyStore _idempotency;
+    private readonly PostgresEconomyEventLog _economyEvents;
 
-    internal PostgresUnitOfWork(NpgsqlDataSource dataSource, TimeSpan runTtl)
+    internal PostgresUnitOfWork(
+        NpgsqlDataSource dataSource,
+        PostgresPlayerRepository players,
+        PostgresIdempotencyStore idempotency,
+        PostgresEconomyEventLog economyEvents)
     {
         _dataSource = dataSource;
-        _runTtl = runTtl;
+        _players = players;
+        _idempotency = idempotency;
+        _economyEvents = economyEvents;
     }
 
     /// <inheritdoc/>
-    public Task CommitAsync(CommandCommit commit, CancellationToken ct) =>
-        throw new NotImplementedException(
-            "The one-transaction commit rule is not implemented yet: the snapshots, the outcome "
-            + "record with its sequence advance, the economy rows and the opened scope must land "
-            + "inside a single transaction on a single connection, or none of them may land.");
+    /// <remarks>
+    /// The order inside the transaction is not free. The snapshots go first because both writes
+    /// after them land on the rows the snapshots create: the sequence advance is an UPDATE of the
+    /// player's or the run's own row, and the scope open is an UPDATE of the run row the accepted
+    /// opening command just produced. Each of those refuses a subject it cannot find, so a save that
+    /// ran second would turn an ordinary first command into a fault.
+    /// </remarks>
+    public async Task CommitAsync(CommandCommit commit, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(commit);
+
+        await using var connection = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+        if (commit.State is { } profile)
+        {
+            await _players.SaveAsync(connection, transaction, profile, ct).ConfigureAwait(false);
+        }
+
+        await _idempotency
+            .RecordAsync(connection, transaction, commit.Scope, commit.Outcome, commit.OutcomeTtl, ct)
+            .ConfigureAwait(false);
+
+        await _economyEvents
+            .AppendAsync(connection, transaction, commit.EconomyEvents, ct)
+            .ConfigureAwait(false);
+
+        if (commit.OpensScope is { } opened)
+        {
+            await _idempotency.OpenScopeAsync(connection, transaction, opened, ct).ConfigureAwait(false);
+        }
+
+        // Nothing above this line is visible to any other connection, and nothing below it is
+        // inside the command at all.
+        await transaction.CommitAsync(ct).ConfigureAwait(false);
+    }
 }

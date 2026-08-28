@@ -33,8 +33,23 @@ public sealed class VolatileUnitOfWork : IUnitOfWork
     }
 
     /// <inheritdoc/>
-    public Task CommitAsync(CommandCommit commit, CancellationToken ct) =>
-        throw new NotImplementedException(
-            "The volatile unit of work does not commit yet: it must write the snapshots into the "
-            + "world store and append the outcome record and its opened scope to the ledger.");
+    public async Task CommitAsync(CommandCommit commit, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(commit);
+
+        if (commit.State is { } profile)
+        {
+            await _store.SaveAsync(new StoredSlice(profile.Player, profile.ActiveRun), ct)
+                .ConfigureAwait(false);
+        }
+
+        await _ledger
+            .AppendAsync(CommandScopes.KeyOf(commit.Scope), LedgerRecord.From(commit.Outcome), ct)
+            .ConfigureAwait(false);
+
+        if (commit.OpensScope is { } opened)
+        {
+            await _ledger.OpenScopeAsync(CommandScopes.KeyOf(opened), ct).ConfigureAwait(false);
+        }
+    }
 }

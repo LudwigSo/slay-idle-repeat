@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
+using SlayIdleRepeat.Application.Ports.Server;
+using SlayIdleRepeat.Contracts;
 using SlayIdleRepeat.Core.Commands;
 
 namespace SlayIdleRepeat.Application.Wire;
@@ -9,9 +12,9 @@ namespace SlayIdleRepeat.Application.Wire;
 /// <param name="Command">The typed command as decoded — record value equality is what "same payload" means (14 §16.3), so whitespace and key order in the original JSON cannot split a retry from its first send.</param>
 /// <param name="ResponseBody">The exact response body the first processing produced. A duplicate replays these bytes, never a recomputation.</param>
 /// <param name="OpensRunScope">
-/// The run scope this command's acceptance opened, or <c>null</c> for every other record. Carried
-/// so a replay can repair a missing open: the append and the open are two store calls, and a
-/// durable backing may fail between them.
+/// The run scope this command's acceptance opened, or <c>null</c> for every other record. The
+/// durable audit of which run a command created, and what the commit that created both was built
+/// from — never something a later read repairs anything with.
 /// </param>
 /// <remarks>
 /// ⚠️ A durable backing does not persist <paramref name="Command"/> as a .NET object: it stores the
@@ -23,22 +26,58 @@ public sealed record LedgerRecord(
     long Sequence,
     GameCommand Command,
     string ResponseBody,
-    string? OpensRunScope = null);
+    string? OpensRunScope = null)
+{
+    /// <summary>One stored outcome in the ledger's shape, its command re-decoded through the one codec.</summary>
+    /// <param name="stored">The record as the store holds it.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="stored"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The stored payload does not decode.</exception>
+    /// <remarks>
+    /// Here rather than on each store, because every implementation of the read seam has to answer
+    /// the same question and a second decode would be a second equality for a duplicate check to
+    /// disagree about.
+    /// </remarks>
+    public static LedgerRecord From(RecordedCommandOutcome stored)
+    {
+        ArgumentNullException.ThrowIfNull(stored);
 
-/// <summary>Where the sequencing state and idempotency records of 14 §16.3 live.</summary>
+        using var payload = JsonDocument.Parse(stored.PayloadJson);
+
+        var decode = WireCommandCodec.Decode(new CommandEnvelope(
+            WireProtocol.PROTOCOL_VERSION, stored.CommandId, stored.Sequence,
+            stored.CommandType, payload.RootElement.Clone()));
+
+        return decode.Command is { } command
+            ? new LedgerRecord(stored.CommandId, stored.Sequence, command, stored.ResponseBody, stored.OpensScope)
+            : throw new InvalidOperationException(
+                "The stored record for command '" + stored.CommandId + "' does not decode (" +
+                decode.Rejection + "). These bytes were produced by the codec's own encode, so a " +
+                "refusal here is a registry or codec change that stranded committed records — fail " +
+                "loudly rather than treating a committed command as never seen.");
+    }
+}
+
+/// <summary>How the sequencing state and idempotency records of 14 §16.3 are READ.</summary>
 /// <remarks>
 /// <para>
-/// A dumb store on purpose: last-sequence per scope, records by command id, and scope existence.
-/// The rules — expected is last + 1, duplicate replays, stale, gap, conflict — live in
-/// <see cref="CommandGateway"/> and nowhere else, so the store that replaces this seam inherits
-/// them instead of re-deciding them.
+/// A read seam, and only a read seam: last-sequence per scope and the record stored under a command
+/// id. The rules — expected is last + 1, duplicate replays, stale, gap, conflict — live in
+/// <see cref="CommandGateway"/> and nowhere else, so a store standing behind this inherits them
+/// instead of re-deciding them.
 /// </para>
 /// <para>
-/// A scope is one sequencing domain: <c>run:&lt;runId&gt;</c> for run commands,
+/// 🔒 The writes are not here, and their absence is the shape of 14 §16.4's commit rule: a record,
+/// its sequence advance, the snapshots it describes and the scope it opens are ONE commit, made
+/// through <see cref="Ports.Server.IUnitOfWork"/>. A ledger-shaped append beside it would be a
+/// second way to record a command, and a second way is exactly how a record came to exist without
+/// the run its own acceptance named.
+/// </para>
+/// <para>
+/// A scope is one sequencing domain: <c>run:&lt;playerId&gt;:&lt;runId&gt;</c> for run commands,
 /// <c>player:&lt;playerId&gt;</c> for the player's lifetime counter. A player scope exists
 /// implicitly (the lifetime counter starts at 0 the moment the player does); a run scope exists
-/// only once <see cref="OpenScopeAsync"/> opened it on the accepted <c>START_RUN</c> — an unknown
-/// run scope is how the gateway answers <c>RUN_NOT_FOUND</c> before any state is loaded.
+/// only once the accepted <c>START_RUN</c>'s own commit opened it — an unknown run scope is how the
+/// gateway answers <c>RUN_NOT_FOUND</c> before any state is loaded.
 /// </para>
 /// <para>
 /// ⚠️ Record TTLs are storage semantics and deliberately absent from this seam's shape: the run
@@ -49,13 +88,11 @@ public sealed record LedgerRecord(
 /// only on a process configured with no database.
 /// </para>
 /// <para>
-/// 🔒 Two contract clauses a durable backing must honour, stated here so no implementation
-/// re-decides them. <b>One:</b> <see cref="AppendAsync"/> commits the record and the last-sequence advance as
-/// ONE atomic effect — two statements with a crash between them would let a retry find no record,
-/// pass <c>last + 1</c>, and double-apply a committed command. <b>Two:</b> the caller guarantees
-/// one writer per scope within one process (the gateway's player gate); cross-instance sequencing
-/// is deliberately outside this contract until 14 §16.4's one-transaction commit rule (M5-04)
-/// makes the store itself the arbiter.
+/// 🔒 The clause a backing must honour, stated here so no implementation re-decides it: the store
+/// is the ARBITER of cross-instance sequencing. The gateway's per-player gate serialises one
+/// process, and that was the whole of the guarantee while the record and the advance were a call of
+/// their own; since both now land inside the commit's transaction, two instances racing the same
+/// scope are resolved where the rows are, not by an in-process lock neither of them shares.
 /// </para>
 /// </remarks>
 public interface ICommandLedgerStore
@@ -70,22 +107,6 @@ public interface ICommandLedgerStore
     /// <param name="commandId">The idempotency key.</param>
     /// <param name="ct">Cancellation.</param>
     Task<LedgerRecord?> ReadRecordAsync(string scope, CommandId commandId, CancellationToken ct);
-
-    /// <summary>Opens a scope at sequence 0 — the accepted <c>START_RUN</c>'s half of "the run's sequence starts at 1".</summary>
-    /// <param name="scope">The scope key.</param>
-    /// <param name="ct">Cancellation.</param>
-    /// <remarks>
-    /// 🔒 Idempotent, and never a reset: opening a scope that already exists leaves its counter and
-    /// records untouched. The replay path re-opens on every replayed opening acceptance, so a
-    /// backing that reset here would zero a live run's sequence on a retried <c>START_RUN</c>.
-    /// </remarks>
-    Task OpenScopeAsync(string scope, CancellationToken ct);
-
-    /// <summary>Appends one processed command's record and advances the scope's last sequence to its sequence.</summary>
-    /// <param name="scope">The scope key.</param>
-    /// <param name="record">The record.</param>
-    /// <param name="ct">Cancellation.</param>
-    Task AppendAsync(string scope, LedgerRecord record, CancellationToken ct);
 }
 
 /// <summary>
@@ -123,7 +144,15 @@ public sealed class VolatileCommandLedger : ICommandLedgerStore
                 : null);
     }
 
-    /// <inheritdoc/>
+    /// <summary>Opens a scope at sequence 0 — an accepted opening command's half of "the run's sequence starts at 1".</summary>
+    /// <param name="scope">The scope key.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// Its own public member rather than part of the read seam: the volatile unit of work is the one
+    /// caller, and it opens the scope in the same commit that appends the record naming it.
+    /// Idempotent, and never a reset — opening an existing scope leaves its counter and records
+    /// untouched.
+    /// </remarks>
     public Task OpenScopeAsync(string scope, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(scope);
@@ -133,7 +162,15 @@ public sealed class VolatileCommandLedger : ICommandLedgerStore
         return Task.CompletedTask;
     }
 
-    /// <inheritdoc/>
+    /// <summary>Appends one processed command's record and advances the scope's last sequence to its sequence.</summary>
+    /// <param name="scope">The scope key.</param>
+    /// <param name="record">The record.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// Its own public member for <see cref="OpenScopeAsync"/>'s reason. Atomicity here is a property
+    /// of a single in-process dictionary update rather than of a transaction, which is exactly why a
+    /// process that must not lose a command is configured with a database.
+    /// </remarks>
     public Task AppendAsync(string scope, LedgerRecord record, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(scope);

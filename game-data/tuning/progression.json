@@ -77,6 +77,10 @@
     "HEROIC": { "requiresClear": "SAME_CHAPTER_NORMAL", "requiresLegendLevel": null },
     "MYTHIC": { "requiresClear": "SAME_CHAPTER_HEROIC", "requiresLegendLevel": 60 }
   },
+  "runLifetime": {
+    "_doc": "14 §16.3 — a run left untouched for longer than this window is over: run commands addressed to it are refused, and the next command the player is allowed to make settles it as a death at the stage it reached. Measured from the run's OWN last accepted command, never the player's. The server's Cache:RunStateTtlHours default mirrors this number; the two must agree or a run row outlives or predeceases the rule that ends it.",
+    "expiryHours": 48
+  },
   "catchUp": {
     "_doc": "10 §8 — NEEDS DETAIL. The frontier-bonus / catch-up curve is sketched, not specified: it cannot be authored by hand and deriving it is the economy simulator's first job (O1, 21 §12). Only the two sketched endpoints below appear in the docs; the curve itself is deliberately unauthored.",
     "belowHighestChapterRewardReduction": 0.6,

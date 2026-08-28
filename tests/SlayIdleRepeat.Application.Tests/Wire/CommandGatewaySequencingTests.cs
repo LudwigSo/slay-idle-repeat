@@ -181,55 +181,13 @@ public sealed class CommandGatewaySequencingTests
             "genuine command conflicts with an intruder's record)");
     }
 
-    [Fact]
-    public async Task A_replayed_START_RUN_repairs_a_run_scope_whose_open_never_landed()
-    {
-        // The seam the record-then-open pair leaves: with a durable ledger, appending the
-        // acceptance and opening the run scope are two store calls and the process can die between
-        // them. No shipped command can reach that state through the volatile ledger, so the fixture
-        // constructs it directly (S25): a decorator drops the first open.
-        var ledger = new OpenDroppingLedger(new VolatileCommandLedger()) { DropOpens = true };
-        var world = await GatewayWorld.WithAStartingPlayerAsync(ledger: ledger);
-
-        var startRun = Envelopes.StartRun(sequence: 1, commandId: "c-start");
-        var first = await world.Gateway.SubmitPlayerCommandAsync(world.Player, startRun, Worlds.Cancel);
-        var runId = Replies.Parse(first, expectedStatus: 200)
-            .GetProperty("outcome").GetProperty("runId").GetString()!;
-
-        // The broken state is real: the accepted run answers RUN_NOT_FOUND.
-        var beforeRepair = await world.Gateway.SubmitRunCommandAsync(
-            world.Player, new Core.Primitives.RunId(runId),
-            Envelopes.Body("PICK_PERK", 1, "c-1", "{\"optionIndex\": 0}"), Worlds.Cancel);
-        Replies.Rejection(beforeRepair, "RUN_NOT_FOUND");
-
-        // The client's own retry rule — same commandId after a fault — is the repair path.
-        ledger.DropOpens = false;
-        var replay = await world.Gateway.SubmitPlayerCommandAsync(world.Player, startRun, Worlds.Cancel);
-        replay.Body.ShouldBe(first.Body, customMessage: "the replay is still the stored bytes, never a re-execution");
-
-        var afterRepair = await world.Gateway.SubmitRunCommandAsync(
-            world.Player, new Core.Primitives.RunId(runId),
-            Envelopes.Body("PICK_PERK", 1, "c-1", "{\"optionIndex\": 0}"), Worlds.Cancel);
-        Replies.Parse(afterRepair, expectedStatus: 200).TryGetProperty("rejected", out _).ShouldBeFalse(
-            "the replayed opening acceptance re-opens its run scope, so the run it named is " +
-            "reachable again instead of RUN_NOT_FOUND forever");
-    }
-
-    /// <summary>A ledger whose <c>OpenScopeAsync</c> can be made to silently fail — the durable-store crash window, constructed.</summary>
-    private sealed class OpenDroppingLedger(ICommandLedgerStore inner) : ICommandLedgerStore
-    {
-        internal bool DropOpens { get; set; }
-
-        public Task<long?> ReadLastSequenceAsync(string scope, CancellationToken ct) =>
-            inner.ReadLastSequenceAsync(scope, ct);
-
-        public Task<LedgerRecord?> ReadRecordAsync(string scope, CommandId commandId, CancellationToken ct) =>
-            inner.ReadRecordAsync(scope, commandId, ct);
-
-        public Task OpenScopeAsync(string scope, CancellationToken ct) =>
-            DropOpens ? Task.CompletedTask : inner.OpenScopeAsync(scope, ct);
-
-        public Task AppendAsync(string scope, LedgerRecord record, CancellationToken ct) =>
-            inner.AppendAsync(scope, record, ct);
-    }
+    // 🔒 A_replayed_START_RUN_repairs_a_run_scope_whose_open_never_landed stood here, over a ledger
+    // decorator that dropped the first scope open. Both are GONE, and deliberately: the state they
+    // constructed — a committed acceptance whose run scope never opened — cannot occur any more,
+    // because the record and the scope open land inside one transaction rather than as two store
+    // calls. Nothing was relaxed to make that true; the repair the case asserted was itself the
+    // defect, since a replay that re-opened a scope answered a fault once the run row it named had
+    // been reaped. The replacements are CommandCommitTests' A_duplicate_replays_the_stored_bytes_
+    // and_writes_nothing and A_duplicate_opening_command_still_replays_when_its_run_row_is_gone,
+    // plus IUnitOfWorkContractTests.An_opening_commit_leaves_the_new_scope_open_at_zero.
 }

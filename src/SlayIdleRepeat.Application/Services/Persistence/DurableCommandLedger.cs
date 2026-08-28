@@ -1,4 +1,3 @@
-using System.Text.Json;
 using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Wire;
 using SlayIdleRepeat.Contracts;
@@ -63,14 +62,26 @@ public sealed class DurableCommandLedger : ICommandLedgerStore
             .GetRecordedOutcomeAsync(CommandScopes.Resolve(scope), commandId, ct)
             .ConfigureAwait(false);
 
-        return stored is null ? null : ToLedgerRecord(stored);
+        return stored is null ? null : LedgerRecord.From(stored);
     }
 
-    /// <inheritdoc/>
+    /// <summary>Opens a scope at sequence 0. Idempotent, and never a reset.</summary>
+    /// <param name="scope">The scope key.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <inheritdoc cref="AppendAsync" path="/remarks"/>
     public Task OpenScopeAsync(string scope, CancellationToken ct) =>
         _store.OpenScopeAsync(CommandScopes.Resolve(scope), ct);
 
-    /// <inheritdoc/>
+    /// <summary>Records one processed command and advances the scope's last sequence, atomically.</summary>
+    /// <param name="scope">The scope key.</param>
+    /// <param name="record">The record.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// Its own public member rather than part of <see cref="ICommandLedgerStore"/>: a command's
+    /// record now lands inside the commit that carries the snapshots it describes, so the gateway
+    /// has no reason to write through the ledger at all and a seam offering it a second way to
+    /// would be a way to record a command without the state it produced.
+    /// </remarks>
     public Task AppendAsync(string scope, LedgerRecord record, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(record);
@@ -86,23 +97,5 @@ public sealed class DurableCommandLedger : ICommandLedgerStore
                 record.OpensRunScope),
             _recordTtl,
             ct);
-    }
-
-    /// <summary>One stored record back into the ledger's shape, its command re-decoded through the one codec.</summary>
-    private static LedgerRecord ToLedgerRecord(RecordedCommandOutcome stored)
-    {
-        using var payload = JsonDocument.Parse(stored.PayloadJson);
-
-        var decode = WireCommandCodec.Decode(new CommandEnvelope(
-            WireProtocol.PROTOCOL_VERSION, stored.CommandId, stored.Sequence,
-            stored.CommandType, payload.RootElement.Clone()));
-
-        return decode.Command is { } command
-            ? new LedgerRecord(stored.CommandId, stored.Sequence, command, stored.ResponseBody, stored.OpensScope)
-            : throw new InvalidOperationException(
-                "The stored record for command '" + stored.CommandId + "' does not decode (" +
-                decode.Rejection + "). These bytes were produced by the codec's own encode, so a " +
-                "refusal here is a registry or codec change that stranded committed records — fail " +
-                "loudly rather than treating a committed command as never seen.");
     }
 }

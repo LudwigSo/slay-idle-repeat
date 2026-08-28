@@ -50,8 +50,7 @@ internal static class EndRun
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }
 
-        var outcome = RunRewardMath.OutcomeFor(
-            run.BossDefeated, run.HasPendingTile ? run.PendingTileStage : null);
+        var outcome = RunSettlement.OutcomeOf(run);
 
         if (outcome == RunCompletionOutcome.Victory)
         {
@@ -59,24 +58,13 @@ internal static class EndRun
                 RunRewardMath.VictoryBonus(run.ChapterId, run.Tier, input.Context.Content), soulShards: 0);
         }
 
-        var payout = RunRewardMath.FinalPayoutFor(
-            run.BankedLegendXp, run.BankedSoulShards, outcome, watchedAd: false, input.Context.Content);
-
         var events = new List<DomainEvent>();
 
-        if (payout.LegendXp != 0)
-        {
-            input.Player.GrantLegendXp(payout.LegendXp);
-        }
+        RunSettlement.Settle(input.Player, run, outcome, input.Context.Content, events);
 
-        if (payout.SoulShards != 0)
-        {
-            events.Add(input.Player.MoveCurrency(CurrencyId.SOUL_SHARDS, payout.SoulShards, PayoutReason));
-        }
-
+        // After the payout, so the run's own events read in the order they happened: what the run
+        // banked is paid, and only then is the floor topped up for a run that produced too little.
         GrantSessionFloor(input, outcome, events);
-
-        run.EndRun();
 
         return HandlerResult.Accept(events);
     }
@@ -159,7 +147,4 @@ internal static class EndRun
 
     /// <summary>The daily counter the floor's per-day allowance is spent out of.</summary>
     private const string DailyFloorGrantCounter = "session_floor_grant";
-
-    /// <summary>Income-attribution reason for the run-end Soul Shard payout.</summary>
-    private const string PayoutReason = "run_end_payout";
 }

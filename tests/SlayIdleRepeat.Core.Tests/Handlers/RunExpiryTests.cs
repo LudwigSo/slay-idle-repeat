@@ -1,5 +1,8 @@
+using System.Globalization;
 using Shouldly;
+using SlayIdleRepeat.BalanceHarness.Content;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
@@ -149,6 +152,68 @@ public sealed class RunExpiryTests
             "the floor is what a run that was genuinely played out is owed, and it needs a draw "
             + "this command has no run scope to draw from — a settlement that granted it would be "
             + "minting items on a command the player did not spend a run making.");
+    }
+
+    /// <summary>
+    /// 🔒 The window is the number the content authors, and this is the only case that can tell that
+    /// apart from a 48 folded into the rule: every other case here reads identically against a
+    /// constant, because the shipped document authors the same 48 they are written around.
+    /// </summary>
+    [Fact]
+    public void The_window_is_the_authored_one_and_not_a_number_in_the_code()
+    {
+        var at = GearGrantWorlds.NowUtc.AddHours(RetunedWindowHours);
+
+        var shipped = SlayIdleRepeat.Core.GameRules.Apply(
+            Live(pendingStage: null), new RollDiceCommand(), RunContextAt(at));
+
+        shipped.Accepted.ShouldBeTrue(
+            "the negative control of the pair: at the retuned window the SHIPPED document still has "
+            + "hours to run, so a refusal here would mean the two arms are not discriminating "
+            + "anything.");
+
+        var retuned = SlayIdleRepeat.Core.GameRules.Apply(
+            Live(pendingStage: null),
+            new RollDiceCommand(),
+            RunContextAt(at) with { Content = RetunedTo(RetunedWindowHours) });
+
+        retuned.Rejection.ShouldBe(
+            RejectionReason.RUN_EXPIRED,
+            "the same elapsed span against a document authoring a shorter window is over. A rule "
+            + "that carried its own 48 would accept this command and no other case in this file "
+            + "would notice.");
+    }
+
+    /// <summary>A window the shipped document does not author, so the two arms of the pair differ.</summary>
+    private const int RetunedWindowHours = 24;
+
+    /// <summary>The shipped content set with the run window authored down to <paramref name="hours"/>.</summary>
+    /// <remarks>
+    /// Retuned through <c>GameDataLoader.LoadWith</c> over the real tree rather than hand-built, so
+    /// the document, the reader and the rule under test are all the shipped ones — a fixture snapshot
+    /// would only prove that a hand-written number reaches a hand-written reader.
+    /// </remarks>
+    private static ContentSnapshot RetunedTo(int hours)
+    {
+        var authored = File.ReadAllText(
+            Path.Combine(GameDataLoader.DataRoot, RunLifetimeTuning.DocumentPath));
+
+        var retuned = authored.Replace(
+            "\"expiryHours\": " + WindowHours.ToString(CultureInfo.InvariantCulture),
+            "\"expiryHours\": " + hours.ToString(CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
+
+        retuned.ShouldNotBe(
+            authored,
+            "the retune has to have landed, or both arms read the shipped window and the case "
+            + "passes over one document twice.");
+
+        return GameDataLoader.LoadWith(
+            GameDataLoader.DataRoot,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [RunLifetimeTuning.DocumentPath] = retuned,
+            });
     }
 
     /// <summary>A live run, last acted on at the fixtures' instant.</summary>

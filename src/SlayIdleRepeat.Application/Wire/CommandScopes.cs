@@ -35,6 +35,13 @@ public static class CommandScopes
         return PlayerPrefix + player.Value;
     }
 
+    /// <summary>The key that spells a typed domain — <see cref="Resolve"/>'s inverse.</summary>
+    /// <param name="scope">The sequencing domain.</param>
+    public static string KeyOf(IdempotencyScope scope) =>
+        scope.Kind == IdempotencyScopeKind.Run
+            ? ForRun(scope.Player, scope.Run!.Value)
+            : ForPlayer(scope.Player);
+
     /// <summary>The typed domain a scope key names.</summary>
     /// <param name="scope">A key previously produced by <see cref="ForRun"/> or <see cref="ForPlayer"/>.</param>
     /// <exception cref="ArgumentException">The text is not a scope key this class ever produced.</exception>

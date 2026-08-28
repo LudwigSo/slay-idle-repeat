@@ -23,8 +23,12 @@ namespace SlayIdleRepeat.Application.Ports.Server;
 /// and the in-memory fake accepts any scope. A caller that records before saving is miswired.
 /// </para>
 /// <para>
-/// A run-scoped record's lifetime follows its run; the in-memory fake approximates with the
-/// per-record lifetime it was handed, which is the same 48 hours by configuration.
+/// 🔒 A run-scoped record lives as long as its run's ROW does — its EXISTENCE, never its liveness.
+/// Whether a run may still be played is a game rule the domain decides from the row it loads, and a
+/// store that hid the counter or the record of a run whose window had passed would answer
+/// <c>RUN_NOT_FOUND</c> — "your run never existed" — before the domain was ever asked what had
+/// actually happened to it. The in-memory fake approximates with the per-record lifetime it was
+/// handed, which is the same 48 hours by configuration.
 /// </para>
 /// </remarks>
 public interface IIdempotencyStore

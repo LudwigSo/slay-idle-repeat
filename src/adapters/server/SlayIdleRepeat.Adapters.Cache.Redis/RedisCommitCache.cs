@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Application.Ports.Server;
+using SlayIdleRepeat.Application.Services.Persistence;
 
 namespace SlayIdleRepeat.Adapters.Cache.Redis;
 
@@ -50,9 +51,39 @@ public sealed class RedisCommitCache : IUnitOfWork
     }
 
     /// <inheritdoc/>
-    public Task CommitAsync(CommandCommit commit, CancellationToken ct) =>
-        throw new NotImplementedException(
-            "Write-behind population is not implemented yet: commit through the inner unit of work "
-            + "first, then populate the run-state and record entries, absorbing every "
-            + "non-cancellation cache fault into the counter.");
+    public async Task CommitAsync(CommandCommit commit, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(commit);
+
+        // The authority first, and nothing populated before it: an entry written ahead of the commit
+        // is a cache serving a state the store of record may never reach.
+        await _inner.CommitAsync(commit, ct).ConfigureAwait(false);
+
+        await TrySetAsync(
+                RedisKeys.ForRecord(commit.Scope, commit.Outcome.CommandId),
+                RedisRecordCodec.Encode(commit.Outcome),
+                ct)
+            .ConfigureAwait(false);
+
+        if (commit.State?.ActiveRun is { } run)
+        {
+            await TrySetAsync(RedisKeys.ForRunState(run.Id), SnapshotCodec.EncodeRun(run), ct)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async Task TrySetAsync(string key, byte[] value, CancellationToken ct)
+    {
+        try
+        {
+            await _cache.SetAsync(key, value, _ttl, ct).ConfigureAwait(false);
+        }
+        catch (Exception failure) when (RedisRunStateCache.IsAbsorbable(failure))
+        {
+            // The command has already happened. Raising here would report a committed command as
+            // failed and invite the client to send it a second time, so the outage costs a metric
+            // and one slower read instead.
+            _failures.Increment();
+        }
+    }
 }

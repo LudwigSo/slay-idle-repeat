@@ -44,9 +44,42 @@ public sealed class InMemoryUnitOfWork : IUnitOfWork
     public IReadOnlyList<EconomyEventRecord> EconomyEvents => _economyEvents;
 
     /// <inheritdoc/>
-    public Task CommitAsync(CommandCommit commit, CancellationToken ct) =>
-        throw new NotImplementedException(
-            "The in-memory unit of work does not commit yet. It must land the snapshots, the "
-            + "outcome record with its sequence advance, and the economy rows as one effect, and "
-            + "leave none of them behind when either half is told to fail.");
+    /// <remarks>
+    /// Everything that can refuse the commit is asked BEFORE anything is written — the fault knobs
+    /// and the token — so a commit that cannot complete leaves nothing behind at all. There is no
+    /// transaction to roll back here, so the only honest way to be whole-or-nothing is to decide
+    /// before the first write rather than to unwind after one.
+    /// </remarks>
+    public async Task CommitAsync(CommandCommit commit, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(commit);
+        ct.ThrowIfCancellationRequested();
+
+        if (FailingSnapshotWrites)
+        {
+            throw new InvalidOperationException(
+                "scripted: the snapshot half of this commit was told to fail.");
+        }
+
+        if (FailingRecordWrites)
+        {
+            throw new InvalidOperationException(
+                "scripted: the record half of this commit was told to fail.");
+        }
+
+        if (commit.State is { } profile)
+        {
+            await _players.SaveAsync(profile, ct).ConfigureAwait(false);
+        }
+
+        await _idempotency.RecordAsync(commit.Scope, commit.Outcome, commit.OutcomeTtl, ct)
+            .ConfigureAwait(false);
+
+        if (commit.OpensScope is { } opened)
+        {
+            await _idempotency.OpenScopeAsync(opened, ct).ConfigureAwait(false);
+        }
+
+        _economyEvents.AddRange(commit.EconomyEvents);
+    }
 }
