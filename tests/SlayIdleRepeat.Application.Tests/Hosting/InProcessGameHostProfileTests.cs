@@ -7,6 +7,8 @@ using SlayIdleRepeat.Application.Tests.Persistence;
 using SlayIdleRepeat.Application.Tests.UseCases;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Hero;
 using SlayIdleRepeat.Core.Testing;
 using Xunit;
 
@@ -20,6 +22,9 @@ public sealed class InProcessGameHostProfileTests
 {
     /// <summary>The authored starting Legend Level, read where the game reads it.</summary>
     private const string AuthoredMinimumLegendLevel = "tuning/progression.json#/legendLevel/min";
+
+    /// <summary>The English half of the name filter's word lists.</summary>
+    private const string EnglishWordList = "content/profanity/en.json";
 
     // ═══════════════════════════════════════════════════════ creating it, exactly once
 
@@ -189,19 +194,70 @@ public sealed class InProcessGameHostProfileTests
                 "the identity element, so there is nothing here the two are entitled to disagree on.");
     }
 
+    /// <summary>
+    /// A fresh profile carries the authored default name, not the machine identity that names its row.
+    /// </summary>
+    /// <remarks>
+    /// The display name is the one field the comparison against the domain harness normalises away
+    /// with the identity, so it is pinned here instead. It used to be the id itself: a
+    /// <c>PLAYER_&lt;guid&gt;</c> string, longer than a hero name may be and shown to the player on
+    /// every screen that names them. The default is an authored name that has passed the filter.
+    /// </remarks>
     [Fact]
-    public async Task OpenProfileAsync_names_the_profile_after_the_identity_it_minted()
+    public async Task OpenProfileAsync_names_the_profile_with_the_validated_default_rather_than_its_own_id()
     {
         var host = Hosts.Over(new InMemoryLocalCache());
 
         var player = await host.OpenProfileAsync(Worlds.Cancel);
         var stored = (await host.ReadOwnStateAsync(player, null, Worlds.Cancel)).View!.Player;
 
-        stored.DisplayName.ShouldBe(
+        stored.DisplayName.ShouldNotBe(
             player.Value,
-            "the display name is the one field the comparison against the domain harness normalises " +
-            "away with the identity, so it is pinned here instead. Nothing has asked the player for a " +
-            "name yet, and inventing one would be a value with no author.");
+            "the profile is still named after the identity it minted, which is not a name anybody " +
+            "authored and not one the name filter would accept.");
+
+        stored.DisplayName.ShouldBe(
+            "Wanderer",
+            "the authored name a player who has not chosen one carries. Read through the filter " +
+            "rather than spelled at this call site — see the case below, which proves the word lists " +
+            "were consulted.");
+    }
+
+    /// <summary>
+    /// 🔒 The name the host stores came through the filter — proved by making the filter refuse it.
+    /// </summary>
+    /// <remarks>
+    /// The only way to observe from out here that a name was filtered is to hand the host a content
+    /// set whose word lists refuse the very name it is about to use, and require it to stop. A host
+    /// that reached the aggregate's unfiltered door would store the name and answer normally.
+    /// </remarks>
+    [Fact]
+    public async Task OpenProfileAsync_stops_loudly_when_the_word_lists_refuse_the_default_name()
+    {
+        var hostile = ContentLoader
+            .Load(RepoData.SourceWithEdit(EnglishWordList, "\"wanker\"", "\"wanderer\""))
+            .Require();
+
+        HeroNames.Decide("Wanderer", Worlds.Content).Refusal.ShouldBeNull(
+            "the shipped word lists already refuse the default name, so the refusal below would say " +
+            "nothing about whether this case's edit reached the filter.");
+
+        HeroNames.Decide("Wanderer", hostile).Refusal.ShouldBe(
+            HeroNameRefusal.PROFANE_EN,
+            "the edit did not take, so this case would be running against word lists that accept the " +
+            "default and an unfiltered host would satisfy it.");
+
+        var host = Hosts.Over(new InMemoryLocalCache(), content: hostile);
+
+        (await Should.ThrowAsync<InvalidOperationException>(
+                () => host.OpenProfileAsync(Worlds.Cancel)))
+            .Message.ShouldContain(
+                "PROFANE_EN",
+                Case.Sensitive,
+                "the host named the profile without consulting the word lists the content set " +
+                "carries — or refused for some other reason, which would leave the filter unproven. " +
+                "Every account that has not chosen a name carries this one, so a data set that " +
+                "refuses it is worth stopping on rather than waving through.");
     }
 
     // ═══════════════════════════════════════════════════════════════ the authored floor

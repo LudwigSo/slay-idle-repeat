@@ -104,6 +104,7 @@ public sealed class MigrationPlanTests
             "0003_economy_events.sql",
             "0004_player_messages.sql",
             "0005_moderation.sql",
+            "0006_auth.sql",
         });
 
         shipped.ShouldAllBe(
@@ -144,6 +145,165 @@ public sealed class MigrationPlanTests
             + "time — which, with no caller, is nowhere.");
     }
 
+    /// <summary>Each auth table paired with the INSERT that writes its rows.</summary>
+    public static TheoryData<string, string> AuthInserts() => new()
+    {
+        { "auth_devices", PostgresAuthStore.InsertDeviceStatement },
+        { "auth_token_families", PostgresAuthStore.InsertFamilyStatement },
+        { "auth_refresh_tokens", PostgresAuthStore.InsertRefreshTokenStatement },
+        { "auth_account_deletions", PostgresAuthStore.InsertAccountDeletionStatement },
+        { "auth_deletion_tombstones", PostgresAuthStore.InsertDeletionTombstoneStatement },
+    };
+
+    /// <summary>Each auth table paired with an UPDATE that mutates its rows.</summary>
+    public static TheoryData<string, string> AuthUpdates() => new()
+    {
+        { "auth_token_families", PostgresAuthStore.RevokeFamilyStatement },
+        { "auth_refresh_tokens", PostgresAuthStore.RotateRefreshTokenStatement },
+        { "auth_devices", PostgresAuthStore.TouchDeviceStatement },
+        { "auth_token_families", PostgresAuthStore.RevokeFamiliesForPlayerStatement },
+    };
+
+    /// <summary>Each auth table paired with a SELECT that reads its whole row back.</summary>
+    /// <remarks>
+    /// A partial SELECT belongs in <see cref="AuthPartialSelects"/> instead — the two are compared
+    /// differently, and running a whole-row comparison over a one-column read would fail forever.
+    /// </remarks>
+    public static TheoryData<string, string> AuthFullRowSelects() => new()
+    {
+        { "auth_devices", PostgresAuthStore.SelectDeviceStatement },
+        { "auth_devices", PostgresAuthStore.SelectDeviceForPlayerStatement },
+        { "auth_refresh_tokens", PostgresAuthStore.SelectTokensInFamilyStatement },
+    };
+
+    /// <summary>Each auth table paired with a SELECT that reads back only some of its columns.</summary>
+    public static TheoryData<string, string> AuthPartialSelects() => new()
+    {
+        { "auth_account_deletions", PostgresAuthStore.SelectAccountDeletionStatement },
+        { "auth_account_deletions", PostgresAuthStore.SelectDeletedPlayersStatement },
+    };
+
+    /// <summary>
+    /// 🔒 Every auth INSERT names exactly the columns its table declares — the same S25 pin the
+    /// economy log carries, for the same reason: <c>PostgresAuthStore</c> speaks to a database no
+    /// tier here starts, so a column renamed on one side would surface only on a live run.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AuthInserts))]
+    public void An_auth_insert_names_exactly_the_columns_its_table_declares(string table, string statement)
+    {
+        var declared = TableColumnsOf("0006_auth.sql", table);
+        var written = InsertColumnsOf(statement);
+
+        written.OrderBy(c => c, StringComparer.Ordinal).ShouldBe(
+            declared.OrderBy(c => c, StringComparer.Ordinal),
+            "0006_auth.sql and PostgresAuthStore." + table + "'s INSERT are the two halves of one "
+            + "row. The comparison runs both ways: a column the table gained and the INSERT forgot, "
+            + "and a column the INSERT writes that the table never had.");
+
+        ParameterCountOf(statement).ShouldBe(
+            written.Length,
+            "a column list longer than its VALUES list is a statement Npgsql refuses at execute "
+            + "time — which, with no caller yet, is nowhere.");
+    }
+
+    /// <summary>🔒 Every auth UPDATE touches only columns its table declares, one parameter each.</summary>
+    [Theory]
+    [MemberData(nameof(AuthUpdates))]
+    public void An_auth_update_touches_only_columns_its_table_declares(string table, string statement)
+    {
+        var declared = TableColumnsOf("0006_auth.sql", table);
+        var touched = ParameterisedColumnsOf(statement);
+
+        touched.ShouldNotBeEmpty(
+            "an UPDATE that binds no column by name is either a full-table write or a statement "
+            + "this reader no longer understands; both must fail here rather than pass vacuously.");
+
+        touched.Except(declared, StringComparer.Ordinal).ShouldBeEmpty(
+            "the revocation and rotation stamps are the only writes these rows ever take, and a "
+            + "column name that drifted from the migration would refuse at execute time.");
+
+        ParameterCountOf(statement).ShouldBe(
+            touched.Length,
+            "one parameter per bound column; a spare @name is a parameter Npgsql never fills.");
+    }
+
+    /// <summary>🔒 Every whole-row auth lookup reads back exactly the row the migration declares.</summary>
+    [Theory]
+    [MemberData(nameof(AuthFullRowSelects))]
+    public void An_auth_row_lookup_selects_exactly_the_columns_its_table_declares(
+        string table, string statement)
+    {
+        var declared = TableColumnsOf("0006_auth.sql", table);
+        var selected = SelectColumnsOf(statement);
+
+        selected.OrderBy(c => c, StringComparer.Ordinal).ShouldBe(
+            declared.OrderBy(c => c, StringComparer.Ordinal),
+            "a SELECT that misses a column the table declares reads a row with a field missing, and "
+            + "one that names a column the table dropped fails at execute time. Neither is visible "
+            + "to a tier that never starts a database, so this pin is the only thing watching.");
+
+        ParameterisedColumnsOf(statement).Except(declared, StringComparer.Ordinal).ShouldBeEmpty(
+            "the WHERE clause keys on a column this table declares, or it keys on nothing.");
+    }
+
+    /// <summary>
+    /// 🔒 The one joined read: it projects a whole family row and keys on the OTHER table's column.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately its own case rather than a row in <see cref="AuthFullRowSelects"/>. The theory
+    /// asserts the WHERE keys on a column of the table being projected, which is right for every
+    /// single-table read and wrong for a join — and the fix is to say which table each half belongs
+    /// to, not to relax the rule for all of them. Both halves must drift-check, because this
+    /// statement is the one place the two auth tables are read together.
+    /// </remarks>
+    [Fact]
+    public void The_family_lookup_projects_a_family_and_keys_on_a_refresh_token()
+    {
+        const string statement = PostgresAuthStore.SelectFamilyForTokenStatement;
+
+        SelectColumnsOf(statement).OrderBy(c => c, StringComparer.Ordinal).ShouldBe(
+            TableColumnsOf("0006_auth.sql", "auth_token_families").OrderBy(c => c, StringComparer.Ordinal),
+            "the projection is a whole auth_token_families row; a column missing here reads a family "
+            + "with a field absent, and one the table dropped refuses at execute time.");
+
+        ParameterisedColumnsOf(statement)
+            .Except(TableColumnsOf("0006_auth.sql", "auth_refresh_tokens"), StringComparer.Ordinal)
+            .ShouldBeEmpty(
+                "the lookup keys on the presented token's digest, which is a refresh-token column. "
+                + "If it ever keys on something auth_refresh_tokens does not declare, the join is "
+                + "reading a column that is not there.");
+    }
+
+    /// <summary>
+    /// 🔒 A partial auth lookup names only columns its table declares — the weaker pin, and it says
+    /// so.
+    /// </summary>
+    /// <remarks>
+    /// A whole-row comparison cannot apply here: these read one column deliberately. What is still
+    /// decidable is that every name they DO read is a real one, which is the half that breaks when
+    /// the migration renames something underneath them.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(AuthPartialSelects))]
+    public void A_partial_auth_lookup_names_only_columns_its_table_declares(
+        string table, string statement)
+    {
+        var declared = TableColumnsOf("0006_auth.sql", table);
+        var selected = SelectColumnsOf(statement);
+
+        selected.ShouldNotBeEmpty(
+            "a SELECT this reader extracted no column from is a statement it no longer understands, "
+            + "and it must fail here rather than pass over an empty set.");
+
+        selected.Except(declared, StringComparer.Ordinal).ShouldBeEmpty(
+            "every column read back is one the table declares; a name that drifted from the "
+            + "migration refuses at execute time, against a live database nothing here starts.");
+
+        ParameterisedColumnsOf(statement).Except(declared, StringComparer.Ordinal).ShouldBeEmpty(
+            "the WHERE clause keys on a column this table declares, or it keys on nothing.");
+    }
+
     /// <summary>The column names one CREATE TABLE declares, in declaration order.</summary>
     private static string[] TableColumnsOf(string fileName, string table)
     {
@@ -170,6 +330,31 @@ public sealed class MigrationPlanTests
         return statement[(open + 1)..statement.IndexOf(')', open)]
             .Split(',')
             .Select(column => column.Trim())
+            .ToArray();
+    }
+
+    /// <summary>The column names one statement binds a parameter to — <c>column = @name</c>.</summary>
+    private static string[] ParameterisedColumnsOf(string statement) =>
+        System.Text.RegularExpressions.Regex
+            .Matches(statement, "([a-z][a-z0-9_]*)\\s*=\\s*@")
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+
+    /// <summary>The column names one SELECT reads back, with any table alias stripped.</summary>
+    /// <remarks>
+    /// A joined read spells its columns <c>f.family_id</c>; the migration declares <c>family_id</c>.
+    /// Comparing the qualified form against the declared one would fail on every joined statement
+    /// for a reason that has nothing to do with drift, so the qualifier comes off here.
+    /// </remarks>
+    private static string[] SelectColumnsOf(string statement)
+    {
+        const string select = "SELECT ";
+
+        return statement[(statement.IndexOf(select, StringComparison.Ordinal) + select.Length)
+                ..statement.IndexOf(" FROM ", StringComparison.Ordinal)]
+            .Split(',')
+            .Select(column => column.Trim())
+            .Select(column => column[(column.IndexOf('.') + 1)..])
             .ToArray();
     }
 

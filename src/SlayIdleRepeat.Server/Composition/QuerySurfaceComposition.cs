@@ -38,7 +38,7 @@ public static class QuerySurfaceComposition
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        IPrincipalResolver principals = new PlaceholderBearerPlayerIdResolver();
+        IPrincipalResolver principals = AuthComposition.Principals(app);
 
         // The server's only tracing: no ASP.NET auto-instrumentation package is pinned, so a request
         // that is not wrapped here appears on no trace at all.

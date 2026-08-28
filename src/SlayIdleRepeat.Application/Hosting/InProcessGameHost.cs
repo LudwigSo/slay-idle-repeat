@@ -9,6 +9,7 @@ using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Hero;
 
 namespace SlayIdleRepeat.Application.Hosting;
 
@@ -97,8 +98,8 @@ public sealed class InProcessGameHost : IGameHost
     /// a row that does not exist, and every later command fails on the load — a bricked install.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// The starting row this host built does not rehydrate. A defect here or a content set whose
-    /// authored Legend Level range excludes its own minimum, never a caller's doing.
+    /// The starting row this host built does not rehydrate, or the content set's word lists refuse
+    /// the authored default name. A defect here or in the data, never a caller's doing.
     /// </exception>
     /// <exception cref="MissingContentException">The content set authors no Legend Level range.</exception>
     /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
@@ -114,9 +115,10 @@ public sealed class InProcessGameHost : IGameHost
 
         var id = new PlayerId(PlayerIdPrefix + _ids.NewGuid().ToString("N"));
 
-        // The name is the identity until something asks the player for one: nothing has, and a name
-        // invented here would be a value with no author.
-        var starting = Player.CreateStartingNamedAfterItsOwnId(id, _clock.UtcNow, _content);
+        // Nothing has asked this player for a name, so they carry the authored default — read through
+        // the filter rather than spelled here, so a content set whose word lists refuse it stops the
+        // launch instead of naming every such account something the game itself refuses.
+        var starting = Player.CreateStarting(id, HeroNames.Default(_content), _clock.UtcNow, _content);
 
         if (starting.IsFailure)
         {

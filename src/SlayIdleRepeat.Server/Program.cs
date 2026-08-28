@@ -24,6 +24,7 @@ app.UseAntiCheat();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
+app.MapAuthEndpoints();
 app.MapGameCommandEndpoints();
 app.MapQuerySurfaceEndpoints();
 app.MapRemoteConfigEndpoint();

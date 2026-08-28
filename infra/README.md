@@ -264,11 +264,11 @@ environment variable, listed in the `api` service in `docker-compose.yml`.
 
 > ⚠️ **Every group below is read by the server now.** M5-10 landed the
 > `RemoteConfig__*` pair, M5-05 the `ConnectionStrings__*` / `Cache__*` /
-> `ObjectStore__*` groups, and M5-11 the `OTEL_*`, `Sentry__Dsn` and `PostHog__*`
-> groups. The one exception is called out in its own row:
-> `ObjectStore__GhostSnapshotBucket`, defined ahead of the code that will bind it.
-> `__` is ASP.NET Core's configuration separator: `ConnectionStrings__Postgres`
-> binds to the key `ConnectionStrings:Postgres`.
+> `ObjectStore__*` groups, M5-11 the `OTEL_*`, `Sentry__Dsn` and `PostHog__*`
+> groups, and M5-06 the `Auth__*` group. The one exception is called out in its
+> own row: `ObjectStore__GhostSnapshotBucket`, defined ahead of the code that will
+> bind it. `__` is ASP.NET Core's configuration separator:
+> `ConnectionStrings__Postgres` binds to the key `ConnectionStrings:Postgres`.
 
 | Variable | Value in this stack | Consumed by |
 |---|---|---|
@@ -289,10 +289,39 @@ environment variable, listed in the `api` service in `docker-compose.yml`.
 | `OTEL_TRACES_SAMPLER` | `always_on` (local only) | **M5-11 — shipped, the OTel SDK reads this** |
 | `Sentry__Dsn` | *(empty — disabled)* | **M5-11 — shipped, the server reads this** |
 | `PostHog__Enabled` | `false` | **M5-11 — shipped, the server reads this** |
+| `Auth__JwtSigningKey` | `sir_local_dev_jwt_signing_key_not_a_secret` (a local dev default like every other value here; **a real secret in a deployed environment**, injected per `14` §1.1) | **M5-06 — shipped, the server reads this** |
+| `Auth__AccessTokenLifetimeMinutes` | `60` (`14` §16.5's access-token lifetime) | **M5-06 — shipped, the server reads this** |
+| `Auth__RefreshTokenLifetimeDays` | `30` (`14` §16.5's refresh-family lifetime) | **M5-06 — shipped, the server reads this** |
+| `Auth__SilentRenewalFraction` | `0.8` (`14` §16.5: the client renews at ~80 % of the access lifetime; the server hands it out as `renewAfterSeconds`) | **M5-06 — shipped, the server reads this** |
 
 The `OTEL_*` names are the OpenTelemetry specification's own, which the .NET
 OTel SDK reads with no code at all — M5-11 registers the SDK and it picks these
 up as they are.
+
+`Auth__JwtSigningKey` has **no default in code**. An absent or blank value, or
+one under 32 UTF-8 bytes, fails the first auth request with the variable's own
+spelling in the message. A generated default would invalidate every live token
+on each restart while looking like it worked, and a baked-in one would ship a
+public secret — so there is neither.
+
+> 📄 **Doc errata — `14` §16.5's 📐 markers on the three token lifetimes.**
+> §16.5 marks the access-token lifetime, the refresh lifetime and the silent-renewal
+> fraction with 📐, but `21` §3.1 ("Rule 1 — every tunable number lives in one
+> directory") says *"a 📐 TUNABLE number that is not in this directory is a bug"*
+> — while §16.5's own **Config home** row says these three are *"server-operations
+> numbers: **environment configuration** … deliberately **not** in `game-data/tuning/`
+> — they are not economy tunables and must never ride a content push."* The two
+> statements cannot both hold. The Config-home row is the ruling and is what this
+> stack implements: the numbers are `Auth__*` environment variables. **The 📐 markers
+> in §16.5 should be struck**; recorded here rather than silently ignored, because
+> the next reader of §16.5 will otherwise reach the opposite conclusion.
+>
+> ⚠️ Nothing mechanical will catch this for you. `21` §3.1 backs its rule with "a
+> build-time check [that] enumerates every `📐` marker in the documentation set
+> against the schema keys" — **that check was built and has since been removed**
+> (see the header of `build/ci/Invoke-ContentValidation.ps1`, which says so). So the
+> contradiction is unenforced in both directions today, and this note is the only
+> record of it.
 
 ### The M5 checklist
 

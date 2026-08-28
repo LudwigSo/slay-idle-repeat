@@ -10,10 +10,11 @@ namespace SlayIdleRepeat.Server.Composition;
 /// <remarks>
 /// Composition-root code: the shared state comes from <see cref="GameBackbone"/>, never newed
 /// here; what this area adds is its own — the gateway, and one placeholder still greppable by
-/// name: <see cref="PlaceholderBearerPlayerIdResolver"/> (M5-06's auth). The throttle and the
-/// account-standing decorator both come from <see cref="AntiCheatComposition"/>, which owns them.
-/// <c>CONTENT_VERSION_MISMATCH</c> has no arm anywhere yet — the content pinning it checks against
-/// is M5-09's.
+/// name: none. The throttle and the account-standing decorator come from
+/// <see cref="AntiCheatComposition"/> (M5-14) and the principal seam is the auth area's real one
+/// (M5-06), so both of this area's former placeholders are retired.
+/// <c>CONTENT_VERSION_MISMATCH</c> has no arm anywhere yet — the content pinning it checks
+/// against is M5-09's.
 /// </remarks>
 public static class GameCommandComposition
 {
@@ -27,7 +28,7 @@ public static class GameCommandComposition
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        IPrincipalResolver principals = new PlaceholderBearerPlayerIdResolver();
+        IPrincipalResolver principals = AuthComposition.Principals(app);
 
         // The account-standing check decorates whatever resolves the caller: an authenticated player
         // whose account carries a live account action is refused with 403 before any command is read.
