@@ -80,6 +80,8 @@ public sealed class GameBackbone
         ContentPins = new ContentPinning(
             persistence.ContentPins, Content, ResolvePinnedSnapshot, Console.Error.WriteLine);
 
+        SweepRetiredBundles(persistence.ContentPins);
+
         Entitlements = LocalHostAmbience.NoSubscriptionResolved();
 
         var configuredConfigPath = configuration["RemoteConfig:Path"];
@@ -120,6 +122,39 @@ public sealed class GameBackbone
 
     /// <summary>The run/session pins and the snapshots they resolve to.</summary>
     public ContentPinning ContentPins { get; }
+
+    /// <summary>Drops the bundles nothing is pinned to any more, once per process start.</summary>
+    /// <remarks>
+    /// ⚠️ <b>The only thing that runs a sweep today is a deploy.</b> There is no scheduler here — no
+    /// timer, no background service — so a process that stays up for a month retains everything
+    /// written during it. That is deliberate rather than forgotten: a deploy is when a new version
+    /// arrives and therefore when an old one becomes retirable, and a periodic sweep on a host that
+    /// publishes nothing new would only re-decide the same answer. It also makes the operation
+    /// observable, since it happens where the boot log already is.
+    /// <para>
+    /// Never fatal. Retention is bookkeeping; a sweep that cannot read its references or cannot
+    /// delete a file must leave the server serving content, not refuse to start.
+    /// </para>
+    /// </remarks>
+    private void SweepRetiredBundles(IContentPinStore pins)
+    {
+        try
+        {
+            var referenced = pins.ListRetainedAsync(CancellationToken.None)
+                .GetAwaiter().GetResult()
+                .Select(retained => retained.Version)
+                .ToArray();
+
+            Bundles.Sweep(Clock.UtcNow, referenced);
+        }
+        catch (Exception fault) when (fault is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            Console.Error.WriteLine(
+                "[content-bundles] the retention sweep did not run (" + fault.Message + "). Nothing " +
+                "was deleted, so every retained version is still servable; the shelf will simply " +
+                "keep growing until a later start sweeps it.");
+        }
+    }
 
     private readonly object _pinnedGate = new();
     private readonly Dictionary<string, ContentSnapshot?> _pinnedSnapshots = new(StringComparer.Ordinal);
