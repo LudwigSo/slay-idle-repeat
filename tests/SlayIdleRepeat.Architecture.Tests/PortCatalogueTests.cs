@@ -991,12 +991,17 @@ public sealed class PortCatalogueTests
         PortCatalogue.LegendGlyphs("- **Statuses:** `⬜ todo` · `🆕 brand new`")
             .ShouldBe(new[] { "⬜", "🆕" });
 
-        var open = new[] { (Subject: "IUnitOfWork", Owner: "M5-04") };
+        // ⚠️ THE OPEN EXAMPLE IS A FIXTURE WITH AN EXPIRY DATE, and this is the third one M5
+        // burned: it named M5-04 until that task shipped, exactly as the analytics register named
+        // M5-05 and the gear register named M5-06. The arm cannot be dropped — without a genuinely
+        // open owner the rule could report every entry as stale and this control would still pass —
+        // so it is re-pointed instead, and the next reader should expect to move it again.
+        var open = new[] { (Subject: "IUnitOfWork", Owner: "M18-08") };
         var shipped = new[] { (Subject: "IUnitOfWork", Owner: "M7-01") };
         var absent = new[] { (Subject: "IUnitOfWork", Owner: "M9-99") };
 
         PortCatalogue.OwnersNoLongerOpen(open, statuses).ShouldBeEmpty(
-            "M5-04 is a real tracker row and has not started, which is the arrangement every "
+            "M18-08 is a real tracker row and has not started, which is the arrangement every "
             + "deferral here is supposed to be in.");
 
         PortCatalogue.OwnersNoLongerOpen(shipped, statuses)
