@@ -60,6 +60,16 @@ public static class WireJson
         return JsonSerializer.Serialize(response, ResponseOptions);
     }
 
+    /// <summary>Renders one domain event in the wire's event dialect — the economy log's row payload speaks the same dialect as the response envelope.</summary>
+    /// <param name="event">The event.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="event"/> is null.</exception>
+    public static string RenderEvent(DomainEvent @event)
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+
+        return JsonSerializer.Serialize(@event, ResponseOptions);
+    }
+
     /// <summary>
     /// A domain event on the wire: <c>{"type": "&lt;event record name&gt;", …members}</c> — the
     /// runtime type flattened beside a discriminator, so the client's replay can dispatch on it.

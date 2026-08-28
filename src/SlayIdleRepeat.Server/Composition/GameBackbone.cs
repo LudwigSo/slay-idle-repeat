@@ -25,11 +25,11 @@ namespace SlayIdleRepeat.Server.Composition;
 /// </para>
 /// <para>
 /// What is named here, with its expiry: the real ambient adapters (<see cref="SystemClock"/>,
-/// <see cref="SystemIdGenerator"/>) and the local-file content source, which stay; the volatile
-/// world store and command ledger (M5-05's stores); <see cref="LocalHostAmbience"/>'s remaining
-/// named absence (M5-06 resolves the entitlement per player); and the flags' live source,
-/// <see cref="RemoteConfigSource"/> (M5-10) — its warn sink is a bare stderr write until M5-11's
-/// telemetry lands.
+/// <see cref="SystemIdGenerator"/>) and the local-file content source, which stay; the world store
+/// and command ledger from <see cref="PersistenceComposition"/> (Postgres-backed when configured,
+/// volatile otherwise); <see cref="LocalHostAmbience"/>'s remaining named absence (M5-06 resolves
+/// the entitlement per player); and the flags' live source, <see cref="RemoteConfigSource"/>
+/// (M5-10) — its warn sink is a bare stderr write until M5-11's telemetry lands.
 /// </para>
 /// <para>
 /// Built lazily WITHOUT caching a failure: the content set lives at <c>GameData:Root</c> (default
@@ -57,8 +57,14 @@ public sealed class GameBackbone
         Content = ContentLoader.Load(new LocalFileContentSource(dataRoot)).Require();
         Clock = new SystemClock();
         Ids = new SystemIdGenerator();
-        WorldStore = new WorldSliceStore(new PlaceholderVolatileWorldStore());
-        Ledger = new VolatileCommandLedger();
+
+        // M5-05: the stores come from the persistence composition — Postgres-backed (with the Redis
+        // hot cache) when ConnectionStrings:Postgres is configured, the volatile placeholders when
+        // it is not.
+        var persistence = PersistenceComposition.Shared(configuration);
+        WorldStore = new WorldSliceStore(persistence.WorldRows);
+        Ledger = persistence.Ledger;
+
         Entitlements = LocalHostAmbience.NoSubscriptionResolved();
 
         var configuredConfigPath = configuration["RemoteConfig:Path"];

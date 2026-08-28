@@ -54,9 +54,10 @@ public sealed class PortCatalogueTests
     /// 🔒 M7-01b raised it 5 → 6 for <c>IPlatformInfoPort</c>, together with
     /// <c>ContractSuiteCoverageTests.PortFloor</c> and <c>SubjectSetFloorTests.PortFloor</c>. Three
     /// floors are stated over the same set in three assemblies; one moving without the others is one
-    /// of them having gained a member the other two cannot see.
+    /// of them having gained a member the other two cannot see. M5-05 raised it 6 → 10 for its four
+    /// server ports, moving all three together again.
     /// </remarks>
-    private const int DeclaredPortFloor = 6;
+    private const int DeclaredPortFloor = 10;
 
     /// <summary>
     /// Entries in the register. At zero, <see cref="No_port_deferral_outlives_the_port_it_defers"/>,
@@ -94,6 +95,10 @@ public sealed class PortCatalogueTests
             new[] { "DeviceModel", "OsVersion", "AppVersion", "Locale", "IsLowEndDevice" }),
         ("23 §4.1", "ILocalCachePort", new[] { "ReadAsync", "WriteAsync", "DeleteAsync" }),
         ("23 §4.1", "IRewardedAdPort", new[] { "IsReady", "ShowAsync", "PreloadAsync" }),
+        ("23 §4.2", "IPlayerRepository", new[] { "GetAsync", "SaveAsync", "CreateAnonymousAsync" }),
+        ("23 §4.2", "IRunStateStore", new[] { "GetAsync", "SaveAsync", "DeleteAsync" }),
+        ("23 §4.2", "IIdempotencyStore", new[] { "GetRecordedOutcomeAsync", "RecordAsync" }),
+        ("23 §4.2", "IBattleLogStore", new[] { "PutAsync", "GetAsync" }),
         ("23 §4.3", "IClockPort", new[] { "UtcNow" }),
         ("23 §4.3", "IIdGeneratorPort", new[] { "NewGuid", "NewCommandId" }),
     };

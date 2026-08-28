@@ -43,13 +43,14 @@ public sealed record LedgerRecord(
 /// <para>
 /// ⚠️ Record TTLs are storage semantics and deliberately absent from this seam's shape: the run
 /// scope lives exactly as long as the run state's sliding 48 h TTL and a player record 48 h from
-/// its command (14 §16.3), which the M5-05 Redis/Postgres backing enforces where expiry is real.
-/// This seam is what that task implements; <see cref="VolatileCommandLedger"/> is the placeholder
-/// until it does.
+/// its command (14 §16.3), which the durable backing enforces where expiry is real — through
+/// <c>IIdempotencyStore</c>, so this assembly never names a store technology.
+/// <c>DurableCommandLedger</c> is that implementation; <see cref="VolatileCommandLedger"/> stands
+/// only on a process configured with no database.
 /// </para>
 /// <para>
-/// 🔒 Two contract clauses a durable backing must honour, stated here so M5-05 never re-decides
-/// them. <b>One:</b> <see cref="AppendAsync"/> commits the record and the last-sequence advance as
+/// 🔒 Two contract clauses a durable backing must honour, stated here so no implementation
+/// re-decides them. <b>One:</b> <see cref="AppendAsync"/> commits the record and the last-sequence advance as
 /// ONE atomic effect — two statements with a crash between them would let a retry find no record,
 /// pass <c>last + 1</c>, and double-apply a committed command. <b>Two:</b> the caller guarantees
 /// one writer per scope within one process (the gateway's player gate); cross-instance sequencing
@@ -88,16 +89,14 @@ public interface ICommandLedgerStore
 }
 
 /// <summary>
-/// ⚠️ PLACEHOLDER — the in-process <see cref="ICommandLedgerStore"/> that stands in until M5-05
-/// lands the Redis hot-cache over the Postgres-authoritative record. Process-lifetime memory: a
-/// restart forgets every sequence and every outcome, which is tolerable only while no real client
-/// depends on this server.
+/// ⚠️ VOLATILE FALLBACK — the in-process <see cref="ICommandLedgerStore"/> a database-less process
+/// runs on (M5-05 landed <c>DurableCommandLedger</c> over the idempotency port for everything
+/// else). Process-lifetime memory: a restart forgets every sequence and every outcome.
 /// </summary>
 /// <remarks>
-/// In this assembly rather than the composition root, unlike <c>PlaceholderVolatileWorldStore</c>,
-/// because it is the seam's reference implementation: the gateway's own suite runs the 16.3 rules
-/// against it, so the semantics M5-05's backing must reproduce are exercised here rather than
-/// restated there. It dies with that task.
+/// In this assembly rather than the composition root, unlike the volatile world store, because it
+/// is the seam's reference implementation: the gateway's own suite runs the 16.3 rules against it,
+/// so the semantics the durable backing reproduces are exercised here rather than restated there.
 /// </remarks>
 public sealed class VolatileCommandLedger : ICommandLedgerStore
 {

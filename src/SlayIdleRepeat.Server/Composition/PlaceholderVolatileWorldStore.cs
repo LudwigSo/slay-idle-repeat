@@ -4,11 +4,12 @@ using SlayIdleRepeat.Application.Ports.Client;
 namespace SlayIdleRepeat.Server.Composition;
 
 /// <summary>
-/// ⚠️ PLACEHOLDER — the byte store the server's <c>WorldSliceStore</c> runs over until M5-05 lands
-/// the Postgres-authoritative row and the Redis hot cache. Process-lifetime memory: a restart
-/// loses every profile and run, which is tolerable only while no real client depends on this
-/// server. Deliberately in the composition root, not in <c>adapters/fakes</c>: the test fakes stay
-/// test-only, and this concrete type is named exactly where concrete adapter types are allowed.
+/// ⚠️ VOLATILE FALLBACK — the byte store the server's <c>WorldSliceStore</c> runs over when no
+/// <c>ConnectionStrings:Postgres</c> is configured (M5-05 landed the Postgres-authoritative row
+/// behind <c>RepositoryWorldRows</c>; this stands only on database-less processes — local tooling
+/// and the unit tier). Process-lifetime memory: a restart loses every profile and run. Deliberately
+/// in the composition root, not in <c>adapters/fakes</c>: the test fakes stay test-only, and this
+/// concrete type is named exactly where concrete adapter types are allowed.
 /// </summary>
 /// <remarks>
 /// Honours the port's contract where it is cheap and load-bearing: the closed ordinal key space
