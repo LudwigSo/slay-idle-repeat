@@ -1,4 +1,9 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
+using Serilog;
+using SlayIdleRepeat.Adapters.Ambient.System;
 using SlayIdleRepeat.Application.Moderation;
+using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Wire;
 using SlayIdleRepeat.Server.Endpoints;
 
@@ -75,26 +80,228 @@ public sealed class PlausibilityOptions
 /// </remarks>
 public static class AntiCheatComposition
 {
+    private static readonly object InitializationGate = new();
+    private static AntiCheatArea? _shared;
+
     /// <summary>Registers the per-address rate limiter and the plausibility background service.</summary>
     /// <param name="builder">The host being composed.</param>
     /// <exception cref="ArgumentNullException"><paramref name="builder"/> is null.</exception>
-    public static WebApplicationBuilder AddAntiCheat(this WebApplicationBuilder builder) =>
-        throw new NotImplementedException();
+    public static WebApplicationBuilder AddAntiCheat(this WebApplicationBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var area = Shared(builder.Configuration);
+
+        builder.Services.AddRateLimiter(limiter =>
+        {
+            limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+                http => RateLimitPartition.GetTokenBucketLimiter(
+                    PerIpRateLimit.PartitionKeyFor(http), _ => PerIpRateLimit.BucketFor(area.Ip)));
+
+            limiter.OnRejected = (context, _) =>
+            {
+                PerIpRateLimit.WriteRefusal(context.HttpContext.Response, area.Ip);
+
+                return ValueTask.CompletedTask;
+            };
+        });
+
+        if (area.Plausibility.Enabled)
+        {
+            builder.Services.AddHostedService(_ => new PlausibilityLoop(area));
+        }
+
+        Announce(area);
+
+        return builder;
+    }
 
     /// <summary>Adds the area's middleware: the per-address limiter, in front of everything it protects.</summary>
     /// <param name="app">The composed host.</param>
     /// <exception cref="ArgumentNullException"><paramref name="app"/> is null.</exception>
-    public static WebApplication UseAntiCheat(this WebApplication app) => throw new NotImplementedException();
+    /// <remarks>
+    /// Ordering, declared once: after the observability area's exception middleware — a refusal here
+    /// is an ordinary answer and must still be traced — and before every endpoint, since an address
+    /// past its limit should cost no routing, no authentication and no database read.
+    /// </remarks>
+    public static WebApplication UseAntiCheat(this WebApplication app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+
+        app.UseRateLimiter();
+
+        return app;
+    }
 
     /// <summary>The one per-player limiter this process throttles commands with.</summary>
     /// <param name="configuration">The host's configuration.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="configuration"/> is null.</exception>
     internal static ICommandThrottle Throttle(IConfiguration configuration) =>
-        throw new NotImplementedException();
+        Shared(configuration).Throttle;
 
     /// <summary>Wraps a principal resolver with this process's account-standing check.</summary>
     /// <param name="inner">The resolver that decides who is calling.</param>
     /// <param name="configuration">The host's configuration.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     internal static IPrincipalResolver WithAccountStanding(
         IPrincipalResolver inner, IConfiguration configuration) =>
-        throw new NotImplementedException();
+        new SanctionAwarePrincipalResolver(inner, Shared(configuration).Standing);
+
+    /// <summary>The area's shared state, built on first call — the same pattern the other areas use.</summary>
+    private static AntiCheatArea Shared(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        if (Volatile.Read(ref _shared) is { } built)
+        {
+            return built;
+        }
+
+        lock (InitializationGate)
+        {
+            return _shared ??= new AntiCheatArea(configuration);
+        }
+    }
+
+    /// <summary>
+    /// Says out loud what this deployment's anti-cheat actually does, because every quiet state here
+    /// is indistinguishable from a working one.
+    /// </summary>
+    private static void Announce(AntiCheatArea area)
+    {
+        if (!area.Plausibility.Enabled)
+        {
+            Log.Information(
+                "Plausibility monitoring is DISABLED (Plausibility:Enabled=false): no account "
+                + "trajectory is observed and no review entry can be raised by this process");
+
+            return;
+        }
+
+        if (area.Envelope.AuthoredThresholds == 0)
+        {
+            Log.Warning(
+                "Plausibility monitoring is ENABLED with NO authored threshold: it will observe "
+                + "every account and flag nothing. Author Plausibility:MaxCurrencyPerDay, "
+                + "Plausibility:MaxLegendXpPerDay or Plausibility:MaxBattleHashMismatchesPerDay "
+                + "from measured production data — no design document states one, and none is "
+                + "defaulted");
+        }
+
+        Log.Warning(
+            "Moderation storage is VOLATILE: every plausibility observation and every review-queue "
+            + "entry this process records is lost when it stops. No durable IModerationStore "
+            + "implementation exists yet");
+    }
+
+    /// <summary>
+    /// The area's composed state: everything this deployment's configuration decides, in one object.
+    /// </summary>
+    /// <remarks>
+    /// A named type rather than a closure over <see cref="Shared"/>, so that what the configuration
+    /// composes can be exercised without the process-wide cache in front of it — a singleton keyed on
+    /// nothing answers the first caller's configuration to every later one.
+    /// </remarks>
+    internal sealed class AntiCheatArea
+    {
+        /// <summary>Composes the area from one deployment's configuration.</summary>
+        /// <param name="configuration">The host's configuration.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="configuration"/> is null.</exception>
+        internal AntiCheatArea(IConfiguration configuration)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            var player = configuration.GetSection("RateLimit:Player").Get<PlayerRateLimitOptions>()
+                         ?? new PlayerRateLimitOptions();
+
+            Ip = configuration.GetSection("RateLimit:Ip").Get<PerIpRateLimitOptions>()
+                 ?? new PerIpRateLimitOptions();
+
+            Plausibility = configuration.GetSection("Plausibility").Get<PlausibilityOptions>()
+                           ?? new PlausibilityOptions();
+
+            Envelope = Plausibility.ToEnvelope();
+            Clock = new SystemClock();
+            Store = new VolatileModerationStore();
+            Standing = new AccountStandingSnapshot();
+
+            Throttle = new PlayerRateLimiter(
+                Clock, RateLimitPolicy.PerSecond(player.SustainedPerSecond, player.Burst));
+
+            Sweep = new PlausibilitySweep(Store, Clock, new SystemIdGenerator(), Envelope);
+        }
+
+        internal PerIpRateLimitOptions Ip { get; }
+
+        internal PlausibilityOptions Plausibility { get; }
+
+        internal PlausibilityEnvelope Envelope { get; }
+
+        internal IClockPort Clock { get; }
+
+        internal IModerationStore Store { get; }
+
+        internal AccountStandingSnapshot Standing { get; }
+
+        internal ICommandThrottle Throttle { get; }
+
+        internal PlausibilitySweep Sweep { get; }
+    }
+
+    /// <summary>
+    /// The background work: a hosted service in this same container — no vendor trigger, no function
+    /// runtime, nothing outside the process this composes.
+    /// </summary>
+    private sealed class PlausibilityLoop(AntiCheatArea area) : BackgroundService
+    {
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            using var timer = new PeriodicTimer(
+                TimeSpan.FromMinutes(Math.Max(1, area.Plausibility.SweepIntervalMinutes)));
+
+            // The first pass runs at startup rather than one interval later, so a process that is
+            // restarted more often than the interval still refreshes the locked-account set.
+            await PassAsync(stoppingToken).ConfigureAwait(false);
+
+            try
+            {
+                while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+                {
+                    await PassAsync(stoppingToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutdown.
+            }
+        }
+
+        // An unhandled exception out of ExecuteAsync stops the whole host, and a backstop that is
+        // allowed to find nothing is certainly allowed to fail: a moderation outage must never take
+        // the game down with it.
+        private async Task PassAsync(CancellationToken ct)
+        {
+            try
+            {
+                await area.Sweep.RefreshStandingAsync(area.Standing, ct).ConfigureAwait(false);
+
+                var result = await area.Sweep.RunOnceAsync(ct).ConfigureAwait(false);
+
+                Log.Information(
+                    "Plausibility sweep observed {Accounts} accounts, measured {Deltas} and raised "
+                    + "{Flags} review entries",
+                    result.AccountsObserved,
+                    result.DeltasMeasured,
+                    result.FlagsRaised);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Shutdown interrupted this pass.
+            }
+            catch (Exception failure)
+            {
+                Log.Warning(failure, "The plausibility sweep failed; this pass observed nothing");
+            }
+        }
+    }
 }

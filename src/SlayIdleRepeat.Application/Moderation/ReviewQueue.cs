@@ -80,8 +80,13 @@ public sealed record ReviewQueueEntry(
     /// <param name="raisedAtUtc">When.</param>
     /// <exception cref="ArgumentException"><paramref name="entryId"/> or <paramref name="reason"/> is blank.</exception>
     public static ReviewQueueEntry Raise(
-        string entryId, ReviewSource source, PlayerId subject, string reason, DateTimeOffset raisedAtUtc) =>
-        throw new NotImplementedException();
+        string entryId, ReviewSource source, PlayerId subject, string reason, DateTimeOffset raisedAtUtc)
+    {
+        RequireText(entryId, nameof(entryId), "an entry nobody can address is an entry nobody can close.");
+        RequireText(reason, nameof(reason), "a flag a reviewer cannot check is noise in a human's queue.");
+
+        return new ReviewQueueEntry(entryId, source, subject, ReviewState.OPEN, reason, raisedAtUtc);
+    }
 
     /// <summary>Records a reviewer's finding of manipulation.</summary>
     /// <param name="reviewedBy">The unverified operator string. Non-blank.</param>
@@ -90,7 +95,7 @@ public sealed record ReviewQueueEntry(
     /// <exception cref="ArgumentException"><paramref name="reviewedBy"/> or <paramref name="notes"/> is blank.</exception>
     /// <exception cref="InvalidOperationException">The entry already carries a verdict.</exception>
     public ReviewQueueEntry Confirm(string reviewedBy, string notes, DateTimeOffset reviewedAtUtc) =>
-        throw new NotImplementedException();
+        Decide(ReviewState.CONFIRMED, reviewedBy, notes, reviewedAtUtc);
 
     /// <summary>Records a reviewer finding nothing.</summary>
     /// <param name="reviewedBy">The unverified operator string. Non-blank.</param>
@@ -99,5 +104,39 @@ public sealed record ReviewQueueEntry(
     /// <exception cref="ArgumentException"><paramref name="reviewedBy"/> or <paramref name="notes"/> is blank.</exception>
     /// <exception cref="InvalidOperationException">The entry already carries a verdict.</exception>
     public ReviewQueueEntry Dismiss(string reviewedBy, string notes, DateTimeOffset reviewedAtUtc) =>
-        throw new NotImplementedException();
+        Decide(ReviewState.DISMISSED, reviewedBy, notes, reviewedAtUtc);
+
+    private ReviewQueueEntry Decide(
+        ReviewState verdict, string reviewedBy, string notes, DateTimeOffset reviewedAtUtc)
+    {
+        if (State != ReviewState.OPEN)
+        {
+            throw new InvalidOperationException(
+                $"entry '{EntryId}' is already {State} and cannot be recorded as {verdict}. A second "
+                + "verdict would overwrite one reviewer's decision with another's, leaving no trace "
+                + "that two people disagreed — reopen the question as a new entry instead.");
+        }
+
+        RequireText(
+            reviewedBy, nameof(reviewedBy),
+            "a decision on the sanctions ladder with no name attached is a decision nobody can be "
+            + "asked about. Nothing verifies this name; recording it is the whole of the control.");
+        RequireText(notes, nameof(notes), "the next reviewer of this account reads these, and only these.");
+
+        return this with
+        {
+            State = verdict,
+            ReviewedBy = reviewedBy,
+            ReviewNotes = notes,
+            ReviewedAtUtc = reviewedAtUtc,
+        };
+    }
+
+    private static void RequireText(string? value, string parameterName, string why)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException(why, parameterName);
+        }
+    }
 }

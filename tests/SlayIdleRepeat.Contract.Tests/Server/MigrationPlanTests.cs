@@ -89,22 +89,27 @@ public sealed class MigrationPlanTests
     /// a broken embed manifests here as the missing file's name, not as a quietly shorter list.
     /// </summary>
     [Fact]
-    public void The_shipped_history_is_exactly_the_four_M5_05_files_in_order()
+    public void The_shipped_history_is_exactly_the_files_this_build_carries_in_order()
     {
         var shipped = MigrationPlan.Ordered(PostgresMigrations.All());
 
+        // ⚠️ 0005 and 0006 are held by tasks running concurrently with the one that added 0007, and
+        // Ordered() refuses a gap outright — so until those land this fact is RED on the ordinal
+        // rule, not on this list. Whoever integrates them adds their two names here; if either task
+        // ships without a migration, 0007 is renumbered down instead.
         shipped.Select(s => s.FileName).ShouldBe(new[]
         {
             "0001_players_and_runs.sql",
             "0002_idempotency.sql",
             "0003_economy_events.sql",
             "0004_player_messages.sql",
+            "0007_moderation.sql",
         });
 
         shipped.ShouldAllBe(
             s => s.Sql.Contains("CREATE TABLE", StringComparison.Ordinal),
-            "every M5-05 file creates its tables; an empty or truncated embed would apply cleanly "
-            + "and leave the schema silently short.");
+            "every file creates its tables; an empty or truncated embed would apply cleanly and "
+            + "leave the schema silently short.");
     }
 
     /// <summary>

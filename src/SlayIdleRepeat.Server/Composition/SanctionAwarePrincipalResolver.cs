@@ -27,13 +27,29 @@ namespace SlayIdleRepeat.Server.Composition;
 /// </remarks>
 public sealed class SanctionAwarePrincipalResolver : IPrincipalResolver
 {
+    private readonly IPrincipalResolver _inner;
+    private readonly IAccountStandingSource _standing;
+
     /// <summary>Wraps a resolver with the account-standing check.</summary>
     /// <param name="inner">The resolver that decides who is calling.</param>
     /// <param name="standing">The locked-account set as of the last moderation refresh.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
-    public SanctionAwarePrincipalResolver(IPrincipalResolver inner, IAccountStandingSource standing) =>
-        throw new NotImplementedException();
+    public SanctionAwarePrincipalResolver(IPrincipalResolver inner, IAccountStandingSource standing)
+    {
+        ArgumentNullException.ThrowIfNull(inner);
+        ArgumentNullException.ThrowIfNull(standing);
+
+        _inner = inner;
+        _standing = standing;
+    }
 
     /// <inheritdoc/>
-    public PrincipalResolution Resolve(string? authorizationHeader) => throw new NotImplementedException();
+    public PrincipalResolution Resolve(string? authorizationHeader)
+    {
+        var resolved = _inner.Resolve(authorizationHeader);
+
+        return resolved.Player is { } player && _standing.IsAccountActioned(player)
+            ? PrincipalResolution.Locked()
+            : resolved;
+    }
 }

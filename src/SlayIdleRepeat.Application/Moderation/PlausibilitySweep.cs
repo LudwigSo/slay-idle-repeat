@@ -30,9 +30,22 @@ public sealed record PlausibilitySweepResult(int AccountsObserved, int DeltasMea
 /// impossible save to catch here. Building a statistical model nobody authored would be building
 /// the wrong thing thoroughly.
 /// </para>
+/// <para>
+/// An account's FIRST reading measures nothing, on purpose. A cumulative total is not a trajectory,
+/// and treating a lifetime balance as one tick's gain would flag every existing player the moment
+/// the sweep was first switched on.
+/// </para>
 /// </remarks>
 public sealed class PlausibilitySweep
 {
+    /// <summary>What a raised entry's identity is spelled with.</summary>
+    private const string EntryIdPrefix = "REV_";
+
+    private readonly IModerationStore _store;
+    private readonly IClockPort _clock;
+    private readonly IIdGeneratorPort _ids;
+    private readonly PlausibilityEnvelope _envelope;
+
     /// <summary>Composes the sweep.</summary>
     /// <param name="store">Where observations, queue entries and sanctions live.</param>
     /// <param name="clock">The instant each pass observes at.</param>
@@ -40,13 +53,65 @@ public sealed class PlausibilitySweep
     /// <param name="envelope">What counts as outside the envelope. Shipped unauthored.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public PlausibilitySweep(
-        IModerationStore store, IClockPort clock, IIdGeneratorPort ids, PlausibilityEnvelope envelope) =>
-        throw new NotImplementedException();
+        IModerationStore store, IClockPort clock, IIdGeneratorPort ids, PlausibilityEnvelope envelope)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(ids);
+        ArgumentNullException.ThrowIfNull(envelope);
+
+        _store = store;
+        _clock = clock;
+        _ids = ids;
+        _envelope = envelope;
+    }
 
     /// <summary>Runs one pass.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task<PlausibilitySweepResult> RunOnceAsync(CancellationToken ct) =>
-        throw new NotImplementedException();
+    public async Task<PlausibilitySweepResult> RunOnceAsync(CancellationToken ct)
+    {
+        var at = _clock.UtcNow;
+        var accounts = await _store.ObserveAccountsAsync(at, ct).ConfigureAwait(false);
+
+        var measured = 0;
+        var raised = 0;
+
+        foreach (var current in accounts)
+        {
+            var previous = await _store
+                .ReadPreviousObservationAsync(current.Player, ct)
+                .ConfigureAwait(false);
+
+            if (previous is not null)
+            {
+                measured++;
+
+                foreach (var flag in _envelope.Breaches(PlausibilityDelta.Between(previous, current)))
+                {
+                    // One entry per breached measure, not one per account: a reviewer closes
+                    // findings, and two trajectories are two things to check.
+                    await _store
+                        .RaiseReviewAsync(
+                            ReviewQueueEntry.Raise(
+                                EntryIdPrefix + _ids.NewGuid().ToString("N"),
+                                ReviewSource.PLAUSIBILITY_SWEEP,
+                                current.Player,
+                                flag.Reason,
+                                at),
+                            ct)
+                        .ConfigureAwait(false);
+
+                    raised++;
+                }
+            }
+
+            // Recorded whether or not anything was flagged: the window the NEXT pass measures runs
+            // from this reading, and skipping it would silently widen it into a stale average.
+            await _store.RecordObservationAsync(current, ct).ConfigureAwait(false);
+        }
+
+        return new PlausibilitySweepResult(accounts.Count, measured, raised);
+    }
 
     /// <summary>Refreshes a standing snapshot from the sanctions on record.</summary>
     /// <param name="snapshot">The snapshot the request path reads.</param>
@@ -56,6 +121,12 @@ public sealed class PlausibilitySweep
     /// Rides the same background pass as the sweep because both read the same store on the same
     /// cadence, and a second timer for one set lookup would be a second thing to configure wrongly.
     /// </remarks>
-    public Task RefreshStandingAsync(AccountStandingSnapshot snapshot, CancellationToken ct) =>
-        throw new NotImplementedException();
+    public async Task RefreshStandingAsync(AccountStandingSnapshot snapshot, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var sanctions = await _store.ReadSanctionsAsync(ct).ConfigureAwait(false);
+
+        snapshot.Replace(sanctions, _clock.UtcNow);
+    }
 }

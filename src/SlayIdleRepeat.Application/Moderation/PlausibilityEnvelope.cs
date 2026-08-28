@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace SlayIdleRepeat.Application.Moderation;
 
 /// <summary>Which trajectory a flag is about.</summary>
@@ -45,7 +47,10 @@ public sealed record PlausibilityEnvelope(
     public static readonly PlausibilityEnvelope Unauthored = new();
 
     /// <summary>How many of the three thresholds carry a number. Zero on the shipped envelope.</summary>
-    public int AuthoredThresholds => throw new NotImplementedException();
+    public int AuthoredThresholds =>
+        (MaxCurrencyPerDay is null ? 0 : 1)
+        + (MaxLegendXpPerDay is null ? 0 : 1)
+        + (MaxBattleHashMismatchesPerDay is null ? 0 : 1);
 
     /// <summary>Every threshold this delta exceeds. Empty when the delta is fine — and always empty while no threshold is authored.</summary>
     /// <param name="delta">The account's movement since its previous observation.</param>
@@ -62,8 +67,39 @@ public sealed record PlausibilityEnvelope(
     /// exactly the one whose numbers are large enough to wrap.
     /// </para>
     /// </remarks>
-    public IReadOnlyList<PlausibilityFlag> Breaches(PlausibilityDelta delta) =>
-        throw new NotImplementedException();
+    public IReadOnlyList<PlausibilityFlag> Breaches(PlausibilityDelta delta)
+    {
+        ArgumentNullException.ThrowIfNull(delta);
+
+        if (delta.Window <= TimeSpan.Zero)
+        {
+            return [];
+        }
+
+        var flags = new List<PlausibilityFlag>();
+
+        Judge(PlausibilityMeasure.CURRENCY_PER_DAY, MaxCurrencyPerDay, delta.CurrencyGained);
+        Judge(PlausibilityMeasure.LEGEND_XP_PER_DAY, MaxLegendXpPerDay, delta.LegendXpGained);
+        Judge(
+            PlausibilityMeasure.BATTLE_HASH_MISMATCHES_PER_DAY,
+            MaxBattleHashMismatchesPerDay,
+            delta.BattleHashMismatchesGained);
+
+        return flags;
+
+        void Judge(PlausibilityMeasure measure, long? threshold, long gained)
+        {
+            if (threshold is not { } perDay)
+            {
+                return;
+            }
+
+            if ((Int128)gained * TimeSpan.TicksPerDay > (Int128)perDay * delta.Window.Ticks)
+            {
+                flags.Add(new PlausibilityFlag(measure, gained, delta.Window, perDay));
+            }
+        }
+    }
 }
 
 /// <summary>One breached threshold, in enough detail for a reviewer to re-derive it.</summary>
@@ -83,5 +119,7 @@ public sealed record PlausibilityFlag(
     /// the text and not this record: a reason that said only "over the envelope" would leave them
     /// unable to tell which trajectory tripped.
     /// </remarks>
-    public string Reason => throw new NotImplementedException();
+    public string Reason => string.Create(
+        CultureInfo.InvariantCulture,
+        $"{Measure}: gained {Gained} over {Window} against a threshold of {ThresholdPerDay} per day");
 }

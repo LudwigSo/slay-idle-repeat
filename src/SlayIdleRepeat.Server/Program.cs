@@ -15,10 +15,12 @@ var builder = WebApplication.CreateBuilder(args);
 // Observability first: it installs the logger every later area logs through.
 builder.AddObservability();
 builder.AddPersistence();
+builder.AddAntiCheat();
 
 var app = builder.Build();
 
 app.UseObservability();
+app.UseAntiCheat();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

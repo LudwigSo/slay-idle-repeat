@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Threading.RateLimiting;
 
@@ -59,7 +60,24 @@ public static class PerIpRateLimit
 
     /// <summary>The partition key for one remote address.</summary>
     /// <param name="remoteAddress">The transport's remote address, or <c>null</c> when it has none.</param>
-    public static string PartitionKeyForAddress(IPAddress? remoteAddress) => throw new NotImplementedException();
+    /// <remarks>
+    /// The address is normalised, not spelled: an IPv4-mapped IPv6 address (what a dual-stack socket
+    /// hands you for an IPv4 client) collapses to its IPv4 form, so one client is one partition
+    /// whichever socket accepted it.
+    /// </remarks>
+    public static string PartitionKeyForAddress(IPAddress? remoteAddress)
+    {
+        if (remoteAddress is null)
+        {
+            return UnknownAddressPartition;
+        }
+
+        var normalised = remoteAddress.IsIPv4MappedToIPv6
+            ? remoteAddress.MapToIPv4()
+            : remoteAddress;
+
+        return "ip:" + normalised;
+    }
 
     /// <summary>
     /// The partition key for one request — the selector the limiter is actually registered with.
@@ -70,14 +88,37 @@ public static class PerIpRateLimit
     /// 🔒 It reads the connection and nothing else. Every forwarded-address header on the request is
     /// ignored, deliberately and by omission: see the type's remarks.
     /// </remarks>
-    public static string PartitionKeyFor(HttpContext http) => throw new NotImplementedException();
+    public static string PartitionKeyFor(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+
+        return PartitionKeyForAddress(http.Connection.RemoteIpAddress);
+    }
 
     /// <summary>The token bucket one address's partition runs on.</summary>
     /// <param name="options">The deployment's numbers.</param>
     /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A number is not positive.</exception>
-    public static TokenBucketRateLimiterOptions BucketFor(PerIpRateLimitOptions options) =>
-        throw new NotImplementedException();
+    public static TokenBucketRateLimiterOptions BucketFor(PerIpRateLimitOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        RequirePositive(options.PermitsPerSecond, nameof(PerIpRateLimitOptions.PermitsPerSecond));
+        RequirePositive(options.Burst, nameof(PerIpRateLimitOptions.Burst));
+
+        return new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = options.Burst,
+            TokensPerPeriod = options.PermitsPerSecond,
+            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+            AutoReplenishment = true,
+
+            // Refused, never queued: the client has already been told to back off, and holding its
+            // request open would spend the command latency budget on an answer it is not waiting for.
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+        };
+    }
 
     /// <summary>Writes the refusal a throttled address gets: HTTP 429, a <c>Retry-After</c>, no body.</summary>
     /// <param name="response">The response being written.</param>
@@ -90,6 +131,31 @@ public static class PerIpRateLimit
     /// id after a 429, and to never blind-retry a 200 rejection. Handing it both signals at once is
     /// exactly the blur the two limits are kept apart to prevent.
     /// </remarks>
-    public static void WriteRefusal(HttpResponse response, PerIpRateLimitOptions options) =>
-        throw new NotImplementedException();
+    public static void WriteRefusal(HttpResponse response, PerIpRateLimitOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        ArgumentNullException.ThrowIfNull(options);
+
+        RequirePositive(options.RetryAfterSeconds, nameof(PerIpRateLimitOptions.RetryAfterSeconds));
+
+        response.StatusCode = StatusCodes.Status429TooManyRequests;
+        response.Headers.RetryAfter =
+            options.RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>The parameter every settings refusal blames — both public entry points name it the same.</summary>
+    private const string OptionsParameterName = "options";
+
+    private static void RequirePositive(int value, string setting)
+    {
+        if (value <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                OptionsParameterName,
+                value,
+                $"{setting} is {value}. Every one of these settings is a positive count; a zero or "
+                + "negative one would refuse every request from every address, which is a deployment "
+                + "typo turning into an outage.");
+        }
+    }
 }

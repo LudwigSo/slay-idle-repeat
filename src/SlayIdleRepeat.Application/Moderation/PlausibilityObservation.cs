@@ -65,6 +65,33 @@ public sealed record PlausibilityDelta(
     /// <paramref name="previous"/>. Both are miswiring, not data a rate could be computed from.
     /// </exception>
     public static PlausibilityDelta Between(
-        PlausibilityObservation previous, PlausibilityObservation current) =>
-        throw new NotImplementedException();
+        PlausibilityObservation previous, PlausibilityObservation current)
+    {
+        ArgumentNullException.ThrowIfNull(previous);
+        ArgumentNullException.ThrowIfNull(current);
+
+        if (!previous.Player.Equals(current.Player))
+        {
+            throw new ArgumentException(
+                $"'{previous.Player}' and '{current.Player}' are two accounts, and the movement "
+                + "between them is not a trajectory — it is a subtraction of one player's history "
+                + "from another's.",
+                nameof(current));
+        }
+
+        if (current.ObservedAtUtc < previous.ObservedAtUtc)
+        {
+            throw new ArgumentException(
+                $"the later reading is stamped {current.ObservedAtUtc:O}, before the earlier one's "
+                + $"{previous.ObservedAtUtc:O}. A negative window inverts every rate computed from it.",
+                nameof(current));
+        }
+
+        return new PlausibilityDelta(
+            current.Player,
+            current.ObservedAtUtc - previous.ObservedAtUtc,
+            current.WalletTotal - previous.WalletTotal,
+            current.LegendXp - previous.LegendXp,
+            (long)current.BattleHashMismatches - previous.BattleHashMismatches);
+    }
 }

@@ -28,7 +28,8 @@ public sealed record PlayerSanction(
     /// <summary>Whether this sanction stands at <paramref name="instant"/>.</summary>
     /// <param name="instant">The moment being asked about.</param>
     /// <remarks>Applied-at is inclusive and lifted-at is exclusive, so a sanction lifted at <c>t</c> does not stand at <c>t</c>.</remarks>
-    public bool IsActiveAt(DateTimeOffset instant) => throw new NotImplementedException();
+    public bool IsActiveAt(DateTimeOffset instant) =>
+        instant >= AppliedAtUtc && (LiftedAtUtc is not { } lifted || instant < lifted);
 }
 
 /// <summary>Whether an account may be served at all — the one wire-enforced sanction, and nothing else.</summary>
@@ -47,8 +48,23 @@ public static class AccountStanding
     /// <param name="sanctions">Every sanction recorded against the account, active or not.</param>
     /// <param name="instant">The moment being asked about.</param>
     /// <exception cref="ArgumentNullException"><paramref name="sanctions"/> is null.</exception>
-    public static int? RefusalStatusFor(IEnumerable<PlayerSanction> sanctions, DateTimeOffset instant) =>
-        throw new NotImplementedException();
+    public static int? RefusalStatusFor(IEnumerable<PlayerSanction> sanctions, DateTimeOffset instant)
+    {
+        ArgumentNullException.ThrowIfNull(sanctions);
+
+        return sanctions.Any(sanction => Locks(sanction, instant)) ? LockedHttpStatus : null;
+    }
+
+    /// <summary>Whether one sanction locks its account at this instant.</summary>
+    /// <param name="sanction">The sanction.</param>
+    /// <param name="instant">The moment being asked about.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="sanction"/> is null.</exception>
+    public static bool Locks(PlayerSanction sanction, DateTimeOffset instant)
+    {
+        ArgumentNullException.ThrowIfNull(sanction);
+
+        return sanction.Kind == SanctionKind.ACCOUNT_ACTION && sanction.IsActiveAt(instant);
+    }
 }
 
 /// <summary>The synchronous question the request path asks before it reads a command: is this account locked?</summary>
@@ -77,16 +93,29 @@ public interface IAccountStandingSource
 /// </remarks>
 public sealed class AccountStandingSnapshot : IAccountStandingSource
 {
+    private IReadOnlySet<PlayerId> _locked = new HashSet<PlayerId>();
+
     /// <summary>Replaces the locked set with the accounts these sanctions lock at <paramref name="instant"/>.</summary>
     /// <param name="sanctions">Every known sanction.</param>
     /// <param name="instant">The moment to evaluate them at.</param>
     /// <exception cref="ArgumentNullException"><paramref name="sanctions"/> is null.</exception>
-    public void Replace(IEnumerable<PlayerSanction> sanctions, DateTimeOffset instant) =>
-        throw new NotImplementedException();
+    public void Replace(IEnumerable<PlayerSanction> sanctions, DateTimeOffset instant)
+    {
+        ArgumentNullException.ThrowIfNull(sanctions);
+
+        // Built whole and swapped in one write: a set mutated in place would let a request read it
+        // half-updated and refuse — or serve — an account on a state that never existed.
+        var locked = sanctions
+            .Where(sanction => AccountStanding.Locks(sanction, instant))
+            .Select(sanction => sanction.Subject)
+            .ToHashSet();
+
+        Volatile.Write(ref _locked, locked);
+    }
 
     /// <inheritdoc/>
-    public bool IsAccountActioned(PlayerId player) => throw new NotImplementedException();
+    public bool IsAccountActioned(PlayerId player) => Volatile.Read(ref _locked).Contains(player);
 
     /// <summary>How many accounts the current snapshot locks.</summary>
-    public int LockedAccounts => throw new NotImplementedException();
+    public int LockedAccounts => Volatile.Read(ref _locked).Count;
 }

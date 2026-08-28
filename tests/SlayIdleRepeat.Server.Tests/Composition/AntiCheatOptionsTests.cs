@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Shouldly;
+using SlayIdleRepeat.Application.Moderation;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Server.Composition;
 using SlayIdleRepeat.Server.Endpoints;
@@ -100,7 +101,7 @@ public sealed class AntiCheatOptionsTests
     }
 
     /// <summary>
-    /// 🔒 That the process installs the configured limiter, not just that a binder can read the
+    /// 🔒 That the process installs the CONFIGURED limiter, not just that a binder can read the
     /// keys. A burst of 2 discriminates from the shipped 20, so a composition that ignored
     /// configuration and used the default would fail here.
     /// </summary>
@@ -109,9 +110,9 @@ public sealed class AntiCheatOptionsTests
     {
         var player = new PlayerId("PLAYER_alice");
 
-        var throttle = AntiCheatComposition.Throttle(Configured(
+        var throttle = new AntiCheatComposition.AntiCheatArea(Configured(
             ("RateLimit:Player:SustainedPerSecond", "1"),
-            ("RateLimit:Player:Burst", "2")));
+            ("RateLimit:Player:Burst", "2"))).Throttle;
 
         throttle.ShouldReject(player).ShouldBeFalse();
         throttle.ShouldReject(player).ShouldBeFalse();
@@ -123,7 +124,7 @@ public sealed class AntiCheatOptionsTests
     public void An_unconfigured_process_still_installs_a_limiter_rather_than_no_limit_at_all()
     {
         var player = new PlayerId("PLAYER_alice");
-        var throttle = AntiCheatComposition.Throttle(Configured());
+        var throttle = new AntiCheatComposition.AntiCheatArea(Configured()).Throttle;
 
         for (var i = 0; i < 20; i++)
         {
@@ -135,6 +136,33 @@ public sealed class AntiCheatOptionsTests
             + "deployment must be limited, not unlimited.");
     }
 
+    [Fact]
+    public void The_composed_area_carries_the_configured_per_address_numbers_into_its_bucket()
+    {
+        var bucket = PerIpRateLimit.BucketFor(
+            new AntiCheatComposition.AntiCheatArea(Configured(
+                ("RateLimit:Ip:PermitsPerSecond", "7"),
+                ("RateLimit:Ip:Burst", "13"))).Ip);
+
+        bucket.TokensPerPeriod.ShouldBe(7);
+        bucket.TokenLimit.ShouldBe(
+            13, "a composition that bound the wrong section would silently ship the default 100.");
+    }
+
+    [Fact]
+    public void The_composed_area_starts_with_an_empty_locked_set_and_a_volatile_store()
+    {
+        var area = new AntiCheatComposition.AntiCheatArea(Configured());
+
+        area.Standing.LockedAccounts.ShouldBe(
+            0,
+            "a process that locked accounts it had never heard of would refuse every player on a "
+            + "cold start.");
+        area.Store.ShouldBeOfType<VolatileModerationStore>(
+            "there is no durable IModerationStore implementation yet, and the startup announcement "
+            + "that says so has to be describing what is actually composed.");
+    }
+
     /// <summary>The 403 path, proven through the composition rather than only through the decorator.</summary>
     [Fact]
     public void The_composed_resolver_wraps_the_inner_one_with_the_account_standing_check()
@@ -143,7 +171,8 @@ public sealed class AntiCheatOptionsTests
 
         var wrapped = AntiCheatComposition.WithAccountStanding(inner, Configured());
 
-        wrapped.ShouldNotBeSameAs(inner, "the composition must actually decorate, not pass through.");
+        wrapped.ShouldBeOfType<SanctionAwarePrincipalResolver>(
+            "the composition must actually decorate, not pass through.");
         wrapped.Resolve("Bearer whatever").Player.ShouldBe(
             new PlayerId("PLAYER_alice"),
             "with nothing sanctioned the wrapper is transparent — a process that locked accounts it "
