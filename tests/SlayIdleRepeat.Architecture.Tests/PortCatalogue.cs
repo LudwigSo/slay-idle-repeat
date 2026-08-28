@@ -317,16 +317,14 @@ internal static class PortCatalogue
             "with service credentials, and the provider decision (O5) is still open — the same " +
             "blocker the registration port carries, from the other end of the same channel."),
 
-        new("IAnalyticsSinkPort", "M5-11",
-            "Its only real implementation is the PostHog server-side sink, a vendor HTTP client with " +
-            "a project key. Its signature names an analytics event vocabulary nothing in Core " +
-            "declares, and a fire-and-forget buffered sink is precisely the shape whose fake proves " +
-            "nothing about delivery."),
-
-        new("ITelemetryPort", "M5-11",
-            "Its two real implementations are the OpenTelemetry exporter and the Sentry client, both " +
-            "vendor SDKs needing a collector endpoint or a DSN. A span that goes nowhere and an " +
-            "exception nobody receives both look identical to a fake."),
+        // ⚠️ IAnalyticsSinkPort and ITelemetryPort were here, deferred to M5-11. M5-11 declared both
+        // — the recording fakes beside the PostHog sink and the OpenTelemetry/Sentry pair — and this
+        // register FORCED the deletion exactly as it did for IPlatformInfoPort above: the commit that
+        // added the interfaces turned No_port_deferral_outlives_the_port_it_defers red on both
+        // entries, by name. Their old reason ("a fake proves nothing about delivery") did not vanish;
+        // it moved to the one register that can hold it now that the ports exist —
+        // Contract.Tests' StoreBackedAdapterExemptions, where each vendor adapter carries the owner
+        // that observes it instead of a fixture.
 
         new("IRemoteConfigPort", "M5-15",
             "Its only real implementation fetches JSON over HTTP from GET /config, so it needs a " +
@@ -425,10 +423,10 @@ internal static class PortCatalogue
             "PreloadAsync",
         }),
 
-        // 🔒 M5-05's four, transcribed in the commit that declared them. IIdempotencyStore declares
-        // two members beyond the section's pair (ReadLastSequenceAsync, OpenScopeAsync — the 16.3
-        // widening); extra members are the declaration's business, and only MISSING ones are what
-        // these directions can see.
+        // 🔒 M5-05's four persistence ports, transcribed in the commit that declared them.
+        // IIdempotencyStore declares two members beyond the section's pair (ReadLastSequenceAsync,
+        // OpenScopeAsync — the 16.3 widening); extra members are the declaration's business, and
+        // only MISSING ones are what these directions can see.
         new("23 §4.2", "IPlayerRepository", new[]
         {
             "GetAsync",
@@ -453,6 +451,23 @@ internal static class PortCatalogue
         {
             "PutAsync",
             "GetAsync",
+        }),
+
+        // 🔒 M5-11's two observability server ports, transcribed in the commit that declared them —
+        // the coverage rule demands a row the moment a specified port exists. NAMES only, per this
+        // register's stated limit: the declared signatures carry §4.2's richer parameter lists
+        // (RecordException's optional context, RecordMetric's tags), which the member directions
+        // cannot and do not compare.
+        new("23 §4.2", "IAnalyticsSinkPort", new[]
+        {
+            "Track",
+        }),
+
+        new("23 §4.2", "ITelemetryPort", new[]
+        {
+            "RecordException",
+            "BeginSpan",
+            "RecordMetric",
         }),
 
         new("23 §4.3", "IClockPort", new[]
