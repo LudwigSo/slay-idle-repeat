@@ -35,6 +35,7 @@ internal sealed class GatewayWorld
     private GatewayWorld(
         CommandGateway gateway,
         WorldSliceStore store,
+        InMemoryLocalCache cache,
         VolatileCommandLedger ledger,
         ManualThrottle throttle,
         AdjustableClock clock,
@@ -43,6 +44,7 @@ internal sealed class GatewayWorld
     {
         Gateway = gateway;
         Store = store;
+        Cache = cache;
         Ledger = ledger;
         Throttle = throttle;
         Clock = clock;
@@ -53,6 +55,9 @@ internal sealed class GatewayWorld
     internal CommandGateway Gateway { get; }
 
     internal WorldSliceStore Store { get; }
+
+    /// <summary>The bytes under <see cref="Store"/>, so a case can put a second store over the same rows.</summary>
+    internal InMemoryLocalCache Cache { get; }
 
     internal VolatileCommandLedger Ledger { get; }
 
@@ -105,7 +110,7 @@ internal sealed class GatewayWorld
             ledger ?? volatileLedger,
             throttle);
 
-        return new GatewayWorld(gateway, store, volatileLedger, throttle, clock, player, resolvedFlags);
+        return new GatewayWorld(gateway, store, cache, volatileLedger, throttle, clock, player, resolvedFlags);
     }
 
     /// <summary>A second starting player in the same world, so cross-player claims compare two real principals.</summary>

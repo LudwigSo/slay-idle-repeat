@@ -231,5 +231,8 @@ public sealed class CommandGatewaySequencingTests
 
         public Task AppendAsync(string scope, LedgerRecord record, CancellationToken ct) =>
             inner.AppendAsync(scope, record, ct);
+
+        public Task<MissedOutcomes> ReadOutcomesAfterAsync(string scope, long sinceSequence, CancellationToken ct) =>
+            inner.ReadOutcomesAfterAsync(scope, sinceSequence, ct);
     }
 }

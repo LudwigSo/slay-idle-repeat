@@ -84,14 +84,25 @@ public sealed class UseCaseSourceRuleTests
 
     /// <summary>The read side's own files, whose absence would take the rules below green with them.</summary>
     /// <remarks>
+    /// <para>
     /// 🔒 <b>Two files since M7-06b, and the second one is why this is a list.</b> The rule was
     /// written when the layer had one query, and "the read side" was spelled as that file's name — so
     /// a second query arrived governed by nothing, which is exactly the shape of drift the subject
     /// floors in this file exist to catch. A read use case added without an entry here is a read the
     /// two rules below do not see.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Three since M5-07, and the third one does not end in <c>UseCase.cs</c>.</b> The query
+    /// surface's own read assembles the wire answer rather than orchestrating a use case, so
+    /// <c>ReadSide</c>'s directory sweep — which classified files by that suffix alone — would never
+    /// have asked about it: a read that names <c>Rehydrate</c> or a run's phase would have slipped in
+    /// governed by nothing at all, which is the precise gap the second entry was added to close. The
+    /// sweep now claims <c>Query.cs</c> too, so this entry is re-derived from the directory rather
+    /// than trusted: deleting the line below fails, exactly as deleting a use case's line does.
+    /// </para>
     /// </remarks>
     private static readonly string[] ReadSideFiles =
-        ["ReadOwnStateUseCase.cs", "SimulatePendingBattleUseCase.cs"];
+        ["ReadOwnStateUseCase.cs", "SimulatePendingBattleUseCase.cs", "RunStateQuery.cs"];
 
     /// <summary>The write side's files, across which every term the rule below bans is legitimately named.</summary>
     private static readonly string[] WriteSideFiles = ["ApplyCommandUseCase.cs", "WorldSliceStore.cs"];
@@ -237,14 +248,18 @@ public sealed class UseCaseSourceRuleTests
             "differently, the first time either side grows a clause the other does not.");
     }
 
+    /// <summary>The file-name suffixes that say a file is a use case or a query, and so must be classified.</summary>
+    private static readonly string[] ClassifiableSuffixes = ["UseCase.cs", "Query.cs"];
+
     /// <summary>The read side's files, in <see cref="ReadSideFiles"/> order, <c>null</c> where absent.</summary>
     /// <remarks>
-    /// 🔒 <b>Every use case in the layer is classified first, and that is the load-bearing half.</b>
-    /// The floors in this file are stated over <see cref="ReadSideFiles"/>, so they are only as wide
-    /// as that array — and an array is shrunk by deleting a line, which no floor over the array
-    /// itself can see (steering S3). The classification is taken from the DIRECTORY instead: a use
-    /// case that is in neither list is a file the read-side rules do not govern and nobody said so,
-    /// whether it was just written or just dropped from the list.
+    /// 🔒 <b>Every use case and every query in the layer is classified first, and that is the
+    /// load-bearing half.</b> The floors in this file are stated over <see cref="ReadSideFiles"/>, so
+    /// they are only as wide as that array — and an array is shrunk by deleting a line, which no
+    /// floor over the array itself can see (steering S3). The classification is taken from the
+    /// DIRECTORY instead: a file whose name says it is one of these and which is in neither list is a
+    /// file the read-side rules do not govern and nobody said so, whether it was just written or just
+    /// dropped from the list.
     /// </remarks>
     private static IReadOnlyList<string?> ReadSide(IReadOnlyList<string> sources)
     {
@@ -252,15 +267,16 @@ public sealed class UseCaseSourceRuleTests
 
         var unclassified = sources
             .Select(Path.GetFileName)
-            .Where(name => name is not null && name.EndsWith("UseCase.cs", StringComparison.Ordinal))
+            .Where(name => name is not null &&
+                           ClassifiableSuffixes.Any(suffix => name.EndsWith(suffix, StringComparison.Ordinal)))
             .Where(name => !classified.Contains(name!))
             .ToArray();
 
         unclassified.ShouldBeEmpty(
             "the layer holds " + string.Join(", ", unclassified) + ", which is named in neither the " +
-            "read-side nor the write-side list. Every use case is one or the other: an unclassified " +
-            "one is a query the two rules below never look at, and deleting a name from the read-side " +
-            "list is exactly how one gets there without anybody choosing to.");
+            "read-side nor the write-side list. Every use case and every query is one or the other: an " +
+            "unclassified one is a read the two rules below never look at, and deleting a name from " +
+            "the read-side list is exactly how one gets there without anybody choosing to.");
 
         return ReadSideFiles
             .Select(name => sources.SingleOrDefault(f => Path.GetFileName(f) == name))

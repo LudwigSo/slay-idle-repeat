@@ -60,6 +60,21 @@ public static class WireJson
         return JsonSerializer.Serialize(response, ResponseOptions);
     }
 
+    /// <summary>Renders the run-state answer — the same dialect, from the same options instance.</summary>
+    /// <param name="response">The state answer.</param>
+    /// <remarks>
+    /// The overload the type remarks above commission. Its embedded outcome envelopes are already
+    /// JSON and ride out untouched, so the bytes a client replays are the bytes the first processing
+    /// stored.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="response"/> is null.</exception>
+    public static string Render(RunStateResponse response)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+
+        return JsonSerializer.Serialize(response, ResponseOptions);
+    }
+
     /// <summary>Renders one domain event in the wire's event dialect — the economy log's row payload speaks the same dialect as the response envelope.</summary>
     /// <param name="event">The event.</param>
     /// <exception cref="ArgumentNullException"><paramref name="event"/> is null.</exception>
