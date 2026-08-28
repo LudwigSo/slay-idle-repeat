@@ -73,42 +73,45 @@ public sealed class PlausibilitySweep
         var at = _clock.UtcNow;
         var accounts = await _store.ObserveAccountsAsync(at, ct).ConfigureAwait(false);
 
+        var previous = await _store
+            .ReadPreviousObservationsAsync(accounts.Select(account => account.Player).ToArray(), ct)
+            .ConfigureAwait(false);
+
         var measured = 0;
         var raised = 0;
 
         foreach (var current in accounts)
         {
-            var previous = await _store
-                .ReadPreviousObservationAsync(current.Player, ct)
-                .ConfigureAwait(false);
-
-            if (previous is not null)
+            if (!previous.TryGetValue(current.Player, out var earlier))
             {
-                measured++;
-
-                foreach (var flag in _envelope.Breaches(PlausibilityDelta.Between(previous, current)))
-                {
-                    // One entry per breached measure, not one per account: a reviewer closes
-                    // findings, and two trajectories are two things to check.
-                    await _store
-                        .RaiseReviewAsync(
-                            ReviewQueueEntry.Raise(
-                                EntryIdPrefix + _ids.NewGuid().ToString("N"),
-                                ReviewSource.PLAUSIBILITY_SWEEP,
-                                current.Player,
-                                flag.Reason,
-                                at),
-                            ct)
-                        .ConfigureAwait(false);
-
-                    raised++;
-                }
+                continue;
             }
 
-            // Recorded whether or not anything was flagged: the window the NEXT pass measures runs
-            // from this reading, and skipping it would silently widen it into a stale average.
-            await _store.RecordObservationAsync(current, ct).ConfigureAwait(false);
+            measured++;
+
+            foreach (var flag in _envelope.Breaches(PlausibilityDelta.Between(earlier, current)))
+            {
+                // One entry per breached measure, not one per account: a reviewer closes findings,
+                // and two trajectories are two things to check.
+                await _store
+                    .RaiseReviewAsync(
+                        ReviewQueueEntry.Raise(
+                            EntryIdPrefix + _ids.NewGuid().ToString("N"),
+                            ReviewSource.PLAUSIBILITY_SWEEP,
+                            current.Player,
+                            flag.Reason,
+                            at),
+                        ct)
+                    .ConfigureAwait(false);
+
+                raised++;
+            }
         }
+
+        // Recorded whether or not anything was flagged, and after the measuring rather than during
+        // it: the window the NEXT pass measures runs from these readings, and writing one before the
+        // rest were compared would measure some accounts against this pass and some against the last.
+        await _store.RecordObservationsAsync(accounts, ct).ConfigureAwait(false);
 
         return new PlausibilitySweepResult(accounts.Count, measured, raised);
     }

@@ -12,6 +12,13 @@
 -- operator: player auth is the only auth that exists. They are recorded because a decision on the
 -- sanctions ladder with no name attached is worse than one with an unverified name — not because
 -- anything checked them. There is no endpoint that writes these tables.
+--
+-- 0001 states the house rule that these tables do NOT follow: no foreign keys, because a port whose
+-- contract includes restoring or seeding one row at a time cannot honour them. player_sanctions.entry_id
+-- is the exception and earns it — these three tables are one bounded context created by one file,
+-- never restored apart, and a sanction whose review entry is missing is not a row worth keeping:
+-- the ladder acts only on repeated, CONFIRMED manipulation, and the entry is the only evidence of
+-- the confirmed half.
 
 -- One reading of one account's cumulative anti-cheat measures. A rate needs two rows; storing a
 -- rate instead would throw away the ability to recompute one over a different window.
@@ -19,19 +26,24 @@
 -- wallet_total is a BALANCE and falls when the player spends, so the movement between two rows is
 -- net income at best. legend_xp and battle_hash_mismatches only grow, and a fall in either is a
 -- storage fault rather than a player action.
+--
+-- ⚠️ NOTHING PRUNES THIS TABLE, and it gains a row per account per sweep — twenty-four a day per
+-- account at the shipped interval, forever, in a table whose only reader wants the newest row. The
+-- rule the sweep can enforce once a durable store exists is to delete an account's rows older than
+-- its previous one; said here rather than left for whoever first notices the size.
+--
+-- The primary key's own index answers the one read there is ("this account's newest reading"): a
+-- btree scans in both directions, so no separate descending index is needed and none is created.
 CREATE TABLE plausibility_observations (
     player_id              text        NOT NULL,
     observed_at_utc        timestamptz NOT NULL,
     wallet_total           bigint      NOT NULL,
     legend_xp              bigint      NOT NULL,
     battle_hash_mismatches integer     NOT NULL,
-    PRIMARY KEY (player_id, observed_at_utc)
+    PRIMARY KEY (player_id, observed_at_utc),
+    CONSTRAINT ck_plausibility_observations_player
+        CHECK (length(btrim(player_id)) > 0)
 );
-
--- The sweep reads one account's most recent reading, over and over. Descending, so that read is the
--- index's first row rather than a scan of the account's whole history.
-CREATE INDEX ix_plausibility_observations_latest
-    ON plausibility_observations (player_id, observed_at_utc DESC);
 
 -- The SHARED review queue. The plausibility sweep is its first producer; the duel anti-cheat pass
 -- and player reports route into this same table, reviewed by the same people through the same
@@ -40,6 +52,10 @@ CREATE INDEX ix_plausibility_observations_latest
 --
 -- Every producer creates an entry in state OPEN. Flags go to a review queue, never to an automatic
 -- action, so nothing writes CONFIRMED without a human having decided it.
+--
+-- The blank checks mirror what ReviewQueueEntry refuses to construct. Without them the database
+-- accepts rows its only writer would reject, and the first thing to write one would be whatever
+-- imports history from somewhere else.
 CREATE TABLE moderation_reviews (
     entry_id        text        PRIMARY KEY,
     source          text        NOT NULL,
@@ -52,6 +68,13 @@ CREATE TABLE moderation_reviews (
     review_notes    text,
     CONSTRAINT ck_moderation_reviews_state
         CHECK (state IN ('OPEN', 'CONFIRMED', 'DISMISSED')),
+    CONSTRAINT ck_moderation_reviews_text
+        CHECK (length(btrim(entry_id)) > 0
+            AND length(btrim(source)) > 0
+            AND length(btrim(subject_id)) > 0
+            AND length(btrim(reason)) > 0
+            AND (reviewed_by IS NULL OR length(btrim(reviewed_by)) > 0)
+            AND (review_notes IS NULL OR length(btrim(review_notes)) > 0)),
     -- A verdict is all three fields or none of them: a decided entry with no reviewer, or a
     -- reviewer on an open one, is a half-written decision nobody can audit.
     CONSTRAINT ck_moderation_reviews_verdict
@@ -73,8 +96,10 @@ CREATE INDEX ix_moderation_reviews_open ON moderation_reviews (state, raised_at_
 -- yet: a shadow exclusion that refused requests would stop being shadow, and the other two are
 -- one-off writes rather than standing refusals.
 --
--- entry_id is NOT NULL and references the queue: the ladder acts only on repeated, CONFIRMED
--- manipulation, and the entry is the only thing that can evidence the confirmed half.
+-- No secondary index. The only read there is today is "every sanction", which the background pass
+-- makes once a cycle to rebuild the locked-account set; an index chosen now would be chosen for a
+-- query shape nobody has written. The task that lands the durable adapter indexes it for the query
+-- it actually issues.
 CREATE TABLE player_sanctions (
     sanction_id     text        PRIMARY KEY,
     subject_id      text        NOT NULL,
@@ -85,12 +110,13 @@ CREATE TABLE player_sanctions (
     lifted_at_utc   timestamptz,
     CONSTRAINT ck_player_sanctions_kind
         CHECK (kind IN ('SHADOW_EXCLUDE_LADDER', 'RATING_RESET', 'ACCOUNT_ACTION', 'NAME_RESET')),
+    CONSTRAINT ck_player_sanctions_text
+        CHECK (length(btrim(sanction_id)) > 0
+            AND length(btrim(subject_id)) > 0
+            AND length(btrim(entry_id)) > 0
+            AND length(btrim(applied_by)) > 0),
     -- Lifted before applied would make the window negative, and a negative window reads as
     -- permanently active on one comparison and never active on the other.
     CONSTRAINT ck_player_sanctions_window
         CHECK (lifted_at_utc IS NULL OR lifted_at_utc >= applied_at_utc)
 );
-
--- The request path asks "which accounts are locked right now", never "what does this account
--- carry" — the answer is cached in the process and refreshed by the background pass.
-CREATE INDEX ix_player_sanctions_live ON player_sanctions (kind, lifted_at_utc);

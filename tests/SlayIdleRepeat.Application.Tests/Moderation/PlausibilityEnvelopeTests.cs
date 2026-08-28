@@ -144,6 +144,36 @@ public sealed class PlausibilityEnvelopeTests
             + "monotone measure is never amplified into a flag against a real player.");
     }
 
+    /// <summary>
+    /// 🔒 A negative threshold is exceeded by an account that gained NOTHING, so it would turn
+    /// "nobody has authored this" into "raise a review entry for every account on every sweep".
+    /// </summary>
+    [Theory]
+    [InlineData(-1L, null, null, nameof(PlausibilityEnvelope.MaxCurrencyPerDay))]
+    [InlineData(null, -1L, null, nameof(PlausibilityEnvelope.MaxLegendXpPerDay))]
+    [InlineData(null, null, -1L, nameof(PlausibilityEnvelope.MaxBattleHashMismatchesPerDay))]
+    public void A_negative_threshold_is_refused_and_the_refusal_names_which_one(
+        long? currency, long? xp, long? mismatches, string blamed)
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() => new PlausibilityEnvelope(currency, xp, mismatches))
+            .ParamName.ShouldBe(
+                blamed,
+                "three independent thresholds throw the same type; without the name an operator "
+                + "cannot tell which of their three settings was refused.");
+    }
+
+    [Fact]
+    public void A_threshold_of_zero_is_authored_and_flags_any_gain_at_all()
+    {
+        var envelope = new PlausibilityEnvelope(MaxCurrencyPerDay: 0);
+
+        envelope.AuthoredThresholds.ShouldBe(
+            1, "zero is a number somebody wrote down; null is the absence of one.");
+        envelope.Breaches(Delta(TimeSpan.FromDays(1), currency: 1)).ShouldHaveSingleItem();
+        envelope.Breaches(Delta(TimeSpan.FromDays(1), currency: 0)).ShouldBeEmpty(
+            "and zero gained is still not over zero — the negative control at the boundary.");
+    }
+
     [Fact]
     public void A_window_that_is_not_positive_is_judged_by_nothing()
     {

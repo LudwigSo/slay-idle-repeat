@@ -145,7 +145,8 @@ public sealed class PlausibilitySweepTests
         rig.Clock.Advance(TimeSpan.FromHours(3));
         await rig.Sweep.RunOnceAsync(CancellationToken.None);
 
-        var stored = await rig.Store.ReadPreviousObservationAsync(Alice, CancellationToken.None);
+        var stored = (await rig.Store.ReadPreviousObservationsAsync([Alice], CancellationToken.None))
+            .GetValueOrDefault(Alice);
 
         stored.ShouldNotBeNull();
         stored.WalletTotal.ShouldBe(500);
@@ -223,6 +224,42 @@ public sealed class PlausibilitySweepTests
         }
 
         snapshot.LockedAccounts.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// 🔒 S25: the CONFIRMED and DISMISSED states are unreachable from any production caller — no
+    /// surface exists for a human to review through, and this assembly deliberately exposes no
+    /// endpoint that writes the queue. The fixture reaches them directly instead.
+    /// </summary>
+    [Fact]
+    public async Task A_verdict_recorded_over_a_raised_entry_moves_it_out_of_the_open_queue()
+    {
+        var rig = Build(new PlausibilityEnvelope(MaxCurrencyPerDay: 1));
+
+        rig.Store.SetObservableAccounts([Account(Alice, 0, 0, 0)]);
+        await rig.Sweep.RunOnceAsync(CancellationToken.None);
+
+        rig.Clock.Advance(TimeSpan.FromDays(1));
+        rig.Store.SetObservableAccounts([Account(Alice, 5_000, 0, 0)]);
+        await rig.Sweep.RunOnceAsync(CancellationToken.None);
+
+        var open = await rig.Store.ReadReviewsAsync(ReviewState.OPEN, CancellationToken.None);
+        open.Count.ShouldBe(1);
+
+        await rig.Store.RecordVerdictAsync(
+            open[0].Confirm("ops.rita", "reproduced against the economy log", rig.Clock.UtcNow),
+            CancellationToken.None);
+
+        (await rig.Store.ReadReviewsAsync(ReviewState.OPEN, CancellationToken.None)).ShouldBeEmpty(
+            "a decided entry leaves the working set, or a reviewer keeps being handed it.");
+
+        var confirmed = await rig.Store.ReadReviewsAsync(ReviewState.CONFIRMED, CancellationToken.None);
+
+        confirmed.ShouldHaveSingleItem().EntryId.ShouldBe(
+            open[0].EntryId,
+            "and it is the SAME entry updated, not a second row — two rows for one finding would be "
+            + "two answers to whether it was ever decided.");
+        confirmed[0].ReviewedBy.ShouldBe("ops.rita");
     }
 
     [Fact]

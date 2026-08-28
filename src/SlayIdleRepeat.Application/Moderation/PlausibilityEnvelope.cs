@@ -46,6 +46,18 @@ public sealed record PlausibilityEnvelope(
     /// <summary>🔒 The shipped envelope: every threshold unauthored, so the sweep flags nothing.</summary>
     public static readonly PlausibilityEnvelope Unauthored = new();
 
+    /// <summary>Wallet currency per day above which an account is flagged. <c>null</c> = unauthored.</summary>
+    public long? MaxCurrencyPerDay { get; } =
+        NonNegative(MaxCurrencyPerDay, nameof(MaxCurrencyPerDay));
+
+    /// <summary>Legend XP per day above which an account is flagged. <c>null</c> = unauthored.</summary>
+    public long? MaxLegendXpPerDay { get; } =
+        NonNegative(MaxLegendXpPerDay, nameof(MaxLegendXpPerDay));
+
+    /// <summary>Battle-hash mismatches per day above which an account is flagged. <c>null</c> = unauthored.</summary>
+    public long? MaxBattleHashMismatchesPerDay { get; } =
+        NonNegative(MaxBattleHashMismatchesPerDay, nameof(MaxBattleHashMismatchesPerDay));
+
     /// <summary>How many of the three thresholds carry a number. Zero on the shipped envelope.</summary>
     public int AuthoredThresholds =>
         (MaxCurrencyPerDay is null ? 0 : 1)
@@ -85,7 +97,8 @@ public sealed record PlausibilityEnvelope(
             MaxBattleHashMismatchesPerDay,
             delta.BattleHashMismatchesGained);
 
-        return flags;
+        // Copied out: the caller must not be able to append to the answer the envelope gave them.
+        return flags.ToArray();
 
         void Judge(PlausibilityMeasure measure, long? threshold, long gained)
         {
@@ -100,6 +113,20 @@ public sealed record PlausibilityEnvelope(
             }
         }
     }
+
+    /// <summary>
+    /// A threshold is a rate nobody may plausibly exceed, so it is never negative — and a negative
+    /// one would flag a FLAT account, turning "nobody has authored this" into "review everybody".
+    /// <c>null</c> is the only way a threshold goes unauthored.
+    /// </summary>
+    private static long? NonNegative(long? threshold, string name) =>
+        threshold is not { } value || value >= 0
+            ? threshold
+            : throw new ArgumentOutOfRangeException(
+                name,
+                value,
+                "a negative threshold is exceeded by an account that gained nothing at all, so every "
+                + "observed account would be flagged on every sweep. Leave it null instead.");
 }
 
 /// <summary>One breached threshold, in enough detail for a reviewer to re-derive it.</summary>

@@ -25,36 +25,47 @@ public sealed record PlayerSanction(
     DateTimeOffset AppliedAtUtc,
     DateTimeOffset? LiftedAtUtc = null)
 {
+    /// <summary>The sanction's identity. Non-blank.</summary>
+    public string SanctionId { get; } = RequireText(SanctionId, nameof(SanctionId));
+
+    /// <summary>The confirmed review entry this came out of. Non-blank.</summary>
+    public string EntryId { get; } = RequireText(EntryId, nameof(EntryId));
+
+    /// <summary>🔒 The unverified operator string. Non-blank — an unverified name still beats no name.</summary>
+    public string AppliedBy { get; } = RequireText(AppliedBy, nameof(AppliedBy));
+
     /// <summary>Whether this sanction stands at <paramref name="instant"/>.</summary>
     /// <param name="instant">The moment being asked about.</param>
     /// <remarks>Applied-at is inclusive and lifted-at is exclusive, so a sanction lifted at <c>t</c> does not stand at <c>t</c>.</remarks>
     public bool IsActiveAt(DateTimeOffset instant) =>
         instant >= AppliedAtUtc && (LiftedAtUtc is not { } lifted || instant < lifted);
+
+    private static string RequireText(string? value, string parameterName) =>
+        string.IsNullOrWhiteSpace(value)
+            ? throw new ArgumentException(
+                "a sanction is the record of a human decision, and every one of its three names is "
+                + "how somebody later reconstructs which decision it was.",
+                parameterName)
+            : value;
 }
 
 /// <summary>Whether an account may be served at all — the one wire-enforced sanction, and nothing else.</summary>
 /// <remarks>
-/// 🔒 The mapping is deliberately narrow: an active <see cref="SanctionKind.ACCOUNT_ACTION"/> is
-/// HTTP 403 and every other kind is HTTP nothing. A shadow ladder exclusion that refused requests
-/// would stop being shadow; a rating reset or a name reset is a one-off write, not a standing
-/// refusal. Widening this is the job of the milestone that owns the surface, not of this type.
+/// <para>
+/// 🔒 The mapping is deliberately narrow: an active <see cref="SanctionKind.ACCOUNT_ACTION"/> locks
+/// the account and every other kind changes nothing on the wire. A shadow ladder exclusion that
+/// refused requests would stop being shadow; a rating reset or a name reset is a one-off write, not
+/// a standing refusal. Widening this is the job of the milestone that owns the surface, not of this
+/// type.
+/// </para>
+/// <para>
+/// This answers "is it locked", never "with what status". The status is HTTP's, and the host owns
+/// it: a second copy of <c>403</c> in this assembly would be one nothing on the wire reads, so a
+/// change to it would pass its own tests and alter nothing a client sees.
+/// </para>
 /// </remarks>
 public static class AccountStanding
 {
-    /// <summary>The status a locked or sanctioned account is refused with. The client shows the account-state screen.</summary>
-    public const int LockedHttpStatus = 403;
-
-    /// <summary>The refusal status this account's sanctions demand, or <c>null</c> when it may be served.</summary>
-    /// <param name="sanctions">Every sanction recorded against the account, active or not.</param>
-    /// <param name="instant">The moment being asked about.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="sanctions"/> is null.</exception>
-    public static int? RefusalStatusFor(IEnumerable<PlayerSanction> sanctions, DateTimeOffset instant)
-    {
-        ArgumentNullException.ThrowIfNull(sanctions);
-
-        return sanctions.Any(sanction => Locks(sanction, instant)) ? LockedHttpStatus : null;
-    }
-
     /// <summary>Whether one sanction locks its account at this instant.</summary>
     /// <param name="sanction">The sanction.</param>
     /// <param name="instant">The moment being asked about.</param>

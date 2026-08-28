@@ -68,6 +68,40 @@ public sealed class PerIpRateLimitTests
             + "an IPv6 client an unbounded supply of partitions.");
     }
 
+    /// <summary>
+    /// 🔒 The IPv6 arm of the same threat the forwarded-for rule closes: a residential client is
+    /// delegated a whole /64 and can source from a fresh address per request at no cost.
+    /// </summary>
+    [Fact]
+    public void Every_address_in_one_ipv6_network_shares_a_partition()
+    {
+        var first = PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("2001:db8:1:2::1"));
+
+        PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("2001:db8:1:2::dead:beef")).ShouldBe(
+            first,
+            "partitioning on the full /128 would let one client mint an unlimited number of "
+            + "identities out of the prefix it was handed.");
+        PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("2001:db8:1:2:ffff:ffff:ffff:ffff")).ShouldBe(first);
+    }
+
+    /// <summary>The negative control: the aggregation stops at the network, not above it.</summary>
+    [Fact]
+    public void Two_different_ipv6_networks_stay_apart()
+    {
+        PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("2001:db8:1:2::1")).ShouldNotBe(
+            PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("2001:db8:1:3::1")),
+            "a /64 apart is two customers; merging them would let one exhaust the other's limit.");
+    }
+
+    [Fact]
+    public void An_ipv4_client_arriving_over_a_dual_stack_socket_is_the_same_partition_as_a_plain_one()
+    {
+        PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("::ffff:203.0.113.7")).ShouldBe(
+            PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("203.0.113.7")),
+            "which socket accepted the client is not a property of the client — two partitions for "
+            + "one address would double its allowance.");
+    }
+
     [Fact]
     public void A_request_with_no_readable_address_shares_one_bucket_rather_than_being_exempt()
     {

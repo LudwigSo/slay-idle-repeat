@@ -19,10 +19,10 @@ namespace SlayIdleRepeat.Server.Composition;
 public sealed class PlayerRateLimitOptions
 {
     /// <summary>Sustained commands per second from one account. Default 5.</summary>
-    public int SustainedPerSecond { get; set; } = 5;
+    public int SustainedPerSecond { get; set; } = RateLimitPolicy.PerPlayerPermitsPerSecond;
 
     /// <summary>How many commands one account may issue back to back. Default 20.</summary>
-    public int Burst { get; set; } = 20;
+    public int Burst { get; set; } = RateLimitPolicy.PerPlayerBurst;
 }
 
 /// <summary>The plausibility monitor's deployment contract.</summary>
@@ -188,10 +188,14 @@ public static class AntiCheatComposition
                 + "defaulted");
         }
 
+        // The one an operator would otherwise mistake for a clean bill of health: a sweep reporting
+        // "observed 0 accounts" looks exactly like a sweep reporting that nobody is cheating.
         Log.Warning(
-            "Moderation storage is VOLATILE: every plausibility observation and every review-queue "
-            + "entry this process records is lost when it stops. No durable IModerationStore "
-            + "implementation exists yet");
+            "The plausibility sweep will observe ZERO accounts and its findings are VOLATILE: no "
+            + "adapter enumerates player rows, so the in-process store this composes has nothing to "
+            + "read, and every observation and review-queue entry it records is lost when this "
+            + "process stops. Thresholds authored today cannot flag anything until a durable "
+            + "IModerationStore implementation exists");
     }
 
     /// <summary>
@@ -220,6 +224,13 @@ public static class AntiCheatComposition
             Plausibility = configuration.GetSection("Plausibility").Get<PlausibilityOptions>()
                            ?? new PlausibilityOptions();
 
+            // Both checked HERE rather than where they are used, so a deployment typo is a process
+            // that refuses to start instead of one that looks healthy and throws out of the rate
+            // limiter on its first request — or out of OnRejected on its first refusal.
+            _ = PerIpRateLimit.BucketFor(Ip);
+            PerIpRateLimit.RequireBackoff(Ip);
+
+            SweepInterval = SweepIntervalOf(Plausibility.SweepIntervalMinutes);
             Envelope = Plausibility.ToEnvelope();
             Clock = new SystemClock();
             Store = new VolatileModerationStore();
@@ -235,6 +246,9 @@ public static class AntiCheatComposition
 
         internal PlausibilityOptions Plausibility { get; }
 
+        /// <summary>How long between sweeps, checked once here so the timer cannot refuse it later.</summary>
+        internal TimeSpan SweepInterval { get; }
+
         internal PlausibilityEnvelope Envelope { get; }
 
         internal IClockPort Clock { get; }
@@ -246,6 +260,28 @@ public static class AntiCheatComposition
         internal ICommandThrottle Throttle { get; }
 
         internal PlausibilitySweep Sweep { get; }
+
+        /// <summary>
+        /// The configured interval, refused rather than coerced. A zero or negative one silently
+        /// rewritten to "a minute" is a hole filled with a plausible value; one above a day is a
+        /// timer the host cannot construct, so it would fail to start with no idea why.
+        /// </summary>
+        private static TimeSpan SweepIntervalOf(int minutes)
+        {
+            const int LongestSweepIntervalMinutes = 24 * 60;
+
+            if (minutes is <= 0 or > LongestSweepIntervalMinutes)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(PlausibilityOptions.SweepIntervalMinutes),
+                    minutes,
+                    "Plausibility:SweepIntervalMinutes is a count of minutes between one and a "
+                    + "day's worth. Outside that the background timer is either impossible or one "
+                    + "the host refuses to build, and neither says so where an operator would look.");
+            }
+
+            return TimeSpan.FromMinutes(minutes);
+        }
     }
 
     /// <summary>
@@ -256,8 +292,12 @@ public static class AntiCheatComposition
     {
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            using var timer = new PeriodicTimer(
-                TimeSpan.FromMinutes(Math.Max(1, area.Plausibility.SweepIntervalMinutes)));
+            // Off the startup thread before anything else: every call below completes synchronously
+            // against the in-process store, so without this the whole first sweep would run inside
+            // StartAsync — and would block it outright once a durable store does real I/O.
+            await Task.Yield();
+
+            using var timer = new PeriodicTimer(area.SweepInterval);
 
             // The first pass runs at startup rather than one interval later, so a process that is
             // restarted more often than the interval still refreshes the locked-account set.

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Sockets;
 using System.Threading.RateLimiting;
 
 namespace SlayIdleRepeat.Server.Composition;
@@ -58,6 +59,12 @@ public static class PerIpRateLimit
     /// </remarks>
     public const string UnknownAddressPartition = "ip:unknown";
 
+    /// <summary>How many bytes an IPv6 address is.</summary>
+    private const int Ipv6AddressBytes = 16;
+
+    /// <summary>How much of an IPv6 address identifies the client's network rather than one of its hosts — a /64.</summary>
+    private const int Ipv6RoutingPrefixBytes = 8;
+
     /// <summary>The partition key for one remote address.</summary>
     /// <param name="remoteAddress">The transport's remote address, or <c>null</c> when it has none.</param>
     /// <remarks>
@@ -76,7 +83,20 @@ public static class PerIpRateLimit
             ? remoteAddress.MapToIPv4()
             : remoteAddress;
 
-        return "ip:" + normalised;
+        if (normalised.AddressFamily != AddressFamily.InterNetworkV6)
+        {
+            return "ip:" + normalised;
+        }
+
+        // 🔒 One bucket per /64, not per address. A residential IPv6 client is routinely delegated a
+        // /56 or /64 and can source from a fresh address per request at no cost — partitioning on
+        // the full /128 would hand it the same unlimited supply of identities that trusting a
+        // forwarded-for header would.
+        Span<byte> prefix = stackalloc byte[Ipv6AddressBytes];
+        normalised.TryWriteBytes(prefix, out _);
+        prefix[Ipv6RoutingPrefixBytes..].Clear();
+
+        return "ip6:" + new IPAddress(prefix);
     }
 
     /// <summary>
@@ -136,11 +156,28 @@ public static class PerIpRateLimit
         ArgumentNullException.ThrowIfNull(response);
         ArgumentNullException.ThrowIfNull(options);
 
-        RequirePositive(options.RetryAfterSeconds, nameof(PerIpRateLimitOptions.RetryAfterSeconds));
+        RequireBackoff(options);
 
         response.StatusCode = StatusCodes.Status429TooManyRequests;
         response.Headers.RetryAfter =
             options.RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Checks the backoff a refusal will quote, without writing one.</summary>
+    /// <param name="options">The deployment's numbers.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The backoff is not positive.</exception>
+    /// <remarks>
+    /// Separated from <see cref="WriteRefusal"/> so the composition root can refuse a bad number at
+    /// STARTUP. Validated only on use, a zero backoff would start a healthy-looking process that
+    /// throws out of the rate limiter the first time an address is refused — which is the moment
+    /// least able to absorb it.
+    /// </remarks>
+    public static void RequireBackoff(PerIpRateLimitOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        RequirePositive(options.RetryAfterSeconds, nameof(PerIpRateLimitOptions.RetryAfterSeconds));
     }
 
     /// <summary>The parameter every settings refusal blames — both public entry points name it the same.</summary>

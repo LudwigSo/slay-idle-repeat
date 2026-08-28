@@ -22,17 +22,24 @@ public sealed class PlayerRateLimiterTests
     /// <summary>How many commands a run costs, from the authored cost shape (~30 commands/run).</summary>
     private const int CommandsPerRun = 30;
 
+    /// <summary>
+    /// The shipped per-player policy, built the one way production builds it — from the two
+    /// constants the host's settings also default from, never from numbers re-typed here.
+    /// </summary>
+    private static RateLimitPolicy Shipped { get; } =
+        RateLimitPolicy.PerSecond(RateLimitPolicy.PerPlayerPermitsPerSecond, RateLimitPolicy.PerPlayerBurst);
+
     private static (PlayerRateLimiter Limiter, AdjustableClock Clock) Build(RateLimitPolicy? policy = null)
     {
         var clock = new AdjustableClock();
 
-        return (new PlayerRateLimiter(clock, policy ?? RateLimitPolicy.PerPlayerDefault), clock);
+        return (new PlayerRateLimiter(clock, policy ?? Shipped), clock);
     }
 
     [Fact]
     public void The_shipped_policy_is_five_per_second_with_a_burst_of_twenty()
     {
-        var policy = RateLimitPolicy.PerPlayerDefault;
+        var policy = Shipped;
 
         policy.Burst.ShouldBe(20);
         policy.RefillInterval.ShouldBe(
@@ -114,7 +121,7 @@ public sealed class PlayerRateLimiterTests
     [Fact]
     public void At_the_budgeted_round_trip_the_policy_admits_far_more_than_a_run_costs()
     {
-        var policy = RateLimitPolicy.PerPlayerDefault;
+        var policy = Shipped;
 
         policy.MaxConsecutiveAt(BudgetedRoundTrip).ShouldBe(
             77,
@@ -127,10 +134,6 @@ public sealed class PlayerRateLimiterTests
             "and the margin is more than double a whole run, not a hair's breadth.");
     }
 
-    /// <summary>
-    /// The other end of the same proof, and the honest limit: below a 69 ms round trip a
-    /// zero-think-time run would out-run the burst. Stated as a test so the number cannot rot.
-    /// </summary>
     /// <summary>
     /// The exact reach at five cadences, and with it the honest limit. ⚠️ The real boundary is
     /// 68.966 ms, so 69 ms clears a whole run by 0.005 of a permit — this is a cliff, not a slope,
@@ -145,7 +148,7 @@ public sealed class PlayerRateLimiterTests
     public void The_reach_at_a_fixed_cadence_is_exact_and_the_run_boundary_sits_at_sixty_nine_milliseconds(
         int roundTripMilliseconds, int expectedReach)
     {
-        var reach = RateLimitPolicy.PerPlayerDefault
+        var reach = Shipped
             .MaxConsecutiveAt(TimeSpan.FromMilliseconds(roundTripMilliseconds));
 
         reach.ShouldBe(
@@ -164,7 +167,7 @@ public sealed class PlayerRateLimiterTests
     [Fact]
     public void A_zero_cadence_reaches_exactly_the_burst()
     {
-        RateLimitPolicy.PerPlayerDefault.MaxConsecutiveAt(TimeSpan.Zero).ShouldBe(
+        Shipped.MaxConsecutiveAt(TimeSpan.Zero).ShouldBe(
             20,
             "an infinitely fast client can spend the burst and nothing more — not one command, and "
             + "not unlimited, which are the two degenerate answers the formula can produce.");
@@ -175,7 +178,7 @@ public sealed class PlayerRateLimiterTests
     [InlineData(1_000)]
     public void A_cadence_at_or_slower_than_the_sustained_rate_is_never_refused(int roundTripMilliseconds)
     {
-        RateLimitPolicy.PerPlayerDefault
+        Shipped
             .MaxConsecutiveAt(TimeSpan.FromMilliseconds(roundTripMilliseconds))
             .ShouldBe(
                 int.MaxValue,
@@ -187,7 +190,7 @@ public sealed class PlayerRateLimiterTests
     public void A_negative_cadence_is_refused_rather_than_answered()
     {
         Should.Throw<ArgumentOutOfRangeException>(
-            () => RateLimitPolicy.PerPlayerDefault.MaxConsecutiveAt(TimeSpan.FromMilliseconds(-1)));
+            () => Shipped.MaxConsecutiveAt(TimeSpan.FromMilliseconds(-1)));
     }
 
     /// <summary>The proof driven through the real limiter and the real clock, not only the arithmetic.</summary>
@@ -210,7 +213,7 @@ public sealed class PlayerRateLimiterTests
     public void A_stream_of_invented_identities_cannot_grow_the_tracked_map_past_its_capacity()
     {
         var limiter = new PlayerRateLimiter(
-            new AdjustableClock(), RateLimitPolicy.PerPlayerDefault, trackedPlayerCapacity: 32);
+            new AdjustableClock(), Shipped, trackedPlayerCapacity: 32);
 
         for (var i = 0; i < 500; i++)
         {
@@ -231,7 +234,7 @@ public sealed class PlayerRateLimiterTests
     public void Eviction_sheds_the_most_refilled_buckets_and_keeps_the_one_being_throttled()
     {
         var limiter = new PlayerRateLimiter(
-            new AdjustableClock(), RateLimitPolicy.PerPlayerDefault, trackedPlayerCapacity: 32);
+            new AdjustableClock(), Shipped, trackedPlayerCapacity: 32);
 
         for (var i = 0; i < 20; i++)
         {
@@ -259,7 +262,7 @@ public sealed class PlayerRateLimiterTests
     {
         var clock = new AdjustableClock();
         var limiter = new PlayerRateLimiter(
-            clock, RateLimitPolicy.PerPlayerDefault, trackedPlayerCapacity: 32);
+            clock, Shipped, trackedPlayerCapacity: 32);
 
         for (var i = 0; i < 20; i++)
         {
@@ -302,10 +305,82 @@ public sealed class PlayerRateLimiterTests
     [Theory]
     [InlineData(0d)]
     [InlineData(-5d)]
+    [InlineData(double.NaN)]
     public void A_non_positive_rate_is_refused_rather_than_producing_a_limiter_that_never_refills(
         double permitsPerSecond)
     {
         Should.Throw<ArgumentOutOfRangeException>(() => RateLimitPolicy.PerSecond(permitsPerSecond, 20));
+    }
+
+    /// <summary>
+    /// 🔒 The overflow arm, in both directions. A rate so slow that its interval leaves the range
+    /// the meter can hold must be REFUSED — the unchecked conversion would wrap, clamp to one tick,
+    /// and turn the slowest conceivable setting into ten million permits a second.
+    /// </summary>
+    [Theory]
+    [InlineData(1e-9)]
+    [InlineData(1e-30)]
+    [InlineData(double.Epsilon)]
+    public void A_rate_slower_than_one_permit_a_day_is_refused_rather_than_wrapping(double permitsPerSecond)
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() => RateLimitPolicy.PerSecond(permitsPerSecond, 20))
+            .ParamName.ShouldBe("permitsPerSecond");
+    }
+
+    [Fact]
+    public void A_refill_interval_longer_than_a_day_is_refused_rather_than_overflowing_the_meter()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(
+                () => new RateLimitPolicy(Burst: 2, TimeSpan.MaxValue))
+            .ParamName.ShouldBe("RefillInterval");
+
+        Should.NotThrow(() => new RateLimitPolicy(Burst: 2, RateLimitPolicy.LongestRefillInterval));
+    }
+
+    /// <summary>
+    /// The negative control for the bound above: a policy at the very edge still LIMITS. Without
+    /// this, "refused past a day" could be satisfied by a policy that refused everything.
+    /// </summary>
+    [Fact]
+    public void A_policy_at_the_slowest_permitted_refill_still_limits()
+    {
+        var clock = new AdjustableClock();
+        var limiter = new PlayerRateLimiter(
+            clock, new RateLimitPolicy(Burst: 2, RateLimitPolicy.LongestRefillInterval));
+
+        limiter.ShouldReject(Alice).ShouldBeFalse();
+        limiter.ShouldReject(Alice).ShouldBeFalse();
+        limiter.ShouldReject(Alice).ShouldBeTrue("the burst of two is spent.");
+
+        clock.Advance(RateLimitPolicy.LongestRefillInterval);
+
+        limiter.ShouldReject(Alice).ShouldBeFalse("and a day buys exactly one permit back.");
+    }
+
+    [Fact]
+    public void A_tracked_capacity_below_one_is_refused_rather_than_shedding_every_bucket()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => new PlayerRateLimiter(new AdjustableClock(), Shipped, 0));
+    }
+
+    /// <summary>
+    /// A capacity large enough to overflow the int product the sweep computes its target from. The
+    /// wrapped product would collapse the largest map anybody asked for into a single bucket.
+    /// </summary>
+    [Fact]
+    public void A_very_large_tracked_capacity_does_not_collapse_the_map_to_one_bucket()
+    {
+        var limiter = new PlayerRateLimiter(
+            new AdjustableClock(), Shipped, trackedPlayerCapacity: int.MaxValue);
+
+        for (var i = 0; i < 200; i++)
+        {
+            limiter.ShouldReject(new PlayerId("PLAYER_invented_" + i));
+        }
+
+        limiter.TrackedPlayers.ShouldBe(
+            200, "nothing may be swept while the map is nowhere near a capacity of int.MaxValue.");
     }
 
     /// <summary>The negative control: a policy is not the shipped one just because it exists.</summary>

@@ -29,7 +29,7 @@ namespace SlayIdleRepeat.Application.Moderation;
 public sealed class VolatileModerationStore : IModerationStore
 {
     private readonly ConcurrentDictionary<PlayerId, PlausibilityObservation> _previous = new();
-    private readonly ConcurrentQueue<ReviewQueueEntry> _reviews = new();
+    private readonly ConcurrentDictionary<string, ReviewQueueEntry> _reviews = new(StringComparer.Ordinal);
     private readonly ConcurrentQueue<PlayerSanction> _sanctions = new();
 
     private volatile IReadOnlyList<PlausibilityObservation> _accounts = [];
@@ -66,15 +66,30 @@ public sealed class VolatileModerationStore : IModerationStore
     }
 
     /// <inheritdoc/>
-    public Task<PlausibilityObservation?> ReadPreviousObservationAsync(PlayerId player, CancellationToken ct) =>
-        Task.FromResult(_previous.GetValueOrDefault(player));
+    public Task<IReadOnlyDictionary<PlayerId, PlausibilityObservation>> ReadPreviousObservationsAsync(
+        IReadOnlyCollection<PlayerId> players, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(players);
+
+        IReadOnlyDictionary<PlayerId, PlausibilityObservation> found = players
+            .Distinct()
+            .Select(player => _previous.GetValueOrDefault(player))
+            .OfType<PlausibilityObservation>()
+            .ToDictionary(observation => observation.Player);
+
+        return Task.FromResult(found);
+    }
 
     /// <inheritdoc/>
-    public Task RecordObservationAsync(PlausibilityObservation observation, CancellationToken ct)
+    public Task RecordObservationsAsync(
+        IReadOnlyCollection<PlausibilityObservation> observations, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(observation);
+        ArgumentNullException.ThrowIfNull(observations);
 
-        _previous[observation.Player] = observation;
+        foreach (var observation in observations)
+        {
+            _previous[observation.Player] = observation;
+        }
 
         return Task.CompletedTask;
     }
@@ -84,7 +99,17 @@ public sealed class VolatileModerationStore : IModerationStore
     {
         ArgumentNullException.ThrowIfNull(entry);
 
-        _reviews.Enqueue(entry);
+        _reviews[entry.EntryId] = entry;
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public Task RecordVerdictAsync(ReviewQueueEntry decided, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(decided);
+
+        _reviews[decided.EntryId] = decided;
 
         return Task.CompletedTask;
     }
@@ -92,7 +117,10 @@ public sealed class VolatileModerationStore : IModerationStore
     /// <inheritdoc/>
     public Task<IReadOnlyList<ReviewQueueEntry>> ReadReviewsAsync(ReviewState state, CancellationToken ct)
     {
-        IReadOnlyList<ReviewQueueEntry> matching = _reviews.Where(entry => entry.State == state).ToArray();
+        IReadOnlyList<ReviewQueueEntry> matching = _reviews.Values
+            .Where(entry => entry.State == state)
+            .OrderBy(entry => entry.RaisedAtUtc)
+            .ToArray();
 
         return Task.FromResult(matching);
     }

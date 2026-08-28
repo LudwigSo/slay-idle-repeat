@@ -93,17 +93,17 @@ public sealed class MigrationPlanTests
     {
         var shipped = MigrationPlan.Ordered(PostgresMigrations.All());
 
-        // ⚠️ 0005 and 0006 are held by tasks running concurrently with the one that added 0007, and
-        // Ordered() refuses a gap outright — so until those land this fact is RED on the ordinal
-        // rule, not on this list. Whoever integrates them adds their two names here; if either task
-        // ships without a migration, 0007 is renumbered down instead.
+        // ⚠️ An ordinal cannot be reserved: Ordered() refuses a gap outright, and the runner applies
+        // the history at boot — so a file numbered past the next free slot stops the server from
+        // starting rather than waiting politely for its neighbours. A migration therefore only ever
+        // takes current + 1, and whoever merges second renumbers theirs and this list with it.
         shipped.Select(s => s.FileName).ShouldBe(new[]
         {
             "0001_players_and_runs.sql",
             "0002_idempotency.sql",
             "0003_economy_events.sql",
             "0004_player_messages.sql",
-            "0007_moderation.sql",
+            "0005_moderation.sql",
         });
 
         shipped.ShouldAllBe(

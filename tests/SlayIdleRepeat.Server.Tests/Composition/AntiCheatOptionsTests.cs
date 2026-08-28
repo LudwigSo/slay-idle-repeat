@@ -163,6 +163,41 @@ public sealed class AntiCheatOptionsTests
             + "that says so has to be describing what is actually composed.");
     }
 
+    /// <summary>
+    /// 🔒 A deployment typo must be a process that refuses to start, not one that looks healthy and
+    /// throws out of the rate limiter on its first request — or out of OnRejected on its first
+    /// refusal, which is the moment least able to absorb it.
+    /// </summary>
+    [Theory]
+    [InlineData("RateLimit:Player:Burst", "0")]
+    [InlineData("RateLimit:Player:SustainedPerSecond", "0")]
+    [InlineData("RateLimit:Ip:PermitsPerSecond", "0")]
+    [InlineData("RateLimit:Ip:Burst", "-3")]
+    [InlineData("RateLimit:Ip:RetryAfterSeconds", "0")]
+    [InlineData("Plausibility:SweepIntervalMinutes", "0")]
+    [InlineData("Plausibility:SweepIntervalMinutes", "-30")]
+    [InlineData("Plausibility:SweepIntervalMinutes", "1441")]
+    [InlineData("Plausibility:MaxCurrencyPerDay", "-1")]
+    public void A_setting_outside_its_range_is_refused_while_the_process_is_still_starting(
+        string key, string value)
+    {
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => new AntiCheatComposition.AntiCheatArea(Configured((key, value))));
+    }
+
+    [Fact]
+    public void A_sweep_interval_at_either_end_of_its_range_is_accepted()
+    {
+        new AntiCheatComposition.AntiCheatArea(Configured(("Plausibility:SweepIntervalMinutes", "1")))
+            .SweepInterval.ShouldBe(TimeSpan.FromMinutes(1));
+
+        new AntiCheatComposition.AntiCheatArea(Configured(("Plausibility:SweepIntervalMinutes", "1440")))
+            .SweepInterval.ShouldBe(
+                TimeSpan.FromDays(1),
+                "the bound refuses what the timer cannot hold — it does not refuse a long interval "
+                + "somebody meant.");
+    }
+
     /// <summary>The 403 path, proven through the composition rather than only through the decorator.</summary>
     [Fact]
     public void The_composed_resolver_wraps_the_inner_one_with_the_account_standing_check()

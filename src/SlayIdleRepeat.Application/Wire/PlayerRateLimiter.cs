@@ -24,17 +24,30 @@ namespace SlayIdleRepeat.Application.Wire;
 public sealed record RateLimitPolicy(int Burst, TimeSpan RefillInterval)
 {
     /// <summary>
-    /// The per-player application-level default: 5 permits per second sustained, 20 in a burst.
-    /// ⚠️ An operations choice, not a design number — see the type's own remarks.
+    /// The longest a permit may take to come back. A day, and the bound is arithmetic rather than
+    /// editorial: the meter adds one interval per accepted request, and an interval near
+    /// <see cref="TimeSpan.MaxValue"/> wraps that sum negative — turning the strictest conceivable
+    /// setting into no limit at all, silently.
+    /// </summary>
+    public static readonly TimeSpan LongestRefillInterval = TimeSpan.FromDays(1);
+
+    /// <summary>
+    /// The shipped per-player sustained rate, in permits per second. ⚠️ An operations choice, not a
+    /// design number — see the type's own remarks. The host's own settings default from this, so it
+    /// is spelled once here and nowhere else.
     /// </summary>
     /// <remarks>
-    /// ⚠️ What this pair actually reaches, since a burst is easy to over-read: a client is serialised
-    /// by the wire's sequencing rules, so its fastest legitimate cadence is one round trip, and at
-    /// the budgeted round trip this admits 77 consecutive commands against a run that costs about
-    /// 30. The margin closes as the round trip shortens, and disappears below about 69 ms — which is
-    /// why <see cref="MaxConsecutiveAt"/> exists and why the burst is configurable.
+    /// ⚠️ What this and <see cref="PerPlayerBurst"/> actually reach, since a burst is easy to
+    /// over-read: a client is serialised by the wire's sequencing rules, so its fastest legitimate
+    /// cadence is one round trip, and at the budgeted round trip the pair admits 77 consecutive
+    /// commands against a run that costs about 30. The margin closes as the round trip shortens and
+    /// disappears below about 69 ms — which is why <see cref="MaxConsecutiveAt"/> exists and why
+    /// both numbers are configurable.
     /// </remarks>
-    public static readonly RateLimitPolicy PerPlayerDefault = PerSecond(5, burst: 20);
+    public const int PerPlayerPermitsPerSecond = 5;
+
+    /// <summary>The shipped per-player burst. ⚠️ An operations choice — see <see cref="PerPlayerPermitsPerSecond"/>.</summary>
+    public const int PerPlayerBurst = 20;
 
     /// <summary>How many requests an idle caller may make back to back. At least 1.</summary>
     public int Burst { get; } = Burst >= 1
@@ -42,11 +55,15 @@ public sealed record RateLimitPolicy(int Burst, TimeSpan RefillInterval)
         : throw new ArgumentOutOfRangeException(
             nameof(Burst), Burst, "a burst below one permit refuses every request, including the first.");
 
-    /// <summary>How long one permit takes to come back. Positive.</summary>
-    public TimeSpan RefillInterval { get; } = RefillInterval > TimeSpan.Zero
-        ? RefillInterval
-        : throw new ArgumentOutOfRangeException(
-            nameof(RefillInterval), RefillInterval, "a bucket that never refills is a one-time allowance.");
+    /// <summary>How long one permit takes to come back. Positive, and never longer than a day.</summary>
+    public TimeSpan RefillInterval { get; } =
+        RefillInterval > TimeSpan.Zero && RefillInterval <= LongestRefillInterval
+            ? RefillInterval
+            : throw new ArgumentOutOfRangeException(
+                nameof(RefillInterval),
+                RefillInterval,
+                "a bucket that never refills is a one-time allowance, and one slower than a permit "
+                + "a day overflows the tick meter into the opposite of a limit.");
 
     /// <summary>A policy stated as a sustained rate per second.</summary>
     /// <param name="permitsPerSecond">Sustained permits per second. Positive.</param>
@@ -62,10 +79,20 @@ public sealed record RateLimitPolicy(int Burst, TimeSpan RefillInterval)
                 "a rate of zero or less never refills the bucket, so the burst becomes a lifetime allowance.");
         }
 
-        var ticks = (long)Math.Round(TimeSpan.TicksPerSecond / permitsPerSecond);
+        // The one place a rate touches floating point — and the comparisons stay in double, because
+        // the value can be outside long's range entirely and the cast would then be unspecified.
+        var ticks = Math.Round(TimeSpan.TicksPerSecond / permitsPerSecond);
 
-        // The one place a rate touches floating point: everything downstream is ticks.
-        return new RateLimitPolicy(burst, TimeSpan.FromTicks(Math.Max(ticks, 1L)));
+        if (ticks > LongestRefillInterval.Ticks)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(permitsPerSecond),
+                permitsPerSecond,
+                "a rate this slow is one permit less often than daily. Nothing downstream can hold "
+                + "the interval, and a wrapped one reads as no limit at all.");
+        }
+
+        return new RateLimitPolicy(burst, TimeSpan.FromTicks(Math.Max((long)ticks, 1L)));
     }
 
     /// <summary>
@@ -144,6 +171,16 @@ public sealed class PlayerRateLimiter : ICommandThrottle
     private readonly int _capacity;
     private readonly long _toleranceTicks;
 
+    /// <summary>
+    /// How many buckets are held, tracked separately from the map. <c>ConcurrentDictionary.Count</c>
+    /// takes every internal bucket lock, so reading it once per command would serialise the whole
+    /// limiter against itself — undoing the point of the lock-free path above it.
+    /// </summary>
+    private int _tracked;
+
+    /// <summary>One sweeper at a time: 0 idle, 1 running. Concurrent sweeps would each snapshot and sort the whole map.</summary>
+    private int _sweeping;
+
     /// <summary>Composes the limiter.</summary>
     /// <param name="clock">The clock every decision is measured against.</param>
     /// <param name="policy">The limit.</param>
@@ -174,6 +211,7 @@ public sealed class PlayerRateLimiter : ICommandThrottle
     }
 
     /// <summary>How many players currently have a bucket held.</summary>
+    /// <remarks>A diagnostic read, deliberately off the decision path — see <c>_tracked</c>.</remarks>
     public int TrackedPlayers => _nextPermitTicks.Count;
 
     /// <inheritdoc/>
@@ -203,36 +241,59 @@ public sealed class PlayerRateLimiter : ICommandThrottle
             }
             else if (_nextPermitTicks.TryAdd(player, now + interval))
             {
+                Interlocked.Increment(ref _tracked);
                 break;
             }
         }
 
-        Sweep(now);
+        Sweep();
 
         return false;
     }
 
-    private void Sweep(long now)
+    private void Sweep()
     {
-        if (_nextPermitTicks.Count <= _capacity)
+        if (Volatile.Read(ref _tracked) <= _capacity)
         {
             return;
         }
 
-        // Down to three quarters, so a map sitting at the cap does not sweep on every single
-        // request. Ordered by how full each bucket is: the emptiest survives longest.
-        var target = Math.Max(1, _capacity * 3 / 4);
-
-        foreach (var candidate in _nextPermitTicks.ToArray().OrderBy(entry => entry.Value))
+        // A second sweeper would snapshot and sort the same map for the same result; it drops out
+        // and its own request proceeds, which is why the bound is amortised rather than exact.
+        if (Interlocked.Exchange(ref _sweeping, 1) == 1)
         {
-            if (_nextPermitTicks.Count <= target)
-            {
-                return;
-            }
+            return;
+        }
 
-            // The pair overload: a bucket that got busy since the snapshot no longer matches and
-            // stays, so the sweep can never drop state it has not actually looked at.
-            _nextPermitTicks.TryRemove(candidate);
+        try
+        {
+            // Down to three quarters, so a map sitting at the cap does not sweep on every request.
+            // Widened first: at a capacity above ~715 million the int product wraps negative, and
+            // the largest map anybody asked for would collapse to a single bucket.
+            var target = (int)Math.Max(1L, (long)_capacity * 3 / 4);
+            var held = Volatile.Read(ref _tracked);
+
+            // Ordered by how full each bucket is — the emptiest survives longest, so the account
+            // actually being throttled is the last to go and cannot clear its own limit by flooding
+            // the map with invented identities.
+            foreach (var candidate in _nextPermitTicks.ToArray().OrderBy(entry => entry.Value))
+            {
+                if (held <= target)
+                {
+                    return;
+                }
+
+                // The pair overload: a bucket that got busy since the snapshot no longer matches and
+                // stays, so the sweep can never drop state it has not actually looked at.
+                if (_nextPermitTicks.TryRemove(candidate))
+                {
+                    held = Interlocked.Decrement(ref _tracked);
+                }
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _sweeping, 0);
         }
     }
 }

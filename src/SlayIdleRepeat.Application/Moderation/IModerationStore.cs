@@ -30,20 +30,38 @@ public interface IModerationStore
     /// <param name="ct">Cancellation.</param>
     Task<IReadOnlyList<PlausibilityObservation>> ObserveAccountsAsync(DateTimeOffset at, CancellationToken ct);
 
-    /// <summary>The last observation recorded for an account, or <c>null</c> when this is its first.</summary>
-    /// <param name="player">The account.</param>
+    /// <summary>The last observation recorded for each of these accounts. An account on its first sweep is absent.</summary>
+    /// <param name="players">The accounts, as one batch.</param>
     /// <param name="ct">Cancellation.</param>
-    Task<PlausibilityObservation?> ReadPreviousObservationAsync(PlayerId player, CancellationToken ct);
+    /// <remarks>
+    /// A batch rather than one call per account, decided while there is still one implementation: a
+    /// sweep touches every account there is, and a per-row shape would commit whoever writes the
+    /// durable store to a round trip per player per pass.
+    /// </remarks>
+    Task<IReadOnlyDictionary<PlayerId, PlausibilityObservation>> ReadPreviousObservationsAsync(
+        IReadOnlyCollection<PlayerId> players, CancellationToken ct);
 
-    /// <summary>Stores an observation so the next sweep has something to measure against.</summary>
-    /// <param name="observation">The reading.</param>
+    /// <summary>Stores this pass's readings so the next sweep has something to measure against.</summary>
+    /// <param name="observations">The readings, as one batch.</param>
     /// <param name="ct">Cancellation.</param>
-    Task RecordObservationAsync(PlausibilityObservation observation, CancellationToken ct);
+    Task RecordObservationsAsync(IReadOnlyCollection<PlausibilityObservation> observations, CancellationToken ct);
 
     /// <summary>Appends an entry to the review queue.</summary>
     /// <param name="entry">The entry. Open, by every producer.</param>
     /// <param name="ct">Cancellation.</param>
     Task RaiseReviewAsync(ReviewQueueEntry entry, CancellationToken ct);
+
+    /// <summary>Stores a reviewer's verdict over the entry it decides.</summary>
+    /// <param name="decided">The entry as the verdict left it.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// ⚠️ No production caller: nothing in this repository has a surface a human reviews through,
+    /// and this assembly deliberately exposes no endpoint that writes the queue — an unauthenticated
+    /// door onto the sanctions ladder would be a far larger hole than the one it closes. Declared
+    /// anyway, because without it the CONFIRMED and DISMISSED states are unreachable by construction
+    /// and the schema's verdict columns describe something no shape can produce.
+    /// </remarks>
+    Task RecordVerdictAsync(ReviewQueueEntry decided, CancellationToken ct);
 
     /// <summary>Every queue entry in one state, oldest first.</summary>
     /// <param name="state">Which state.</param>

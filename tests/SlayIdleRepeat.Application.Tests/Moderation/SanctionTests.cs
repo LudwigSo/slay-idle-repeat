@@ -17,6 +17,13 @@ public sealed class SanctionTests
     private static PlayerSanction Sanction(SanctionKind kind, DateTimeOffset? lifted = null) =>
         new("SAN_1", Subject, kind, "REV_1", "ops.rita", Applied, lifted);
 
+    /// <summary>
+    /// The question the standing snapshot asks of a whole account, spelled the way production spells
+    /// it: AccountStanding.Locks is per sanction, and "is this account locked" is any of them.
+    /// </summary>
+    private static bool Locked(IEnumerable<PlayerSanction> sanctions, DateTimeOffset instant) =>
+        sanctions.Any(sanction => AccountStanding.Locks(sanction, instant));
+
     [Fact]
     public void The_ladder_is_the_three_rungs_plus_the_name_outcome()
     {
@@ -40,11 +47,10 @@ public sealed class SanctionTests
     [Fact]
     public void An_active_account_action_is_the_only_kind_that_refuses_a_request()
     {
-        AccountStanding
-            .RefusalStatusFor([Sanction(SanctionKind.ACCOUNT_ACTION)], Applied.AddDays(1))
-            .ShouldBe(
-                403,
-                "an account action locks the account, and the client shows the account-state screen.");
+        Locked([Sanction(SanctionKind.ACCOUNT_ACTION)], Applied.AddDays(1))
+            .ShouldBeTrue(
+                "an account action locks the account; the host turns that into the 403 whose "
+                + "account-state screen the client shows.");
     }
 
     [Theory]
@@ -53,7 +59,7 @@ public sealed class SanctionTests
     [InlineData(SanctionKind.NAME_RESET)]
     public void Every_other_kind_leaves_the_account_served(SanctionKind kind)
     {
-        AccountStanding.RefusalStatusFor([Sanction(kind)], Applied.AddDays(1)).ShouldBeNull(
+        Locked([Sanction(kind)], Applied.AddDays(1)).ShouldBeFalse(
             $"{kind} is recorded and acted on by the surface that owns it. A shadow ladder "
             + "exclusion that refused requests would stop being shadow; a rating or name reset is a "
             + "one-off write, not a standing refusal.");
@@ -64,27 +70,24 @@ public sealed class SanctionTests
     {
         var lifted = Sanction(SanctionKind.ACCOUNT_ACTION, Applied.AddDays(7));
 
-        AccountStanding.RefusalStatusFor([lifted], Applied.AddDays(7).AddTicks(-1)).ShouldBe(403);
-        AccountStanding.RefusalStatusFor([lifted], Applied.AddDays(7)).ShouldBeNull(
+        Locked([lifted], Applied.AddDays(7).AddTicks(-1)).ShouldBeTrue();
+        Locked([lifted], Applied.AddDays(7)).ShouldBeFalse(
             "lifted-at is exclusive: the moment it is lifted, the account is served again.");
     }
 
     [Fact]
     public void An_account_action_that_has_not_started_yet_refuses_nothing()
     {
-        AccountStanding
-            .RefusalStatusFor([Sanction(SanctionKind.ACCOUNT_ACTION)], Applied.AddTicks(-1))
-            .ShouldBeNull("applied-at is inclusive, so a tick earlier is a tick before the lock.");
+        Locked([Sanction(SanctionKind.ACCOUNT_ACTION)], Applied.AddTicks(-1))
+            .ShouldBeFalse("applied-at is inclusive, so a tick earlier is a tick before the lock.");
 
-        AccountStanding
-            .RefusalStatusFor([Sanction(SanctionKind.ACCOUNT_ACTION)], Applied)
-            .ShouldBe(403);
+        Locked([Sanction(SanctionKind.ACCOUNT_ACTION)], Applied).ShouldBeTrue();
     }
 
     [Fact]
     public void No_sanctions_at_all_refuses_nothing()
     {
-        AccountStanding.RefusalStatusFor([], Applied).ShouldBeNull();
+        Locked([], Applied).ShouldBeFalse();
     }
 
     [Fact]
@@ -96,8 +99,7 @@ public sealed class SanctionTests
             new PlayerSanction("SAN_2", Subject, SanctionKind.ACCOUNT_ACTION, "REV_2", "ops.sam", Applied.AddDays(2)),
         };
 
-        AccountStanding.RefusalStatusFor(sanctions, Applied.AddDays(3)).ShouldBe(
-            403,
+        Locked(sanctions, Applied.AddDays(3)).ShouldBeTrue(
             "the question is whether ANY account action stands, not whether the first one does.");
     }
 
@@ -139,6 +141,25 @@ public sealed class SanctionTests
             "the set is swapped whole, so a lifted action releases the account on the next refresh "
             + "rather than surviving as a stale lock nobody can clear.");
         snapshot.LockedAccounts.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// The three names a sanction carries are how somebody later reconstructs which decision it
+    /// was — and <c>applied_by</c> is the only control there is over a decision nothing authenticates.
+    /// </summary>
+    [Theory]
+    [InlineData("", "REV_1", "ops.rita", nameof(PlayerSanction.SanctionId))]
+    [InlineData("   ", "REV_1", "ops.rita", nameof(PlayerSanction.SanctionId))]
+    [InlineData("SAN_1", "", "ops.rita", nameof(PlayerSanction.EntryId))]
+    [InlineData("SAN_1", "REV_1", "", nameof(PlayerSanction.AppliedBy))]
+    [InlineData("SAN_1", "REV_1", "   ", nameof(PlayerSanction.AppliedBy))]
+    public void A_sanction_with_a_blank_name_is_refused_and_the_refusal_says_which(
+        string sanctionId, string entryId, string appliedBy, string blamed)
+    {
+        Should.Throw<ArgumentException>(
+                () => new PlayerSanction(
+                    sanctionId, Subject, SanctionKind.ACCOUNT_ACTION, entryId, appliedBy, Applied))
+            .ParamName.ShouldBe(blamed);
     }
 
     [Fact]
