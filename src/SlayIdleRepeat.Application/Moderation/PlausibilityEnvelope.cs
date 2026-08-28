@@ -55,6 +55,12 @@ public sealed record PlausibilityEnvelope(
     /// so it is exact integer arithmetic at every window length: a 90-second window and a 30-day
     /// window are judged by the same inequality with no rounding between them. A delta whose window
     /// is not positive is judged by nothing — two observations at one instant carry no rate.
+    /// <para>
+    /// 🔒 The product is taken in <see cref="Int128"/>. A day is 8.64 × 10¹¹ ticks, so a <c>long</c>
+    /// product overflows above roughly ten million gained — and a wrapped product goes NEGATIVE,
+    /// which reads as "well inside the envelope". The one account the sweep exists to notice is
+    /// exactly the one whose numbers are large enough to wrap.
+    /// </para>
     /// </remarks>
     public IReadOnlyList<PlausibilityFlag> Breaches(PlausibilityDelta delta) =>
         throw new NotImplementedException();
@@ -72,5 +78,10 @@ public sealed record PlausibilityFlag(
     long ThresholdPerDay)
 {
     /// <summary>The flag as the review queue's reason text — what, how much, over how long, against what.</summary>
+    /// <remarks>
+    /// It names <see cref="Measure"/> verbatim, because the queue entry the reviewer opens carries
+    /// the text and not this record: a reason that said only "over the envelope" would leave them
+    /// unable to tell which trajectory tripped.
+    /// </remarks>
     public string Reason => throw new NotImplementedException();
 }

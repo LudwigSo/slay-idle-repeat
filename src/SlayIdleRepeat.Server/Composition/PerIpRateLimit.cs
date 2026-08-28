@@ -59,12 +59,37 @@ public static class PerIpRateLimit
 
     /// <summary>The partition key for one remote address.</summary>
     /// <param name="remoteAddress">The transport's remote address, or <c>null</c> when it has none.</param>
-    public static string PartitionKeyFor(IPAddress? remoteAddress) => throw new NotImplementedException();
+    public static string PartitionKeyForAddress(IPAddress? remoteAddress) => throw new NotImplementedException();
+
+    /// <summary>
+    /// The partition key for one request — the selector the limiter is actually registered with.
+    /// </summary>
+    /// <param name="http">The request.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="http"/> is null.</exception>
+    /// <remarks>
+    /// 🔒 It reads the connection and nothing else. Every forwarded-address header on the request is
+    /// ignored, deliberately and by omission: see the type's remarks.
+    /// </remarks>
+    public static string PartitionKeyFor(HttpContext http) => throw new NotImplementedException();
 
     /// <summary>The token bucket one address's partition runs on.</summary>
     /// <param name="options">The deployment's numbers.</param>
     /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A number is not positive.</exception>
     public static TokenBucketRateLimiterOptions BucketFor(PerIpRateLimitOptions options) =>
+        throw new NotImplementedException();
+
+    /// <summary>Writes the refusal a throttled address gets: HTTP 429, a <c>Retry-After</c>, no body.</summary>
+    /// <param name="response">The response being written.</param>
+    /// <param name="options">The deployment's numbers — the backoff comes from here, never from a constant.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The backoff is not positive.</exception>
+    /// <remarks>
+    /// 🔒 <b>No body.</b> A rejection envelope here would be the application-level answer wearing the
+    /// infrastructure answer's status: the client's rule is to back off and retry the SAME command
+    /// id after a 429, and to never blind-retry a 200 rejection. Handing it both signals at once is
+    /// exactly the blur the two limits are kept apart to prevent.
+    /// </remarks>
+    public static void WriteRefusal(HttpResponse response, PerIpRateLimitOptions options) =>
         throw new NotImplementedException();
 }

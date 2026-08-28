@@ -131,32 +131,63 @@ public sealed class PlayerRateLimiterTests
     /// The other end of the same proof, and the honest limit: below a 69 ms round trip a
     /// zero-think-time run would out-run the burst. Stated as a test so the number cannot rot.
     /// </summary>
+    /// <summary>
+    /// The exact reach at five cadences, and with it the honest limit. ⚠️ The real boundary is
+    /// 68.966 ms, so 69 ms clears a whole run by 0.005 of a permit — this is a cliff, not a slope,
+    /// and any change to how elapsed permits are counted moves it.
+    /// </summary>
     [Theory]
-    [InlineData(69, true)]
-    [InlineData(68, false)]
-    [InlineData(150, true)]
-    [InlineData(1000, true)]
-    public void A_whole_run_back_to_back_is_admitted_down_to_a_sixty_nine_millisecond_round_trip(
-        int roundTripMilliseconds, bool admitted)
+    [InlineData(0, 20)]
+    [InlineData(68, 29)]
+    [InlineData(69, 30)]
+    [InlineData(150, 77)]
+    [InlineData(199, 3801)]
+    public void The_reach_at_a_fixed_cadence_is_exact_and_the_run_boundary_sits_at_sixty_nine_milliseconds(
+        int roundTripMilliseconds, int expectedReach)
     {
         var reach = RateLimitPolicy.PerPlayerDefault
             .MaxConsecutiveAt(TimeSpan.FromMilliseconds(roundTripMilliseconds));
 
+        reach.ShouldBe(
+            expectedReach,
+            $"at a {roundTripMilliseconds} ms cadence the shipped policy reaches exactly "
+            + $"{expectedReach} consecutive commands. A boolean 'enough?' would pass for any "
+            + "number above the run cost and hide a change of an order of magnitude.");
+
         (reach >= CommandsPerRun).ShouldBe(
-            admitted,
-            $"at a {roundTripMilliseconds} ms round trip the policy reaches {reach} consecutive "
-            + $"commands, and a run costs {CommandsPerRun}. 69 ms is the boundary: below it a run "
-            + "played with literally zero think time would be refused, which is why the burst is "
-            + "configurable and why this boundary is pinned rather than assumed.");
+            roundTripMilliseconds >= 69,
+            $"a run costs {CommandsPerRun}. Below 69 ms a run played with literally zero think "
+            + "time would be refused, which is why the burst is configurable and why this boundary "
+            + "is pinned rather than assumed.");
     }
 
     [Fact]
-    public void A_cadence_at_or_slower_than_the_sustained_rate_is_never_refused()
+    public void A_zero_cadence_reaches_exactly_the_burst()
     {
-        RateLimitPolicy.PerPlayerDefault.MaxConsecutiveAt(TimeSpan.FromMilliseconds(200)).ShouldBe(
-            int.MaxValue,
-            "at the sustained rate the bucket never drains, so there is no consecutive count at "
-            + "which a refusal happens — reporting a finite number here would understate the policy.");
+        RateLimitPolicy.PerPlayerDefault.MaxConsecutiveAt(TimeSpan.Zero).ShouldBe(
+            20,
+            "an infinitely fast client can spend the burst and nothing more — not one command, and "
+            + "not unlimited, which are the two degenerate answers the formula can produce.");
+    }
+
+    [Theory]
+    [InlineData(200)]
+    [InlineData(1_000)]
+    public void A_cadence_at_or_slower_than_the_sustained_rate_is_never_refused(int roundTripMilliseconds)
+    {
+        RateLimitPolicy.PerPlayerDefault
+            .MaxConsecutiveAt(TimeSpan.FromMilliseconds(roundTripMilliseconds))
+            .ShouldBe(
+                int.MaxValue,
+                "at or below the sustained rate the bucket never drains, so there is no consecutive "
+                + "count at which a refusal happens — a finite number here would understate it.");
+    }
+
+    [Fact]
+    public void A_negative_cadence_is_refused_rather_than_answered()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => RateLimitPolicy.PerPlayerDefault.MaxConsecutiveAt(TimeSpan.FromMilliseconds(-1)));
     }
 
     /// <summary>The proof driven through the real limiter and the real clock, not only the arithmetic.</summary>
@@ -219,10 +250,16 @@ public sealed class PlayerRateLimiterTests
             + "did, an attacker could clear their own throttle by inventing identities.");
     }
 
+    /// <summary>
+    /// 🔒 The best-effort claim, with an eviction that really happens: a bucket that has refilled
+    /// completely answers every question identically to an absent one, so shedding it costs nothing.
+    /// </summary>
     [Fact]
-    public void An_evicted_bucket_costs_a_bypass_and_never_a_false_refusal()
+    public void Shedding_a_refilled_bucket_changes_no_answer_the_limiter_would_have_given()
     {
-        var (limiter, clock) = Build();
+        var clock = new AdjustableClock();
+        var limiter = new PlayerRateLimiter(
+            clock, RateLimitPolicy.PerPlayerDefault, trackedPlayerCapacity: 32);
 
         for (var i = 0; i < 20; i++)
         {
@@ -231,12 +268,27 @@ public sealed class PlayerRateLimiterTests
 
         limiter.ShouldReject(Alice).ShouldBeTrue("Alice's burst is spent.");
 
+        // Five idle minutes refills Alice completely, so a sweep may now legitimately take her.
         clock.Advance(TimeSpan.FromMinutes(5));
 
-        limiter.ShouldReject(Alice).ShouldBeFalse(
-            "counters are best-effort: whether Alice's bucket was swept as refilled or refilled in "
-            + "place, the answer after five idle minutes is the same. Losing this state costs a "
-            + "moment of unthrottled traffic, never a player's progress.");
+        for (var i = 0; i < 500; i++)
+        {
+            limiter.ShouldReject(new PlayerId("PLAYER_invented_" + i));
+        }
+
+        limiter.TrackedPlayers.ShouldBeLessThanOrEqualTo(32);
+
+        for (var i = 1; i <= 20; i++)
+        {
+            limiter.ShouldReject(Alice).ShouldBeFalse(
+                $"command {i} of a fresh burst. Whether Alice's bucket was swept or refilled in "
+                + "place, a refilled bucket and an absent one are the same bucket — which is why "
+                + "losing this state costs a moment of unthrottled traffic and never progress.");
+        }
+
+        limiter.ShouldReject(Alice).ShouldBeTrue(
+            "and the burst still ends where it should, so the sweep restored a real bucket rather "
+            + "than an unlimited one.");
     }
 
     [Theory]

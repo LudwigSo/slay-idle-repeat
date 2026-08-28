@@ -123,6 +123,15 @@ public sealed class PlausibilitySweepTests
 
         var queued = await rig.Store.ReadReviewsAsync(ReviewState.OPEN, CancellationToken.None);
 
+        foreach (var measure in Enum.GetValues<PlausibilityMeasure>())
+        {
+            queued.ShouldContain(
+                entry => entry.Reason.Contains(measure.ToString(), StringComparison.Ordinal),
+                $"the reviewer opens the reason text, not this record — without {measure} named in "
+                + "it they cannot tell which trajectory tripped. Three entries that all said "
+                + "'currency' would satisfy a bare count.");
+        }
+
         queued.Select(entry => entry.EntryId).Distinct().Count().ShouldBe(
             3, "three findings are three entries, each with its own identity a reviewer can close.");
     }
@@ -165,24 +174,55 @@ public sealed class PlausibilitySweepTests
         result.FlagsRaised.ShouldBe(1, "Bob is still measured against Bob's own previous reading.");
     }
 
+    /// <summary>
+    /// The refresh publishes exactly the live locks — and it evaluates them at the injected clock's
+    /// instant, which the lifted and not-yet-started accounts are what prove.
+    /// </summary>
     [Fact]
     public async Task The_standing_refresh_publishes_exactly_the_accounts_a_live_account_action_locks()
     {
         var rig = Build();
         var snapshot = new AccountStandingSnapshot();
 
+        var lifted = new PlayerId("PLAYER_lifted");
+        var future = new PlayerId("PLAYER_future");
+        var excluded = new PlayerId("PLAYER_excluded");
+        var renamed = new PlayerId("PLAYER_renamed");
+
         rig.Store.AddSanction(new PlayerSanction(
             "SAN_1", Alice, SanctionKind.ACCOUNT_ACTION, "REV_1", "ops.rita", AdjustableClock.Start));
         rig.Store.AddSanction(new PlayerSanction(
-            "SAN_2", Bob, SanctionKind.SHADOW_EXCLUDE_LADDER, "REV_2", "ops.rita", AdjustableClock.Start));
+            "SAN_2", excluded, SanctionKind.SHADOW_EXCLUDE_LADDER, "REV_2", "ops.rita", AdjustableClock.Start));
+        rig.Store.AddSanction(new PlayerSanction(
+            "SAN_3", Bob, SanctionKind.RATING_RESET, "REV_3", "ops.rita", AdjustableClock.Start));
+        rig.Store.AddSanction(new PlayerSanction(
+            "SAN_4", renamed, SanctionKind.NAME_RESET, "REV_4", "ops.rita", AdjustableClock.Start));
+        rig.Store.AddSanction(new PlayerSanction(
+            "SAN_5", lifted, SanctionKind.ACCOUNT_ACTION, "REV_5", "ops.rita",
+            AdjustableClock.Start, AdjustableClock.Start.AddMinutes(1)));
+        rig.Store.AddSanction(new PlayerSanction(
+            "SAN_6", future, SanctionKind.ACCOUNT_ACTION, "REV_6", "ops.rita",
+            AdjustableClock.Start.AddMinutes(10)));
 
         rig.Clock.Advance(TimeSpan.FromMinutes(5));
         await rig.Sweep.RefreshStandingAsync(snapshot, CancellationToken.None);
 
         snapshot.IsAccountActioned(Alice).ShouldBeTrue();
-        snapshot.IsAccountActioned(Bob).ShouldBeFalse(
-            "a ladder exclusion is not a lock; publishing it as one would turn the shadow rung into "
-            + "the loudest sanction in the ladder.");
+        snapshot.IsAccountActioned(lifted).ShouldBeFalse(
+            "lifted four minutes ago. A refresh that read the wall clock, or passed MaxValue as the "
+            + "instant, would still lock this account.");
+        snapshot.IsAccountActioned(future).ShouldBeFalse(
+            "not applied for another five minutes. A refresh that passed MinValue, or ignored the "
+            + "instant entirely, would lock it early — the two probes pin the window from both sides.");
+
+        foreach (var unlocked in new[] { excluded, Bob, renamed })
+        {
+            snapshot.IsAccountActioned(unlocked).ShouldBeFalse(
+                "only an account action is a lock; publishing any other rung as one would turn the "
+                + "quietest sanctions in the ladder into the loudest.");
+        }
+
+        snapshot.LockedAccounts.ShouldBe(1);
     }
 
     [Fact]

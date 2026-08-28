@@ -104,14 +104,34 @@ public sealed class SanctionAwarePrincipalResolverTests
             + "are cannot learn whether an account they are guessing at is sanctioned.");
     }
 
+    /// <summary>
+    /// Both routes to a 403 — the inner resolver's own, and this decorator's — and each asks the
+    /// inner resolver exactly once.
+    /// </summary>
     [Fact]
-    public void An_inner_403_is_passed_along_rather_than_re_derived()
+    public void An_inner_403_survives_a_standing_check_that_locks_nobody()
     {
-        new SanctionAwarePrincipalResolver(
-                new StubResolver(PrincipalResolution.Locked()), StandingLocking())
+        var inner = new StubResolver(PrincipalResolution.Locked());
+
+        new SanctionAwarePrincipalResolver(inner, StandingLocking())
+            .Resolve("Bearer whatever")
+            .RefusalStatus
+            .ShouldBe(403, "an inner refusal is passed along, never softened by an empty snapshot.");
+
+        inner.Calls.ShouldBe(1);
+    }
+
+    [Fact]
+    public void A_resolved_but_locked_account_reaches_the_same_403_by_the_other_route()
+    {
+        var inner = new StubResolver(PrincipalResolution.Resolved(Locked));
+
+        new SanctionAwarePrincipalResolver(inner, StandingLocking(Locked))
             .Resolve("Bearer whatever")
             .RefusalStatus
             .ShouldBe(403);
+
+        inner.Calls.ShouldBe(1, "one request is one authentication, decorated or not.");
     }
 
     [Fact]

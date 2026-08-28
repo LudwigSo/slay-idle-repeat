@@ -11,8 +11,16 @@ namespace SlayIdleRepeat.Application.Moderation;
 /// <remarks>
 /// <para>
 /// Cumulative, never a rate: a rate needs two observations, and storing the rate instead would
-/// throw away the ability to recompute one over a different window. All three measures only ever
-/// grow, which is what makes a negative delta a data fault rather than a plausible reading.
+/// throw away the ability to recompute one over a different window.
+/// </para>
+/// <para>
+/// ⚠️ <b><see cref="WalletTotal"/> is a balance, not an income.</b> It falls whenever the player
+/// spends, so the movement between two readings is NET, and therefore a lower bound on what the
+/// account actually earned — an account that farms a fortune and spends it all reads as flat. That
+/// is an accepted weakness of a cheap backstop, not an oversight: the signal it does catch is the
+/// one that matters, a balance climbing faster than the game can produce. The append-only economy
+/// log is where a gross-income measure would come from, and the task that gives this job a durable
+/// store is the one that could reach it.
 /// </para>
 /// <para>
 /// The wallet is summed rather than tracked per currency deliberately. No document authors a
@@ -31,9 +39,16 @@ public sealed record PlausibilityObservation(
 /// <summary>How far an account moved between two observations.</summary>
 /// <param name="Player">The account.</param>
 /// <param name="Window">How long the two observations are apart. Never negative.</param>
-/// <param name="CurrencyGained">Wallet total gained over the window.</param>
-/// <param name="LegendXpGained">Legend XP gained over the window.</param>
-/// <param name="BattleHashMismatchesGained">Mismatches added over the window.</param>
+/// <param name="CurrencyGained">Wallet total gained over the window. Signed — spending is a fall.</param>
+/// <param name="LegendXpGained">Legend XP gained over the window. Signed; a fall is a storage fault.</param>
+/// <param name="BattleHashMismatchesGained">Mismatches added over the window. Signed; a fall is a storage fault.</param>
+/// <remarks>
+/// 🔒 <b>Every gain is signed, and a fall is never turned into a flag.</b> A falling wallet is
+/// ordinary — the player spent. A falling XP or mismatch tally is a storage fault, and the honest
+/// response to one is to measure it as the negative number it is: the breach test compares against a
+/// non-negative threshold, so a negative movement can never trip one. Clamping a fault to zero would
+/// hide it, and throwing on one would let a single corrupt row stop the whole sweep.
+/// </remarks>
 public sealed record PlausibilityDelta(
     PlayerId Player,
     TimeSpan Window,

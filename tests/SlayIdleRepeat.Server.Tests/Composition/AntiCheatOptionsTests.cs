@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Shouldly;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Server.Composition;
+using SlayIdleRepeat.Server.Endpoints;
 using Xunit;
 
 namespace SlayIdleRepeat.Server.Tests.Composition;
@@ -95,5 +97,62 @@ public sealed class AntiCheatOptionsTests
         authored.MaxLegendXpPerDay.ShouldBeNull(
             "authoring one threshold must not silently author the other two — the negative control "
             + "that keeps 'unauthored' meaning what it says.");
+    }
+
+    /// <summary>
+    /// 🔒 That the process installs the configured limiter, not just that a binder can read the
+    /// keys. A burst of 2 discriminates from the shipped 20, so a composition that ignored
+    /// configuration and used the default would fail here.
+    /// </summary>
+    [Fact]
+    public void The_composed_throttle_is_the_configured_per_player_limiter()
+    {
+        var player = new PlayerId("PLAYER_alice");
+
+        var throttle = AntiCheatComposition.Throttle(Configured(
+            ("RateLimit:Player:SustainedPerSecond", "1"),
+            ("RateLimit:Player:Burst", "2")));
+
+        throttle.ShouldReject(player).ShouldBeFalse();
+        throttle.ShouldReject(player).ShouldBeFalse();
+        throttle.ShouldReject(player).ShouldBeTrue(
+            "the third instantaneous command is past the configured burst of 2 — not the shipped 20.");
+    }
+
+    [Fact]
+    public void An_unconfigured_process_still_installs_a_limiter_rather_than_no_limit_at_all()
+    {
+        var player = new PlayerId("PLAYER_alice");
+        var throttle = AntiCheatComposition.Throttle(Configured());
+
+        for (var i = 0; i < 20; i++)
+        {
+            throttle.ShouldReject(player).ShouldBeFalse($"command {i + 1} is inside the shipped burst.");
+        }
+
+        throttle.ShouldReject(player).ShouldBeTrue(
+            "the placeholder this replaces answered 'no limit' to everything; an unconfigured "
+            + "deployment must be limited, not unlimited.");
+    }
+
+    /// <summary>The 403 path, proven through the composition rather than only through the decorator.</summary>
+    [Fact]
+    public void The_composed_resolver_wraps_the_inner_one_with_the_account_standing_check()
+    {
+        var inner = new AlwaysResolves(new PlayerId("PLAYER_alice"));
+
+        var wrapped = AntiCheatComposition.WithAccountStanding(inner, Configured());
+
+        wrapped.ShouldNotBeSameAs(inner, "the composition must actually decorate, not pass through.");
+        wrapped.Resolve("Bearer whatever").Player.ShouldBe(
+            new PlayerId("PLAYER_alice"),
+            "with nothing sanctioned the wrapper is transparent — a process that locked accounts it "
+            + "had never heard of would refuse every player on a cold start.");
+    }
+
+    private sealed class AlwaysResolves(PlayerId player) : IPrincipalResolver
+    {
+        public PrincipalResolution Resolve(string? authorizationHeader) =>
+            PrincipalResolution.Resolved(player);
     }
 }

@@ -50,11 +50,11 @@ public sealed class PerIpRateLimitTests
     [Fact]
     public void Two_addresses_are_two_partitions_and_one_address_is_one()
     {
-        var first = PerIpRateLimit.PartitionKeyFor(IPAddress.Parse("203.0.113.7"));
-        var second = PerIpRateLimit.PartitionKeyFor(IPAddress.Parse("203.0.113.8"));
+        var first = PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("203.0.113.7"));
+        var second = PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("203.0.113.8"));
 
         first.ShouldNotBe(second);
-        PerIpRateLimit.PartitionKeyFor(IPAddress.Parse("203.0.113.7")).ShouldBe(
+        PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("203.0.113.7")).ShouldBe(
             first, "the same address must land in the same bucket, or the limit counts nothing.");
         first.ShouldContain("203.0.113.7", Case.Sensitive);
     }
@@ -62,8 +62,8 @@ public sealed class PerIpRateLimitTests
     [Fact]
     public void An_ipv6_address_partitions_on_its_canonical_form_rather_than_its_spelling()
     {
-        PerIpRateLimit.PartitionKeyFor(IPAddress.Parse("2001:db8::1")).ShouldBe(
-            PerIpRateLimit.PartitionKeyFor(IPAddress.Parse("2001:0db8:0000:0000:0000:0000:0000:0001")),
+        PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("2001:db8::1")).ShouldBe(
+            PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("2001:0db8:0000:0000:0000:0000:0000:0001")),
             "two spellings of one address are one address. Keying on the text as typed would hand "
             + "an IPv6 client an unbounded supply of partitions.");
     }
@@ -71,33 +71,117 @@ public sealed class PerIpRateLimitTests
     [Fact]
     public void A_request_with_no_readable_address_shares_one_bucket_rather_than_being_exempt()
     {
-        PerIpRateLimit.PartitionKeyFor(null).ShouldBe(
+        PerIpRateLimit.PartitionKeyForAddress(null).ShouldBe(
             PerIpRateLimit.UnknownAddressPartition,
             "an exemption would be the one partition key an attacker would aim for.");
     }
 
-    /// <summary>
-    /// 🔒 The spoofing arm. With nothing trusted in front of this service, a forwarded-for header is
-    /// attacker-supplied text; partitioning on one would let a single client mint unlimited
-    /// identities and defeat the limit entirely.
-    /// </summary>
-    [Fact]
-    public void A_forwarded_for_header_does_not_change_which_partition_a_request_lands_in()
+    private static DefaultHttpContext Request(string? remoteAddress, string? forwardedFor = null)
     {
         var http = new DefaultHttpContext();
-        http.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.7");
 
-        var honest = PerIpRateLimit.PartitionKeyFor(http.Connection.RemoteIpAddress);
+        http.Connection.RemoteIpAddress = remoteAddress is null ? null : IPAddress.Parse(remoteAddress);
 
-        http.Request.Headers["X-Forwarded-For"] = "198.51.100.99";
-        http.Request.Headers["X-Real-IP"] = "198.51.100.99";
-        http.Request.Headers["Forwarded"] = "for=198.51.100.99";
+        if (forwardedFor is not null)
+        {
+            http.Request.Headers["X-Forwarded-For"] = forwardedFor;
+            http.Request.Headers["X-Real-IP"] = forwardedFor;
+            http.Request.Headers["Forwarded"] = "for=" + forwardedFor;
+        }
 
-        PerIpRateLimit.PartitionKeyFor(http.Connection.RemoteIpAddress).ShouldBe(
+        return http;
+    }
+
+    /// <summary>
+    /// 🔒 The spoofing arm, driven through the selector the limiter is actually registered with.
+    /// With nothing trusted in front of this service, a forwarded-for header is attacker-supplied
+    /// text; partitioning on one would let a single client mint unlimited identities and defeat the
+    /// limit entirely.
+    /// </summary>
+    [Fact]
+    public void Two_requests_from_one_address_share_a_partition_however_they_spell_their_forwarded_for()
+    {
+        var honest = PerIpRateLimit.PartitionKeyFor(Request("203.0.113.7"));
+
+        PerIpRateLimit.PartitionKeyFor(Request("203.0.113.7", forwardedFor: "198.51.100.99")).ShouldBe(
             honest,
             "the partition is the transport's own remote address and never a request header.");
+        PerIpRateLimit.PartitionKeyFor(Request("203.0.113.7", forwardedFor: "192.0.2.5")).ShouldBe(
+            honest,
+            "and a second spoofed value must not split the bucket either — otherwise one client "
+            + "mints a fresh limit per header value it invents.");
 
         honest.ShouldNotContain("198.51.100.99", Case.Sensitive);
+        honest.ShouldBe(
+            PerIpRateLimit.PartitionKeyForAddress(IPAddress.Parse("203.0.113.7")),
+            "the request selector and the address helper must agree, or the tested one is not the "
+            + "registered one.");
+    }
+
+    /// <summary>The negative control for the arm above: the header cannot MERGE two addresses either.</summary>
+    [Fact]
+    public void Two_requests_from_different_addresses_stay_apart_even_sharing_a_forwarded_for()
+    {
+        PerIpRateLimit.PartitionKeyFor(Request("203.0.113.7", forwardedFor: "198.51.100.99")).ShouldNotBe(
+            PerIpRateLimit.PartitionKeyFor(Request("203.0.113.8", forwardedFor: "198.51.100.99")),
+            "if the header were trusted, two attackers behind one claimed address would share — and "
+            + "exhaust — a single bucket, which is the denial-of-service half of the same hole.");
+    }
+
+    [Fact]
+    public void A_request_whose_connection_has_no_address_lands_in_the_shared_unknown_partition()
+    {
+        PerIpRateLimit.PartitionKeyFor(Request(remoteAddress: null, forwardedFor: "198.51.100.99")).ShouldBe(
+            PerIpRateLimit.UnknownAddressPartition,
+            "an absent connection address is not an invitation to believe the header instead.");
+    }
+
+    /// <summary>🔒 The infrastructure refusal, which is HTTP and nothing but HTTP.</summary>
+    [Theory]
+    [InlineData(10)]
+    [InlineData(3)]
+    public void A_throttled_address_is_refused_with_429_and_the_configured_backoff(int retryAfterSeconds)
+    {
+        var http = new DefaultHttpContext();
+
+        PerIpRateLimit.WriteRefusal(
+            http.Response, new PerIpRateLimitOptions { RetryAfterSeconds = retryAfterSeconds });
+
+        http.Response.StatusCode.ShouldBe(
+            429,
+            "the infrastructure limit is a transport failure, not a decided answer — the client "
+            + "backs off and retries the SAME command id.");
+        http.Response.Headers.RetryAfter.ToString().ShouldBe(
+            retryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "the header tracks the configured backoff rather than a constant.");
+    }
+
+    /// <summary>🔒 The two limits must never blur: this one carries no rejection envelope at all.</summary>
+    [Fact]
+    public void The_infrastructure_refusal_carries_no_rejection_envelope()
+    {
+        var http = new DefaultHttpContext();
+        http.Response.Body = new MemoryStream();
+
+        PerIpRateLimit.WriteRefusal(http.Response, new PerIpRateLimitOptions());
+
+        http.Response.Body.Length.ShouldBe(
+            0,
+            "RATE_LIMITED is the per-PLAYER answer and rides HTTP 200. Handing a client both "
+            + "signals at once tells it to back off and to never retry, which are opposite rules.");
+        http.Response.ContentType.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void A_refusal_with_a_non_positive_backoff_is_refused_rather_than_telling_a_client_to_retry_now(
+        int retryAfterSeconds)
+    {
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => PerIpRateLimit.WriteRefusal(
+                new DefaultHttpContext().Response,
+                new PerIpRateLimitOptions { RetryAfterSeconds = retryAfterSeconds }));
     }
 
     [Fact]
@@ -116,21 +200,20 @@ public sealed class PerIpRateLimitTests
     }
 
     [Theory]
-    [InlineData(0, 100, 10)]
-    [InlineData(-1, 100, 10)]
-    [InlineData(20, 0, 10)]
-    [InlineData(20, 100, 0)]
-    [InlineData(20, 100, -5)]
-    public void A_non_positive_number_is_refused_rather_than_producing_a_limiter_that_refuses_everything(
-        int permitsPerSecond, int burst, int retryAfterSeconds)
+    [InlineData(0, 100, nameof(PerIpRateLimitOptions.PermitsPerSecond))]
+    [InlineData(-1, 100, nameof(PerIpRateLimitOptions.PermitsPerSecond))]
+    [InlineData(20, 0, nameof(PerIpRateLimitOptions.Burst))]
+    [InlineData(20, -7, nameof(PerIpRateLimitOptions.Burst))]
+    public void A_non_positive_number_is_refused_and_the_refusal_names_which_one(
+        int permitsPerSecond, int burst, string blamed)
     {
-        var options = new PerIpRateLimitOptions
-        {
-            PermitsPerSecond = permitsPerSecond,
-            Burst = burst,
-            RetryAfterSeconds = retryAfterSeconds,
-        };
+        var options = new PerIpRateLimitOptions { PermitsPerSecond = permitsPerSecond, Burst = burst };
 
-        Should.Throw<ArgumentOutOfRangeException>(() => PerIpRateLimit.BucketFor(options));
+        Should.Throw<ArgumentOutOfRangeException>(() => PerIpRateLimit.BucketFor(options))
+            .Message.ShouldContain(
+                blamed,
+                Case.Sensitive,
+                "two independent rules throw the same exception type here; without naming the "
+                + "offending setting an operator cannot tell which of their numbers was refused.");
     }
 }

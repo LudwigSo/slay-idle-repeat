@@ -81,44 +81,83 @@ public sealed class ReviewQueueTests
             .Message.ShouldContain("DISMISSED", Case.Sensitive);
     }
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData(null)]
-    public void A_verdict_with_no_operator_is_refused(string? operatorName)
+    [Fact]
+    public void A_decided_entry_cannot_be_decided_the_same_way_twice()
     {
-        Should.Throw<ArgumentException>(() => Open().Confirm(operatorName!, "notes", Reviewed));
-        Should.Throw<ArgumentException>(() => Open().Dismiss(operatorName!, "notes", Reviewed));
+        var confirmed = Open().Confirm("ops.rita", "confirmed", Reviewed);
+        var dismissed = Open().Dismiss("ops.rita", "dismissed", Reviewed);
+
+        Should.Throw<InvalidOperationException>(
+            () => confirmed.Confirm("ops.rita", "confirmed again", Reviewed.AddHours(1)));
+        Should.Throw<InvalidOperationException>(
+            () => dismissed.Dismiss("ops.rita", "dismissed again", Reviewed.AddHours(1)));
+    }
+
+    [Fact]
+    public void A_verdict_leaves_the_open_entry_untouched_and_carries_everything_else_across()
+    {
+        var open = Open();
+        var confirmed = open.Confirm("ops.rita", "notes", Reviewed);
+
+        open.State.ShouldBe(ReviewState.OPEN, "the record is immutable; a verdict returns a new one.");
+        open.ReviewedBy.ShouldBeNull();
+
+        confirmed.EntryId.ShouldBe(open.EntryId);
+        confirmed.Source.ShouldBe(open.Source);
+        confirmed.Subject.ShouldBe(open.Subject);
+        confirmed.Reason.ShouldBe(
+            open.Reason,
+            "a verdict decides an entry; it never rewrites what the producer observed.");
+        confirmed.RaisedAtUtc.ShouldBe(open.RaisedAtUtc);
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]
-    public void A_verdict_with_no_note_is_refused(string? notes)
+    public void A_verdict_with_no_operator_is_refused_and_the_refusal_blames_that_parameter(string? operatorName)
     {
-        Should.Throw<ArgumentException>(() => Open().Confirm("ops.rita", notes!, Reviewed));
-        Should.Throw<ArgumentException>(() => Open().Dismiss("ops.rita", notes!, Reviewed));
+        Should.Throw<ArgumentException>(() => Open().Confirm(operatorName!, "notes", Reviewed))
+            .ParamName.ShouldBe(
+                "reviewedBy",
+                "two independent rules on this method throw the same type; without the parameter "
+                + "name an implementation that validated the notes twice would pass.");
+        Should.Throw<ArgumentException>(() => Open().Dismiss(operatorName!, "notes", Reviewed))
+            .ParamName.ShouldBe("reviewedBy");
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]
-    public void An_entry_raised_with_no_reason_is_refused(string? reason)
+    public void A_verdict_with_no_note_is_refused_and_the_refusal_blames_that_parameter(string? notes)
+    {
+        Should.Throw<ArgumentException>(() => Open().Confirm("ops.rita", notes!, Reviewed))
+            .ParamName.ShouldBe("notes");
+        Should.Throw<ArgumentException>(() => Open().Dismiss("ops.rita", notes!, Reviewed))
+            .ParamName.ShouldBe("notes");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void An_entry_raised_with_no_reason_is_refused_and_the_refusal_blames_that_parameter(string? reason)
     {
         Should.Throw<ArgumentException>(
-            () => ReviewQueueEntry.Raise("REV_1", ReviewSource.PLAUSIBILITY_SWEEP, Subject, reason!, Raised));
+                () => ReviewQueueEntry.Raise("REV_1", ReviewSource.PLAUSIBILITY_SWEEP, Subject, reason!, Raised))
+            .ParamName.ShouldBe("reason");
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]
-    public void An_entry_raised_with_no_id_is_refused(string? entryId)
+    public void An_entry_raised_with_no_id_is_refused_and_the_refusal_blames_that_parameter(string? entryId)
     {
         Should.Throw<ArgumentException>(
-            () => ReviewQueueEntry.Raise(entryId!, ReviewSource.PLAUSIBILITY_SWEEP, Subject, "reason", Raised));
+                () => ReviewQueueEntry.Raise(entryId!, ReviewSource.PLAUSIBILITY_SWEEP, Subject, "reason", Raised))
+            .ParamName.ShouldBe("entryId");
     }
 
     /// <summary>

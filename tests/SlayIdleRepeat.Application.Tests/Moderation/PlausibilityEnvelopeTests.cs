@@ -99,6 +99,51 @@ public sealed class PlausibilityEnvelopeTests
             + "cross-multiplication, so a 1 h window and a 30 d window are judged identically.");
     }
 
+    /// <summary>
+    /// 🔒 The account the sweep exists to notice is exactly the one whose numbers are large enough
+    /// to overflow a naive <c>long</c> cross-multiply — and a wrapped product goes negative, which
+    /// reads as "well inside the envelope".
+    /// </summary>
+    [Theory]
+    [InlineData(long.MaxValue)]
+    [InlineData(long.MaxValue / 2)]
+    [InlineData(1_000_000_000_000L)]
+    public void A_gain_far_too_large_for_a_long_product_is_still_a_breach(long gained)
+    {
+        new PlausibilityEnvelope(MaxCurrencyPerDay: 1_000)
+            .Breaches(Delta(TimeSpan.FromHours(1), currency: gained))
+            .ShouldHaveSingleItem()
+            .Gained
+            .ShouldBe(
+                gained,
+                $"{gained} in an hour is astronomically over 1 000/day. A long product of gained × "
+                + "one day in ticks wraps above roughly ten million, so the naive arithmetic would "
+                + "silently clear the largest cheater in the game.");
+    }
+
+    [Fact]
+    public void A_measure_that_went_backwards_is_measured_as_a_fall_and_never_flagged()
+    {
+        var envelope = new PlausibilityEnvelope(
+            MaxCurrencyPerDay: 1, MaxLegendXpPerDay: 1, MaxBattleHashMismatchesPerDay: 1);
+
+        var spent = new PlausibilityObservation(Player, Start, WalletTotal: 5_000, LegendXp: 100, BattleHashMismatches: 3);
+        var later = new PlausibilityObservation(Player, Start.AddDays(1), WalletTotal: 10, LegendXp: 90, BattleHashMismatches: 1);
+
+        var delta = PlausibilityDelta.Between(spent, later);
+
+        delta.CurrencyGained.ShouldBe(
+            -4_990,
+            "a wallet is a balance and falls whenever the player spends. Clamping that to zero would "
+            + "hide it; refusing it outright would let one ordinary purchase stop the sweep.");
+        delta.LegendXpGained.ShouldBe(-10);
+        delta.BattleHashMismatchesGained.ShouldBe(-2);
+
+        envelope.Breaches(delta).ShouldBeEmpty(
+            "and no fall can ever exceed a non-negative threshold, so a storage fault in a "
+            + "monotone measure is never amplified into a flag against a real player.");
+    }
+
     [Fact]
     public void A_window_that_is_not_positive_is_judged_by_nothing()
     {
