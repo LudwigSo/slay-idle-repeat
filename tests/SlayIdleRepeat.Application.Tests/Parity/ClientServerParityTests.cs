@@ -41,10 +41,18 @@ namespace SlayIdleRepeat.Application.Tests.Parity;
 public sealed class ClientServerParityTests
 {
     /// <summary>
-    /// A wall-clock guard against an algorithmic regression, not a performance target. Measured at
-    /// about 9 s in total; the budget is a little over 4× that.
+    /// A wall-clock guard against an algorithmic regression, not a performance target.
     /// </summary>
-    private const int BudgetSeconds = 40;
+    /// <remarks>
+    /// 🔴 Two measurements, and the second is why this number is what it is: about <b>9 s</b> when
+    /// this class runs alone, and <b>48 s</b> when it runs inside the full unit group, because xUnit
+    /// runs collections in parallel and 1 500 other cases are competing for the same cores. A budget
+    /// set from the isolated figure goes red on a busy machine and teaches everyone to re-run the
+    /// suite, which is worse than no budget at all. This one is set well above the loaded figure on
+    /// purpose: the failure it exists to catch is an accidental O(n²), which moves the number by
+    /// orders of magnitude rather than by a factor of five.
+    /// </remarks>
+    private const int BudgetSeconds = 300;
 
     /// <summary>
     /// The share of drawn steps the domain must accept before the walk counts as legality-aware.

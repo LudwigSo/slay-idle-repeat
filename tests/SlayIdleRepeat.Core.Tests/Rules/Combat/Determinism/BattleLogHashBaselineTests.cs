@@ -25,16 +25,37 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Determinism;
 /// ⚠️ D45 (HP persists across a run) and D46 (DMG%/DR% become multiplier stats) both move every
 /// number in the committed table. Re-baseline after both, never between them.
 /// </para>
+/// <para>
+/// 🔴 <b>What this corpus adds to the 4-decimal-place rounding rule, and what it does not.</b> The
+/// existing audit is two classes and they check two different things:
+/// <c>DeterminismRoundingRuleTests</c> is an IL scan asserting the rule is STATED in exactly one
+/// place, and <c>DeterminismRoundingTests</c> pins what that one place COMPUTES. Neither is a
+/// coverage rule — nothing requires an accumulation point to round at all, and a new
+/// double-returning method that forgets to is caught only if its value reaches
+/// <c>CanonicalStateWriter</c> or <c>CombatLog</c>, both of which refuse an unrounded double
+/// outright. This corpus widens that net and does not replace it: ten thousand fights push real
+/// values through every arm of the attack pipeline into <c>CombatLog</c>, so an unrounded
+/// accumulation on any reached path throws rather than hashing. It still says nothing about
+/// transient doubles that reach neither guard, about the <c>Content</c> layer's separate
+/// <c>AwayFromZero</c> rounding to integers, or about <c>Math.Pow</c>, which `14` §8.2 asks combat
+/// code to avoid and which no rule enforces.
+/// </para>
 /// </remarks>
 public sealed class BattleLogHashBaselineTests
 {
     /// <summary>
-    /// A wall-clock guard against an algorithmic regression, not a performance target. Measured at
-    /// about 10 s in total (0.1 s generating, 9.7 s simulating, 0.01 s hashing); the budget is 4× that,
-    /// which leaves room for a slow CI agent
-    /// without letting an accidental O(n²) through.
+    /// A wall-clock guard against an algorithmic regression, not a performance target.
     /// </summary>
-    private const int BudgetSeconds = 40;
+    /// <remarks>
+    /// 🔴 About <b>10 s</b> when this class runs alone (0.1 s generating, 9.7 s simulating, 0.01 s
+    /// hashing) — and several times that inside the full unit group, because xUnit runs collections
+    /// in parallel and six thousand other cases are competing for the same cores. A budget set from
+    /// the isolated figure goes red on a busy machine and teaches everyone to re-run the suite, which
+    /// is worse than no budget at all. This one is set well above the loaded figure on purpose: the
+    /// failure it exists to catch is an accidental O(n²), which moves the number by orders of
+    /// magnitude rather than by a factor of five.
+    /// </remarks>
+    private const int BudgetSeconds = 300;
 
     /// <summary>
     /// How many of the 10 000 fights must produce a <c>LogHash</c> nothing else in the corpus
