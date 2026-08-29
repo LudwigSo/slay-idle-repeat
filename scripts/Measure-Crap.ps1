@@ -32,6 +32,11 @@
          Step 1 deletes TestResults/ and coverage/. That deletion is the
          correctness guarantee, not a tidiness step.
 
+    SCOPE: only SlayIdleRepeat.Core and SlayIdleRepeat.Application are measured.
+    That allow-list lives in coverage.runsettings and is applied at COLLECTION
+    time, so the other fifteen assemblies are never instrumented rather than
+    being instrumented and then filtered out of the report.
+
     An ABSENT Risk Hotspots section on a green run means nothing crossed the
     thresholds, not that the setup is broken. Prove it by re-running with
     -CrapThreshold 1 -ComplexityThreshold 1.
@@ -54,6 +59,12 @@
 .PARAMETER FailOnCrap
     Build-breaking maximum CRAP score. 0 (the default) disables the gate
     entirely. Deliberately NOT enabled in CI - calibrate first, see docs/crap.md.
+
+.PARAMETER ExcludeSuites
+    Test suites that must not run under coverage. Defaults to the architecture
+    suite, whose IL-scanning rules report false violations when coverlet has
+    instrumented the assemblies they read. See the parameter block for the
+    measurement.
 
 .PARAMETER Open
     Open coverage/index.html when the run finishes.
@@ -89,6 +100,23 @@ param(
 
     [ValidateRange(0, [int]::MaxValue)]
     [int]$FailOnCrap = 0,
+
+    # Suites that must not run under coverage instrumentation.
+    #
+    # 🔴 The architecture suite is not here for speed, it is here for
+    # CORRECTNESS. Its rules read the IL of Core and Application with Mono.Cecil
+    # and NetArchTest; coverlet instruments those same two assemblies on disk for
+    # the duration of a run. So the rules end up scanning coverlet's injected
+    # tracking code and report violations that do not exist in the source:
+    # ambient time and randomness, culture-sensitive formatting, types outside a
+    # documented namespace. Measured, not guessed - 173/173 pass without
+    # coverage, exactly 4 fail with it.
+    #
+    # Nothing is lost by skipping it. Those rules READ assemblies rather than
+    # executing them, so the suite contributes essentially no covered lines; the
+    # comparison in docs/crap.md records Core and Application landing on the same
+    # percentages either way. It still runs, unaffected, in its own CI job.
+    [string[]]$ExcludeSuites = @('SlayIdleRepeat.Architecture.Tests'),
 
     [switch]$Open
 )
@@ -190,13 +218,84 @@ if (Test-Path -LiteralPath $coverageDir) {
     Write-Host 'coverage/    : absent'
 }
 
+# -------------------------------------------------------- suite selection
+# Computed whether or not tests run, because step 3 compares the number of
+# coverage files against the number of suites that were SUPPOSED to produce one.
+# Counting every project under tests/ there would report a phantom missing file
+# for every deliberately excluded suite.
+$allSuites = @(
+    Get-ChildItem -Path (Join-Path $repoRoot 'tests') -Filter '*.csproj' -Recurse -File |
+        Sort-Object -Property Name
+)
+$suites = @($allSuites | Where-Object { $ExcludeSuites -notcontains [IO.Path]::GetFileNameWithoutExtension($_.Name) })
+if ($suites.Count -eq 0) {
+    Stop-WithSetupFailure "No test project under $repoRoot\tests\ survived -ExcludeSuites ($($ExcludeSuites -join ', '))."
+}
+
 # ------------------------------------------------------------ 2. dotnet test
 if ($SkipTests) {
     Write-Section 'Skipping tests (-SkipTests)'
 } else {
-    Write-Section 'dotnet test'
-    & dotnet test $Solution --settings $runSettings --results-directory $testResultsDir
-    $testExitCode = $LASTEXITCODE
+    Write-Section 'dotnet build'
+
+    # Built once here so every suite below can run with --no-build.
+    & dotnet build $Solution
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithSetupFailure "dotnet build exited $LASTEXITCODE. Nothing was measured; fix the build first."
+    }
+
+    if (@($ExcludeSuites).Count -gt 0) {
+        Write-Host ''
+        Write-Host "Excluded from coverage: $($ExcludeSuites -join ', ')"
+    }
+
+    # Per suite rather than one `dotnet test` over the solution, because a single
+    # suite has to be left out. That trade has a cost: `dotnet test <sln>` runs
+    # test projects CONCURRENTLY, and a naive foreach here serialises them. On
+    # this repository that measured 12m04s sequential against roughly ten minutes
+    # parallel - Application.Tests alone is 8m12s, so it is the critical path and
+    # everything else should be running alongside it, not after it. Hence the
+    # explicit throttle rather than a plain loop.
+    #
+    # Safe to parallelise: each test project instruments the copies of Core and
+    # Application in its OWN bin directory, and each writes to its own results
+    # directory below. Nothing is shared.
+    $throttle = [Math]::Max(2, [Math]::Min(6, [int]([Environment]::ProcessorCount / 2)))
+    Write-Section "dotnet test - $($suites.Count) suite(s), up to $throttle at a time"
+
+    $suiteResults = $suites | ForEach-Object -ThrottleLimit $throttle -Parallel {
+        # Parallel runspaces do NOT inherit the caller's preference variables, and
+        # both of these are load-bearing here: `dotnet` writes ordinary progress to
+        # stderr, and 2>&1 below would turn that into a terminating error under the
+        # script's own 'Stop' setting. Restated rather than assumed.
+        $ErrorActionPreference = 'Continue'
+        $PSNativeCommandUseErrorActionPreference = $false
+
+        $project = $_
+        $name = [IO.Path]::GetFileNameWithoutExtension($project.Name)
+
+        # One results directory per suite, so a coverage file can be traced back
+        # to the suite that produced it. Coverlet still nests its own GUID folder
+        # inside, and step 5's recursive glob is unaffected.
+        $suiteResultsDir = Join-Path $using:testResultsDir $name
+
+        $output = & dotnet test $project.FullName `
+            --no-build `
+            --settings $using:runSettings `
+            --results-directory $suiteResultsDir 2>&1 | Out-String
+
+        [pscustomobject]@{ Name = $name; ExitCode = $LASTEXITCODE; Output = $output }
+    }
+
+    # Printed after the fact, grouped per suite. Live interleaving of six
+    # concurrent `dotnet test` runs is unreadable, and this output is what
+    # somebody reads when a suite fails.
+    $testExitCode = 0
+    foreach ($result in ($suiteResults | Sort-Object -Property Name)) {
+        Write-Section "dotnet test $($result.Name)"
+        Write-Host $result.Output
+        if ($result.ExitCode -ne 0) { $testExitCode = $result.ExitCode }
+    }
 
     # A failing suite is reported but NOT fatal: coverlet still writes coverage
     # for everything that ran, and a partial CRAP ranking is more useful than
@@ -229,20 +328,43 @@ if ($coberturaFiles.Count -eq 0) {
         "  Fix: add a coverlet.collector PackageReference to every suite under tests/. This repository uses`n" +
         "  Central Package Management, so the version belongs in Directory.Packages.props, not in the .csproj.")
 }
-Write-Host "Cobertura files : $($coberturaFiles.Count)"
-foreach ($file in $coberturaFiles) {
-    Write-Host "  - $([IO.Path]::GetRelativePath($repoRoot, $file.FullName))"
+# Each file sits under TestResults/<SuiteName>/<guid>/, so the suite that
+# produced it is recoverable from the path. An empty file - one carrying no
+# <package> at all - means that suite exercised none of the included assemblies.
+$emptyMarker = '<packages />'
+$bySuite = foreach ($file in $coberturaFiles) {
+    $relative = [IO.Path]::GetRelativePath($testResultsDir, $file.FullName)
+    $content = Get-Content -Raw -LiteralPath $file.FullName
+    [pscustomobject]@{
+        Suite       = ($relative -split '[\\/]')[0]
+        Path        = [IO.Path]::GetRelativePath($repoRoot, $file.FullName)
+        Contributes = $content -notmatch [regex]::Escape($emptyMarker) -and $content -match '<package\b'
+    }
 }
 
-# Every suite should contribute one file. Fewer means the glob in step 5 is
-# ranking a subset of the codebase while looking exactly like a full run.
-$testsDir = Join-Path $repoRoot 'tests'
-if (Test-Path -LiteralPath $testsDir) {
-    $testProjectCount = @(Get-ChildItem -Path $testsDir -Filter '*.csproj' -Recurse -File).Count
-    if ($testProjectCount -gt 0 -and $coberturaFiles.Count -lt $testProjectCount) {
-        Write-Host ''
-        Write-Host "WARNING: $($coberturaFiles.Count) coverage file(s) for $testProjectCount test project(s) under tests/. Some suite did not emit coverage, so the ranking below covers less of the codebase than it appears to." -ForegroundColor Yellow
-    }
+Write-Host "Cobertura files : $($coberturaFiles.Count) (from $($suites.Count) suite(s) run)"
+foreach ($entry in $bySuite) {
+    Write-Host "  - $($entry.Suite)$(if (-not $entry.Contributes) { '  [no coverage of the included assemblies]' })"
+}
+
+# Fewer files than suites means one did not emit coverage at all, and the ranking
+# then covers less than it appears to. Compared against the suites actually RUN,
+# not every project under tests/ - otherwise every deliberate -ExcludeSuites entry
+# reads as a missing file.
+if ($coberturaFiles.Count -lt $suites.Count) {
+    Write-Host ''
+    Write-Host "WARNING: $($coberturaFiles.Count) coverage file(s) from $($suites.Count) suite(s) that ran. One emitted nothing, so the ranking below covers less of the codebase than it appears to." -ForegroundColor Yellow
+}
+
+# Not a fault - the allow-list in coverage.runsettings is narrow on purpose, so
+# suites that only exercise tools/ or adapters legitimately produce an empty
+# file. Named anyway: these are the suites whose runtime buys this report
+# nothing, and -ExcludeSuites is how you stop paying for them.
+$idleSuites = @($bySuite | Where-Object { -not $_.Contributes } | Select-Object -ExpandProperty Suite -Unique)
+if ($idleSuites.Count -gt 0) {
+    Write-Host ''
+    Write-Host "NOTE: $($idleSuites.Count) suite(s) produced no coverage of the measured assemblies: $($idleSuites -join ', ')." -ForegroundColor DarkGray
+    Write-Host "      They cost run time and contribute nothing to this report. Pass -ExcludeSuites to skip them, but re-check that decision whenever the allow-list in coverage.runsettings widens." -ForegroundColor DarkGray
 }
 
 # ------------------------------- 4. assert the format actually carries complexity

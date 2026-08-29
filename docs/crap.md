@@ -14,6 +14,34 @@ CRAP(m) = complexity(m)^2 * (1 - coverage(m))^3 + complexity(m)
 - The coverage term is *cubed*, so the first tests you add to an untested tangle
   buy far more than the last ones.
 
+## What is measured
+
+**Only `SlayIdleRepeat.Core` and `SlayIdleRepeat.Application`.** Everything else
+— adapters, `tools/`, the Godot client — is out of scope on purpose. Those two
+are the domain and the use-case layer: the code whose risk is worth ranking, and
+the code `23` keeps free of vendor SDKs, so a hotspot in them is always a hotspot
+in our own logic.
+
+The allow-list lives in `coverage.runsettings` and is applied **at collection
+time**:
+
+```xml
+<Include>[SlayIdleRepeat.Core]*,[SlayIdleRepeat.Application]*</Include>
+```
+
+Two properties of that line are deliberate:
+
+- It is an **allow-list, not a deny-list**, so a new adapter or tool is out of
+  scope the day it is created rather than the day somebody remembers to exclude
+  it. The scope cannot drift open by omission.
+- It runs **at collection, not in ReportGenerator**, so coverlet never
+  instruments the other fifteen assemblies at all. Filtering in the report would
+  pay the full instrumentation cost on every run and then discard the results.
+
+Narrowing the scope changed nothing about the two assemblies that remain — Core
+was 91.9% and Application 91.4% both before and after, measured — it just stopped
+paying for the other fifteen.
+
 ## Running it
 
 ```bash
@@ -39,6 +67,7 @@ The report lands in `coverage/` — open `coverage/index.html` and look for
 | `-CrapThreshold` | 30 | Minimum CRAP score to appear as a hotspot |
 | `-ComplexityThreshold` | 15 | Minimum cyclomatic complexity to appear as a hotspot |
 | `-FailOnCrap` | 0 (off) | Exit non-zero if any method scores above this |
+| `-ExcludeSuites` | the architecture suite | Test suites that must not run under coverage |
 | `-Open` | off | Open the HTML report when done |
 
 Exit codes: `0` success, `1` a `-FailOnCrap` maximum was exceeded, `2` a setup
@@ -114,7 +143,7 @@ it exits 2 and says so. Checking the inputs alone would not have caught this.
 
 ReportGenerator's HTML Risk Hotspots table is **capped at 20 rows, and the page
 says so nowhere.** On this repository at the default thresholds that is 20 rows
-out of **844** qualifying methods — so reading the table as "the list of our
+out of **553** qualifying methods — so reading the table as "the list of our
 risky methods" is off by more than an order of magnitude.
 
 `Measure-Crap.ps1` prints a warning whenever the table comes back full, because
@@ -131,6 +160,54 @@ That shows the worst offenders alone; lower it stepwise as they get fixed. The
 cap is also the practical argument against treating this as a backlog to burn
 down — use it to find the next thing to fix, not to count how much is left.
 
+## Which suites run, and why one does not
+
+Every suite under `tests/` runs **except the architecture suite**, and that
+exclusion is about correctness, not speed.
+
+`SlayIdleRepeat.Architecture.Tests` reads the IL of Core and Application with
+Mono.Cecil and NetArchTest. Coverlet instruments those same two assemblies on
+disk for the duration of a run. So the rules end up scanning coverlet's injected
+tracking code and report violations that are not in the source — ambient time and
+randomness, culture-sensitive formatting, types outside a documented namespace.
+Measured: **173/173 pass without coverage, exactly 4 fail with it.**
+
+Nothing is lost by skipping it. Those rules *read* assemblies rather than
+executing them, so the suite contributes essentially no covered lines — Core and
+Application land on the same percentages either way. It still runs, unaffected,
+in its own CI job, which is where `23` §6 wants it.
+
+The suites run **concurrently** (up to half your cores). A plain sequential loop
+measured 12m04s against 8m41s parallel: `Application.Tests` alone is 8m12s, so it
+is the critical path and everything else should run alongside it. Parallelising
+is safe because each test project instruments the copies of Core and Application
+in its *own* `bin` directory.
+
+Four suites — `AssetManifest`, `AssetPipeline`, `AssetPlaceholders`,
+`AssetProvenance` — exercise `tools/` and therefore produce a completely empty
+coverage file under this allow-list. The script names them at the end of every
+run. They are not skipped by default, because "contributes nothing today" is a
+fact about today; pass `-ExcludeSuites` if you want to stop paying for them, and
+revisit that when the allow-list widens.
+
+### Timing-budget tests cannot pass under coverage
+
+Two tests in `Core.Tests` assert wall-clock budgets:
+
+- `InMemoryGamePerformanceTests.A_full_inventory_costs_a_command_only_linearly_and_stays_inside_the_budget`
+- `CombatSimulatorTests.A_worst_case_1800_tick_fight_simulates_inside_the_budget`
+
+Coverage instrumentation adds overhead to every sequence point, and running
+suites concurrently loads the machine further, so these fail intermittently
+during a CRAP run. **This is an artefact of measurement, not a regression** — they
+pass in a normal `dotnet test`. The script prints a loud warning whenever any
+suite fails, so the failure is never silent.
+
+They are not excluded, because they live inside a suite that must run for Core
+coverage and carry no `[Trait]` to filter on. The options, none of them free, are
+to tag them with a category and filter it, to run them outside the coverage job,
+or to accept the warning.
+
 ## Things that look wrong and are not
 
 - **`MoveNext`, `<>c__DisplayClass`, `<Foo>g__Local|1_0`.** Async methods,
@@ -143,13 +220,15 @@ down — use it to find the next thing to fix, not to count how much is left.
 - **Fewer coverage files than test projects.** The script warns about this
   explicitly. It means a suite emitted nothing and the ranking covers less of the
   codebase than it appears to.
-- **Godot's generated dispatch methods are not listed.** `InvokeGodotClassMethod`,
-  `Get`/`SetGodotClassPropertyValue` and `RestoreGodotObjectData` reach cyclomatic
-  complexity 92 and would otherwise fill the entire top of the ranking. They are
-  excluded at collection time by the `**/*.generated.cs` rule in
-  `coverage.runsettings` - nobody wrote them and nobody can refactor them. Note
-  the `-*Generated*` class filter does NOT catch them: it matches class names, and
-  these sit on ordinary classes like `Game.Scenes.Board`.
+- **No Godot client methods at all.** `SlayIdleRepeat.Client` is outside the
+  allow-list, so its scene code never appears. Before the allow-list existed, the
+  entire top of the ranking was Godot's generated dispatch —
+  `InvokeGodotClassMethod`, `Get`/`SetGodotClassPropertyValue`,
+  `RestoreGodotObjectData`, cyclomatic complexity up to 92, written by nobody and
+  refactorable by nobody. The `**/*.generated.cs` rule in `coverage.runsettings`
+  still guards against that if the allow-list is ever widened over the client;
+  note the `-*Generated*` class filter does NOT, because it matches class names
+  and those methods sit on ordinary classes like `Game.Scenes.Board`.
 
 ## CI
 
