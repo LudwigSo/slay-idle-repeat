@@ -151,6 +151,19 @@ public sealed class ReconnectChaosTests
             what + ": the client never reconnected, so the reconnect read was never exercised." +
             Trace(chaos));
 
+        // The rotation has to actually rotate. A schedule stuck on one class would satisfy every
+        // count above — the run is long enough that a four-step cycle meets all four classes many
+        // times over — so a pass that met fewer than all four is a schedule that stopped cycling.
+        chaos.Driver.Boundaries.Select(boundary => boundary.Fault).Distinct().Count().ShouldBe(
+            RotationPasses,
+            what + ": the run met " +
+            string.Join(
+                ", ", chaos.Driver.Boundaries.Select(boundary => boundary.Fault).Distinct()) +
+            " and nothing else. Each pass rotates a four-step cycle over " +
+            Text(chaos.Driver.Boundaries.Count) + " boundaries, so every class must appear; one that " +
+            "does not means the schedule stopped cycling and this pass silently covers less than it " +
+            "claims." + Trace(chaos));
+
         chaos.Driver.Ending.ShouldBe(
             ChaosRunDriver.VictoryEnding,
             what + ": the run did not complete correctly — it ended some other way than by beating " +
