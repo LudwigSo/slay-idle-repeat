@@ -20,9 +20,14 @@ CRAP(m) = complexity(m)^2 * (1 - coverage(m))^3 + complexity(m)
 pwsh ./scripts/Measure-Crap.ps1
 ```
 
-That restores nothing you have to remember: the tool is pinned in
-`.config/dotnet-tools.json`, so run `dotnet tool restore` once per clone and the
-script uses the same ReportGenerator version CI does.
+That is the whole setup. ReportGenerator is pinned in
+`.config/dotnet-tools.json` and the script restores it itself, so a fresh clone
+needs no preparatory step and renders with the same version CI does.
+
+Run it **from anywhere** — the script locates the repository from its own path.
+It does have to `cd` there internally, because a .NET local tool is found by
+walking up from the current directory to a `.config/dotnet-tools.json`; that is
+a property of `dotnet`, not a choice.
 
 The report lands in `coverage/` — open `coverage/index.html` and look for
 **Risk Hotspots**. `coverage/Summary.txt` is printed to stdout as the run ends.

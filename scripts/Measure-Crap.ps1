@@ -130,6 +130,16 @@ function Stop-WithSetupFailure {
 # report whichever directory it is invoked from, and every path below is built
 # from $repoRoot for that reason.
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+
+# 🔴 And then MOVE there. Not for the paths below - those are all absolute - but
+# for `dotnet reportgenerator` in step 5. A local tool is located by walking UP
+# FROM THE CURRENT DIRECTORY looking for .config/dotnet-tools.json: where the
+# manifest actually sits on disk is irrelevant, and the invocation takes no flag
+# to point at one. Run this script by absolute path from anywhere outside the
+# repository and the tool simply does not exist - discovered only after the test
+# suite has already burned ten minutes. Measured here, not theorised.
+Push-Location $repoRoot
+
 $testResultsDir = Join-Path $repoRoot 'TestResults'
 $coverageDir = Join-Path $repoRoot 'coverage'
 $runSettings = Join-Path $repoRoot 'coverage.runsettings'
@@ -256,6 +266,17 @@ Write-Host "Per-method complexity present in $($withComplexity.Count) of $($cobe
 
 # ---------------------------------------------------------- 5. ReportGenerator
 Write-Section 'ReportGenerator'
+
+# Restore the pinned tool before invoking it. A committed manifest is not an
+# installation: on a fresh clone, or after a cleared tool cache, the
+# reportgenerator command does not exist yet and the run dies HERE - at the last
+# step, with the whole test suite already paid for. The goal is one command, so
+# the script does this rather than leaving it to the reader to remember. Costs
+# about a second once the tool is present.
+& dotnet tool restore
+if ($LASTEXITCODE -ne 0) {
+    Stop-WithSetupFailure "dotnet tool restore failed (exit $LASTEXITCODE). $repoRoot\.config\dotnet-tools.json is what pins ReportGenerator to the version CI renders with; without it there is no reportgenerator command to run."
+}
 
 # Forward slashes and a recursive glob: ReportGenerator does its own globbing,
 # not the shell's, and a backslash pattern does not match on Linux agents. The
