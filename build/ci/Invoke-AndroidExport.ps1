@@ -300,12 +300,13 @@ function Invoke-GodotBounded {
     # Start-Process with redirected files rather than a pipeline, because the output has
     # to survive the process being KILLED - a pipeline that never sees EOF hands back
     # nothing at all, which is exactly the case being diagnosed.
+    $startedAt = Get-Date
     $process = Start-Process -FilePath $godot -ArgumentList $quoted `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr `
         -PassThru -NoNewWindow
 
     $exited = $process.WaitForExit($TimeoutSeconds * 1000)
-    $elapsed = [Math]::Round(((Get-Date) - $process.StartTime).TotalSeconds, 1)
+    $elapsed = [Math]::Round(((Get-Date) - $startedAt).TotalSeconds, 1)
 
     if (-not $exited) {
         try { $process.Kill($true) } catch { }
