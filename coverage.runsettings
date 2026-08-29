@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+
+  <!--
+    Coverage collection settings for the CRAP (Change Risk Anti-Patterns) score.
+    Consumed by scripts/Measure-Crap.ps1; see docs/crap.md for what the numbers mean.
+
+    🔴 COBERTURA IS THE FORMAT THE CRAP SCORE COMES FROM. This is the opposite of
+    the usual advice, and it was MEASURED on this repository (ReportGenerator
+    5.5.11 + coverlet 6.0.4), not assumed:
+
+      - coverlet's Cobertura carries per-method `complexity`, and ReportGenerator
+        COMPUTES the Crap Score from it. It has done so since 5.2.1 ("Added 'Crap
+        Score' metric for Cobertura coverage files" in its own changelog).
+      - coverlet's OpenCover carries `cyclomaticComplexity` and `nPathComplexity`
+        but NOT the `crapScore` attribute. ReportGenerator's OpenCover parser
+        READS that attribute rather than computing anything, because the real
+        OpenCover tool emits it. Coverlet does not - so an OpenCover-only run
+        produces a Risk Hotspots table with Cyclomatic and NPath columns and NO
+        Crap Score column at all: a green run with the one number missing.
+
+    OpenCover is still collected beside it, because it is the only source of the
+    NPath complexity metric and costs one extra file per suite. Nothing reads it
+    for CRAP.
+
+    scripts/Measure-Crap.ps1 does not trust any of the above. It asserts the
+    Cobertura files carry per-method complexity BEFORE rendering, and asserts the
+    rendered report really does contain a Crap Score column AFTER - which is the
+    check that would have caught this inversion on day one.
+  -->
+
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura,opencover</Format>
+
+          <!--
+            Every suite under tests/ is named SlayIdleRepeat.<Area>.Tests, so the
+            one filter below matches all nine. There are deliberately no
+            `*.IntegrationTests` or `*.TestUtilities` filters: this repository has
+            no integration tier ($noIntegrationTier in build/ci/test-suites.json)
+            and no shared test-helper assembly — tests/Shared/ is linked source,
+            not a project. A filter that matches nothing is dead config that reads
+            as protection, which is the same failure mode rule 4 of
+            test-suites.json exists to prevent.
+
+            This is belt-and-braces over IncludeTestAssembly=false below; that
+            setting excludes the assembly under collection, this excludes a test
+            assembly reached as a reference from another one.
+          -->
+          <Exclude>[*.Tests]*</Exclude>
+
+          <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+
+          <!--
+            🔴 `**/*.generated.cs` is what keeps Godot.SourceGenerators out of
+            the ranking. Without it the entire top of the CRAP list is
+            InvokeGodotClassMethod / Get- and SetGodotClassPropertyValue /
+            RestoreGodotObjectData - generated dispatch switches with cyclomatic
+            complexity up to 92 that nobody wrote and nobody can refactor, and
+            they crowd out every hand-written method. The `-*Generated*` class
+            filter passed to ReportGenerator does NOT catch them: it matches on
+            the CLASS name, and these sit on ordinary classes like
+            Game.Scenes.Board.
+
+            No `**/Migrations/*.cs` entry, for the reason given above: there is no
+            EF Core migration anywhere in this tree (the Postgres adapter carries
+            none). Add it the day one appears; do not carry it speculatively.
+          -->
+          <ExcludeByFile>**/*.generated.cs,**/*.g.cs,**/*.Designer.cs</ExcludeByFile>
+
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+
+          <!--
+            Auto-properties are complexity 1 and either fully covered or not
+            touched. Including them buries the methods that actually carry risk
+            under hundreds of trivial rows.
+          -->
+          <SkipAutoProps>true</SkipAutoProps>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+
+</RunSettings>

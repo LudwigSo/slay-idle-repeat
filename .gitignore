@@ -29,6 +29,13 @@ coverage*.json
 coverage*.xml
 coverage*.info
 
+# ReportGenerator's output directory for the CRAP score (docs/crap.md,
+# scripts/Measure-Crap.ps1). Regenerated in full by every run; the patterns above
+# only cover coverage FILES, not this directory. TestResults/ - where coverlet
+# writes the raw OpenCover XML the report is built from - is already covered by
+# the [Tt]est[Rr]esults/ rule above.
+coverage/
+
 # --------------------------------------------------------------------- NuGet
 *.nupkg
 *.snupkg

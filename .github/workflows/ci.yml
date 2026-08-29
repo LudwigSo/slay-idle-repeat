@@ -163,6 +163,91 @@ jobs:
           if-no-files-found: warn
 
   # ===========================================================================
+  # crap - coverage + CRAP (Change Risk Anti-Patterns) risk hotspots.
+  #
+  # CRAP = complexity^2 * (1 - coverage)^3 + complexity, computed natively by
+  # ReportGenerator. See docs/crap.md for the bands and how to read the report.
+  #
+  # Its own job rather than a step on `test`: the coverage run instruments every
+  # assembly and is measurably slower than the plain suite run, and this job is
+  # INFORMATIONAL - it must never be the reason a green change goes red.
+  #
+  # 🔴 -FailOnCrap is deliberately NOT passed. An existing codebase has hotspots
+  # on day one, so arming the gate before anyone has read a report would red the
+  # pipeline for a threshold nobody has agreed to. Calibrate against a few runs,
+  # then pick a number that ratchets downward. Whoever arms it: add it here, not
+  # in the script's defaults.
+  # ===========================================================================
+  crap:
+    name: coverage + CRAP hotspots
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore local tools
+        # ReportGenerator is pinned in .config/dotnet-tools.json with
+        # rollForward:false, so this job and a developer's machine render the
+        # report with the same version. No global tool install anywhere.
+        run: dotnet tool restore
+
+      - name: Measure CRAP
+        # The script deletes TestResults/ and coverage/ before it runs, asserts
+        # the Cobertura files carry per-method complexity, and then asserts the
+        # RENDERED report actually contains a Crap Score column. That last check
+        # is the important one: feed ReportGenerator coverlet's OpenCover output
+        # instead and it renders a Risk Hotspots table with no Crap Score column
+        # and exits 0. See docs/crap.md. Exit 2 is a setup failure; exit 1 needs
+        # -FailOnCrap, which is not passed here.
+        shell: pwsh
+        run: ./scripts/Measure-Crap.ps1
+
+      - name: Publish CRAP summary to the job summary
+        # GitHub has no native coverage tab, so the MarkdownSummaryGithub report
+        # ReportGenerator emits for exactly this purpose goes onto the run's
+        # summary page. That is this platform's equivalent of the coverage tab
+        # the Cobertura file feeds elsewhere.
+        if: always()
+        shell: bash
+        run: |
+          if [ -f coverage/SummaryGithub.md ]; then
+            cat coverage/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No coverage/SummaryGithub.md was produced." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: warn
+
+      - name: Upload the raw Cobertura coverage
+        # Published separately from the rendered report so any tool that wants
+        # to ingest coverage directly gets the machine-readable file without
+        # unpacking a directory of HTML. This is also the file the CRAP ranking
+        # is computed from - see docs/crap.md for why it is Cobertura and not the
+        # OpenCover twin beside it.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-cobertura
+          path: TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn
+
+  # ===========================================================================
   # content-validation — 14 §6 🔒, 14 §13 "build-time schema validation of all JSON"
   #
   # M0-09 swapped the body of Invoke-ContentValidation.ps1 for the real harness:
