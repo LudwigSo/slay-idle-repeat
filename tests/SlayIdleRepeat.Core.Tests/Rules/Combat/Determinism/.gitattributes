@@ -1,0 +1,6 @@
+# BattleLogHashBaseline.json is `14` §8.2's determinism corpus, re-asserted on Linux x64 and Android
+# ARM64 by the cross-platform determinism job. (The iOS ARM64 leg is authored and gated off with iOS
+# itself, `16` D34.) Its line endings are pinned to LF so the file is byte-identical on both of them,
+# and so a one-chunk change never diffs as a whole-file rewrite because someone's core.autocrlf
+# disagreed. Same rule as Rng/, Model/Snapshots/, Rules/Effects/Determinism/ and game-data/.
+*.json text eol=lf
