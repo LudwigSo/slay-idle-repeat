@@ -59,7 +59,7 @@ public sealed class PortCatalogueTests
     /// observability ports (<c>IAnalyticsSinkPort</c>, <c>ITelemetryPort</c>). M5-04 raised it
     /// 12 → 13 for <c>IUnitOfWork</c>, moving all three again.
     /// </remarks>
-    private const int DeclaredPortFloor = 13;
+    private const int DeclaredPortFloor = 15;
 
     /// <summary>
     /// Entries in the register. At zero, <see cref="No_port_deferral_outlives_the_port_it_defers"/>,

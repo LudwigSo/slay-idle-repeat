@@ -1,5 +1,5 @@
 using Shouldly;
-using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Content;

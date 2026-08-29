@@ -56,8 +56,8 @@ public sealed class GodotClientCapabilities
 /// </para>
 /// <para>
 /// The root node is what holds this, because the root node is the only thing whose lifetime
-/// is the application's. That is not a scene reaching into a port — the root hands the host
-/// to its presenter and reads nothing else — it is the container's job, done by hand.
+/// is the application's. That is not a scene reaching into a port — the root hands this whole
+/// object to a factory and reads nothing out of it — it is the container's job, done by hand.
 /// </para>
 /// </remarks>
 public sealed class ComposedGodotClient

@@ -325,7 +325,12 @@
     "loc.campfire.read_unavailable.status": "##TODO_DE## Your run could not be read, so this tile cannot be opened.",
     "loc.campfire.shrine_unavailable.status": "##TODO_DE## This shrine is open, but what it drew could not be built from the game's data.",
     "loc.campfire.refused.status": "##TODO_DE## That was refused.",
-    "loc.campfire.host_unavailable.status": "##TODO_DE## The game did not answer, so nothing happened here. Try again."
+    "loc.campfire.host_unavailable.status": "##TODO_DE## The game did not answer, so nothing happened here. Try again.",
+
+    "loc.net.reconnecting.status": "##TODO_DE## Reconnecting…",
+    "loc.net.waiting_for_connection.status": "##TODO_DE## Waiting for connection.",
+    "loc.net.caught_up.status": "##TODO_DE## Caught up.",
+    "loc.net.run_resumed.status": "##TODO_DE## Picking up where you left off — Chapter {chapter}, Stage {stage}."
 
   }
 }

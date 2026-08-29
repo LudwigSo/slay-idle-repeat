@@ -53,7 +53,7 @@ public partial class AppRoot : Node3D
     /// and the root node is the only object whose lifetime is the application's — so if the root
     /// lets go, every later screen has to compose again, and a second graph means a second cache
     /// over the same directory. Holding it is what makes injection downward possible; the root
-    /// still reads nothing out of it but the host it gives its presenter.
+    /// reads nothing out of it at all, and hands it whole to the factories that do.
     /// </remarks>
     private ComposedGodotClient? _composed;
 
@@ -76,12 +76,12 @@ public partial class AppRoot : Node3D
     public override void _ExitTree() => _lifetime.Cancel();
 
     /// <summary>
-    /// Runs the composition root once, hands the host to the presenter, and shows where it got to.
+    /// Runs the composition root once, asks it for the root presenter, and shows where it got to.
     /// </summary>
     /// <remarks>
-    /// The graph is composed once, here, and kept. What the root does NOT do is read it: the
-    /// presenter gets the host and the root touches nothing else in it. That is the line the
-    /// split actually draws — a scene may not use a port, and something has to own one.
+    /// The graph is composed once, here, and kept. What the root does NOT do is read it: it asks a
+    /// factory for a presenter and touches nothing inside the graph itself. That is the line the
+    /// split actually draws — a scene may not name a port, and something has to.
     /// </remarks>
     private async Task ComposeAndStartAsync()
     {
@@ -89,7 +89,7 @@ public partial class AppRoot : Node3D
         {
             _composed = GodotClientComposition.ComposeLocalHost(GodotClientComposition.BuildCapabilities(this));
 
-            _presenter = new AppRootPresenter(_composed.Client.GameHost);
+            _presenter = AppRootComposition.CreateAppRootPresenter(_composed);
 
             // No ConfigureAwait(false) here, and that is deliberate rather than an omission: the
             // continuation writes to a node, and only the thread the engine runs the scene tree on

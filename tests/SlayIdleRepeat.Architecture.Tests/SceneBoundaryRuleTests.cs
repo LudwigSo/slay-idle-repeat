@@ -29,11 +29,19 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// ⚠️ <b>What a scene IS allowed to hold is the shape this branch shipped, and no more.</b>
 /// <c>AppRoot</c> holds the composed graph — <c>ComposedGodotClient</c>, which is the client's own
 /// composition type, not an adapter — for the reason that hand-rolled composition has no container
-/// to keep the graph alive, and it hands its presenter one thing out of it: <c>IGameHost</c>, an
-/// Application <em>hosting</em> interface under <c>SlayIdleRepeat.Application.Hosting</c>. That is
-/// not a port, and the rules below are scoped at <c>SlayIdleRepeat.Application.Ports</c> precisely
-/// so it stays permitted. <see cref="The_root_scene_holds_the_host_it_shipped_with_and_nothing_more"/>
-/// is what proves that is a deliberate boundary rather than a blind detector.
+/// to keep the graph alive, and it asks a factory in that same namespace for a <em>presenter</em>.
+/// It reads nothing out of the graph itself.
+/// <see cref="The_root_scene_reads_a_presenter_out_of_the_graph_and_nothing_more"/> is what proves
+/// that is a deliberate boundary rather than a blind detector.
+/// </para>
+/// <para>
+/// 🔴 <b>That shape changed in M7-02 and the sanctioned wording changed with it.</b> The root used
+/// to hand its presenter one thing out of the graph — <c>IGameHost</c>, then an Application
+/// <em>hosting</em> interface outside the ports namespace, so the rules below were scoped at
+/// <c>SlayIdleRepeat.Application.Ports</c> precisely to keep it permitted. <c>IGameHost</c> is a
+/// port now. The rule was NOT narrowed to keep the scene legal, which is what its own failure
+/// message demanded: the scene stopped naming the host, and the one line that read it off the graph
+/// moved into <c>AppRootComposition</c>, beside every other screen's factory.
 /// </para>
 /// </remarks>
 public sealed class SceneBoundaryRuleTests
@@ -52,15 +60,34 @@ public sealed class SceneBoundaryRuleTests
     private const string EngineNonNodeTypeName = "Godot.Resource";
 
     /// <summary>
-    /// The hosting interface the root scene is sanctioned to hand its presenter — looked up by
-    /// SIMPLE name so that moving it under the ports namespace is caught rather than hidden.
+    /// The interface the root scene used to hand its presenter — looked up by SIMPLE name so the
+    /// claim survives the move it has now made.
     /// </summary>
     /// <remarks>
     /// 🔒 A full name would make the boundary assertion a comparison of two literals, which cannot
     /// fail and is therefore a defect rather than a weak test (steering S1). The simple name still
     /// resolves after a move; the namespace it resolves INTO is the thing being asserted.
     /// </remarks>
-    private const string HostingInterfaceName = "IGameHost";
+    private const string HostInterfaceName = "IGameHost";
+
+    /// <summary>
+    /// The composition entry point the root scene calls — the anchor for the nested-parts proof.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 It is the anchor because it is named ONLY inside <c>AppRoot</c>'s compiler-generated state
+    /// machine, which is the property the proof needs and the one <c>IGameHost</c> used to supply.
+    /// Verified against the compiled client: the outer <c>AppRoot</c> type names
+    /// <c>ComposedGodotClient</c>, <c>AppRootPresenter</c>, <c>BootComposition</c>,
+    /// <c>BootPresenter</c> and <c>Boot</c>, and nothing else of this project — everything
+    /// <c>ComposeAndStartAsync</c> touches lives one nesting level down.
+    /// </para>
+    /// <para>
+    /// 🔒 Both halves are asserted below, absent from the outer type and present across the parts,
+    /// because either alone is satisfiable by a walk that is wrong in the opposite direction.
+    /// </para>
+    /// </remarks>
+    private const string CompositionEntryPointName = "GodotClientComposition";
 
     /// <summary>
     /// The scene-side helpers the floor is stated over by name — the governed subjects the escape
@@ -476,36 +503,41 @@ public sealed class SceneBoundaryRuleTests
 
     /// <summary>
     /// `14` §5 / `23` §9 — 🔒 the negative control, and the pin on the shape this branch actually
-    /// shipped: the root scene holds the composed graph and hands its presenter <c>IGameHost</c>,
-    /// and the rules above permit exactly that because the boundary is drawn at
-    /// <c>SlayIdleRepeat.Application.Ports</c> — not because they cannot see it.
+    /// ships: the root scene owns the composed graph, asks a factory in the composition namespace
+    /// for a <em>presenter</em>, and reads nothing out of the graph itself.
     /// </summary>
     /// <remarks>
     /// <para>
     /// 🔒 <b>A rule that passes is not the same as a rule that permits.</b> Everything above would
     /// also be green if the detector never reached <c>AppRoot</c> at all — wrong namespace, empty
     /// reference walk, a scene set built from the wrong module. This test asserts the detector
-    /// DOES reach into the root scene, by naming a type it demonstrably carries, and that the type
-    /// it carries falls on the permitted side of the line for a stated reason:
-    /// <c>SlayIdleRepeat.Application.Hosting</c> is a hosting interface, not a port, and `23` §9's
-    /// "scenes only ever talk to presenters" is satisfied by a root that hands the host on and
-    /// reads nothing else out of the graph.
+    /// DOES reach into the root scene, by naming a type it demonstrably carries, and that what it
+    /// carries falls on the permitted side of the line: a client-side composition entry point,
+    /// which is neither a port nor an adapter, and which `23` §9's "scenes only ever talk to
+    /// presenters" is satisfied by.
     /// </para>
     /// <para>
-    /// ⚠️ <b>Widening the ban by one namespace segment would make this shape illegal.</b> That is
-    /// the whole content of the assertion: the green result on <c>AppRoot</c> is a scoping
-    /// decision this file is accountable for, and if <c>IGameHost</c> ever moves under
-    /// <c>Ports</c>, the root scene must change — not the rule.
+    /// 🔴 <b>M7-02 rewrote what "the sanctioned shape" means, and the rule was not narrowed to
+    /// preserve the old one.</b> Until then the root handed its presenter <c>IGameHost</c>, an
+    /// Application hosting interface outside the ports namespace, and this control asserted that it
+    /// was outside — with the instruction that if it ever moved under <c>Ports</c> the SCENE had to
+    /// change. It moved, so the scene changed: <c>AppRootComposition.CreateAppRootPresenter</c> is
+    /// the one place that reads the host off the graph now, and the root calls it. The assertion is
+    /// inverted rather than deleted, because "IGameHost is a port" is the premise the rest of this
+    /// control now rests on — if it moved back out, this file's scoping would be pinning a boundary
+    /// that no longer exists.
     /// </para>
     /// <para>
-    /// 🔴 <b>Stated over the scene AND the types nested inside it, and the first run of this test
-    /// is why.</b> It failed asserting that <c>AppRoot</c> names <c>IGameHost</c> — because it does
-    /// not: the whole of <c>ComposeAndStartAsync</c> lives in a compiler-generated state machine
-    /// nested inside the scene, and the outer type names only <c>ComposedGodotClient</c> and
-    /// <c>AppRootPresenter</c>. See <see cref="PartsOf"/>. The RULES above were never affected —
-    /// <c>Il.TypesUnder</c> enumerates nested types as subjects in their own right — but a control
-    /// written the obvious way would have been proving the detector reaches the half of the scene
-    /// where nothing happens.
+    /// 🔴 <b>Stated over the scene AND the types nested inside it, and the first run of the
+    /// original control is why.</b> It failed asserting that <c>AppRoot</c> names <c>IGameHost</c>
+    /// — because it did not: the whole of <c>ComposeAndStartAsync</c> lives in a compiler-generated
+    /// state machine nested inside the scene, and the outer type never named it. See
+    /// <see cref="PartsOf"/>. That proof is preserved by re-anchoring on
+    /// <see cref="CompositionEntryPointName"/>, which has the same property today, and by asserting
+    /// BOTH halves of it: absent from the outer type, present once the nested parts are included. A
+    /// control that only asserted presence would pass on a walk that had quietly started
+    /// enumerating the whole assembly; one that only asserted absence would pass on a walk that saw
+    /// nothing at all.
     /// </para>
     /// <para>
     /// 🔒 The scene classifier gets its control here too. <c>AppRoot</c> must classify as a node
@@ -517,7 +549,7 @@ public sealed class SceneBoundaryRuleTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_root_scene_holds_the_host_it_shipped_with_and_nothing_more()
+    public void The_root_scene_reads_a_presenter_out_of_the_graph_and_nothing_more()
     {
         var scene = Scenes.FirstOrDefault(
             type => type.Name.Equals(PresenterBoundaryRuleTests.AppRootSceneName, StringComparison.Ordinal));
@@ -528,34 +560,65 @@ public sealed class SceneBoundaryRuleTests
             "no scene at all, which is a different claim entirely.");
 
         var hosts = Domain.ApplicationTypes
-                          .Where(type => type.Name.Equals(HostingInterfaceName, StringComparison.Ordinal))
+                          .Where(type => type.Name.Equals(HostInterfaceName, StringComparison.Ordinal))
                           .ToArray();
 
         hosts.ShouldHaveSingleItem(
-            $"'{HostingInterfaceName}' is not a single type in {ProductionAssemblies.ApplicationName}, so the " +
-            "sanctioned shape cannot be checked against the type it is a claim about. The root scene's whole " +
-            "reason to touch the composed graph is to hand this on.");
+            $"'{HostInterfaceName}' is not a single type in {ProductionAssemblies.ApplicationName}, so the " +
+            "premise this control rests on cannot be checked against the type it is a claim about. The root " +
+            "scene stopped naming this interface precisely because of where it now lives.");
 
         var host = hosts[0];
 
-        Il.IsUnder(Il.NamespaceOf(host), Domain.PortsNamespace).ShouldBeFalse(
-            $"{host.FullName} now lives under {Domain.PortsNamespace}, so the shape this branch shipped has " +
-            "become a port reference. 14 §5 is 🔒 that a scene holds no port references: the root scene has to " +
-            "stop naming it — do NOT narrow the rule to keep the scene legal.");
+        Il.IsUnder(Il.NamespaceOf(host), Domain.PortsNamespace).ShouldBeTrue(
+            $"{host.FullName} no longer lives under {Domain.PortsNamespace}. M7-02 moved it there, and that " +
+            "move is why the root scene had to stop handing it to its presenter: 14 §5 is 🔒 that a scene holds " +
+            "no port references. If it has moved back out, decide which shape this project actually wants " +
+            "before touching the assertions below — do NOT narrow the rule to keep a scene legal.");
 
         var rootSceneParts = PartsOf(PresenterBoundaryRuleTests.AppRootSceneName);
+        var namesAcrossAllParts = rootSceneParts.SelectMany(Il.ReferencedTypeNames).ToArray();
 
-        rootSceneParts.SelectMany(Il.ReferencedTypeNames).ShouldContain(
+        namesAcrossAllParts.ShouldNotContain(
             host.FullName,
-            $"the root scene names no {host.FullName}. Either it stopped handing the host to its presenter — in " +
-            "which case the composition seam this milestone is about has moved — or the reference walk no " +
-            "longer reaches into the scene, in which case every rule in this file is passing because it can see " +
-            "nothing rather than because there is nothing to see.");
+            $"the root scene names {host.FullName}, which is now a port. That is exactly the reference 14 §5 " +
+            "forbids a scene, and the repair is in the scene: hand the whole composed graph to a factory under " +
+            $"{PresenterBoundaryRuleTests.CompositionNamespace} and let it read the host off, the way " +
+            "AppRootComposition and BootComposition already do.");
+
+        var compositionEntryPoints =
+            Il.TypesUnder(ClientModule, PresenterBoundaryRuleTests.CompositionNamespace)
+              .Where(type => type.Name.Equals(CompositionEntryPointName, StringComparison.Ordinal))
+              .ToArray();
+
+        compositionEntryPoints.ShouldHaveSingleItem(
+            $"'{CompositionEntryPointName}' is not a single type under " +
+            $"{PresenterBoundaryRuleTests.CompositionNamespace}, so the nested-parts proof has no anchor. It was " +
+            "chosen because the root scene names it ONLY from inside its async state machine; if it has been " +
+            "renamed or moved, re-anchor on another type with that same property rather than dropping the proof.");
+
+        var compositionEntryPoint = compositionEntryPoints[0];
+
+        Il.ReferencedTypeNames(scene!).ShouldNotContain(
+            compositionEntryPoint.FullName,
+            $"the OUTER {PresenterBoundaryRuleTests.AppRootSceneName} type names {compositionEntryPoint.FullName} " +
+            "directly, so this anchor no longer proves anything about nested parts — the assertion below would " +
+            "pass on a walk that stopped at the outer type. Either the call left the async method, or the walk " +
+            "has started enumerating more than the type it was handed. Re-anchor on a type the state machine " +
+            "alone names.");
+
+        namesAcrossAllParts.ShouldContain(
+            compositionEntryPoint.FullName,
+            $"the root scene's parts name no {compositionEntryPoint.FullName}. Either the root stopped composing " +
+            "the graph — in which case the composition seam this file is about has moved — or the reference walk " +
+            "no longer descends into the compiler-generated state machine, in which case every rule in this file " +
+            "is passing because it can see nothing rather than because there is nothing to see. The whole of " +
+            "ComposeAndStartAsync lives in that nested type.");
 
         rootSceneParts.SelectMany(PortOrAdapterReferences).ShouldBeEmpty(
             "the root scene trips its own rule. The shape 23 §9 sanctions is a scene that owns the composed " +
-            "graph and reads one hosting interface out of it; anything else it now names is either a port or " +
-            "an adapter, and the fix is in the scene, not here.");
+            "graph and reads a PRESENTER out of it; anything else it now names is either a port or an adapter, " +
+            "and the fix is in the scene, not here.");
 
         var engineModule = scene!.BaseType.Resolve().Module;
 

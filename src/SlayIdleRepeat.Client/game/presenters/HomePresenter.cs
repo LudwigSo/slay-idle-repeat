@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;

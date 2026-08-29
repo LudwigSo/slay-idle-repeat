@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/net.schema.json",
+  "title": "content/net/net.json",
+  "description": "M7-02 — the loc keys the connection-state overlay renders. 14 §3 and 13 §11 fix the states and that the indication is global rather than per-screen; what is fixed here is that four of the five states show a string and that every one of them is a key rather than a literal (X-04). The Connected state has no member on purpose: its whole specification is that nothing is drawn, and a slot for it would invite authoring a tick nobody asked for. Every value is a loc key, so ContentInvariants.CheckLocaleKeyReferences resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. ⚠️ NO MEMBER MAY BE NAMED id: ContentInvariants.CheckIdSpaces reads an 'id' member under a prefixed pattern as declaring an ID SPACE, and the loc-key pattern below is prefixed — every loc key in the whole content set would then have to resolve against this document, and none would.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "reconnecting", "waitingForConnection", "caughtUp", "runResumed"],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "reconnecting": {
+      "description": "The pill shown once an attempt has been failing for long enough to be worth mentioning. Non-blocking by ruling: a run never stops for a connection problem.",
+      "$ref": "#/$defs/locKey"
+    },
+    "waitingForConnection": {
+      "description": "What a tap on a server-backed control answers with while the client is offline. An inline toast, never a modal — the read-only half of the game stays usable.",
+      "$ref": "#/$defs/locKey"
+    },
+    "caughtUp": {
+      "description": "The one line shown after a resync fetch completed and the mirror actually moved. Shown only on a change: a flash on every silent poll would teach the player to ignore it.",
+      "$ref": "#/$defs/locKey"
+    },
+    "runResumed": {
+      "description": "The card shown when the app opens into a run already in progress. Carries {chapter} and {stage} as runtime parameters formatted by the caller — LocaleStringCatalogue does no interpolation, so the braces are the caller's contract, not a translatable literal.",
+      "$ref": "#/$defs/locKey"
+    }
+  }
+}

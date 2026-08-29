@@ -129,6 +129,11 @@ public static class ContentLayout
             // The Campfire / Shrine screen's string slots — one document serving two arms, and
             // splitting the shrine's half out is the tidy-up this row keeps buildable.
             [ContentDirectory + "campfire/"] = SchemaDirectory + "campfire" + SchemaSuffix,
+
+            // The connection-state strings. Not a screen's slots: they are drawn over whatever
+            // screen the player is on, which is why they are a type of their own rather than a
+            // member of one.
+            [ContentDirectory + "net/"] = SchemaDirectory + "net" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>
