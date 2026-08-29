@@ -227,13 +227,6 @@ public sealed class ApplyCommandUseCase
 
         await _store.SaveAsync(decision.State, ct).ConfigureAwait(false);
 
-        // After the player's own commit, deliberately: the stamp says "this reward was paid", and a
-        // crash between the two must leave a reward paid and claimable rather than claimed and owed.
-        if (_inbox is { } claims)
-        {
-            await claims.ApplyClaimsAsync(request.Player, decision.Events, ct).ConfigureAwait(false);
-        }
-
         var failures = await PublishAsync(request, decision, ct).ConfigureAwait(false);
 
         return ApplyCommandOutcome.Accept(decision.State, decision.Events, failures);

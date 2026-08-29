@@ -103,10 +103,17 @@ public sealed class InboxAbsenceRuleTests
             "in the design set says where one would come from. ⚠️ NEAREST ROW: M18-05 staffs the " +
             "moderation/ops surfaces and is the first row that needs to slice a population at all."),
 
-        new("The 'client version' segment predicate", "M5-09",
+        new("The 'client version' segment predicate", "M18-05",
             "A client version arrives on BEGIN_SESSION and is not persisted, so the last one a player " +
-            "sent is not a fact any store can be asked for. M5-09 owns the content/version " +
-            "distribution path, which is where a per-player client version would first be recorded."),
+            "sent is not a fact any store can be asked for. 🔴 THE OWNER THIS ENTRY REPLACES WAS " +
+            "M5-09, and it was wrong by the time it was written: M5-09 shipped the content/version " +
+            "distribution path and pinned versions to RUNS and SESSIONS in typed columns, not to " +
+            "players — so the row this entry was waiting on went past without the fact becoming " +
+            "storable. Found by Every_inbox_absence_owner_is_a_task_the_tracker_still_has_open at " +
+            "the integration merge, which is the direction that exists for exactly this. " +
+            "⚠️ NEAREST ROW: M18-05, for the reason the region entry above gives — it is the first " +
+            "row that needs to slice a population at all, and nothing between here and there records " +
+            "a per-player client version."),
 
         new("The 'guild membership' segment predicate", "M14-01",
             "Guilds are not built, so no player has one to be in. M14-01 authors the guild identity " +
@@ -175,14 +182,13 @@ public sealed class InboxAbsenceRuleTests
             "the server starts. ⚠️ NEAREST ROW: M18-04 is the localisation row, and the commit that " +
             "fills the sentinels is the one that has to name the human who did."),
 
-        new("The claim's stamp is not inside the accepted command's transaction", "M5-04",
-            "MarkClaimedAsync is a second call after the player's state is saved, so a crash between " +
-            "them leaves a message that was PAID still standing as claimable. The ordering is " +
-            "deliberate — a grant is never lost, only ever repeatable, and the ledger replays a " +
-            "retried command id — but a DIFFERENT command id claiming the same message in that " +
-            "window would pay twice. PostgresMessageRepository already exposes the " +
-            "caller-owned-transaction overload for the unit of work to compose, the same shape the " +
-            "player repository's save and the economy event log's append have. M5-04 is that row."),
+        // ⚠️ "The claim's stamp is not inside the accepted command's transaction" was here, owned by
+        // M5-04. The integration merge that brought this branch onto the shipped commit rule CLOSED
+        // it, and this register FORCED the deletion in that commit rather than leaving it to be
+        // remembered: M5-04 had shipped, so Every_inbox_absence_owner_is_a_task_the_tracker_still_
+        // has_open went red naming this entry. The stamp now rides CommandCommit.Claim inside the
+        // one transaction, beside the snapshot whose wallet the same claim moved, and
+        // IUnitOfWorkContractTests states both directions of that over a fault it can raise.
     };
 
     /// <summary>
@@ -218,7 +224,13 @@ public sealed class InboxAbsenceRuleTests
     /// The register's floor (steering S3). Below it, every direction here reports success over a
     /// register that has quietly stopped carrying most of `28` Part A.
     /// </summary>
-    private const int AbsenceFloor = 17;
+    /// <remarks>
+    /// 17 → 16 at the M5-08 integration merge, and it is a gap CLOSING rather than a floor being
+    /// lowered to buy green: the claim's stamp now rides the accepted command's transaction, so the
+    /// thing `28` Part A asked for is built and its entry had to go. The number is what counting
+    /// Part A's remaining absences answers, never <c>Absences.Length</c>.
+    /// </remarks>
+    private const int AbsenceFloor = 16;
 
     /// <summary>A tracker task id, the register's owner currency — the same shape the others use.</summary>
     private static readonly Regex OwnerTaskId = new(@"^M\d{1,2}-\d{2}[a-z]?$", RegexOptions.Compiled);

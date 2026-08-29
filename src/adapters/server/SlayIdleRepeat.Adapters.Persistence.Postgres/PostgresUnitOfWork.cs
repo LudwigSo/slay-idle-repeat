@@ -8,9 +8,10 @@ namespace SlayIdleRepeat.Adapters.Persistence.Postgres;
 /// <para>
 /// Everything a <see cref="CommandCommit"/> carries is written inside one transaction on one
 /// connection — the player upsert (and the run upsert beside it), the outcome record with its
-/// sequence advance, the economy-log batch, and the scope an opening command created. The stores
-/// this adapter already exposes carry connection/transaction overloads shaped for exactly that, so
-/// the SQL lives with the table it writes and only the boundary lives here.
+/// sequence advance, the economy-log batch, the claimed-message stamp, and the scope an opening
+/// command created. The stores this adapter already exposes carry connection/transaction overloads
+/// shaped for exactly that, so the SQL lives with the table it writes and only the boundary lives
+/// here.
 /// </para>
 /// <para>
 /// Nothing loss-tolerant is inside it. Analytics dispatch and cache population happen after the
@@ -63,6 +64,18 @@ public sealed class PostgresUnitOfWork : IUnitOfWork
         await _economyEvents
             .AppendAsync(connection, transaction, commit.EconomyEvents, ct)
             .ConfigureAwait(false);
+
+        if (commit.Claim is { } claim)
+        {
+            // Position inside the transaction is free — a player_messages row long predates the
+            // command claiming it, so this write depends on nothing above and nothing below depends
+            // on it. What is NOT free is being inside at all: the wallet moved in the player upsert,
+            // and a stamp that landed separately could leave the reward paid and still claimable.
+            await PostgresMessageRepository
+                .MarkClaimedAsync(
+                    connection, transaction, claim.Player, claim.Messages, claim.AtUtc, ct)
+                .ConfigureAwait(false);
+        }
 
         if (commit.OpensScope is { } opened)
         {

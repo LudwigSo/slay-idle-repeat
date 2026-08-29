@@ -25,13 +25,14 @@ namespace SlayIdleRepeat.Application.Ports.Server;
 /// nothing a player can reach.
 /// </para>
 /// <para>
-/// ⚠️ <b>Claiming is not atomic with the player's own commit today, and that is stated rather than
-/// implied.</b> <see cref="MarkClaimedAsync"/> is a second call after the player's state is saved,
-/// so a crash between the two leaves a message that was paid still standing as claimable. The
-/// ordering is deliberate — a grant is never lost, only ever repeatable — and the real answer is the
-/// unit of work (M5-04), which composes both writes into the one transaction an accepted command
-/// already commits in. The Postgres adapter therefore also exposes a caller-owned-transaction
-/// overload for that task to compose, exactly as the player repository and the economy event log do.
+/// 🔒 <b>Claiming IS atomic with the player's own commit, and this port's own member is not how.</b>
+/// <see cref="MarkClaimedAsync"/> here owns its own transaction and serves callers that have none —
+/// the expiry sweep's auto-grant. An accepted <c>CLAIM_INBOX</c> does not use it: the ids ride
+/// <c>CommandCommit.Claim</c> and the unit of work stamps them inside the same transaction as the
+/// snapshot whose wallet the claim paid into, through the caller-owned-transaction overload the
+/// Postgres adapter exposes beside the ones the player repository and the economy event log carry.
+/// A reward that was PAID and still read as claimable would be a double-grant next claim, which is
+/// what one-command-one-transaction exists to prevent.
 /// </para>
 /// </remarks>
 public interface IMessageRepository

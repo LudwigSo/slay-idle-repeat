@@ -129,7 +129,7 @@ internal sealed class GatewayWorld
         // the loading defect it is, and every case that submits one would be asserting on this
         // fixture's wiring instead of on the gateway.
         var messages = new InMemoryMessageRepository(clock);
-        var unitOfWork = new RecordingUnitOfWork(store, volatileLedger, Worlds.Content, order);
+        var unitOfWork = new RecordingUnitOfWork(store, volatileLedger, Worlds.Content, order, messages);
 
         var gateway = new CommandGateway(
             new ApplyCommandUseCase(

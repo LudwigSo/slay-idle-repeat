@@ -16,9 +16,10 @@ namespace SlayIdleRepeat.Adapters.Persistence.Postgres;
 /// </para>
 /// <para>
 /// 🔒 <see cref="MarkClaimedAsync"/> also exists in a caller-owned-transaction overload, exactly as
-/// the player repository's save and the economy event log's append do, so the unit of work can
-/// compose the claim's stamp into the accepted command's ONE transaction. Until it does, a claim is
-/// the player's save followed by this stamp, and the window between them is written up on the port.
+/// the player repository's save and the economy event log's append do, and <c>PostgresUnitOfWork</c>
+/// calls it: an accepted claim's stamp lands inside the same transaction as the snapshot whose
+/// wallet it paid into. The instance overload owns its own transaction and serves the callers that
+/// have none — the expiry sweep's auto-grant.
 /// </para>
 /// </remarks>
 public sealed class PostgresMessageRepository : IMessageRepository

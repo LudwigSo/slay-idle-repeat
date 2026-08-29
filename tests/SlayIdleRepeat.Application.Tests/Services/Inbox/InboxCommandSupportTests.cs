@@ -92,34 +92,16 @@ public sealed class InboxCommandSupportTests
     }
 
     [Fact]
-    public async Task Applying_a_batch_stamps_exactly_the_messages_it_claimed()
+    public void A_batch_names_exactly_the_messages_it_claimed_and_no_neighbour()
     {
-        var (support, store) = World();
-        await store.AppendAsync(InboxWorlds.Message("MSG_paid"), Worlds.Cancel);
-        await store.AppendAsync(InboxWorlds.Message("MSG_left"), Worlds.Cancel);
-
-        await support.ApplyClaimsAsync(
-            InboxWorlds.Player,
-            new DomainEvent[] { new MailClaimed(1, new MessageId("MSG_paid"), MessageCategory.COMPENSATION) },
-            Worlds.Cancel);
-
-        var stored = await store.GetActiveAsync(InboxWorlds.Player, Worlds.Cancel);
-
-        stored.Single(m => m.Id.Value == "MSG_paid").ClaimedAtUtc.ShouldNotBeNull();
-        stored.Single(m => m.Id.Value == "MSG_left").ClaimedAtUtc.ShouldBeNull(
-            "a message the batch did not claim must not be spent by the same call — that is a " +
-            "reward taken away without ever being paid.");
-    }
-
-    [Fact]
-    public async Task Applying_a_batch_that_claimed_nothing_touches_nothing()
-    {
-        var (support, store) = World();
-        await store.AppendAsync(InboxWorlds.Message("MSG_a"), Worlds.Cancel);
-
-        await support.ApplyClaimsAsync(InboxWorlds.Player, Array.Empty<DomainEvent>(), Worlds.Cancel);
-
-        (await store.GetActiveAsync(InboxWorlds.Player, Worlds.Cancel))
-            .ShouldHaveSingleItem().ClaimedAtUtc.ShouldBeNull();
+        InboxCommandSupport.ClaimedIn(new DomainEvent[]
+            {
+                new MailClaimed(1, new MessageId("MSG_paid"), MessageCategory.COMPENSATION),
+                new CurrencyChanged(2, CurrencyId.CROWNS, 500, "mail_claim"),
+            })
+            .Select(id => id.Value)
+            .ShouldBe(new[] { "MSG_paid" },
+                "a message the batch did not claim must not be named by the same read — that is a " +
+                "reward taken away without ever being paid.");
     }
 }

@@ -18,12 +18,11 @@ namespace SlayIdleRepeat.Application.Services.Inbox;
 /// command pipeline around it.
 /// </para>
 /// <para>
-/// ⚠️ <b>The stamp is a second write, and it is not yet inside the accepted command's transaction.</b>
-/// The order is the player's state first and the stamp second, so the failure a crash between them
-/// can produce is a message that was paid and still reads as claimable — never a message that reads
-/// as paid and was not. The retried command replays from the ledger and grants nothing; a DIFFERENT
-/// command claiming the same message would pay it twice, and that window closes when the unit of
-/// work composes both writes into the one transaction. Its owner is registered.
+/// 🔒 <b>The stamp is not here, and its absence is the shape of the commit rule.</b> This type reads
+/// the inbox and names which ids a batch claimed; the WRITE rides the accepted command's own
+/// transaction, carried on <c>CommandCommit.Claim</c>, beside the player snapshot whose wallet the
+/// same claim moved. A stamping method here would be the second way to record a payment, and two
+/// ways are exactly how a reward comes to be paid while still reading as claimable.
 /// </para>
 /// </remarks>
 public sealed class InboxCommandSupport
@@ -76,23 +75,5 @@ public sealed class InboxCommandSupport
         ArgumentNullException.ThrowIfNull(events);
 
         return events.OfType<MailClaimed>().Select(e => e.MessageId).ToArray();
-    }
-
-    /// <summary>Stamps whatever the batch claimed. Does nothing when it claimed nothing.</summary>
-    /// <param name="player">Whose messages.</param>
-    /// <param name="events">The accepted command's events.</param>
-    /// <param name="ct">Cancellation.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="events"/> is null.</exception>
-    public async Task ApplyClaimsAsync(
-        PlayerId player, IReadOnlyList<DomainEvent> events, CancellationToken ct)
-    {
-        var claimed = ClaimedIn(events);
-
-        if (claimed.Count == 0)
-        {
-            return;
-        }
-
-        await _messages.MarkClaimedAsync(player, claimed, ct).ConfigureAwait(false);
     }
 }

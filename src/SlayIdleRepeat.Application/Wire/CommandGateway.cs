@@ -4,6 +4,7 @@ using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Events;
+using SlayIdleRepeat.Application.Services.Inbox;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Contracts;
 using SlayIdleRepeat.Core;
@@ -335,6 +336,13 @@ public sealed class CommandGateway
             ? IdempotencyScope.ForRun(player, opened.Id)
             : (IdempotencyScope?)null;
 
+        // The messages this command paid for, read off the batch the domain produced — the events
+        // ARE how a claim reaches the store. They ride the commit rather than a call after it,
+        // because the wallet they moved rides the commit too and a stamp that landed separately
+        // could leave the reward paid and still claimable, which is a double-grant next claim.
+        var claimed = decision.Accepted ? InboxCommandSupport.ClaimedIn(decision.Events) : [];
+        var claim = claimed.Count > 0 ? new MailClaim(player, claimed, now) : null;
+
         // The pins go down BEFORE the commit that makes the run addressable, and they are the one
         // thing here that does. A pin written for a commit that then fails is an orphan reference to
         // a run id no client was ever told; a run whose scope opened without its pin would be judged
@@ -381,7 +389,8 @@ public sealed class CommandGateway
                 ? EconomyEventEnricher.Enrich(
                     player, actedOn, envelope.CommandId, context.NowUtc, decision.Events)
                 : Array.Empty<EconomyEventRecord>(),
-            openedScope);
+            openedScope,
+            claim);
 
         // The moment the command happened. Everything above it is a decision nobody can see yet;
         // everything below it is loss-tolerant.

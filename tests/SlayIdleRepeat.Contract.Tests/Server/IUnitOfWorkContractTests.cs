@@ -27,6 +27,9 @@ public abstract class IUnitOfWorkContractTests
 
     private static readonly RunId Run = new("RUN_uow-suite");
 
+    /// <summary>The instant a claim's stamp records — the command's own clock, never the store's.</summary>
+    private static readonly DateTimeOffset ClaimedAt = new(2026, 8, 12, 5, 0, 0, TimeSpan.Zero);
+
     /// <summary>A unit of work under test, over stores of its own.</summary>
     protected abstract IUnitOfWork Create();
 
@@ -48,6 +51,15 @@ public abstract class IUnitOfWorkContractTests
 
     /// <summary>Tells the unit of work under test to fail the snapshot half of its next commit.</summary>
     protected abstract void FailTheSnapshotHalf();
+
+    /// <summary>Seeds one unclaimed message this suite's player owns, and answers its id.</summary>
+    protected abstract Task<MessageId> SeedAnUnclaimedMessageAsync(PlayerId player, string id);
+
+    /// <summary>Whether that message now reads as claimed.</summary>
+    protected abstract Task<bool> IsClaimedAsync(PlayerId player, MessageId message);
+
+    /// <summary>Tells the unit of work under test to fail the claim's stamp on its next commit.</summary>
+    protected abstract void FailTheClaimHalf();
 
     [Fact]
     public async Task An_accepted_commands_snapshots_record_and_counter_all_land()
@@ -163,6 +175,74 @@ public abstract class IUnitOfWorkContractTests
             "the scope and the record naming it are one effect. Opened separately, a crash between "
             + "them leaves a committed acceptance whose run can never be addressed — and 0 rather "
             + "than null is what makes the run's first command the expected sequence 1.");
+    }
+
+    /// <summary>
+    /// 🔒 The claim rides the commit. The message that authorised a grant is stamped in the same
+    /// boundary as the snapshot whose wallet the grant moved, so the two can never disagree.
+    /// </summary>
+    /// <remarks>
+    /// M5-08 shipped the stamp as a call after the save and registered the window honestly; the
+    /// integration merge closed it, because a reward that is PAID and still reads as claimable is a
+    /// double-grant the next claim will take.
+    /// </remarks>
+    [Fact]
+    public async Task An_accepted_claims_stamp_and_its_players_snapshot_land_together()
+    {
+        var unitOfWork = Create();
+        var scope = IdempotencyScope.ForPlayer(Player);
+        var profile = PersistenceWorlds.ProfileInARun();
+        var paid = await SeedAnUnclaimedMessageAsync(profile.Player.Id, "MSG_uow-paid");
+        var untouched = await SeedAnUnclaimedMessageAsync(profile.Player.Id, "MSG_uow-untouched");
+
+        await unitOfWork.CommitAsync(
+            Commit(scope, profile, sequence: 1) with
+            {
+                Claim = new MailClaim(profile.Player.Id, [paid], ClaimedAt),
+            },
+            PersistenceWorlds.Cancel);
+
+        (await StoredProfileAsync(profile.Player.Id)).ShouldNotBeNull(
+            "the snapshot carries the wallet the claim paid into.");
+        (await IsClaimedAsync(profile.Player.Id, paid)).ShouldBeTrue(
+            "the stamp is what stops the same reward being paid a second time. Landed outside this "
+            + "boundary, a crash between the two leaves the message PAID and still claimable — and "
+            + "the next claim of it grants the attachment again.");
+        (await IsClaimedAsync(profile.Player.Id, untouched)).ShouldBeFalse(
+            "the negative control: a commit that stamped every message the player owns would spend "
+            + "rewards nothing paid for.");
+    }
+
+    /// <summary>
+    /// The torn direction, and the one that matters: neither half may survive alone. Stated against
+    /// the record half's fault rather than the claim's, because the record is written BEFORE the
+    /// stamp — so only a real boundary can undo it once the stamp fails.
+    /// </summary>
+    [Fact]
+    public async Task A_commit_whose_claim_half_fails_leaves_neither_the_stamp_nor_the_snapshot()
+    {
+        var unitOfWork = Create();
+        var scope = IdempotencyScope.ForPlayer(Player);
+        var profile = PersistenceWorlds.ProfileInARun();
+        var paid = await SeedAnUnclaimedMessageAsync(profile.Player.Id, "MSG_uow-torn");
+        FailTheClaimHalf();
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            async () => await unitOfWork.CommitAsync(
+                Commit(scope, profile, sequence: 1) with
+                {
+                    Claim = new MailClaim(profile.Player.Id, [paid], ClaimedAt),
+                },
+                PersistenceWorlds.Cancel));
+
+        (await IsClaimedAsync(profile.Player.Id, paid)).ShouldBeFalse(
+            "a message stamped by a commit that did not happen is a reward taken away and never paid.");
+        (await StoredProfileAsync(profile.Player.Id)).ShouldBeNull(
+            "…and the snapshot that would have carried the grant must not stand either — a wallet "
+            + "credited beside a message still reading as claimable is the double-grant from the "
+            + "other end.");
+        (await LastSequenceAsync(scope)).ShouldBeNull(
+            "…nor may the counter have moved past a command that left nothing behind.");
     }
 
     [Fact]
