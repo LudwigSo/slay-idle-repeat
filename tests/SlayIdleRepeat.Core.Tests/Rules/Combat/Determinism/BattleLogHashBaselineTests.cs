@@ -44,20 +44,6 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Determinism;
 public sealed class BattleLogHashBaselineTests
 {
     /// <summary>
-    /// A wall-clock guard against an algorithmic regression, not a performance target.
-    /// </summary>
-    /// <remarks>
-    /// 🔴 About <b>10 s</b> when this class runs alone (0.1 s generating, 9.7 s simulating, 0.01 s
-    /// hashing) — and several times that inside the full unit group, because xUnit runs collections
-    /// in parallel and six thousand other cases are competing for the same cores. A budget set from
-    /// the isolated figure goes red on a busy machine and teaches everyone to re-run the suite, which
-    /// is worse than no budget at all. This one is set well above the loaded figure on purpose: the
-    /// failure it exists to catch is an accidental O(n²), which moves the number by orders of
-    /// magnitude rather than by a factor of five.
-    /// </remarks>
-    private const int BudgetSeconds = 300;
-
-    /// <summary>
     /// How many of the 10 000 fights must produce a <c>LogHash</c> nothing else in the corpus
     /// produced.
     /// </summary>
@@ -249,6 +235,11 @@ public sealed class BattleLogHashBaselineTests
         Corpus.Triples.Count(triple => triple.EliteIndex >= 0).ShouldBeGreaterThan(
             100, "the elite derivation is a separate multiplier arm of the enemy derivation.");
 
+        Corpus.Triples.Count(triple => triple.EliteIndex < 0).ShouldBeGreaterThan(
+            100,
+            "and its negative control: a corpus in which every roster carried an elite would never " +
+            "run the plain derivation the elite multiplier is measured against.");
+
         Corpus.Triples.Select(triple => triple.EnemyPowers.Count).Distinct().OrderBy(count => count)
             .ToArray()
             .ShouldBe(
@@ -267,11 +258,19 @@ public sealed class BattleLogHashBaselineTests
                 "each chapter pool weights the archetypes differently, so a chapter missing from the " +
                 "corpus is an archetype nobody compared.");
 
-        Corpus.Triples.Count(triple => triple.HeroStats.Any(value => value > 0.75))
+        Corpus.Triples.Count(BattleTripleGenerator.OverAShippedCap)
             .ShouldBeGreaterThan(
                 100,
-                "the stat-cap step is itself an accumulation point. A corpus drawn entirely under the " +
-                "shipped ceilings would never reach it.");
+                "the stat-cap step is itself an accumulation point, and it is reached per stat: a " +
+                "build is over a ceiling when one of the six capped stats is above the value " +
+                "content/combat_caps.json gives THAT stat. A corpus drawn entirely under them would " +
+                "never run the clamp at all.");
+
+        Corpus.Triples.Count(triple => !BattleTripleGenerator.OverAShippedCap(triple))
+            .ShouldBeGreaterThan(
+                100,
+                "and its negative control: a corpus in which every build was clamped would never " +
+                "run the aggregation's uncapped path.");
     }
 
     // ═══════════════════════════════════════════════════ the header, and the review
@@ -327,20 +326,7 @@ public sealed class BattleLogHashBaselineTests
             "one; this is the floor under a one-word one.");
     }
 
-    // ══════════════════════════════════════════════════════ cost, and regeneration
-
-    /// <summary>10 000 triples belong to the unit tier, and there is no other tier.</summary>
-    [Fact]
-    public void The_10000_triple_pass_stays_inside_the_unit_tier_budget()
-    {
-        Corpus.TotalElapsed.TotalSeconds.ShouldBeLessThan(
-            BudgetSeconds,
-            $"generation {Corpus.GenerationElapsed.TotalSeconds.ToString("F2", CultureInfo.InvariantCulture)} s, " +
-            $"simulation {Corpus.SimulationElapsed.TotalSeconds.ToString("F2", CultureInfo.InvariantCulture)} s, " +
-            $"hashing {Corpus.HashingElapsed.TotalSeconds.ToString("F2", CultureInfo.InvariantCulture)} s. " +
-            "This repository has no integration tier and is not getting one — if 10 000 triples stop " +
-            "fitting the unit tier, the answer is to say so, not to add a tier.");
-    }
+    // ═══════════════════════════════════════════════════════════════ regeneration
 
     /// <summary>
     /// The regeneration command's own output, round-tripped. Also the door itself: with

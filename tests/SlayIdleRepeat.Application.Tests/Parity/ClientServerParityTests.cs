@@ -41,20 +41,6 @@ namespace SlayIdleRepeat.Application.Tests.Parity;
 public sealed class ClientServerParityTests
 {
     /// <summary>
-    /// A wall-clock guard against an algorithmic regression, not a performance target.
-    /// </summary>
-    /// <remarks>
-    /// 🔴 Two measurements, and the second is why this number is what it is: about <b>9 s</b> when
-    /// this class runs alone, and <b>48 s</b> when it runs inside the full unit group, because xUnit
-    /// runs collections in parallel and 1 500 other cases are competing for the same cores. A budget
-    /// set from the isolated figure goes red on a busy machine and teaches everyone to re-run the
-    /// suite, which is worse than no budget at all. This one is set well above the loaded figure on
-    /// purpose: the failure it exists to catch is an accidental O(n²), which moves the number by
-    /// orders of magnitude rather than by a factor of five.
-    /// </remarks>
-    private const int BudgetSeconds = 300;
-
-    /// <summary>
     /// The share of drawn steps the domain must accept before the walk counts as legality-aware.
     /// </summary>
     /// <remarks>
@@ -78,9 +64,12 @@ public sealed class ClientServerParityTests
             "`14` §13 asks for 1 000 command sequences. A corpus of none would make the emptiness " +
             "below trivially true.");
 
+        // The literal, not SequenceCount × MinLength: a bound read off the very constants the walker
+        // sizes its sequences with degrades in step with what it is meant to constrain — set
+        // MinLength to 0 and the assertion becomes "greater than -1".
         Corpus.Outcomes.Sum(outcome => outcome.Steps.Count).ShouldBeGreaterThan(
-            ParitySequenceGenerator.SequenceCount * ParitySequenceGenerator.MinLength - 1,
-            "every sequence carries at least its minimum length, so a corpus of empty sequences " +
+            2_999,
+            "1 000 sequences at the reviewed minimum of 3 commands each. A corpus of empty sequences " +
             "cannot pass while comparing nothing.");
 
         Corpus.Mismatches.ShouldBeEmpty(
@@ -121,10 +110,19 @@ public sealed class ClientServerParityTests
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
+        // The floor under the sweep. `expected` is derived from the registry it is checking, so
+        // without a number close to the reviewed count a registry losing six rows would leave both
+        // sides agreeing about a smaller vocabulary and the sweep green.
         GameRules.CommandTypesByWireName.Count.ShouldBeGreaterThanOrEqualTo(
-            49,
-            "the floor under the sweep: an emptied registry would make the comparison below true of " +
-            "a corpus that drove nothing.");
+            55,
+            "55 rows are registered today — 22 run and 33 meta. A floor rather than an equality so a " +
+            "later milestone may append, but never so low that a shrinking registry goes unnoticed.");
+
+        Corpus.CommandsDriven.Count.ShouldBe(
+            GameRules.CommandTypesByWireName.Count - 1,
+            "every registered command but the one excluded row is driven; the counts are compared " +
+            "as well as the sets so a corpus that dropped a command AND the expectation with it " +
+            "cannot pass.");
 
         Corpus.CommandsDriven.ShouldBe(
             expected,
@@ -177,6 +175,38 @@ public sealed class ClientServerParityTests
             body.GetProperty("stateHash").GetString()!,
             "and the run id is inside the hashed projection, so the disagreement is visible in the " +
             "state hash rather than tucked away in a field nobody compares.");
+    }
+
+    /// <summary>
+    /// The one payload field the corpus supplies rather than draws is supplied to exactly one
+    /// command.
+    /// </summary>
+    /// <remarks>
+    /// <c>ParityCommandFactory</c> hands the served content version to any parameter named
+    /// <c>ContentHash</c>, because the wire refuses a wrong claim BEFORE dispatch and the in-process
+    /// host has no such check — a drawn value would take the two pipelines down paths that cannot be
+    /// compared. That exemption is keyed on a name, so a second command growing the same parameter
+    /// would inherit it silently, and the corpus would stop driving that command's own claim path
+    /// with nothing going red. This is the floor on that subject set.
+    /// </remarks>
+    [Fact]
+    public void BEGIN_SESSION_is_the_only_command_whose_content_claim_the_factory_supplies()
+    {
+        var claimants = GameRules.CommandTypesByWireName
+            .Where(row => row.Value
+                .GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+                .SelectMany(constructor => constructor.GetParameters())
+                .Any(parameter => string.Equals(parameter.Name, "ContentHash", StringComparison.Ordinal)))
+            .Select(row => row.Key)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        claimants.ShouldBe(
+            ["BEGIN_SESSION"],
+            "a second command carrying a ContentHash would be handed the served version by the " +
+            "parity factory without anybody deciding that, and its own content-claim path would " +
+            "stop being driven. Decide here instead: either widen the exemption deliberately, or " +
+            "give the new command a drawn value and teach the driver what its refusal means.");
     }
 
     /// <summary>
@@ -325,19 +355,7 @@ public sealed class ClientServerParityTests
             80, "the review is a record of what moved and why, not a checkbox.");
     }
 
-    // ══════════════════════════════════════════════════════ cost, and regeneration
-
-    /// <summary>1 000 sequences through two pipelines belong to the unit tier, and there is no other tier.</summary>
-    [Fact]
-    public void The_1000_sequence_pass_stays_inside_the_unit_tier_budget()
-    {
-        Corpus.TotalElapsed.TotalSeconds.ShouldBeLessThan(
-            BudgetSeconds,
-            $"generation {Corpus.GenerationElapsed.TotalSeconds.ToString("F2", CultureInfo.InvariantCulture)} s, " +
-            $"comparison {Corpus.ComparisonElapsed.TotalSeconds.ToString("F2", CultureInfo.InvariantCulture)} s. " +
-            "This repository has no integration tier and is not getting one — if 1 000 sequences stop " +
-            "fitting the unit tier, the answer is to say so, not to add a tier.");
-    }
+    // ═══════════════════════════════════════════════════════════════ regeneration
 
     /// <summary>
     /// The regeneration command's own output, round-tripped. Also the door itself: with

@@ -141,12 +141,16 @@ internal sealed class ParityCorpus
             ("shortest-sequence", static outcome => outcome.Steps.Count == ParitySequenceGenerator.MinLength),
             ("every-step-accepted", static outcome => outcome.Steps.All(step => step.Accepted)),
             ("every-step-refused", static outcome => outcome.Steps.All(step => !step.Accepted)),
-            // The one shape in which the run the sequence started in stops existing mid-sequence, so
-            // the endpoint split and the run-already-ended gate are both pinned by a row.
-            ("leaves-the-run", static outcome => outcome.Steps.Any(step =>
-                step.Accepted &&
-                (step.Command.Equals("END_RUN", StringComparison.Ordinal) ||
-                 step.Command.Equals("ABANDON_RUN", StringComparison.Ordinal)))),
+            // The one shape in which the run the sequence started in stops progressing MID-sequence,
+            // so the run-already-ended gate and the hashing of a stopped run are both pinned by a
+            // row. The last step is excluded deliberately: a departure with nothing after it leaves
+            // neither of those exercised, and the row would then claim more than it holds.
+            ("leaves-the-run", static outcome => outcome.Steps
+                .Take(outcome.Steps.Count - 1)
+                .Any(step =>
+                    step.Accepted &&
+                    (step.Command.Equals("END_RUN", StringComparison.Ordinal) ||
+                     step.Command.Equals("ABANDON_RUN", StringComparison.Ordinal)))),
             // Both endpoints exercised inside one sequence, with an acceptance on each: the wire's
             // run/player split is the thing the in-process host has no equivalent of, so a corpus
             // whose accepted steps all landed on one endpoint would compare half of it.

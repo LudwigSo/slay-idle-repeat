@@ -45,8 +45,10 @@ internal sealed class SimulatedCorpus
             ("final-chapter", static (triple, _) =>
                 triple.Chapter == BattleTripleGenerator.FirstChapter + BattleTripleGenerator.ChapterSpan - 1),
             // A build drawn above a shipped ceiling, so the cap step is pinned by a row rather than
-            // only by whichever triples happen to reach it.
-            ("build-over-a-shipped-cap", static (triple, _) => triple.HeroStats.Any(value => value > 0.75)),
+            // only by whichever triples happen to reach it. Per stat against the read ceiling, not
+            // one literal across the block: MAX_HP alone clears any ratio-sized threshold on every
+            // triple in the corpus, which would make this row resolve to an arbitrary fight.
+            ("build-over-a-shipped-cap", static (triple, _) => BattleTripleGenerator.OverAShippedCap(triple)),
         };
 
     private SimulatedCorpus(

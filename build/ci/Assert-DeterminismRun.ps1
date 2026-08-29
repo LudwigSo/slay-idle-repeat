@@ -21,7 +21,8 @@
 
       * a missing TRX                     - the run did not complete
       * a TRX with zero tests             - the filter matched nothing
-      * fewer tests than the floor        - the filter matched only part of it
+      * a suite below ITS OWN floor       - the filter matched only part of it
+      * a suite with no declared floor    - a count nothing bounds
       * any failed / errored / aborted    - a divergence, which is the point
 
 .PARAMETER Run
@@ -34,10 +35,10 @@
     Write the test filter to stdout and exit. This is how the ARM64 leg gets the
     filter without a second copy of it living in the workflow YAML.
 
-.PARAMETER MinimumTests
-    The floor under the executed count. A filter that silently stops matching is
-    the failure this number exists to catch, so it is close to the real count
-    rather than a token 1.
+.PARAMETER MinimumTestsBySuite
+    The floor each suite's own count has to clear. Per suite rather than one
+    total: the two suites are wildly different sizes, so an aggregate floor is
+    satisfied by the big one alone and the small one could collapse unnoticed.
 
 .PARAMETER MinimumSuites
     How many TRX files the leg must have produced. A suite that wrote none does
@@ -61,12 +62,17 @@ param(
 
     [string]$ResultsDirectory,
 
-    # 856 cases today - 817 in Core.Tests (the LogHash corpus, the DSL baseline,
-    # both hash tables and both field-order pins) and 39 in Application.Tests (the
-    # parity corpus and the wire pin). A floor rather than an equality so a later
-    # milestone may add rows, but close enough to the real number that losing a
-    # table's worth of cases goes red rather than unnoticed.
-    [int]$MinimumTests = 800,
+    # PER SUITE, never a single total. The two suites are wildly different sizes -
+    # 816 cases in Core.Tests (the LogHash corpus, M2-17's DSL baseline, both hash
+    # tables and the snapshot field-order pin) against 38 in Application.Tests (the
+    # parity corpus and the wire pin) - so an aggregate floor is satisfied by the
+    # big suite alone. 14 §13's parity corpus could collapse to one case and a
+    # total-based floor would still clear. Floors rather than equalities so a later
+    # milestone may add rows.
+    [hashtable]$MinimumTestsBySuite = @{
+        'SlayIdleRepeat.Core.Tests'        = 780
+        'SlayIdleRepeat.Application.Tests' = 35
+    },
 
     # Both suites must report. The per-TRX check below catches a suite that ran and
     # matched nothing; this catches one that produced no TRX at all, which reads
@@ -100,6 +106,14 @@ $PSNativeCommandUseErrorActionPreference = $false
       Hash64           - the canonical byte-encoding cases
       Parity           - 14 §13's 1 000 command sequences
       FieldOrderPin    - the snapshot and wire-projection field orders
+
+    ⚠️ The two wall-clock BUDGET cases live outside every one of these terms, in
+    SlayIdleRepeat.Core.Tests.Cost and SlayIdleRepeat.Application.Tests.Cost, on
+    purpose. They measure how long a corpus takes on the machine running it, and
+    the ARM64 leg runs under emulation an order of magnitude slower than native -
+    so sweeping them in here would turn a slow runner into a report that two
+    architectures disagree about floating point. Do not widen a term to reach
+    them. The leg's own cost is bounded by the job's timeout-minutes.
 #>
 $DeterminismFilter = @(
     'FullyQualifiedName~Determinism',
@@ -129,8 +143,11 @@ $suites = @(
 Write-Section 'Determinism run'
 Write-Host "Repository root : $root"
 Write-Host "Results         : $ResultsDirectory"
-Write-Host "Minimum tests   : $MinimumTests"
 Write-Host "Minimum suites  : $MinimumSuites"
+foreach ($entry in $MinimumTestsBySuite.GetEnumerator() | Sort-Object -Property Key) {
+    Write-Host ("  floor {0,-36} {1}" -f $entry.Key, $entry.Value)
+}
+
 Write-Host "Filter          : $DeterminismFilter"
 
 $failures = [System.Collections.Generic.List[string]]::new()
@@ -200,6 +217,25 @@ foreach ($trx in $trxFiles) {
             "regenerated table.")
     }
 
+    # The floor this suite has to clear on its own. Keyed off the TRX's own name,
+    # which the run step writes as "<suite>.trx", so a suite nobody wrote a floor
+    # for is named rather than quietly waved through.
+    $suite = [IO.Path]::GetFileNameWithoutExtension($trx.Name)
+    if (-not $MinimumTestsBySuite.ContainsKey($suite)) {
+        $failures.Add(
+            "$($trx.Name) : no per-suite floor is declared for '$suite'. A suite whose count nothing " +
+            "bounds can shrink to one case and still clear an aggregate. Add it to " +
+            "-MinimumTestsBySuite with the reviewed count, or stop running it on this leg.")
+    }
+    elseif ($counts.Total -lt $MinimumTestsBySuite[$suite]) {
+        $failures.Add(
+            "$($trx.Name) : executed $($counts.Total) determinism case(s), below this suite's floor " +
+            "of $($MinimumTestsBySuite[$suite]). The filter has stopped matching part of the corpora " +
+            "- a renamed class, a moved namespace, or a suite that no longer builds on this " +
+            "architecture. A leg that compares a fraction of the tables and reports success is the " +
+            "failure 14 §8.2 is written against.")
+    }
+
     $executed += $counts.Total
     $summary.Add([pscustomobject]@{
         Trx    = $trx.Name
@@ -222,14 +258,6 @@ if ($trxFiles.Count -lt $MinimumSuites) {
         "This leg produced $($trxFiles.Count) TRX file(s), below the floor of $MinimumSuites. A suite " +
         "that wrote no results at all does not show up in the per-file rows above, so without this " +
         "the leg would report on whichever suite did run and say nothing about the one that did not.")
-}
-
-if ($executed -lt $MinimumTests) {
-    $failures.Add(
-        "This leg executed $executed determinism case(s), below the floor of $MinimumTests. The " +
-        "filter has stopped matching part of the corpora - a renamed class, a moved namespace, or a " +
-        "suite that no longer builds on this architecture. A leg that compares a fraction of the " +
-        "tables and reports success is the failure 14 §8.2 is written against.")
 }
 
 Exit-WithFailures -Failures $failures.ToArray() -CheckName 'Determinism run'

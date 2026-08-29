@@ -2,6 +2,7 @@ using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Stats;
+using SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Determinism;
 
@@ -40,10 +41,11 @@ internal sealed record BattleTriple(
 /// </para>
 /// <para>
 /// 🔴 Stat values are drawn WIDE and deliberately over the shipped ceilings: a ratio stat is drawn on
-/// <c>[0, 0.8)</c> while the six capped stats top out between 0.4 and 0.75 in
-/// <c>content/combat_caps.json</c>. Nothing here transcribes those ceilings — over-cap draws are the
-/// point, because the cap step is itself an accumulation point and a corpus that never reached it
-/// would leave that arithmetic uncompared across architectures.
+/// <c>[0, <see cref="RatioCeiling"/>)</c> while the six capped stats top out between 0.4 and 0.75 in
+/// <c>content/combat_caps.json</c>. Nothing here transcribes those ceilings — <see cref="OverAShippedCap"/>
+/// reads them — and over-cap draws are the point, because the cap step is itself an accumulation
+/// point and a corpus that never reached it would leave that arithmetic uncompared across
+/// architectures.
 /// </para>
 /// </remarks>
 internal static class BattleTripleGenerator
@@ -180,6 +182,36 @@ internal static class BattleTripleGenerator
 
         return new BattleTriple(
             index, BattleSeedFor(index), heroLevel, stats, chapter, tierOrdinal, powers, eliteIndex);
+    }
+
+    /// <summary>The six shipped stat ceilings, read once from the content the corpus runs against.</summary>
+    private static readonly Lazy<StatCaps> ShippedCaps =
+        new(() => CombatCaps.Read(ShippedHarness.Content).Caps);
+
+    /// <summary>
+    /// Whether this build carries a stat above the ceiling <c>content/combat_caps.json</c> puts on
+    /// THAT stat.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Per stat, against the read ceiling — never one literal across the block. The six caps sit
+    /// between 0.4 and 0.75 and the other eight stats are uncapped, so a single threshold is either
+    /// satisfied by MAX_HP on every triple in the corpus (which is a predicate that cannot fail) or
+    /// misses four of the six real ceilings.
+    /// </remarks>
+    internal static bool OverAShippedCap(BattleTriple triple)
+    {
+        ArgumentNullException.ThrowIfNull(triple);
+
+        var caps = ShippedCaps.Value;
+        foreach (var stat in caps.Capped)
+        {
+            if (triple.HeroStats[ActorStats.SlotOf(stat)] > caps.Maximum(stat)!.Value)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>The triple's build, as the simulator's own argument type.</summary>
