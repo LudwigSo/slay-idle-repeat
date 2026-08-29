@@ -33,6 +33,7 @@ public static class WireJson
             new PlayerIdJsonConverter(),
             new RunIdJsonConverter(),
             new DomainEventWireConverter(),
+            new VerbatimJsonConverter(),
         },
     };
 
@@ -64,8 +65,9 @@ public static class WireJson
     /// <param name="response">The state answer.</param>
     /// <remarks>
     /// The overload the type remarks above commission. Its embedded outcome envelopes are already
-    /// JSON and ride out untouched, so the bytes a client replays are the bytes the first processing
-    /// stored.
+    /// JSON and ride out untouched — <see cref="VerbatimJsonConverter"/> is what makes that true, and
+    /// without it they are re-encoded rather than copied — so the bytes a client recovers by
+    /// reconnecting are the bytes the first processing stored.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="response"/> is null.</exception>
     public static string Render(RunStateResponse response)
@@ -83,6 +85,31 @@ public static class WireJson
         ArgumentNullException.ThrowIfNull(@event);
 
         return JsonSerializer.Serialize(@event, ResponseOptions);
+    }
+
+    /// <summary>
+    /// JSON that is already JSON: copied through byte for byte instead of being read apart and
+    /// written again.
+    /// </summary>
+    /// <remarks>
+    /// Serialising a <see cref="JsonElement"/> the ordinary way re-encodes every string it holds
+    /// through the writer's escaper, and the escaper is not the writer that produced them: a
+    /// timestamp whose UTC offset the date writer emitted as a literal plus, bypassing escaping,
+    /// comes back out with that plus rewritten as its six-character unicode escape. Same value,
+    /// different bytes — and the one place this type embeds an element is the stored envelopes a
+    /// reconnecting client is handed, which are promised to BE the stored bytes. Writing the raw
+    /// text makes them so.
+    /// </remarks>
+    private sealed class VerbatimJsonConverter : JsonConverter<JsonElement>
+    {
+        /// <inheritdoc/>
+        public override JsonElement Read(
+            ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            JsonElement.ParseValue(ref reader);
+
+        /// <inheritdoc/>
+        public override void Write(Utf8JsonWriter writer, JsonElement value, JsonSerializerOptions options) =>
+            writer.WriteRawValue(value.GetRawText());
     }
 
     /// <summary>
