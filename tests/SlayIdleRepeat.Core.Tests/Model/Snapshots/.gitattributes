@@ -1,7 +1,7 @@
 # CanonicalStateWriterReferenceVectors.json is the determinism pin of 14 §16.6 and
-# SnapshotFieldOrder.json is the field-order pin it is keyed to. Both are re-asserted on
-# Linux x64, Android ARM64 and iOS ARM64 by the cross-platform job (M5-12). Their line
-# endings are pinned to LF so the files are byte-identical on every one of them, and so a
-# one-row addition never diffs as a whole-file rewrite because someone's core.autocrlf
-# disagreed. Same rule as Rng/ and game-data/.
+# SnapshotFieldOrder.json is the field-order pin it is keyed to. Both are re-asserted on the
+# cross-platform job's live legs — Linux x64 and Android ARM64. (The iOS ARM64 leg is authored and
+# gated off with iOS itself, `16` D34.) Their line endings are pinned to LF so the files are
+# byte-identical on every one of them, and so a one-row addition never diffs as a whole-file rewrite
+# because someone's core.autocrlf disagreed. Same rule as Rng/ and game-data/.
 *.json text eol=lf

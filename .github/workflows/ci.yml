@@ -468,52 +468,216 @@ jobs:
         run: docker compose down --volumes --remove-orphans || true
 
   # ===========================================================================
-  # determinism — 14 §8.2 🔒
+  # determinism — 14 §8.2 🔒, 14 §13
   #
   #   "CI runs a determinism test on every commit: simulate 10,000 fixed
-  #    (seed, build, enemy) triples on Linux x64 (server), Android ARM64, and
-  #    iOS ARM64, compare LogHash values, fail on any divergence."
+  #    (seed, build, enemy) triples on Linux x64 (server) and Android ARM64,
+  #    compare LogHash values, fail on any divergence."
   #
-  # ⛔ GATED OFF. Nothing it needs exists yet:
-  #      M0-06  Core/Rng — Hash64 (xxHash64, pinned encoding) + reference vectors
-  #      M0-07  CanonicalStateWriter — the one serialiser LogHash is taken over
-  #      M5-12  the cross-platform determinism harness and the parity test
+  # ✅ LIVE (M5-12). The iOS ARM64 leg below stays authored and gated off with iOS
+  # itself (16 D34); it is the first thing to re-enable if iOS returns, because
+  # NativeAOT is a different runtime from the CoreCLR path the other two legs
+  # exercise.
   #
-  # The matrix below is the shape from 14 §8.2, recorded now so M5-12 fills it in
-  # rather than reinventing it. It is `if: false`, so it reports SKIPPED — it does
-  # not run, and it must never be made to report success by running nothing.
+  # HOW THE COMPARISON IS MADE. Every determinism artefact in this repository is a
+  # committed table asserted against by an ordinary unit test — the 10 000-triple
+  # LogHash corpus, M2-17's 10 000-permutation DSL baseline, 14 §13's 1 000
+  # command sequences, both hash reference-vector tables and both field-order
+  # pins. So "x64 and ARM64 agree" IS "both legs are green against the same
+  # committed tables", and there is no third artefact to diff. A leg that
+  # disagrees goes red on the chunk that moved, which localises the divergence to
+  # a hundred triples.
   #
-  # To turn on: delete the `if: false`, and replace the placeholder step. The
-  # ARM64 legs need either self-hosted hardware or an emulator on the runner —
-  # M5-12 decides which. Do not weaken this to "Linux only" and call it done:
-  # 8.2 exists because ARM and x64 disagree about floating point, and a
-  # single-architecture determinism test proves nothing at all.
+  # HOW ARM64 IS REACHED, and why this way. GitHub's hosted arm64 Linux runners
+  # (`ubuntu-24.04-arm`) are not available to every plan on a private repository,
+  # and this project has no self-hosted hardware — so the leg runs the SAME tests
+  # inside a linux/arm64 container under QEMU, which needs nothing but the x64
+  # runner it is already paying for. That is honest about what it proves: it
+  # exercises the ARM64 RyuJIT — different register allocation, different vector
+  # width, and the FMA contraction decisions that are the actual reason 8.2
+  # exists — under an IEEE-754-correct softfloat. It does not exercise a phone,
+  # and it would not catch a hardware FP erratum. ⚠️ TO SWITCH TO REAL ARM64
+  # SILICON, which is strictly better: set the android-arm64 leg's `runner` to
+  # `ubuntu-24.04-arm` and its `emulated` to false. Nothing else changes.
+  #
+  # 🔒 The one unacceptable outcome is a green leg that ran nothing: `dotnet test`
+  # exits 0 on an empty assembly AND on a filter that matches nothing. So neither
+  # leg's exit code decides it — build/ci/Assert-DeterminismRun.ps1 reads the real
+  # counts out of the TRX and fails on a missing file, a zero count, a count below
+  # its floor, or any failed case. The `determinism-observed` job below then fails
+  # if either leg was skipped rather than run.
   determinism:
     name: determinism ${{ matrix.platform }} (14 §8.2)
-    if: false  # ⛔ gated: turns on with M5-12 (needs M0-06 Hash64 + M0-07 CanonicalStateWriter)
     runs-on: ${{ matrix.runner }}
+    # Emulated ARM64 is roughly an order of magnitude slower than native, and the
+    # two corpora cost about 20 s between them on x64. Generous, but far short of
+    # the six-hour default that would let a hung leg burn a whole runner.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: linux-x64
             runner: ubuntu-24.04
+            emulated: false
           - platform: android-arm64
             runner: ubuntu-24.04
-          - platform: ios-arm64
-            # macos-15, not macos-14 and never macos-latest — the same pin, for
-            # the same reasons, as the ios-export job below (see its note 2:
-            # macos-14 is deprecated and unsupported from 2026-11-02; macos-26
-            # ships no Xcode 16). This leg is gated off, but a dormant job that
-            # is wrong is worse than one that is right: whoever turns it on is
-            # doing so for the determinism work, not to audit the runner image.
-            runner: macos-15
+            emulated: true
+          # ⛔ The iOS ARM64 leg is NOT a row here. A matrix entry cannot gate
+          # itself, so an `if: false` on it is impossible and an `if` on every one
+          # of its steps would make it report success having run nothing — the one
+          # outcome this job exists to prevent, dressed up as a gate. It is the
+          # `determinism-ios` job below instead, `if: false` like every other
+          # gated job in this file, with its macos-15 pin intact (16 D34).
     steps:
       - uses: actions/checkout@v4
-      - name: 10,000 (seed, build, enemy) triples -> LogHash
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # The determinism tables are asserted against whatever runtime executes
+      # them, so this leg has to BE arm64. binfmt_misc registration is the whole
+      # of it: every dotnet invocation below then runs arm64 code.
+      - name: Register QEMU for arm64
+        if: matrix.emulated
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Determinism + parity corpora (native)
+        if: ${{ !matrix.emulated }}
+        shell: pwsh
+        run: ./build/ci/Assert-DeterminismRun.ps1 -Run -ResultsDirectory artifacts/determinism
+
+      # Two steps, not one, because the SDK image carries no PowerShell and
+      # installing it under emulation costs more than the tests do. The container
+      # runs the tests; the host asserts on the TRX files it wrote to the mounted
+      # results directory. The filter comes from the script rather than from a
+      # second copy of it in this file.
+      - name: Determinism + parity corpora (arm64, emulated)
+        if: matrix.emulated
+        shell: bash
         run: |
-          echo "::error::determinism harness not implemented (M5-12)"
-          exit 1
+          set -euo pipefail
+          filter="$(pwsh -NoProfile -File ./build/ci/Assert-DeterminismRun.ps1 -PrintFilter)"
+          echo "Filter: $filter"
+          mkdir -p artifacts/determinism
+          for suite in SlayIdleRepeat.Core.Tests SlayIdleRepeat.Application.Tests; do
+            docker run --rm --platform linux/arm64 \
+              -v "$GITHUB_WORKSPACE:/src" -w /src \
+              -e DOTNET_NOLOGO=true -e DOTNET_CLI_TELEMETRY_OPTOUT=true \
+              mcr.microsoft.com/dotnet/sdk:8.0 \
+              dotnet test "tests/$suite" \
+                --configuration Release \
+                --filter "$filter" \
+                --logger "trx;LogFileName=$suite.trx" \
+                --results-directory artifacts/determinism
+          done
+
+      - name: Assert the leg actually compared the corpora
+        shell: pwsh
+        run: ./build/ci/Assert-DeterminismRun.ps1 -ResultsDirectory artifacts/determinism
+
+      - name: Upload determinism results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: determinism-${{ matrix.platform }}
+          path: artifacts/determinism/*.trx
+          # error, not warn: this artifact is the evidence determinism-observed
+          # reads. A leg that uploads nothing must be visible here rather than in
+          # a downstream job that can only report the absence second-hand.
+          if-no-files-found: error
+
+  # ===========================================================================
+  # determinism-ios — 14 §8.2's third leg.
+  #
+  # ⛔ GATED OFF with iOS itself (16 D34), and the first thing to re-enable if iOS
+  # returns: NativeAOT is a different RUNTIME from the CoreCLR path the other two
+  # legs exercise, so it is the leg most likely to disagree and the one currently
+  # asserting nothing.
+  #
+  # Left `if: false` on a job of its own rather than as a row of the matrix above,
+  # because a matrix entry cannot gate itself — see the note in that matrix. Its
+  # steps are the real ones, so turning it on is deleting one line.
+  #
+  # macos-15, not macos-14 and never macos-latest — the same pin, for the same
+  # reasons, as the ios-export job below (macos-14 is deprecated and unsupported
+  # from 2026-11-02; macos-26 ships no Xcode 16). A dormant job that is wrong is
+  # worse than one that is right: whoever turns this on is doing so for the
+  # determinism work, not to audit the runner image.
+  #
+  # ⚠️ On the day it is re-enabled, add 'ios-arm64' to determinism-observed's
+  # expected list — otherwise this leg can fail and the guard will still pass.
+  # ===========================================================================
+  determinism-ios:
+    name: determinism ios-arm64 (14 §8.2)
+    if: false  # ⛔ gated: turns on with iOS itself (16 D34)
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Determinism + parity corpora
+        shell: pwsh
+        run: ./build/ci/Assert-DeterminismRun.ps1 -Run -ResultsDirectory artifacts/determinism
+
+      - name: Upload determinism results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: determinism-ios-arm64
+          path: artifacts/determinism/*.trx
+          if-no-files-found: error
+
+  # ===========================================================================
+  # determinism-observed — the guard on the guard.
+  #
+  # A matrix leg that is skipped, cancelled or never scheduled leaves no red tick
+  # anywhere: `needs` alone would skip this job too and the workflow would go
+  # green having compared one architecture, or none. 8.2 exists because ARM and
+  # x64 disagree about floating point, so a single-architecture determinism run
+  # asserts the opposite of what it appears to.
+  #
+  # It reads the uploaded artifacts rather than only the job result, because the
+  # result is per-MATRIX-JOB and collapses to one value: this checks that BOTH live
+  # platforms left evidence behind, by name. iOS ARM64 is gated off under 16 D34
+  # and is deliberately not expected — see determinism-ios above.
+  # ===========================================================================
+  determinism-observed:
+    name: determinism ran on both architectures (14 §8.2)
+    runs-on: ubuntu-24.04
+    needs: [determinism]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download determinism results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: determinism-*
+          path: artifacts/legs
+
+      # The check lives in build/ci/, not in this step: a check that only exists
+      # inside a YAML step is a check nobody can reproduce when it goes red.
+      - name: Both live legs must have compared the corpora
+        shell: pwsh
+        run: >-
+          ./build/ci/Assert-DeterminismLegs.ps1
+          -LegsDirectory artifacts/legs
+          -MatrixResult '${{ needs.determinism.result }}'
 
   # ===========================================================================
   # android-export — 14 §14, 12 §3.2
