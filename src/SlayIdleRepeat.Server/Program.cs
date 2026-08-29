@@ -16,6 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddObservability();
 builder.AddPersistence();
 builder.AddAntiCheat();
+builder.AddInbox();
 
 var app = builder.Build();
 

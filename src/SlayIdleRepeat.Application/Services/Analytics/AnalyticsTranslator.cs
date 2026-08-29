@@ -72,6 +72,16 @@ public static class AnalyticsTranslator
                     (emitted ??= []).Add(DieRolled(spent.Pips, "fixed"));
                     break;
 
+                case MailClaimed claimed:
+                    (emitted ??= []).Add(new AnalyticsEvent(
+                        AnalyticsVocabulary.MailClaimed,
+                        new Dictionary<string, string>
+                        {
+                            ["message_id"] = claimed.MessageId.Value,
+                            ["category"] = claimed.Category.ToString(),
+                        }));
+                    break;
+
                 case CurrencyChanged moved:
                     (emitted ??= []).Add(new AnalyticsEvent(
                         AnalyticsVocabulary.CurrencyChanged,

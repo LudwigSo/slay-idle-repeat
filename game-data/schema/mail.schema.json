@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/mail.schema.json",
+  "title": "content/mail/mail.json",
+  "description": "The authored inbox templates (28 Part A). What is fixed here is that a template is a loc key, a category out of the closed six, a title key, and a closed list of typed parameters — so a message is an authored template with typed parameters and never free text. additionalProperties is false on every object, so a field nobody declared is a build failure rather than a value the sender silently drops. ⚠️ The category enum carries all six values while the shipped document uses five: MILESTONE has no template, because nothing in this build sends one and authoring copy for a sender that does not exist is the plausible-looking hole this repository refuses. The enum is the vocabulary, not the inventory.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "_doc",
+    "templates"
+  ],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    },
+    "paramName": {
+      "description": "A parameter's name, as the template's own text spells it in braces. Lower camel case, because that is how the design set's own example writes them.",
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z0-9]*$"
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "_doc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "templates": {
+      "description": "🔒 The closed list of what ops may send. A send names a template id from this list; there is no arm anywhere that takes a body.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "body",
+          "category",
+          "title",
+          "params"
+        ],
+        "properties": {
+          "body": {
+            "description": "The body's loc key, and the template's identity — it is the key the message row stores, so a template renamed is a template every stored message stops resolving; rename by adding the new one and letting the old messages expire. ⚠️ Deliberately NOT named `id`: ContentInvariants reads an `id` member under a prefixed pattern as declaring an id SPACE, and doing that to the loc-key pattern would make every loc key in the whole content set resolve against this file's six — 917 orphaned references, measured.",
+            "$ref": "#/$defs/locKey"
+          },
+          "category": {
+            "description": "Which of the six kinds a message from this template is sent as. Fixed by the template rather than chosen at send time: the category decides whether a message ever expires and whether the capacity rule may prune it, and an operator picking that per send would be an operator deciding whether a sanction notice is permanent.",
+            "type": "string",
+            "enum": [
+              "ANNOUNCEMENT",
+              "COMPENSATION",
+              "RECONCILIATION",
+              "MODERATION",
+              "ACCOUNT",
+              "MILESTONE"
+            ]
+          },
+          "title": {
+            "description": "The subject line's loc key. Separate from the body because a list groups by subject and a body is a paragraph.",
+            "$ref": "#/$defs/locKey"
+          },
+          "params": {
+            "description": "The typed parameters the template's text expects. An empty list is legal and means a template that reads the same for everyone. A send must supply every one of these and nothing else.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "type"
+              ],
+              "properties": {
+                "name": {
+                  "$ref": "#/$defs/paramName"
+                },
+                "type": {
+                  "description": "TEXT is any non-blank string; INTEGER must parse as a whole number invariantly; DATE_UTC must parse as an ISO-8601 instant. The three exist so a send that would render 'Servers were unavailable for  hours' is refused by the tool rather than by 300,000 players.",
+                  "type": "string",
+                  "enum": [
+                    "TEXT",
+                    "INTEGER",
+                    "DATE_UTC"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

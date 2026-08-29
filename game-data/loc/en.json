@@ -325,7 +325,20 @@
     "loc.campfire.read_unavailable.status": "Your run could not be read, so this tile cannot be opened.",
     "loc.campfire.shrine_unavailable.status": "This shrine is open, but what it drew could not be built from the game's data.",
     "loc.campfire.refused.status": "That was refused.",
-    "loc.campfire.host_unavailable.status": "The game did not answer, so nothing happened here. Try again."
+    "loc.campfire.host_unavailable.status": "The game did not answer, so nothing happened here. Try again.",
+
+    "loc.mail.announcement.maintenance.title": "Scheduled maintenance",
+    "loc.mail.announcement.maintenance.body": "The game will be unavailable from {startUtc} UTC for about {minutes} minutes while we carry out scheduled maintenance. Runs in progress are saved.",
+    "loc.mail.announcement.issue_resolved.title": "Issue resolved",
+    "loc.mail.announcement.issue_resolved.body": "The problem affecting {subject} has been fixed. Thank you for your patience.",
+    "loc.mail.compensation.outage.title": "Sorry about the downtime",
+    "loc.mail.compensation.outage.body": "The servers were unavailable for about {hours} hours on {dateUtc}. Here is something for the trouble.",
+    "loc.mail.reconciliation.event_currency.title": "{eventName} has closed",
+    "loc.mail.reconciliation.event_currency.body": "{eventName} is over. Your unspent event currency has been converted and is attached.",
+    "loc.mail.moderation.report_outcome.title": "About the report you filed",
+    "loc.mail.moderation.report_outcome.body": "We looked into the report you filed. The outcome was: {outcome}. Thank you for telling us.",
+    "loc.mail.account.new_device.title": "A new device signed in",
+    "loc.mail.account.new_device.body": "{deviceName} signed in to your account on {atUtc} UTC. If that was not you, unlink the device in Settings."
 
   }
 }

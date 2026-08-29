@@ -57,9 +57,14 @@ public sealed class PortCatalogueTests
     /// of them having gained a member the other two cannot see. M5 raised it 6 → 12 across two tasks
     /// that each moved all three together: M5-05's four server persistence ports and M5-11's two
     /// observability ports (<c>IAnalyticsSinkPort</c>, <c>ITelemetryPort</c>). M5-04 raised it
-    /// 12 → 13 for <c>IUnitOfWork</c>, moving all three again.
+    /// 12 → 13 for <c>IUnitOfWork</c>, moving all three again, and M5-08 raised it 13 → 14 for
+    /// <c>IMessageRepository</c>.
+    /// ⚠️ Both tasks were written against a 12 and each declared a 13; the integration merge is
+    /// where that reconciles, because a textual merge of two identical constants keeps ONE port's
+    /// worth of headroom and nothing goes red. Counted against the repository, not against either
+    /// branch's arithmetic.
     /// </remarks>
-    private const int DeclaredPortFloor = 13;
+    private const int DeclaredPortFloor = 14;
 
     /// <summary>
     /// Entries in the register. At zero, <see cref="No_port_deferral_outlives_the_port_it_defers"/>,
