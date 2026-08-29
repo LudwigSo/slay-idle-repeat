@@ -37,6 +37,18 @@ public sealed class VolatileUnitOfWork : IUnitOfWork
     {
         ArgumentNullException.ThrowIfNull(commit);
 
+        if (commit.Claim is not null)
+        {
+            // Unreachable rather than unsupported: a process with no database has no message store,
+            // so the claim command never loads an inbox and never produces a MailClaimed to build
+            // one from. Stated loudly because the alternative is dropping a stamp for a reward the
+            // snapshot above just paid — silently, on the one arrangement with no transaction.
+            throw new InvalidOperationException(
+                "A commit reached the volatile unit of work carrying an inbox claim. This process " +
+                "is configured with no database and therefore no message store, so nothing here " +
+                "can stamp it and nothing should have produced it.");
+        }
+
         if (commit.State is { } profile)
         {
             await _store.SaveAsync(new StoredSlice(profile.Player, profile.ActiveRun), ct)

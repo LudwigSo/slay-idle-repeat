@@ -397,6 +397,10 @@ jobs:
         shell: pwsh
         run: ./build/ci/Invoke-ObjectStoreProbe.ps1
 
+      - name: Probe — an inbox claim grants and stamps in Postgres
+        shell: pwsh
+        run: ./build/ci/Invoke-InboxClaimProbe.ps1
+
       - name: Assert every telemetry scrape target is up
         # 14 §10 — asserts the telemetry ROAD, not the traffic. The server emits
         # nothing of its own until M5-11, but a broken collector or a mistyped

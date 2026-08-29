@@ -129,6 +129,11 @@ public static class ContentLayout
             // The Campfire / Shrine screen's string slots — one document serving two arms, and
             // splitting the shrine's half out is the tidy-up this row keeps buildable.
             [ContentDirectory + "campfire/"] = SchemaDirectory + "campfire" + SchemaSuffix,
+
+            // The authored inbox templates. Not the easy case above for long: ops copy grows by
+            // document — one per incident class — and the day the second lands the stem rule would
+            // start demanding a schema per template file.
+            [ContentDirectory + "mail/"] = SchemaDirectory + "mail" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

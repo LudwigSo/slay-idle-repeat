@@ -33,6 +33,8 @@ public sealed class PostgresPersistence : IAsyncDisposable
         Idempotency = idempotency;
         EconomyEvents = economyEvents;
         ContentPins = new PostgresContentPinStore(dataSource);
+        Messages = new PostgresMessageRepository(dataSource);
+        MailSegmentAudit = new PostgresMailSegmentAudit(dataSource);
 
         // The unit of work composes the very stores exposed above rather than statements of its own:
         // the SQL stays with the table it writes, and only the boundary is new.
@@ -77,6 +79,12 @@ public sealed class PostgresPersistence : IAsyncDisposable
 
     /// <summary>The run and session content pins.</summary>
     public PostgresContentPinStore ContentPins { get; }
+
+    /// <summary>The inbox store.</summary>
+    public IMessageRepository Messages { get; }
+
+    /// <summary>The append-only segment-send audit log — read by ops, never by the game.</summary>
+    public PostgresMailSegmentAudit MailSegmentAudit { get; }
 
     /// <summary>The transaction boundary one processed command commits inside.</summary>
     public PostgresUnitOfWork UnitOfWork { get; }

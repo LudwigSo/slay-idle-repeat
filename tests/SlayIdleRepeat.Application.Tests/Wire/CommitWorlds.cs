@@ -35,15 +35,21 @@ internal sealed class RecordingUnitOfWork : IUnitOfWork
     private readonly VolatileCommandLedger _ledger;
     private readonly ContentSnapshot _content;
     private readonly List<string>? _order;
+    private readonly IMessageRepository? _messages;
     private readonly List<CommandCommit> _commits = [];
 
     internal RecordingUnitOfWork(
-        WorldSliceStore store, VolatileCommandLedger ledger, ContentSnapshot content, List<string>? order = null)
+        WorldSliceStore store,
+        VolatileCommandLedger ledger,
+        ContentSnapshot content,
+        List<string>? order = null,
+        IMessageRepository? messages = null)
     {
         _store = store;
         _ledger = ledger;
         _content = content;
         _order = order;
+        _messages = messages;
     }
 
     /// <summary>Every commit this unit of work was handed, in order.</summary>
@@ -67,6 +73,16 @@ internal sealed class RecordingUnitOfWork : IUnitOfWork
         if (commit.OpensScope is { } opened)
         {
             await _ledger.OpenScopeAsync(KeyOf(opened), ct);
+        }
+
+        // The claim's stamp is part of the commit here too, so a gateway case can read the stamped
+        // row back and be asserting on the same boundary production uses.
+        if (commit.Claim is { } claim)
+        {
+            await (_messages
+                ?? throw new InvalidOperationException(
+                    "This commit carries an inbox claim and the fixture composed no message store."))
+                .MarkClaimedAsync(claim.Player, claim.Messages, ct);
         }
     }
 

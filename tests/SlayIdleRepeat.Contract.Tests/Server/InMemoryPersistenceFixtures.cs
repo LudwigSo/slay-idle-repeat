@@ -37,10 +37,12 @@ public sealed class InMemoryUnitOfWorkContractTests : IUnitOfWorkContractTests
 {
     private readonly InMemoryPlayerRepository _players = new();
     private readonly InMemoryIdempotencyStore _idempotency = new(new AdjustableClock());
+    private readonly InMemoryMessageRepository _messages = new(new AdjustableClock());
     private InMemoryUnitOfWork? _lastCreated;
 
     /// <inheritdoc/>
-    protected override IUnitOfWork Create() => _lastCreated = new InMemoryUnitOfWork(_players, _idempotency);
+    protected override IUnitOfWork Create() =>
+        _lastCreated = new InMemoryUnitOfWork(_players, _idempotency, _messages);
 
     /// <inheritdoc/>
     protected override Task<PlayerProfile?> StoredProfileAsync(PlayerId player) =>
@@ -65,6 +67,38 @@ public sealed class InMemoryUnitOfWorkContractTests : IUnitOfWorkContractTests
     /// <inheritdoc/>
     protected override void FailTheSnapshotHalf() => Subject().FailingSnapshotWrites = true;
 
+    /// <inheritdoc/>
+    protected override void FailTheClaimHalf() => Subject().FailingClaimWrites = true;
+
+    /// <inheritdoc/>
+    protected override async Task<MessageId> SeedAnUnclaimedMessageAsync(PlayerId player, string id)
+    {
+        var message = new MessageId(id);
+
+        await _messages.AppendAsync(
+            new PlayerMessage(
+                message,
+                player,
+                MessageCategory.COMPENSATION,
+                "loc.mail.compensation.outage.body",
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["hours"] = "3" },
+                new[] { new MailAttachment("SOUL_SHARDS", 500) },
+                CreatedAtUtc: new DateTimeOffset(2026, 8, 11, 5, 0, 0, TimeSpan.Zero),
+                // Never expires, so the read below cannot be answered "gone" by the store's own
+                // clock and be mistaken for "not stamped".
+                ExpiresAtUtc: null,
+                ReadAtUtc: null,
+                ClaimedAtUtc: null),
+            PersistenceWorlds.Cancel);
+
+        return message;
+    }
+
+    /// <inheritdoc/>
+    protected override async Task<bool> IsClaimedAsync(PlayerId player, MessageId message) =>
+        (await _messages.GetActiveAsync(player, PersistenceWorlds.Cancel))
+        .Single(m => m.Id == message).ClaimedAtUtc is not null;
+
     /// <remarks>
     /// Loud rather than a silent no-op: a fault knob that quietly does nothing would turn the
     /// atomicity cases into commits that were never asked to fail, which is the one shape those
@@ -74,6 +108,24 @@ public sealed class InMemoryUnitOfWorkContractTests : IUnitOfWorkContractTests
         _lastCreated
         ?? throw new InvalidOperationException(
             "Create() has not been called, so there is no unit of work to arrange or read back.");
+}
+
+/// <summary>Runs the shared inbox suite against the in-memory fake.</summary>
+/// <remarks>
+/// The clock is moved to the suite's own instant, so "expired an hour ago" and "expires in 29 days"
+/// are facts about the same timeline the cases assert over.
+/// </remarks>
+[ContractFixtureFor(typeof(InMemoryMessageRepository))]
+public sealed class InMemoryMessageRepositoryContractTests : IMessageRepositoryContractTests
+{
+    /// <inheritdoc/>
+    protected override IMessageRepository Create()
+    {
+        var clock = new AdjustableClock();
+        clock.Set(Now);
+
+        return new InMemoryMessageRepository(clock);
+    }
 }
 
 /// <summary>Runs the shared battle-log suite against the in-memory fake — the direct backing, so no settling.</summary>
