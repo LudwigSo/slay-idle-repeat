@@ -78,6 +78,12 @@ public sealed class ReconnectChaosTests
     /// </summary>
     private const int BoundaryFloor = 40;
 
+    /// <summary>
+    /// The fewest economy-log rows a whole run writes before the log comparison means anything. The
+    /// measured count on this board is 46; this is a floor, not that count.
+    /// </summary>
+    private const int EconomyRowFloor = 20;
+
     /// <summary>The reference run, played once and compared against by everything below.</summary>
     private static readonly Lazy<Task<ChaosCapture>> ReferenceRun =
         new(() => CaptureAsync(FaultSchedules.None));
@@ -234,6 +240,54 @@ public sealed class ReconnectChaosTests
             " boundaries, so it did not cover every command boundary after all.");
 
         _output.WriteLine(fault + ": " + Text(walked) + " isolated boundaries walked.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>The two ways back to a lost answer agree, byte for byte.</b> A client that lost a reply
+    /// after the command committed has two recourses — retry the same command id and be replayed, or
+    /// reconnect and be handed the outcomes it missed — and two merged tasks rest on those being the
+    /// same bytes. Nothing compared them until this did, and they were not.
+    /// </summary>
+    /// <remarks>
+    /// The two are driven in separate worlds because a boundary meets one fault class or the other,
+    /// never both. That is a comparison rather than a coincidence: the worlds are built identically,
+    /// on a frozen clock and a counting generator, so the same command in each IS the same command.
+    /// The undisturbed run's own body is compared against as well, so a change that moved all three
+    /// together could not pass this quietly.
+    /// </remarks>
+    [Fact]
+    public async Task The_replay_arm_and_the_reconnect_read_answer_one_command_with_the_same_bytes()
+    {
+        var reference = await ReferenceRun.Value;
+
+        // A boundary that banks something, so the outcome compared is a substantial one rather than
+        // a bare acknowledgement.
+        var index = reference.Driver.Boundaries
+            .First(boundary => string.Equals(boundary.WireName, "CONFIRM_BATTLE_RESULT", StringComparison.Ordinal))
+            .Index;
+
+        var replayed = await CaptureAsync(FaultSchedules.Only(index, ChaosFault.DropAfterCommit));
+        var recovered = await CaptureAsync(FaultSchedules.Only(index, ChaosFault.ReconnectAndResync));
+
+        replayed.Driver.ReplaysServed.ShouldBe(
+            1, "the retry did not take the replay arm, so there is no replayed body to compare.");
+        recovered.Driver.Resyncs.ShouldBe(
+            1, "the client did not reconnect, so there is no recovered body to compare.");
+
+        var fromTheReplay = replayed.Bodies[index];
+        var fromTheReconnect = recovered.Bodies[index];
+
+        fromTheReplay.ShouldBe(
+            reference.Bodies[index],
+            "the bytes a retry was replayed are not the bytes the undisturbed run was answered with. " +
+            FirstDifference(reference.Bodies[index], fromTheReplay));
+
+        fromTheReconnect.ShouldBe(
+            fromTheReplay,
+            "the same command answers with different bytes depending on how the client came back for " +
+            "them: one way through the gateway's replay arm, the other through the reconnect read. " +
+            "A client cannot treat the two as the same outcome, and the stored record is supposed to " +
+            "be the single source of both. " + FirstDifference(fromTheReplay, fromTheReconnect));
     }
 
     /// <summary>
@@ -401,6 +455,17 @@ public sealed class ReconnectChaosTests
         // which is the difference between "the answer was serialised differently" and "a command
         // ran twice" — and with three oracles a failure has to name which one broke.
         var rows = chaos.EconomyRows;
+
+        // 🔴 The floor before the comparison, because oracle 3 is DIFFERENTIAL: it asks whether the
+        // disconnected run's log matches the undisturbed one's, and two empty logs match perfectly.
+        // Measured by deliberately dropping a row from every commit — both sides lost it and the
+        // comparison stayed green, so nothing below is a claim about a log that has anything in it
+        // until this says so.
+        reference.EconomyRows.Count.ShouldBeGreaterThanOrEqualTo(
+            EconomyRowFloor,
+            "the undisturbed run wrote only " + Text(reference.EconomyRows.Count) + " economy rows, " +
+            "so the comparison below is between two logs that are nearly empty and would agree " +
+            "whatever the disconnections did to them.");
 
         rows.Count.ShouldBe(
             reference.EconomyRows.Count,
