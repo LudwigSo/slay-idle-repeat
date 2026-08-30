@@ -69,12 +69,18 @@ public sealed class AppRootCompositionTests : IDisposable
     [Fact]
     public void The_pump_being_driven_each_frame_is_proved_by_a_headless_run_and_not_here()
     {
-        typeof(ConnectionPump)
-            .GetMethod(nameof(ConnectionPump.Advance))
-            .ShouldNotBeNull(
-                "the driver has to exist and be public for the root scene's per-frame callback to " +
-                "call it; whether the callback calls it is proved by the marker lines a headless " +
-                "run prints, not by this tier.");
+        var advance = typeof(ConnectionPump).GetMethod(nameof(ConnectionPump.Advance));
+
+        advance.ShouldNotBeNull(
+            "the driver has to exist and be public for the root scene's per-frame callback to " +
+            "call it; whether the callback calls it is proved by the marker lines a headless " +
+            "run prints, not by this tier.");
+        advance!.ReturnType.ShouldBe(
+            typeof(void),
+            "and the shape is the half of it this tier CAN pin. The per-frame callback cannot await, " +
+            "so a driver that handed back a task would be awaited by nobody — which is the async-void " +
+            "crossing of the engine boundary this repository has already had to fix once, and it " +
+            "turns every fault it raises into one nothing observes.");
     }
 
     private ComposedClient ComposeOn(ClientArm arm, ClientWireSeams? wire) =>

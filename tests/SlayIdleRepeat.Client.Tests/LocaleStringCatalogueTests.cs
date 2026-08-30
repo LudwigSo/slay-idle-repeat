@@ -60,8 +60,8 @@ public sealed class LocaleStringCatalogueTests
     /// </summary>
     /// <remarks>
     /// A key added to both locales and named here but rendered nowhere loads clean, validates
-    /// clean, and buys a translation nobody will ever read. The theory above pins seven slots; this
-    /// is what stops an eighth appearing beside them.
+    /// clean, and buys a translation nobody will ever read. The theory above pins nine slots; this
+    /// is what stops a tenth appearing beside them.
     /// </remarks>
     [Fact]
     public void The_boot_document_names_no_key_the_boot_screen_does_not_render()

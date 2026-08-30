@@ -1,4 +1,5 @@
 using Shouldly;
+using SlayIdleRepeat.Adapters.Api.Http;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Adapters.Content.LocalFile;
 using SlayIdleRepeat.Adapters.Content.Packed;
@@ -473,31 +474,100 @@ public sealed class ClientCompositionTests : IDisposable
     }
 
     /// <summary>
-    /// 🔒 <b>Both arms carry a working host, and the arm they carry is the one they were composed on.</b>
+    /// 🔒 <b>The arm the address selected is the arm the graph carries, and both arms play through
+    /// the in-process host.</b>
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Driven through <see cref="ClientComposition.SelectArm"/> rather than over a literal arm, so
+    /// the claim in the name is the one being made: the decision is taken and then carried, and an
+    /// implementation that stored something other than what it selected fails here.
+    /// </para>
+    /// <para>
     /// 🔴 The server arm's host is a NAMED STAND-IN: a remote <c>IGameHost</c> cannot exist in this
     /// repository, because the transport cannot answer with the Core aggregates the host's contract
-    /// returns. So both arms resolve to the same host type, the arm is the only thing that can tell
-    /// them apart, and the non-null host is the control — it stays green under an implementation
-    /// that took one branch for both, which is exactly why the arm assertion is the one that bites.
+    /// returns. Asserted on the host's TYPE rather than on it being non-null — the graph's own
+    /// constructor refuses a null host, so "not null" is a claim no implementation could break — and
+    /// what a type can catch is a server arm that quietly resolves something else.
+    /// </para>
     /// </remarks>
     [Theory]
-    [InlineData(ClientArm.InProcessLocalHost, false)]
-    [InlineData(ClientArm.ServerSessionWithLocalPresenterSurface, true)]
-    public void Compose_carries_the_arm_it_selected_and_a_host_on_both(ClientArm arm, bool overAWire)
+    [InlineData(null, ClientArm.InProcessLocalHost)]
+    [InlineData("http://127.0.0.1:9/", ClientArm.ServerSessionWithLocalPresenterSurface)]
+    public void Compose_carries_the_arm_it_selected_and_the_in_process_host_on_both(
+        string? serverBaseAddress, ClientArm expected)
     {
-        var composed = ComposeOn(arm, overAWire ? SomeWire() : null);
+        var arm = ClientComposition.SelectArm(serverBaseAddress);
+
+        var composed = ComposeOn(arm, WireForTheServerArm(arm));
 
         composed.Arm.ShouldBe(
-            arm,
+            expected,
             "the graph cannot say which game it composed. Nothing downstream may re-derive it — the " +
             "arm is the answer to 'is there a server behind this build', and a graph that has to be " +
             "asked twice will eventually be told two different things.");
-        composed.GameHost.ShouldNotBeNull(
-            "every arm plays through a host, including the one with a server: the presenters drive " +
-            "IGameHost and nothing on the wire can answer them yet. An arm with no host is nine " +
-            "screens with nothing to draw.");
+        composed.GameHost.ShouldBeOfType<InProcessGameHost>(
+            "every arm plays through the in-process host, the one with a server included: the " +
+            "presenters drive IGameHost and no transport can answer them with the Core aggregates " +
+            "that contract returns. A server arm resolving anything else is nine screens holding a " +
+            "host that cannot answer them.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>The server arm's seams are the HTTP adapters — this is where the client stops talking
+    /// only to itself.</b>
+    /// </summary>
+    /// <remarks>
+    /// Asserted on the concrete types for the reason
+    /// <see cref="SelectContentSource_reads_the_disk_when_there_is_one_and_the_artefact_otherwise"/>
+    /// gives about its own: the two differ from anything else that could stand here in exactly the
+    /// way that matters, which is that they open a socket. The local arm is the control. Nothing
+    /// else in this tier would notice this method answering wrongly — its only caller is the engine
+    /// half, which no case can drive.
+    /// </remarks>
+    [Fact]
+    public void SelectWireSeams_builds_the_http_seams_for_the_server_arm_and_none_for_the_local_one()
+    {
+        using var seams = ClientComposition.SelectWireSeams(
+            ClientArm.ServerSessionWithLocalPresenterSurface, "http://127.0.0.1:9/");
+
+        seams.ShouldNotBeNull(
+            "the server arm resolved no wire half at all, so the build it composes opens no session " +
+            "and climbs a ladder over nothing — the arm's name would be the only true thing about it.");
+        seams!.Api.ShouldBeOfType<HttpGameApi>(
+            "this is the swap the whole task is: the arm that has a server reaches it over HTTP. " +
+            "Any other seam here is a build that took the server arm and then talked to itself.");
+        seams.Content.ShouldBeOfType<HttpContentDistribution>(
+            "and the content stamp is read from that same server. A seam answering from anywhere " +
+            "else would report the installed content up to date forever.");
+
+        ClientComposition.SelectWireSeams(ClientArm.InProcessLocalHost, serverBaseAddress: null)
+                         .ShouldBeNull(
+                             "an in-process host has no server to reach, so seams here are two " +
+                             "adapters and a transport built for every shipped build never to use. " +
+                             "It is also the control: a method that built them unconditionally " +
+                             "would satisfy every claim above.");
+    }
+
+    /// <summary>
+    /// 🔒 The device credential starts empty, because there is no store it could have loaded one from.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The named absence: no platform keystore exists here, so the secret lives in memory for the
+    /// life of the process and every cold start mints a new anonymous account. Pinned by name, so
+    /// the day a keystore arrives the case that has to change is the one that is findable.
+    /// </remarks>
+    [Fact]
+    public void NoDeviceCredentialStoreResolved_hands_back_a_holder_that_has_loaded_nothing()
+    {
+        var credentials = ClientComposition.NoDeviceCredentialStoreResolved();
+
+        credentials.IsHeld.ShouldBeFalse(
+            "a holder reporting a credential before one has been registered makes the opener skip " +
+            "registration and sign in with something no server ever issued.");
+        credentials.Held.ShouldBeNull(
+            "and there is nothing to present. The flag and the value are one fact, and a holder " +
+            "whose two answers disagree would have the opener signing in with a null credential.");
     }
 
     /// <summary>
@@ -591,6 +661,10 @@ public sealed class ClientCompositionTests : IDisposable
 
     /// <summary>A wire half over seams that refuse every call — composing must not reach a network.</summary>
     private static ClientWireSeams SomeWire() => StubWireSeams.Unreached();
+
+    /// <summary>A wire half on the arm that has one, and none on the arm that has none.</summary>
+    private static ClientWireSeams? WireForTheServerArm(ClientArm arm) =>
+        arm == ClientArm.ServerSessionWithLocalPresenterSurface ? SomeWire() : null;
 
     /// <summary>The shipped content, read off the checkout — what every Compose case here is about.</summary>
     private static IContentSourcePort ShippedContentSource() =>

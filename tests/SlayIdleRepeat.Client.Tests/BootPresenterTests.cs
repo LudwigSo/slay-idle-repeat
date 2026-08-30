@@ -715,12 +715,18 @@ public sealed class BootPresenterTests
     [Fact]
     public async Task A_content_sync_failure_leaves_the_boot_at_Ready()
     {
+        var sync = Sync(() => throw new HttpRequestException("the socket said no"));
         var presenter = Boot(
             StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
-            contentSync: Sync(() => throw new HttpRequestException("the socket said no")));
+            contentSync: sync.Presenter);
 
         await presenter.StartAsync(CancellationToken.None);
 
+        sync.Client.PointerReads.ShouldBe(
+            1,
+            "the sync stage never asked the server anything, so everything below is a claim about a " +
+            "stage that did not run — and a boot that silently skipped the stage would satisfy it " +
+            "exactly. The same guard the session case above opens with.");
         presenter.Stage.ShouldBe(
             BootStage.Ready,
             "the game already has a content set — it shipped with one. A sync that could not reach " +
@@ -737,7 +743,7 @@ public sealed class BootPresenterTests
     {
         var presenter = Boot(
             StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
-            contentSync: Sync(() => throw new HttpRequestException("the socket said no")));
+            contentSync: Sync(() => throw new HttpRequestException("the socket said no")).Presenter);
 
         await presenter.StartAsync(CancellationToken.None);
 
@@ -760,7 +766,7 @@ public sealed class BootPresenterTests
     {
         var presenter = Boot(
             StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
-            contentSync: Sync(() => InstalledContent.Version.Value));
+            contentSync: Sync(() => InstalledContent.Version.Value).Presenter);
 
         await presenter.StartAsync(CancellationToken.None);
 
@@ -871,10 +877,17 @@ public sealed class BootPresenterTests
             new ReconnectManager(api, mirror, new CommandQueue(CountingIdGenerator.Counting()), clock));
     }
 
-    /// <summary>A content sync over a scripted server, against a one-document installed snapshot.</summary>
-    private static ContentSyncPresenter Sync(Func<string> version) =>
-        new(new ScriptedContentClient(version, _ => throw new InvalidOperationException("no bundle scripted")),
-            InstalledContent);
+    /// <summary>
+    /// A content sync over a scripted server, against a one-document installed snapshot — handed
+    /// back with its seam, so a case can say the stage actually reached it.
+    /// </summary>
+    private static (ContentSyncPresenter Presenter, ScriptedContentClient Client) Sync(Func<string> version)
+    {
+        var client = new ScriptedContentClient(
+            version, _ => throw new InvalidOperationException("no bundle scripted"));
+
+        return (new ContentSyncPresenter(client, InstalledContent), client);
+    }
 
     private static readonly ContentSnapshot InstalledContent = OneDocumentSnapshot();
 

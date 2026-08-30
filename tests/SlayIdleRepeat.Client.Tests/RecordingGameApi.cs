@@ -30,7 +30,9 @@ internal sealed class RecordingGameApi : IGameApiPort
     /// <summary>The device the scripted server mints, and the secret that reopens it.</summary>
     internal const string MintedDeviceId = "DEVICE_recording_2b7e";
 
-    private const string MintedDeviceSecret = "SECRET_recording_5a13";
+    /// <summary>The secret the scripted registration issues — asserted against, never expected in output.</summary>
+    internal const string MintedDeviceSecret = "SECRET_recording_5a13";
+
     private const string MintedDisplayName = "Recorded Hero";
 
     private readonly List<CommandEnvelope> _sent = [];
@@ -111,7 +113,7 @@ internal sealed class RecordingGameApi : IGameApiPort
     }
 
     /// <summary>
-    /// Makes every sign-in hang until <see cref="Release"/> is called.
+    /// Makes every sign-in hang for the rest of the case, answering nothing.
     /// </summary>
     /// <remarks>
     /// 🔒 The only way to observe "one attempt is already in flight". Every other answer here
@@ -124,9 +126,6 @@ internal sealed class RecordingGameApi : IGameApiPort
 
         return this;
     }
-
-    /// <summary>Lets a gated sign-in complete.</summary>
-    internal void Release() => _gate?.TrySetResult();
 
     /// <summary>Makes every state read answer with the given state.</summary>
     internal RecordingGameApi Answering(WireRunState state)

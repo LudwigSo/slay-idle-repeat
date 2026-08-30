@@ -125,13 +125,30 @@ public sealed class HttpContentDistributionTests
             "way the sync above reports a rejected bundle and the game never updates.");
     }
 
+    /// <summary>
+    /// 🔒 A refusing server is one named failure, and the request was actually made.
+    /// </summary>
+    /// <remarks>
+    /// The request is asserted alongside the throw because the type alone cannot tell a server that
+    /// answered 500 from an adapter that never opened a socket — an assembled URI it rejects, a
+    /// guard that fires first. Both throw the same exception; only one of them is this case.
+    /// </remarks>
     [Fact]
     public async Task A_server_error_on_the_pointer_is_a_content_distribution_failure()
     {
         var server = new ScriptedContentServer("unused") { ForcedStatus = HttpStatusCode.InternalServerError };
 
         await Should.ThrowAsync<ContentDistributionException>(
-            () => Client(server).FetchCurrentVersionAsync(CancellationToken.None));
+            () => Client(server).FetchCurrentVersionAsync(CancellationToken.None),
+            "a status the client cannot use has to arrive as this seam's own failure. Anything else " +
+            "escapes the sync presenter's filter, and a boot stage that was designed never to stop a " +
+            "start would stop one.");
+
+        server.Requests.ShouldBe(
+            ["GET /content/current"],
+            "and the failure has to be the server's answer rather than something the adapter decided " +
+            "before it asked — an unreachable-looking fault raised without a request would read " +
+            "identically to a server that is down.");
     }
 
     [Fact]
@@ -144,7 +161,15 @@ public sealed class HttpContentDistributionTests
         };
 
         await Should.ThrowAsync<ContentDistributionException>(
-            () => Client(server).FetchBundleAsync(served.Version.Value, CancellationToken.None));
+            () => Client(server).FetchBundleAsync(served.Version.Value, CancellationToken.None),
+            "the download is the half that can fail after a pointer read succeeded, and it has to " +
+            "fail by the same name — the presenter above maps this seam's failure to 'unreachable' " +
+            "and knows no other.");
+
+        server.Requests.ShouldBe(
+            [$"GET /content/{served.Version.Value}"],
+            "asked for, and refused. Without this the case passes on an adapter that threw without " +
+            "ever reaching the bundle route.");
     }
 
     private static HttpContentDistribution Client(ScriptedContentServer server) =>

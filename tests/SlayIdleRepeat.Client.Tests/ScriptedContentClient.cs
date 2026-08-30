@@ -32,9 +32,16 @@ internal sealed class ScriptedContentClient : IContentDistributionClient
     /// <summary>Every stamp a bundle was asked for, in order.</summary>
     internal List<string> BundlesAskedFor { get; } = [];
 
+    /// <summary>
+    /// How many pointer reads reached this seam, answered or not — so a case can say the sync stage
+    /// actually ran rather than infer it from an outcome a skipped stage would also produce.
+    /// </summary>
+    internal int PointerReads { get; private set; }
+
     /// <inheritdoc/>
     public Task<string> FetchCurrentVersionAsync(CancellationToken ct)
     {
+        PointerReads++;
         Record();
 
         return Task.FromResult(_version());
