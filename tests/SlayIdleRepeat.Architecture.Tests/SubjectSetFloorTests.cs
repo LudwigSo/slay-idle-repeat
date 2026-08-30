@@ -1383,8 +1383,13 @@ public sealed class SubjectSetFloorTests
     // Adapters.Platform.Host, the real non-engine IPlatformInfoPort that `23` §5 A5 needs beside the
     // fake. Same pairing rule as M5-01's above, and ContractSuiteCoverageTests.AdapterAssemblyFloor
     // — which is stated over the same adapters from the other test assembly — moved with them.
-    private const int ProductionProjectFloor = 32;   // src/ + tools/, floored below the 36 the tree holds
-    private const int AdapterFloor = 24;
+    // 🔒 M5 cross-task review: AdapterFloor stood at 24 against a tree of 25. Adapters.Content.Packed
+    // (M7-10y) landed while this pair was being moved for the ports, and neither floor followed — the
+    // same silence as M5-04/M5-08's two identical port-floor 13s, from the adapter side, and this one
+    // nothing caught. At 24 one ProjectReference could be dropped with both floors still green, which
+    // is exactly the narrowing "tight against the tree" exists to refuse.
+    private const int ProductionProjectFloor = 32;   // src/ + tools/, floored below the 38 the tree holds
+    private const int AdapterFloor = 25;
     // 🔒 M1-02 raised this from 26 to 110 (measured: 120 today). It is the one floor in this file
     // that had gone quiet by standing still: the file's own preamble says these numbers are
     // "derived from the tree as it stands on this commit", and 26 was M0-08's tree. At 26 the ENTIRE

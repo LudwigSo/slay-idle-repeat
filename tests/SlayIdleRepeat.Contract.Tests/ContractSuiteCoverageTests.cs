@@ -61,7 +61,7 @@ public sealed class ContractSuiteCoverageTests
     /// success over every port at once — the single most expensive silence available here.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>Exact against the scan, which finds 24 adapter assemblies today</b> — every
+    /// 🔒 <b>Exact against the scan, which finds 25 adapter assemblies today</b> — every
     /// <c>SlayIdleRepeat.Adapters.*</c> project this suite references, and adapters reference no
     /// other adapter, so the output directory holds exactly the direct references. A floor set below
     /// the real count is a floor only against total collapse: at 8, fifteen adapter
@@ -81,11 +81,18 @@ public sealed class ContractSuiteCoverageTests
     /// <para>
     /// 🔒 M7-01b raised it 23 → 24 for <c>Adapters.Platform.Host</c>, the real (non-engine)
     /// implementation <c>IPlatformInfoPort</c> needed to be declarable under <c>23</c> §5 A5 at all,
-    /// and raised <c>SubjectSetFloorTests.AdapterFloor</c> in the same commit. The scan finds 24
-    /// today and this is still exact against it.
+    /// and raised <c>SubjectSetFloorTests.AdapterFloor</c> in the same commit.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>M5 cross-task review raised it 24 → 25, and it had gone quiet the way the ⚠️ paragraph
+    /// above describes rather than the way that one did.</b> <c>Adapters.Content.Packed</c> (M7-10y)
+    /// was added to this project's references without either floor moving, so the scan found 25
+    /// against a 24 that called itself exact — one reference of headroom, which is the whole
+    /// quantity this floor is allowed to have none of. Neither sibling caught it: they are moved
+    /// together by convention, and the convention is what failed.
     /// </para>
     /// </remarks>
-    private const int AdapterAssemblyFloor = 24;
+    private const int AdapterAssemblyFloor = 25;
 
     /// <summary>
     /// Fixtures per suite. At one, <c>23</c> §5 A5's "the real adapter AND the in-memory fake"

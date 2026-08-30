@@ -33,7 +33,11 @@ Dockerfile        text eol=lf
 
 # CI scripts run on ubuntu runners under pwsh, which copes with either, but LF
 # keeps the diffs clean.
-build/ci/*.ps1    text eol=lf
+# ⚠️ Both levels, and the committed fixtures beside them: `*` does not cross a
+# slash, so `build/ci/*.ps1` alone left build/ci/probes/ — added by M5 — as the
+# one directory under here whose checkout differs by platform with no rule saying
+# so, while all 15 of its siblings were pinned.
+build/ci/**       text eol=lf
 build/git/*.ps1   text eol=lf
 
 # Git hooks are read by /bin/sh — the same rule as the container inputs above,

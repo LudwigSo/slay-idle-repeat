@@ -462,13 +462,32 @@ public static class ClientComposition
             return null;
         }
 
-        var options = new HttpGameApiOptions { BaseAddress = new Uri(serverBaseAddress, UriKind.Absolute) };
+        var options = new HttpGameApiOptions { BaseAddress = BaseAddressOf(serverBaseAddress) };
         var transport = new SocketsHttpHandler();
 
         return new ClientWireSeams(
             new HttpGameApi(options, transport),
             new HttpContentDistribution(options.BaseAddress, options.RequestTimeout, transport),
             [transport]);
+    }
+
+    /// <summary>The developer switch's address as a base every relative route resolves under.</summary>
+    /// <remarks>
+    /// 🔒 Both seams resolve RELATIVE routes ("auth/device", "content/current") against this, and
+    /// <see cref="Uri"/> drops a base's last path segment unless it ends in a slash — so a switch
+    /// naming a prefixed host silently loses the prefix and every route lands at the root. The
+    /// contract is written on <see cref="HttpGameApiOptions.BaseAddress"/>; this is the one
+    /// production site that has to honour it, so it is enforced here rather than trusted.
+    /// </remarks>
+    /// <param name="serverBaseAddress">The address a developer switch named.</param>
+    /// <exception cref="UriFormatException"><paramref name="serverBaseAddress"/> is not an absolute URI.</exception>
+    public static Uri BaseAddressOf(string serverBaseAddress)
+    {
+        var address = new Uri(serverBaseAddress, UriKind.Absolute);
+
+        return address.AbsolutePath.EndsWith('/')
+            ? address
+            : new UriBuilder(address) { Path = address.AbsolutePath + "/" }.Uri;
     }
 
     /// <summary>

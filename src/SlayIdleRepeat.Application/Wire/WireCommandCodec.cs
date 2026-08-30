@@ -49,8 +49,15 @@ public sealed record CommandDecode
 public static class WireCommandCodec
 {
     /// <summary>The payload's binding options — strict on unknown members, invariant on enums, ids as bare strings.</summary>
+    /// <remarks>
+    /// The naming policy is <see cref="WireJson"/>'s, not a second dialect: reading is
+    /// case-insensitive, so only WRITING observes it — and without the policy
+    /// <see cref="EncodePayload"/> emitted <c>ItemId</c> where 14 §2.3 and every envelope a client
+    /// sends spell <c>itemId</c>.
+    /// </remarks>
     private static readonly JsonSerializerOptions PayloadOptions = new()
     {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         Converters = { new JsonStringEnumConverter(), new GearInstanceIdJsonConverter() },
         TypeInfoResolver = new DefaultJsonTypeInfoResolver

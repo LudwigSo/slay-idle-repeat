@@ -192,8 +192,9 @@ public sealed class AccessTokenIssuer
 
     private static string JsonText(string value) => JsonSerializer.Serialize(value);
 
-    private static string Base64Url(byte[] bytes) =>
-        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    // One encoder for the area: this was a byte-identical second copy of the credential factory's,
+    // two files apart in the same directory, from two agents that could not see each other.
+    private static string Base64Url(byte[] bytes) => DeviceCredentialFactory.Base64Url(bytes);
 
     private static bool TryDecode(string segment, out byte[] bytes)
     {

@@ -85,6 +85,18 @@ WORKDIR /app
 # be able to rewrite its own binaries.
 COPY --from=build --chown=root:root /app/publish ./
 
+# The content set GameBackbone loads at GameData:Root — default `game-data` under
+# the content root, which WORKDIR makes /app/game-data. NOT deployment-varying, so
+# it ships in the image rather than as an env var or a mount: it is the build's own
+# content, the same bytes the determinism baselines were taken against, and the
+# stamp GET /content/current publishes is read straight off it.
+#
+# ⚠️ Without it the image starts and answers /health, and then every endpoint that
+# touches the backbone — both command routes, /run/{id}/state and both /content
+# routes — faults on the first request, because ContentLoader.Load().Require()
+# has nothing to load. That is what the compose-boot probes exercise.
+COPY --chown=root:root game-data/ ./game-data/
+
 EXPOSE 8080
 
 # Non-root. APP_UID (1654) and the matching `app` user ship with the .NET 8
