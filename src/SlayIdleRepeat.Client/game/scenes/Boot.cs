@@ -58,7 +58,7 @@ public partial class Boot : Node3D
     /// </summary>
     private const string ColdStartMarker = "SIR_BOOT_COLDSTART";
 
-    /// <summary>What the two server stages report when this build composed neither of them.</summary>
+    /// <summary>What a field reports when this build composed no such stage, or it produced nothing.</summary>
     private const string StageWasNotComposed = "none";
 
     private const string SafeAreaPath = "%SafeArea";
@@ -300,6 +300,13 @@ public partial class Boot : Node3D
     /// was not composed, which is a different fact from a stage that ran and failed, and the two
     /// must not read alike.
     /// </para>
+    /// <para>
+    /// 🔴 <b>Two identities, side by side, because on the server arm they are genuinely two.</b>
+    /// <c>player</c> is the local profile the game is actually played as; <c>account</c> is the one
+    /// the server issued this session. Nothing reconciles them — reconciling them is the migration
+    /// that moves the presenters onto the wire — and printing one without the other would let a
+    /// reader believe the game signed in as the profile it is playing.
+    /// </para>
     /// </remarks>
     private static void Report(BootPresenter presenter)
     {
@@ -310,6 +317,8 @@ public partial class Boot : Node3D
             $"boot_ms={(long)presenter.Elapsed.TotalMilliseconds} " +
             $"stage={presenter.Stage} " +
             $"session={presenter.SessionOutcome?.ToString() ?? StageWasNotComposed} " +
+            $"player={presenter.PlayerId?.Value ?? StageWasNotComposed} " +
+            $"account={presenter.AccountPlayerId?.Value ?? StageWasNotComposed} " +
             $"content_sync={presenter.ContentSync?.ToString() ?? StageWasNotComposed} " +
             $"atlas={(atlas is null ? "none" : atlas.IsAvailable ? "loaded" : "absent")} " +
             $"atlas_count={atlas?.AtlasCount ?? 0} placements={atlas?.PlacementCount ?? 0} " +

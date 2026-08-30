@@ -90,9 +90,17 @@ public sealed class ConnectionPump
     public bool Stopped { get; private set; }
 
     /// <summary>The last fault a driven task produced, or null. Observed, never swallowed.</summary>
+    /// <remarks>
+    /// 🔒 <b>Nothing in production reads this pair, and reading them is not what they are for.</b>
+    /// The duty is discharged by the drain itself: touching a faulted task's exception is what keeps
+    /// it from becoming an unobserved one, and a value dropped on the floor there would be a fault
+    /// swallowed. What is recorded is the record — for a test, and for whoever is holding a debugger
+    /// when the ladder stops climbing. A screen that reports a connection fault would read it, and
+    /// the state such a screen actually draws comes from the ladder rather than from here.
+    /// </remarks>
     public Exception? LastFault { get; private set; }
 
-    /// <summary>How many driven tasks have faulted.</summary>
+    /// <summary>How many driven tasks have faulted. Recorded for the reason above.</summary>
     public int FaultCount { get; private set; }
 
     /// <summary>How many driven tasks have finished, faulted or not.</summary>

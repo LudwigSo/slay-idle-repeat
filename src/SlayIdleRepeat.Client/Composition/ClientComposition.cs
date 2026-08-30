@@ -112,7 +112,14 @@ public sealed class ClientWireSeams : IDisposable
         _owned = owned;
     }
 
-    /// <summary>The wire seam every command and state read goes through.</summary>
+    /// <summary>The wire seam the session and the reconnect ladder speak through.</summary>
+    /// <remarks>
+    /// 🔴 <b>No player command goes through it, and that is the whole shape of this arm.</b> The
+    /// presenters drive the in-process host, so what reaches a server here is the sign-in and
+    /// whatever the ladder asks for on a reconnect — never a move a player made. It carries commands
+    /// the day the presenters submit through it, which is the migration <see cref="ClientArm"/>
+    /// names.
+    /// </remarks>
     public IGameApiPort Api { get; }
 
     /// <summary>The content-distribution seam the boot's sync stage speaks through.</summary>

@@ -237,15 +237,26 @@ public sealed class BootPresenter
     /// </remarks>
     public PlayerId? AccountPlayerId { get; private set; }
 
-    /// <summary>
-    /// How the session stage ended, or null when this build ran none — or was shut down inside one.
-    /// </summary>
+    /// <summary>How the session stage ended, or null when it did not end in one of those ways.</summary>
+    /// <remarks>
+    /// 🔴 <b>Null carries three different facts and this is the one property that cannot tell them
+    /// apart:</b> this build composed no session, the window closed inside the stage, or the stage
+    /// broke on something no outcome here names — there is no value for "it broke", because a boot
+    /// that broke reports through <see cref="Failure"/>, which carries the stage and the cause. Read
+    /// the two together: a null beside a null failure is an arm that opened no session.
+    /// </remarks>
     public BootSessionOutcome? SessionOutcome { get; private set; }
 
     /// <summary>How far the content sync got, or null when this build ran none.</summary>
     public SyncState? ContentSync { get; private set; }
 
     /// <summary>Why the content sync stopped, or null when it did not.</summary>
+    /// <remarks>
+    /// Nothing in production reads this yet: a sync failure never stops a boot, and the cold-start
+    /// line carries the state without the reason. It is the detail whichever screen first tells a
+    /// player their content is a revision behind will read, and it is recorded now rather than
+    /// re-derived then.
+    /// </remarks>
     public ContentSyncFailure? ContentSyncFailure { get; private set; }
 
     /// <summary>What the atlas stage found, or null before it has run.</summary>
@@ -392,11 +403,21 @@ public sealed class BootPresenter
     /// Runs one server stage under <see cref="ServerStageDeadline"/>, answering whether it finished.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔒 An expired attempt is <b>cancelled</b>, not merely walked away from, and nothing here
     /// retries it: the reconnect ladder owns retry, and a second schedule inside the boot would be
     /// two answers to "may I try again yet". The caller's own token is linked in, so a shutdown
     /// still cancels at once — and it is what tells a closing window apart from a slow server,
     /// since both arrive here as the same exception.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The bound is cooperative, and an expiry is not reported to the ladder.</b> A stage that
+    /// ignored its token would hold the boot anyway — both stages here reach the network through a
+    /// client that honours it, which is why this holds at all. And an expiry arrives as a
+    /// cancellation rather than as the unreachable-server failure the ladder takes as input, so the
+    /// ladder is not told: it is told a frame later, by the driver's own attempt, which runs under
+    /// no deadline. Until that one settles the connection still reads as up.
+    /// </para>
     /// </remarks>
     /// <param name="stage">The work to run.</param>
     /// <param name="ct">The caller's token.</param>
