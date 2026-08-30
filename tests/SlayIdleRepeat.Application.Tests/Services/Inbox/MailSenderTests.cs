@@ -128,6 +128,15 @@ public sealed class MailSenderTests
         var checkedRefusals = sender.Check(request).Select(r => r.Refusal).ToArray();
         var sent = await sender.SendAsync(request, new[] { InboxWorlds.Player }, Worlds.Cancel);
 
+        // 🔴 The floor before the differential: both sides are computed by the code under test, so
+        // the day GEAR becomes grantable they are two empty lists that agree perfectly and this case
+        // reports "the two paths refuse alike" over a send that refuses nothing.
+        checkedRefusals.ShouldBe(
+            [MailSendRefusal.UNGRANTABLE_ATTACHMENT],
+            "this request attaches GEAR, which nothing can grant. If that stops being a refusal, " +
+            "pick another unrepresentable attachment rather than letting the comparison below run " +
+            "over two empty lists.");
+
         sent.Refusals.Select(r => r.Refusal).ShouldBe(
             checkedRefusals,
             "the dry run answers the same question the real send does out of the same code. A tool " +

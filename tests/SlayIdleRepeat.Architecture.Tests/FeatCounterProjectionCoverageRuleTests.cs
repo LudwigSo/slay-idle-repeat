@@ -265,6 +265,39 @@ public sealed class FeatCounterProjectionCoverageRuleTests
     }
 
     /// <summary>
+    /// 🔒 `23` §6 / steering <b>S4</b>'s other half on this register: an exemption's owner is a
+    /// tracker task that is still <b>open</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The rule above checks the owner field is not blank. Blankness is the weakest predicate this
+    /// repository has for an owner: the day M16-03 ships without deciding the vocabulary — or ships
+    /// having decided it, without anybody deleting these rows — the exemption can never expire, and
+    /// no kickoff is ever asked about the two events whose history it costs.
+    /// </para>
+    /// <para>
+    /// Reuses <see cref="PortCatalogue.TrackerStatuses"/> and
+    /// <see cref="PortCatalogue.OwnersNoLongerOpen"/>, the one owner-status mechanism this
+    /// repository has.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_projection_exemption_owner_is_a_task_the_tracker_still_has_open()
+    {
+        ProjectionExemptions.Length.ShouldBeGreaterThan(
+            0,
+            "the floor under the sweep: an emptied register reports every owner open over nothing.");
+
+        ArchRule.Empty(
+            PortCatalogue.OwnersNoLongerOpen(
+                ProjectionExemptions.Select(e => (Subject: "feat exemption '" + e.Event + "'", e.Owner)),
+                PortCatalogue.TrackerStatuses(
+                    File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md")))),
+            "Every FeatCounterProjection exemption owner is a tracker task that is still open " +
+            "(steering S4).");
+    }
+
+    /// <summary>
     /// 🔒 `23` §6 — <b>the identity floor</b> under both arms above (steering S3), and the proof that
     /// <see cref="ProjectedEventNames"/> discriminates rather than answering the same thing for
     /// everything.

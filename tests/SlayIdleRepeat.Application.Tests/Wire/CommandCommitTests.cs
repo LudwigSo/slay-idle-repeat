@@ -145,10 +145,24 @@ public sealed class CommandCommitTests
             world.Player, Envelopes.StartRun(sequence: 1, commandId: "c-start"), Worlds.Cancel);
 
         reply.Body.ShouldBe("{\"protocolVersion\":1,\"sequence\":1}");
+        // ⚠️ These two counters are a STRUCTURAL guard, not a behavioural one, and saying so is the
+        // point: ICommandLedgerStore declares three read members, so the gateway holds this fixture
+        // through a seam that cannot reach either write member at all. Neither counter can move
+        // today whatever the replay path does — they fire only if the seam is later widened and a
+        // replay starts writing through it. The behavioural claim ("a replay decides nothing") is
+        // the commit assertion below, which does bite.
+        typeof(ICommandLedgerStore).GetMethods().Select(m => m.Name).ShouldBe(
+            ["ReadLastSequenceAsync", "ReadRecordAsync", "ReadOutcomesAfterAsync"],
+            ignoreOrder: true,
+            customMessage: "the ledger seam is read-only, which is what makes the two counters below "
+            + "unmovable rather than merely zero. A write member added here changes what they mean, "
+            + "and this is where that is noticed.");
+
         scripted.ScopeOpens.ShouldBe(
             0,
-            "a replay is a read. Re-opening the scope makes the answer depend on a row this command "
-            + "no longer owns, which is what turned a duplicate into a 500 at the lifetime boundary.");
+            "nothing may reach back to the scope-opening call: re-opening the scope makes the answer "
+            + "depend on a row this command no longer owns, which is what turned a duplicate into a "
+            + "500 at the lifetime boundary.");
         (scripted.Appends - appendsBefore).ShouldBe(0);
         world.UnitOfWork.Commits.ShouldBeEmpty("a replay decides nothing, so it commits nothing.");
     }
@@ -157,6 +171,9 @@ public sealed class CommandCommitTests
     public async Task A_duplicate_opening_command_still_replays_when_its_run_row_is_gone()
     {
         var inner = new VolatileCommandLedger();
+        // RefusingScopeOpens is armed for the same structural reason as above: the read-only seam
+        // means it cannot fire today. What actually puts this case in its named state is the record
+        // seeded below, whose run scope names a run the world store does not hold.
         var scripted = new ScriptedLedger(inner) { RefusingScopeOpens = true };
         var world = await GatewayWorld.WithAStartingPlayerAsync(ledger: scripted);
 

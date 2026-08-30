@@ -564,6 +564,13 @@ public sealed class BootPresenterTests
         var whenTheBootFinished = presenter.Elapsed;
         var readAgainAfterwards = presenter.Elapsed;
 
+        // The floor before the differential: a presenter that hardwired Elapsed to zero would
+        // satisfy "it did not move" while never having measured anything. The clock advances.
+        whenTheBootFinished.ShouldBeGreaterThan(
+            TimeSpan.Zero,
+            "the boot ran against an advancing clock, so a span of zero is a presenter that is not " +
+            "reading the clock at all rather than one that stopped reading it.");
+
         readAgainAfterwards.ShouldBe(
             whenTheBootFinished,
             "'the boot took this long' is a span that ended, not a stopwatch still running. A " +

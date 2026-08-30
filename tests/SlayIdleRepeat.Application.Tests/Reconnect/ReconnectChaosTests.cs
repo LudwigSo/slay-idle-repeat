@@ -413,6 +413,17 @@ public sealed class ReconnectChaosTests
     {
         var undisturbed = await ReferenceRun.Value;
 
+        // 🔴 The floor on the RUN, before any of the three oracles, and for the reason oracle 3
+        // already carries one: all three are differential, and a regression that shortened BOTH runs
+        // to a handful of commands would satisfy every equality below without any of them comparing
+        // a whole run. Only one caller checked this, so every other route into the oracles — the
+        // rotation passes, the dropped-reply cases — was comparing runs nothing bounded.
+        undisturbed.Driver.Boundaries.Count.ShouldBeGreaterThanOrEqualTo(
+            BoundaryFloor,
+            what + ": the undisturbed run took only " + Text(undisturbed.Driver.Boundaries.Count) +
+            " command boundaries, which is not a whole run — the three oracles below would be " +
+            "comparing two runs that barely left the trailhead.");
+
         // A run's identity reaches into the id of every item it drops and into every stateHash it
         // was answered with, so a moved identity cannot be substituted back out textually. The
         // comparison is made against an undisturbed run that opened under the SAME identity instead
@@ -491,6 +502,15 @@ public sealed class ReconnectChaosTests
 
         var bodies = chaos.Bodies;
 
+        // 🔴 And the floor before oracle 2, on oracle 3's precedent: this comparison is differential
+        // too, so two runs that each ended up holding one answer — or none — would agree here and in
+        // the loop below, which would not iterate at all.
+        reference.Bodies.Count.ShouldBeGreaterThanOrEqualTo(
+            BoundaryFloor,
+            "the undisturbed run left the client holding only " + Text(reference.Bodies.Count) +
+            " answers, so the byte comparison below is between two nearly empty captures and would " +
+            "agree whatever the disconnections did to them.");
+
         bodies.Count.ShouldBe(
             reference.Bodies.Count,
             what + " — ORACLE 2 (outcome bytes) BROKE: the client ended up holding " +
@@ -557,6 +577,15 @@ public sealed class ReconnectChaosTests
                 break;
 
             case ChaosFault.FaultOnTheRetryToo:
+                // 🔴 Pinned alongside the replay count, and not decoration: ReplaysServed is
+                // INFERRED — gateway calls minus commits minus losses — so a run that lost a
+                // transaction and made one extra gateway call subtracts back to the same 2. Its two
+                // sibling arms pin this and this one did not, which left the only class that
+                // replays twice as the one arm a lost transaction could hide inside.
+                chaos.Driver.ExecutionsLost.ShouldBe(
+                    0,
+                    at + ": a transaction was lost, but this class drops both replies AFTER the " +
+                    "commit — nothing it does may stop a transaction landing." + Trace(chaos));
                 chaos.Driver.ReplaysServed.ShouldBe(
                     2,
                     at + ": the retry rule was applied twice, so the stored outcome should have been " +

@@ -12,6 +12,17 @@ namespace SlayIdleRepeat.Application.Tests.Services.Inbox;
 /// </summary>
 public sealed class MailTemplateCatalogueTests
 {
+    /// <summary>
+    /// 🔒 The fewest templates the shipped catalogue holds before a sweep over it means anything.
+    /// </summary>
+    /// <remarks>
+    /// Six are authored in <c>content/mail/mail.json</c> today. A floor rather than that count, so a
+    /// later milestone may author a seventh without editing this file — but never so low that a
+    /// catalogue which collapsed to one row leaves the absence and coverage sweeps below reporting
+    /// success over nothing (steering S3).
+    /// </remarks>
+    private const int TemplateFloor = 6;
+
     private static MailTemplateCatalogue Catalogue() => InboxWorlds.Catalogue();
 
     private static IReadOnlyList<MailSendRefusal> Refusals(
@@ -37,6 +48,11 @@ public sealed class MailTemplateCatalogueTests
     [Fact]
     public void No_milestone_template_is_authored()
     {
+        Catalogue().Templates.Count.ShouldBeGreaterThanOrEqualTo(
+            TemplateFloor,
+            "the floor under the absence below: 'no template has this category' is true of an empty " +
+            "catalogue, and of a catalogue that collapsed to one row of some other category.");
+
         Catalogue().Templates.ShouldNotContain(
             t => t.Category == MessageCategory.MILESTONE,
             "the one thing that would send a MILESTONE message is the expiry job's 'only if the " +
@@ -143,6 +159,11 @@ public sealed class MailTemplateCatalogueTests
     [Fact]
     public void Every_authored_template_resolves_in_the_shipping_locale()
     {
+        Catalogue().Templates.Count.ShouldBeGreaterThanOrEqualTo(
+            TemplateFloor,
+            "the floor under the sweep: an empty or one-row catalogue would report every authored " +
+            "template resolved while resolving nothing anyone can send.");
+
         foreach (var template in Catalogue().Templates)
         {
             Worlds.Content

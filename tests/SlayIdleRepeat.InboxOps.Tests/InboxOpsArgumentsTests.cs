@@ -156,6 +156,57 @@ public sealed class InboxOpsArgumentsTests
             "is run from.");
     }
 
+    /// <summary>
+    /// 🔴 <b>A NEGATIVE attachment amount is accepted here, and nothing in the repository says
+    /// whether it should be.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The parser reads the amount with <c>NumberStyles.AllowLeadingSign</c> and
+    /// <c>MailAttachment</c> validates its <c>Type</c> and not its <c>Amount</c>, so
+    /// <c>--attach SOUL_SHARDS=-500</c> is a well-formed send that TAKES currency. That is the most
+    /// consequential input this tool accepts, and it was the one shape no case covered.
+    /// </para>
+    /// <para>
+    /// ⚠️ This pins the behaviour that EXISTS rather than the behaviour that ought to. Nothing in the
+    /// design set rules on whether an ops send may be a clawback, and steering <b>S6</b> forbids
+    /// inventing the answer inside a test — a refusal asserted here would be a policy decision taken
+    /// by a reviewer. The case exists so the acceptance is a recorded fact with a reason somebody can
+    /// falsify, instead of an omission. Should the decision be "refuse it", this is the case that
+    /// changes.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_negative_attachment_amount_is_accepted_and_nothing_yet_rules_on_whether_it_should_be()
+    {
+        var parsed = Parsed(Send("--attach", "SOUL_SHARDS=-500"));
+
+        parsed.Attachments.ShouldHaveSingleItem().Amount.ShouldBe(
+            -500L,
+            "the argument layer takes a negative amount without comment. Read this case's remarks " +
+            "before treating that as intended: it is pinned, not endorsed.");
+    }
+
+    [Fact]
+    public void A_target_the_tool_does_not_know_is_refused()
+    {
+        // Replaces the well-formed --target rather than adding a second: the fixture already
+        // supplies PLAYER, and a second --target would only prove the last one wins.
+        var args = new[]
+        {
+            "send",
+            "--template", "loc.mail.compensation.outage.body",
+            "--target", "EVERYONE",
+            "--players", "cohort.txt",
+            "--operator", "ludwig",
+        };
+
+        Errors(args).ShouldContain(
+            e => e.Contains("is not a target", StringComparison.Ordinal),
+            "the option that decides WHO an economy-affecting grant reaches had no refusal case at " +
+            "all, so a mistyped target falling through to a default would have gone unnoticed.");
+    }
+
     // ---------------------------------------------------------------------------- the predicate
 
     [Fact]

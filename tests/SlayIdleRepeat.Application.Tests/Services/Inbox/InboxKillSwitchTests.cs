@@ -36,8 +36,14 @@ public sealed class InboxKillSwitchTests
     {
         // The other side of the same fact: the switch is asked ONCE, at the wire gate, before
         // dispatch. A second read here would be a second gate free to disagree with the first.
-        typeof(InboxCommandSupport).GetConstructors().ShouldHaveSingleItem().GetParameters()
-            .ShouldNotContain(parameter => parameter.ParameterType == typeof(FeatureFlags));
+        var parameters = typeof(InboxCommandSupport).GetConstructors()
+            .ShouldHaveSingleItem().GetParameters();
+
+        parameters.ShouldNotBeEmpty(
+            "a seam that took nothing would make the assertion below trivially true — the same floor " +
+            "its sibling above already carries.");
+
+        parameters.ShouldNotContain(parameter => parameter.ParameterType == typeof(FeatureFlags));
     }
 
     [Fact]

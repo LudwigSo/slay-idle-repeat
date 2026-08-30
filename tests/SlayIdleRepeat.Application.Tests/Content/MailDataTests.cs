@@ -125,9 +125,23 @@ public sealed class MailDataTests
             $"\"body\": \"{OutageBodyKey}\"",
             "\"body\": \"loc.mail.compensation.never_written.body\"");
 
-        ContentLoader.Load(source).Issues.ShouldContain(
-            i => i.Code == ContentIssueCode.LocalisationMismatch ||
-                 i.Code == ContentIssueCode.OrphanedReference,
-            "a template whose text does not exist is a message that renders as its own key.");
+        // 🔴 The identity, not the symptom. The edit does TWO things at once — it points the
+        // template at a string nothing carries AND it un-names the outage body — and the second
+        // raises an issue unconditionally. A disjunction over two codes with no location was
+        // therefore satisfied whether or not this case's own subject fired at all, and it was the
+        // sibling orphan rule above that kept it green. Pinned to the DANGLING REFERENCE, in the
+        // mail document, naming the string that does not exist.
+        var issues = ContentLoader.Load(source).Issues;
+
+        issues.ShouldContain(
+            i => i.Location.StartsWith(MailDocument, StringComparison.Ordinal) &&
+                 i.Message.Contains("loc.mail.compensation.never_written.body", StringComparison.Ordinal),
+            "a template whose text does not exist is a message that renders as its own key. The " +
+            "issue must be reported against the MAIL DOCUMENT and name the string it invented — " +
+            "reporting only the string the edit orphaned is the sibling rule above, not this one." +
+            Environment.NewLine +
+            string.Join(
+                Environment.NewLine,
+                issues.Select(i => i.Code + " @ " + i.Location + " — " + i.Message)));
     }
 }

@@ -89,10 +89,23 @@ public sealed class CommandGatewayInboxClaimTests
         await world.Messages.AppendAsync(
             InboxWorlds.Message("MSG_untouched", player: world.Player), Worlds.Cancel);
 
-        await world.Gateway.SubmitPlayerCommandAsync(
+        var hello = await world.Gateway.SubmitPlayerCommandAsync(
             world.Player,
-            Envelopes.Body("BEGIN_SESSION", 1, "c-hello", """{"clientVersion":"0.1.0","contentHash":""}"""),
+            SessionEnvelopes.BeginSession(1, "c-hello", Worlds.Content.Version.Value),
             Worlds.Cancel);
+
+        // 🔴 The floor under the negative control. This claimed an EMPTY contentHash, which
+        // ContentVersionCheck refuses BEFORE dispatch — so the command never reached the
+        // claim-building path at all, and both assertions below held over a commit that was never
+        // made. A negative control that cannot reach the code it controls is not one.
+        Replies.Parse(hello, expectedStatus: 200)
+            .TryGetProperty("rejected", out _)
+            .ShouldBeFalse(
+                "BEGIN_SESSION must be ACCEPTED here, or the claim-building path this case is the "
+                + "negative control for is never reached.");
+
+        world.UnitOfWork.Commits.ShouldNotBeEmpty(
+            "and it must have committed, or 'no commit carries a claim' is true of no commits.");
 
         world.UnitOfWork.Commits.ShouldAllBe(
             c => c.Claim == null,

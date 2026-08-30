@@ -201,6 +201,24 @@ public sealed class QuerySurfaceRuleTests
             "been measured against is a paragraph, not a rule, and the first real view would land " +
             "wearing whatever shape its author chose.");
 
+        // 🔴 ARM BY ARM (steering S19). BreaksTheConvention has three independent arms and the
+        // assertion above is satisfied by any ONE of them firing — so two of the three could be
+        // dead code and this proof would read exactly the same. Each arm is named separately.
+        authoredButWrong.ShouldContain(
+            offence => offence.Contains($"does not implement {ViewInterfaceName}", StringComparison.Ordinal),
+            "arm 1: OwnStateView declares no staleness budget at all, which is what the view " +
+            "interface is for.");
+
+        authoredButWrong.ShouldContain(
+            offence => offence.Contains("on its public surface", StringComparison.Ordinal),
+            "arm 2: OwnStateView hands persisted Core.Model rows out of a read. A query port returns " +
+            "view models, never aggregates.");
+
+        authoredButWrong.ShouldContain(
+            offence => offence.Contains($"reached through no {QueryInterfaceName}", StringComparison.Ordinal),
+            "arm 3: OwnStateView is reached through no query port, so it declares no routing at the " +
+            "seam a caller holds.");
+
         authoredButWrong.Any(offence => offence.Contains("no deferral names it", StringComparison.Ordinal))
             .ShouldBeFalse(
                 "the authored branch is the one under test: an offender reading 'no deferral names it' " +
@@ -230,6 +248,41 @@ public sealed class QuerySurfaceRuleTests
 
         Expired(new[] { Deferred[0] }).ShouldBeEmpty(
             "the silent half: a check that flagged everything would also 'prove' it has teeth.");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §6 / steering <b>S4</b> on this register: every deferred view's owner is a tracker
+    /// task that is still <b>open</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The rule above validates an owner's <em>shape</em> — <c>TaskId.IsMatch</c> — and shape is
+    /// satisfied forever by a task that merged three milestones ago and built no read model. All six
+    /// views here belong to unstarted milestones today, so nothing would ever have gone red; the day
+    /// one of those rows ships without its view, the deferral becomes an entry nobody will be asked
+    /// about again.
+    /// </para>
+    /// <para>
+    /// Reuses <see cref="PortCatalogue.TrackerStatuses"/> and
+    /// <see cref="PortCatalogue.OwnersNoLongerOpen"/> — the one owner-status mechanism this
+    /// repository has, including its parser's anchor floors, which <c>PortCatalogueTests</c> holds
+    /// for every caller.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_deferred_read_model_owner_is_a_task_the_tracker_still_has_open()
+    {
+        Deferred.Length.ShouldBe(
+            6,
+            "the floor under the sweep: `30` §12.4 enumerates six cross-player read models and all " +
+            "six are deferred today. An emptied register would report every owner open over nothing.");
+
+        ArchRule.Empty(
+            PortCatalogue.OwnersNoLongerOpen(
+                Deferred.Select(d => (Subject: "read model '" + d.View + "'", d.Owner)),
+                PortCatalogue.TrackerStatuses(
+                    File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md")))),
+            "Every deferred read model's owner is a tracker task that is still open (steering S4).");
     }
 
     /// <summary>
