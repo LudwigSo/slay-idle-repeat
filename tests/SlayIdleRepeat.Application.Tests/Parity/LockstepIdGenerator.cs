@@ -25,6 +25,13 @@ namespace SlayIdleRepeat.Application.Tests.Parity;
 /// sides are meant to be handed identical entropy on purpose.
 /// </para>
 /// <para>
+/// Nor is it a fork of the two generators this suite already has. <c>RecordingIdGenerator</c> is a
+/// decorator over the shipped fake and so inherits exactly the property that is fatal here.
+/// <c>ShapedIdGenerator</c> replays a finite list of hand-composed guids, which cannot serve a walk
+/// whose length is drawn — and neither exposes a draw count, which is what the lockstep assertion at
+/// the end of every sequence is made of.
+/// </para>
+/// <para>
 /// <see cref="GuidsDrawn"/> is the lockstep check itself: after a sequence, the two sides must have
 /// drawn the same number of guids, or one of them consumed entropy the other did not and the
 /// matching hashes above it were luck.
