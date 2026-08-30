@@ -32,53 +32,12 @@ public sealed class ContentSyncPresenterTests
     private static byte[] Bundle(ContentSnapshot snapshot) =>
         ContentBundle.Pack(snapshot.DocumentPaths.Select(snapshot.GetDocument));
 
-    /// <summary>The two-call seam, scripted — and recording what the presenter was showing when it was called.</summary>
-    private sealed class ScriptedClient : IContentDistributionClient
-    {
-        private readonly Func<string> _version;
-        private readonly Func<string, ReadOnlyMemory<byte>> _bundle;
-
-        internal ScriptedClient(Func<string> version, Func<string, ReadOnlyMemory<byte>> bundle)
-        {
-            _version = version;
-            _bundle = bundle;
-        }
-
-        /// <summary>Reads the presenter's state at call time, so the sequence of states is observable.</summary>
-        internal Func<SyncState>? Observe { get; set; }
-
-        internal List<SyncState> StatesSeen { get; } = [];
-
-        internal List<string> BundlesAskedFor { get; } = [];
-
-        public Task<string> FetchCurrentVersionAsync(CancellationToken ct)
-        {
-            Record();
-            return Task.FromResult(_version());
-        }
-
-        public Task<ReadOnlyMemory<byte>> FetchBundleAsync(string version, CancellationToken ct)
-        {
-            Record();
-            BundlesAskedFor.Add(version);
-            return Task.FromResult(_bundle(version));
-        }
-
-        private void Record()
-        {
-            if (Observe is { } observe)
-            {
-                StatesSeen.Add(observe());
-            }
-        }
-    }
-
-    private static (ContentSyncPresenter Presenter, ScriptedClient Client) Wire(
+    private static (ContentSyncPresenter Presenter, ScriptedContentClient Client) Wire(
         ContentSnapshot installed,
         Func<string> version,
         Func<string, ReadOnlyMemory<byte>>? bundle = null)
     {
-        var client = new ScriptedClient(
+        var client = new ScriptedContentClient(
             version,
             bundle ?? (_ => throw new InvalidOperationException("no bundle was scripted for this case")));
 

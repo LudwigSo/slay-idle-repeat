@@ -24,6 +24,8 @@ internal static class BootContent
     internal const string TitleKey = "loc.boot.title.name";
     internal const string SplashStatusKey = "loc.boot.splash.status";
     internal const string ContentStatusKey = "loc.boot.content.status";
+    internal const string ContentSyncStatusKey = "loc.boot.content_sync.status";
+    internal const string SessionStatusKey = "loc.boot.session.status";
     internal const string ProfileStatusKey = "loc.boot.profile.status";
     internal const string AtlasStatusKey = "loc.boot.atlas.status";
     internal const string ReadyStatusKey = "loc.boot.ready.status";
@@ -39,6 +41,8 @@ internal static class BootContent
     internal const string EnglishTitle = "FIXTURE title";
     internal const string EnglishSplashStatus = "FIXTURE splash";
     internal const string EnglishContentStatus = "FIXTURE content";
+    internal const string EnglishContentSyncStatus = "FIXTURE content sync";
+    internal const string EnglishSessionStatus = "FIXTURE session";
     internal const string EnglishProfileStatus = "FIXTURE profile";
     internal const string EnglishAtlasStatus = "FIXTURE atlas";
     internal const string EnglishReadyStatus = "FIXTURE ready";
@@ -50,8 +54,8 @@ internal static class BootContent
     /// <summary>Every key the boot screen renders, in stage order, with the title first.</summary>
     internal static IReadOnlyList<string> AllKeys { get; } =
     [
-        TitleKey, SplashStatusKey, ContentStatusKey, ProfileStatusKey,
-        AtlasStatusKey, ReadyStatusKey, FailureStatusKey,
+        TitleKey, SplashStatusKey, ContentStatusKey, ContentSyncStatusKey, SessionStatusKey,
+        ProfileStatusKey, AtlasStatusKey, ReadyStatusKey, FailureStatusKey,
     ];
 
     private static readonly Lazy<ContentSnapshot> LazyShipped = new(LoadShipped);
@@ -78,6 +82,8 @@ internal static class BootContent
         TitleKey => EnglishTitle,
         SplashStatusKey => EnglishSplashStatus,
         ContentStatusKey => EnglishContentStatus,
+        ContentSyncStatusKey => EnglishContentSyncStatus,
+        SessionStatusKey => EnglishSessionStatus,
         ProfileStatusKey => EnglishProfileStatus,
         AtlasStatusKey => EnglishAtlasStatus,
         ReadyStatusKey => EnglishReadyStatus,

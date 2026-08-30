@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Client.Game.Presenters;
 
 namespace SlayIdleRepeat.Client.Composition;
@@ -54,5 +55,29 @@ public static class AppRootComposition
         ArgumentNullException.ThrowIfNull(composed);
 
         return composed.Client.Connection;
+    }
+
+    /// <summary>
+    /// Hands back the driver that advances the reconnect ladder each frame, or nothing on an arm
+    /// with no connection to advance.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 Stated over the PORTABLE half rather than over <see cref="ComposedGodotClient"/>, unlike
+    /// its two siblings. The engine half cannot be constructed outside the engine — an audio
+    /// capability needs a real node — so a factory keyed on it is one no case can drive, and this is
+    /// the one factory whose two arms have to be told apart by a test rather than by a headless run.
+    /// </para>
+    /// <para>
+    /// A scene reads no port off this: it asks, and gets a driver or a null.
+    /// </para>
+    /// </remarks>
+    /// <param name="composed">The portable half of the graph the application root built and holds.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="composed"/> is null.</exception>
+    public static ConnectionPump? CreateConnectionPump(ComposedClient composed)
+    {
+        ArgumentNullException.ThrowIfNull(composed);
+
+        throw new NotImplementedException();
     }
 }

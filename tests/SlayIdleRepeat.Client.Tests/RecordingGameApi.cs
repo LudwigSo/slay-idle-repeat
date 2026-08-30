@@ -27,9 +27,16 @@ namespace SlayIdleRepeat.Client.Tests;
 /// </remarks>
 internal sealed class RecordingGameApi : IGameApiPort
 {
+    /// <summary>The device the scripted server mints, and the secret that reopens it.</summary>
+    internal const string MintedDeviceId = "DEVICE_recording_2b7e";
+
+    private const string MintedDeviceSecret = "SECRET_recording_5a13";
+    private const string MintedDisplayName = "Recorded Hero";
+
     private readonly List<CommandEnvelope> _sent = [];
     private readonly List<RunId?> _sentTo = [];
     private readonly List<long> _fetchedFrom = [];
+    private readonly List<WireCredentials> _presented = [];
 
     private WireRunState? _state;
     private WireCommandResult? _commandResult;
@@ -39,6 +46,8 @@ internal sealed class RecordingGameApi : IGameApiPort
 
     private int _refusedCallsLeft;
     private int _refusalStatusCode;
+
+    private TaskCompletionSource? _gate;
 
     private RecordingGameApi()
     {
@@ -61,6 +70,15 @@ internal sealed class RecordingGameApi : IGameApiPort
 
     /// <summary>How many command submissions reached this api, successful or not.</summary>
     internal int SendAttempts { get; private set; }
+
+    /// <summary>How many device registrations reached this api, successful or not.</summary>
+    internal int RegisterAttempts { get; private set; }
+
+    /// <summary>How many sign-ins reached this api, successful or not.</summary>
+    internal int AuthenticateAttempts { get; private set; }
+
+    /// <summary>Every credential a sign-in presented, in order.</summary>
+    internal IReadOnlyList<WireCredentials> Presented => _presented;
 
     /// <summary>
     /// Makes the next <paramref name="calls"/> calls fail as an unreachable transport.
@@ -92,6 +110,24 @@ internal sealed class RecordingGameApi : IGameApiPort
         return this;
     }
 
+    /// <summary>
+    /// Makes every sign-in hang until <see cref="Release"/> is called.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The only way to observe "one attempt is already in flight". Every other answer here
+    /// completes before the call returns, and against a synchronous api a second attempt is not a
+    /// missing guard — it is a previous attempt that finished.
+    /// </remarks>
+    internal RecordingGameApi Gated()
+    {
+        _gate = new TaskCompletionSource();
+
+        return this;
+    }
+
+    /// <summary>Lets a gated sign-in complete.</summary>
+    internal void Release() => _gate?.TrySetResult();
+
     /// <summary>Makes every state read answer with the given state.</summary>
     internal RecordingGameApi Answering(WireRunState state)
     {
@@ -109,16 +145,34 @@ internal sealed class RecordingGameApi : IGameApiPort
     }
 
     /// <inheritdoc/>
-    public Task<WireDeviceRegistration> RegisterDeviceAsync(string? displayName, CancellationToken ct) =>
-        throw new NotSupportedException(
-            "Nothing under game/net registers a device: the reconnect machinery runs on a session " +
-            "the boot flow already opened. A fixture reaching this has wired the wrong collaborator.");
+    public Task<WireDeviceRegistration> RegisterDeviceAsync(string? displayName, CancellationToken ct)
+    {
+        RegisterAttempts++;
+
+        return NextFailure() is { } failure
+            ? Task.FromException<WireDeviceRegistration>(failure)
+            : Gate(
+                new WireDeviceRegistration(
+                    MintedDeviceId, MintedDeviceSecret, NetWorlds.Player, MintedDisplayName));
+    }
 
     /// <inheritdoc/>
-    public Task<WireSession> AuthenticateAsync(WireCredentials credentials, CancellationToken ct) =>
-        throw new NotSupportedException(
-            "Nothing under game/net authenticates: 14 §16.5's silent renewal is the transport " +
-            "adapter's, below this seam. A fixture reaching this has wired the wrong collaborator.");
+    public Task<WireSession> AuthenticateAsync(WireCredentials credentials, CancellationToken ct)
+    {
+        AuthenticateAttempts++;
+        _presented.Add(credentials);
+
+        return NextFailure() is { } failure
+            ? Task.FromException<WireSession>(failure)
+            : Gate(
+                new WireSession(
+                    NetWorlds.Player,
+                    AccessToken: "ACCESS_recording",
+                    AccessExpiresInSeconds: 3600,
+                    RenewAfterSeconds: 2700,
+                    RefreshToken: "REFRESH_recording",
+                    RefreshExpiresInSeconds: 2_592_000));
+    }
 
     /// <inheritdoc/>
     public Task<WireCommandResult> SendCommandAsync(
@@ -155,6 +209,16 @@ internal sealed class RecordingGameApi : IGameApiPort
                 "This api was not told what a state read answers with. Call " +
                 nameof(Answering) + " in the arrangement."));
     }
+
+    /// <summary>Answers now, or once the gate opens.</summary>
+    private Task<T> Gate<T>(T answer) =>
+        _gate is { } gate
+            ? gate.Task.ContinueWith(
+                _ => answer,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default)
+            : Task.FromResult(answer);
 
     private Exception? NextFailure()
     {

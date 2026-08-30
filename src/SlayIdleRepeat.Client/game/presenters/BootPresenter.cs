@@ -1,5 +1,6 @@
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
@@ -15,17 +16,23 @@ public enum BootStage
     /// <summary>Checking that there is a content set to play against.</summary>
     Content = 2,
 
+    /// <summary>Asking the server whether it serves a newer content set, and taking it if so.</summary>
+    ContentSync = 3,
+
+    /// <summary>Opening the account session the wire runs on.</summary>
+    Session = 4,
+
     /// <summary>Opening the local profile.</summary>
-    Profile = 3,
+    Profile = 5,
 
     /// <summary>Reading whatever atlas metadata this installation has.</summary>
-    Atlas = 4,
+    Atlas = 6,
 
     /// <summary>Everything the boot needed is up, and the next screen can take over.</summary>
-    Ready = 5,
+    Ready = 7,
 
     /// <summary>The boot stopped. Where it stopped is carried by <see cref="BootFailure.Stage"/>.</summary>
-    Failed = 6,
+    Failed = 8,
 }
 
 /// <summary>
@@ -44,6 +51,12 @@ public enum BootFailureKind
 
     /// <summary>Something nobody anticipated. Carried rather than swallowed.</summary>
     Unexpected = 4,
+
+    /// <summary>
+    /// The server understood the sign-in and said no. Fatal, unlike a server that could not be
+    /// reached at all: a refusal repeated unchanged is refused again, so there is nothing to wait for.
+    /// </summary>
+    SessionRefused = 5,
 }
 
 /// <summary>
@@ -102,6 +115,8 @@ public sealed class BootPresenter
 
     private const string SplashStatusKey = "loc.boot.splash.status";
     private const string ContentStatusKey = "loc.boot.content.status";
+    private const string ContentSyncStatusKey = "loc.boot.content_sync.status";
+    private const string SessionStatusKey = "loc.boot.session.status";
     private const string ProfileStatusKey = "loc.boot.profile.status";
     private const string AtlasStatusKey = "loc.boot.atlas.status";
     private const string ReadyStatusKey = "loc.boot.ready.status";
@@ -124,12 +139,20 @@ public sealed class BootPresenter
     /// <param name="strings">Key to display string, over the loaded content set.</param>
     /// <param name="atlas">The placeholder-atlas read.</param>
     /// <param name="clock">The only sanctioned source of time here.</param>
-    /// <exception cref="ArgumentNullException">Any collaborator is null.</exception>
+    /// <param name="contentSync">
+    /// 🔒 The content sync to run, or <c>null</c> to say this build has no server to ask — stated,
+    /// never defaulted. A null skips the stage entirely, which is how the local arm's boot stays
+    /// byte-identical to what it was before a server existed.
+    /// </param>
+    /// <param name="session">The session to open, or <c>null</c> for the same reason.</param>
+    /// <exception cref="ArgumentNullException">Any non-optional collaborator is null.</exception>
     public BootPresenter(
         IGameHost gameHost,
         LocaleStringCatalogue strings,
         IBootAtlasCatalogue atlas,
-        IClockPort clock)
+        IClockPort clock,
+        ContentSyncPresenter? contentSync,
+        SessionOpener? session)
     {
         ArgumentNullException.ThrowIfNull(gameHost);
         ArgumentNullException.ThrowIfNull(strings);
@@ -147,6 +170,22 @@ public sealed class BootPresenter
 
     /// <summary>The profile the boot opened, or null while none is open.</summary>
     public PlayerId? PlayerId { get; private set; }
+
+    /// <summary>
+    /// The account the server's session belongs to, or null on an arm that opens none.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Held BESIDE <see cref="PlayerId"/> rather than instead of it, because on the server arm
+    /// the client genuinely holds two identities and nothing reconciles them — reconciling them is
+    /// the presenter migration. Exposing both is what keeps the divergence visible.
+    /// </remarks>
+    public PlayerId? AccountPlayerId => throw new NotImplementedException();
+
+    /// <summary>How far the content sync got, or null when this build ran none.</summary>
+    public SyncState? ContentSync => throw new NotImplementedException();
+
+    /// <summary>Why the content sync stopped, or null when it did not.</summary>
+    public ContentSyncFailure? ContentSyncFailure => throw new NotImplementedException();
 
     /// <summary>What the atlas stage found, or null before it has run.</summary>
     public BootAtlasResult? Atlas { get; private set; }
@@ -227,6 +266,8 @@ public sealed class BootPresenter
     {
         BootStage.Splash => SplashStatusKey,
         BootStage.Content => ContentStatusKey,
+        BootStage.ContentSync => ContentSyncStatusKey,
+        BootStage.Session => SessionStatusKey,
         BootStage.Profile => ProfileStatusKey,
         BootStage.Atlas => AtlasStatusKey,
         BootStage.Ready => ReadyStatusKey,

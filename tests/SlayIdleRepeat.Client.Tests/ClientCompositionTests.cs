@@ -135,7 +135,8 @@ public sealed class ClientCompositionTests : IDisposable
                   entitlements: LocalHostAmbience.NoSubscriptionResolved(),
                   featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
                   localeTag: SourceLocale,
-                  gameApi: null))
+                  arm: ClientArm.InProcessLocalHost,
+                  wire: null))
               .ParamName.ShouldBe(
                   "cacheDirectoryPath",
                   "nothing here is defaulted, exactly as the host it composes defaults nothing. A blank " +
@@ -152,7 +153,8 @@ public sealed class ClientCompositionTests : IDisposable
                   entitlements: LocalHostAmbience.NoSubscriptionResolved(),
                   featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
                   localeTag: SourceLocale,
-                  gameApi: null))
+                  arm: ClientArm.InProcessLocalHost,
+                  wire: null))
               .ParamName.ShouldBe(
                   "contentSource",
                   "the content set is the one input that cannot be recovered from at runtime. Failing " +
@@ -245,7 +247,8 @@ public sealed class ClientCompositionTests : IDisposable
                   entitlements: null!,
                   featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
                   localeTag: SourceLocale,
-                  gameApi: null))
+                  arm: ClientArm.InProcessLocalHost,
+                  wire: null))
               .ParamName.ShouldBe(
                   "entitlements",
                   "the absence of a subscription is stated by a factory that says so, never by a null " +
@@ -261,7 +264,8 @@ public sealed class ClientCompositionTests : IDisposable
                   entitlements: LocalHostAmbience.NoSubscriptionResolved(),
                   featureFlags: null!,
                   localeTag: SourceLocale,
-                  gameApi: null))
+                  arm: ClientArm.InProcessLocalHost,
+                  wire: null))
               .ParamName.ShouldBe(
                   "featureFlags",
                   "the flags are kill switches, and their identity element is 'everything on, nothing " +
@@ -278,7 +282,8 @@ public sealed class ClientCompositionTests : IDisposable
             entitlements: LocalHostAmbience.NoSubscriptionResolved(),
             featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
             localeTag: SourceLocale,
-            gameApi: null);
+            arm: ClientArm.InProcessLocalHost,
+            wire: null);
 
         composed.GameHost.ShouldBeOfType<InProcessGameHost>(
             "the local host is the whole point of composing at all before there is a server: the client " +
@@ -295,7 +300,8 @@ public sealed class ClientCompositionTests : IDisposable
             entitlements: LocalHostAmbience.NoSubscriptionResolved(),
             featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
             localeTag: SourceLocale,
-            gameApi: null);
+            arm: ClientArm.InProcessLocalHost,
+            wire: null);
 
         composed.Content.Current.DocumentPaths.ShouldContain(
             ShippedDocument,
@@ -317,7 +323,8 @@ public sealed class ClientCompositionTests : IDisposable
             entitlements: new Entitlements(hasPlus, expiresAtUtc: null),
             featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
             localeTag: SourceLocale,
-            gameApi: null);
+            arm: ClientArm.InProcessLocalHost,
+            wire: null);
 
         composed.RewardedAds.Arm.ShouldBe(
             expected,
@@ -347,12 +354,19 @@ public sealed class ClientCompositionTests : IDisposable
             entitlements: LocalHostAmbience.NoSubscriptionResolved(),
             featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
             localeTag: SourceLocale,
-            gameApi: null);
+            arm: ClientArm.InProcessLocalHost,
+            wire: null);
 
-        composed.GameApi.ShouldBeNull(
-            "the graph holds a wire seam nobody handed it. The only way one can get here is through " +
+        composed.Wire.ShouldBeNull(
+            "the graph holds a wire half nobody handed it. The only way one can get here is through " +
             "the argument, so a non-null answer means the root invented an adapter — which is the one " +
             "decision a composition root may not take on the caller's behalf.");
+
+        AppRootComposition.CreateConnectionPump(composed).ShouldBeNull(
+            "a build with no connection is being handed something to advance every frame. The pump " +
+            "reads a ladder, a session and a mirror that were never composed here, so anything but " +
+            "null is a driver over nothing — and it would run on the per-frame callback of every " +
+            "shipped build.");
 
         composed.Connection.ShouldBeNull(
             "the graph holds a connection presenter with no connection behind it. Everything it " +
@@ -380,6 +394,7 @@ public sealed class ClientCompositionTests : IDisposable
     public void Compose_builds_a_connection_presenter_over_the_api_it_was_handed()
     {
         var api = new StubGameApi();
+        var wire = new ClientWireSeams(api, new StubContentDistribution(), []);
 
         var composed = ClientComposition.Compose(
             cacheDirectoryPath: _cacheRoot,
@@ -387,13 +402,19 @@ public sealed class ClientCompositionTests : IDisposable
             entitlements: LocalHostAmbience.NoSubscriptionResolved(),
             featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
             localeTag: SourceLocale,
-            gameApi: api);
+            arm: ClientArm.ServerSessionWithLocalPresenterSurface,
+            wire: wire);
 
-        composed.GameApi.ShouldBeSameAs(
-            api,
-            "the graph is holding a different wire seam from the one it was composed over. With no " +
-            "container, the reference the root keeps is the only thing that makes the port reachable " +
+        composed.Wire.ShouldBeSameAs(
+            wire,
+            "the graph is holding a different wire half from the one it was composed over. With no " +
+            "container, the reference the root keeps is the only thing that makes the seams reachable " +
             "— and a second one would be a second set of tokens against the same account.");
+
+        AppRootComposition.CreateConnectionPump(composed).ShouldNotBeNull(
+            "a wire half was composed and nothing advances it. The ladder only moves when something " +
+            "polls it, so a null pump is the exact gap M7-02 shipped: an overlay that is composed, " +
+            "never driven, and therefore permanently reports a connection that was never attempted.");
 
         composed.Connection.ShouldNotBeNull(
             "an API was composed and nothing reports on it. The overlay is driven by this presenter " +
@@ -416,13 +437,160 @@ public sealed class ClientCompositionTests : IDisposable
                   entitlements: LocalHostAmbience.NoSubscriptionResolved(),
                   featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
                   localeTag: null!,
-                  gameApi: null))
+                  arm: ClientArm.InProcessLocalHost,
+                  wire: null))
               .ParamName.ShouldBe(
                   "localeTag",
                   "the locale is what every player-facing word in the connection presenter is looked " +
                   "up through. A null one would have to be read as 'the source locale', which is a " +
                   "guess about a device this root never asked.");
     }
+
+    // ---- M5-15: which host arm this build resolved -----------------------------------------------
+
+    /// <summary>
+    /// 🔒 <b>The arm is a decision taken from the resolved server address, and from nothing else.</b>
+    /// </summary>
+    /// <remarks>
+    /// Both arms are driven for the reason
+    /// <see cref="Compose_carries_the_arm_the_entitlement_selected"/> gives about its own: one input
+    /// cannot tell a decision from a constant. The blank case is the negative control — a blank
+    /// address is the same absence as a missing one, never a server at the empty host.
+    /// </remarks>
+    [Theory]
+    [InlineData("http://127.0.0.1:9/", ClientArm.ServerSessionWithLocalPresenterSurface)]
+    [InlineData(null, ClientArm.InProcessLocalHost)]
+    [InlineData("   ", ClientArm.InProcessLocalHost)]
+    public void SelectArm_takes_the_server_arm_for_an_address_and_the_local_arm_without_one(
+        string? serverBaseAddress, ClientArm expected)
+    {
+        ClientComposition.SelectArm(serverBaseAddress).ShouldBe(
+            expected,
+            "which host a build resolves is a composition decision and it has to be explicit. An " +
+            "exported handset build has no environment to read, so it must land on the local arm — " +
+            "and a root that took the server arm anyway would compose an HTTP adapter pointed at " +
+            "nothing and put a reconnect pill on a game that has no server.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>Both arms carry a working host, and the arm they carry is the one they were composed on.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The server arm's host is a NAMED STAND-IN: a remote <c>IGameHost</c> cannot exist in this
+    /// repository, because the transport cannot answer with the Core aggregates the host's contract
+    /// returns. So both arms resolve to the same host type, the arm is the only thing that can tell
+    /// them apart, and the non-null host is the control — it stays green under an implementation
+    /// that took one branch for both, which is exactly why the arm assertion is the one that bites.
+    /// </remarks>
+    [Theory]
+    [InlineData(ClientArm.InProcessLocalHost, false)]
+    [InlineData(ClientArm.ServerSessionWithLocalPresenterSurface, true)]
+    public void Compose_carries_the_arm_it_selected_and_a_host_on_both(ClientArm arm, bool overAWire)
+    {
+        var composed = ComposeOn(arm, overAWire ? SomeWire() : null);
+
+        composed.Arm.ShouldBe(
+            arm,
+            "the graph cannot say which game it composed. Nothing downstream may re-derive it — the " +
+            "arm is the answer to 'is there a server behind this build', and a graph that has to be " +
+            "asked twice will eventually be told two different things.");
+        composed.GameHost.ShouldNotBeNull(
+            "every arm plays through a host, including the one with a server: the presenters drive " +
+            "IGameHost and nothing on the wire can answer them yet. An arm with no host is nine " +
+            "screens with nothing to draw.");
+    }
+
+    /// <summary>
+    /// 🔒 The mirror gets a directory of its own, under the cache root and beside the local profile.
+    /// </summary>
+    /// <remarks>
+    /// The split is what makes "a caller may discard the whole of it at any moment" true of the
+    /// mirror without being true of the local profile — one can be deleted wholesale and the other
+    /// is the only copy of a player's game. Sharing one directory would make clearing the mirror
+    /// start a new local game.
+    /// </remarks>
+    [Fact]
+    public void Compose_gives_the_mirror_its_own_directory_under_the_cache_root()
+    {
+        ComposeOn(ClientArm.ServerSessionWithLocalPresenterSurface, SomeWire());
+
+        Directory.Exists(Path.Combine(_cacheRoot, ClientComposition.MirrorCacheDirectoryName))
+                 .ShouldBeTrue(
+                     "the server arm composed no separate store for the mirror, so it is writing the " +
+                     "server's last answer into the same directory the in-process host keeps the " +
+                     "local profile in — and clearing one would clear the other.");
+    }
+
+    /// <summary>…and the local arm creates none, because it mirrors nothing.</summary>
+    [Fact]
+    public void Compose_creates_no_mirror_directory_on_the_local_arm()
+    {
+        ComposeOn(ClientArm.InProcessLocalHost, wire: null);
+
+        Directory.Exists(Path.Combine(_cacheRoot, ClientComposition.MirrorCacheDirectoryName))
+                 .ShouldBeFalse(
+                     "an in-process host has no server answers to mirror, so a directory here is a " +
+                     "store nothing writes and nothing reads. It is also the control for the case " +
+                     "above: a root that created the directory unconditionally would satisfy that " +
+                     "one and mean nothing.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>Disposing the graph disposes the seams, and the transport they share AFTER them.</b>
+    /// </summary>
+    /// <remarks>
+    /// The order is the assertion. A handler torn down before the adapters built over it turns any
+    /// request still in flight into an <c>ObjectDisposedException</c> — a fault neither adapter's
+    /// filter catches, on the one path where nothing is watching.
+    /// </remarks>
+    [Fact]
+    public void Disposing_the_graph_disposes_the_wire_seams_and_the_handler_it_owns()
+    {
+        var closed = new List<string>();
+        var api = new DisposableStubGameApi(closed);
+        var content = new DisposableStubContentDistribution(closed);
+        var handler = new RecordingDisposable(closed, "handler");
+
+        var composed = ComposeOn(
+            ClientArm.ServerSessionWithLocalPresenterSurface,
+            new ClientWireSeams(api, content, [handler]));
+
+        composed.Dispose();
+
+        closed.ShouldBe(
+            ["api", "content", "handler"],
+            "the wire half outlives the graph, or it is torn down in the wrong order. Both are real: " +
+            "an undisposed HttpGameApi leaks its client and its tokens, and a handler disposed first " +
+            "faults an in-flight request with an exception the adapter's own filter does not catch.");
+    }
+
+    /// <summary>…and the local arm, which owns no transport, tears down cleanly all the same.</summary>
+    [Fact]
+    public void Disposing_a_graph_with_no_wire_half_is_not_a_fault()
+    {
+        var composed = ComposeOn(ClientArm.InProcessLocalHost, wire: null);
+
+        Should.NotThrow(
+            composed.Dispose,
+            "this is the arm every shipped build composes, and disposal runs from the root node's " +
+            "exit callback where nothing catches anything. A null wire half is the ordinary case, " +
+            "not an error — and it is the control that stops the case above passing on an " +
+            "implementation that disposes unconditionally.");
+    }
+
+    /// <summary>Composes on a given arm over the shipped content, with everything else fixed.</summary>
+    private ComposedClient ComposeOn(ClientArm arm, ClientWireSeams? wire) =>
+        ClientComposition.Compose(
+            cacheDirectoryPath: _cacheRoot,
+            contentSource: ShippedContentSource(),
+            entitlements: LocalHostAmbience.NoSubscriptionResolved(),
+            featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
+            localeTag: SourceLocale,
+            arm: arm,
+            wire: wire);
+
+    /// <summary>A wire half over seams that refuse every call — composing must not reach a network.</summary>
+    private static ClientWireSeams SomeWire() => StubWireSeams.Unreached();
 
     /// <summary>The shipped content, read off the checkout — what every Compose case here is about.</summary>
     private static IContentSourcePort ShippedContentSource() =>
@@ -451,40 +619,36 @@ public sealed class ClientCompositionTests : IDisposable
         }
     }
 
-    /// <summary>
-    /// A wire seam that is composed over and never called.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Every member refuses rather than answering, and that is the assertion rather than a shortcut:
-    /// composing a client must not talk to a server. If the root ever opened a session or read a run
-    /// while wiring the graph, these cases would fail by name instead of quietly making a network call
-    /// on the cold-start path.
-    /// </para>
-    /// <para>
-    /// Hand-written for the reason <see cref="StubPackedDocuments"/> is: there is no mocking library
-    /// here, and the InMemory fake for this port lives in an adapter project this suite deliberately
-    /// does not reference — nothing here is allowed to depend on an adapter.
-    /// </para>
-    /// </remarks>
-    private sealed class StubGameApi : IGameApiPort
+    /// <summary>Something the graph owns, recording the moment it was closed.</summary>
+    private sealed class RecordingDisposable : IDisposable
     {
-        public Task<WireDeviceRegistration> RegisterDeviceAsync(string? displayName, CancellationToken ct) =>
-            throw new NotSupportedException(Unreached);
+        private readonly List<string> _closed;
+        private readonly string _name;
 
-        public Task<WireSession> AuthenticateAsync(WireCredentials credentials, CancellationToken ct) =>
-            throw new NotSupportedException(Unreached);
+        internal RecordingDisposable(List<string> closed, string name)
+        {
+            _closed = closed;
+            _name = name;
+        }
 
-        public Task<WireCommandResult> SendCommandAsync(
-            RunId? run, CommandEnvelope envelope, CancellationToken ct) =>
-            throw new NotSupportedException(Unreached);
+        public void Dispose() => _closed.Add(_name);
+    }
 
-        public Task<WireRunState> FetchRunStateAsync(RunId run, long sinceSequence, CancellationToken ct) =>
-            throw new NotSupportedException(Unreached);
+    private sealed class DisposableStubGameApi : StubGameApi, IDisposable
+    {
+        private readonly List<string> _closed;
 
-        private const string Unreached =
-            "the composition root reached the network while building the graph. Composing is wiring: " +
-            "it opens no session and reads no run, because the cold-start path must not wait on a " +
-            "server that may not be there.";
+        internal DisposableStubGameApi(List<string> closed) => _closed = closed;
+
+        public void Dispose() => _closed.Add("api");
+    }
+
+    private sealed class DisposableStubContentDistribution : StubContentDistribution, IDisposable
+    {
+        private readonly List<string> _closed;
+
+        internal DisposableStubContentDistribution(List<string> closed) => _closed = closed;
+
+        public void Dispose() => _closed.Add("content");
     }
 }

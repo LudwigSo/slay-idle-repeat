@@ -149,11 +149,11 @@ public static class GodotClientComposition
                 LocalHostAmbience.NoRemoteConfigResolved(),
                 capabilities.PlatformInfo.Locale,
 
-                // 🔴 No wire seam, stated rather than defaulted: this arm composes an IN-PROCESS
+                // 🔴 No wire half, stated rather than defaulted: this arm composes an IN-PROCESS
                 // host, which has no connection to lose. So no connection presenter is built, no
                 // overlay is instantiated and nothing about the network is ever drawn — which is
-                // the specified rendering for a working connection. The first arm that passes one
-                // is M5-15's, which composes the HTTP adapter.
-                gameApi: null));
+                // the specified rendering for a working connection.
+                arm: ClientArm.InProcessLocalHost,
+                wire: null));
     }
 }

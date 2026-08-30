@@ -60,9 +60,67 @@ public sealed class RewardedAdSelection
 }
 
 /// <summary>
+/// Which host arm the composition root picked, named rather than inferred.
+/// </summary>
+/// <remarks>
+/// 🔒 Both arms resolve to the same host type today, so "which host did you get" cannot tell them
+/// apart — the arm is carried as a value for the reason <see cref="RewardedAdArm"/> already states
+/// about its own: the arm is the decision, and the decision is what is worth pinning.
+/// </remarks>
+public enum ClientArm
+{
+    /// <summary>The whole game runs in this process. No connection to lose, nothing to sync.</summary>
+    InProcessLocalHost = 1,
+
+    /// <summary>
+    /// 🔴 The wire seam is live — session, content stamp, reconnect ladder and overlay all run
+    /// against a server — and the presenters still drive the IN-PROCESS host, because no transport
+    /// can answer with the aggregates the host's contract returns.
+    /// </summary>
+    ServerSessionWithLocalPresenterSurface = 2,
+}
+
+/// <summary>
+/// The wire half of the graph: the two seams a server arm speaks through, and what they were built
+/// over.
+/// </summary>
+/// <remarks>
+/// 🔒 The adapters and the transport they share are disposed in that order — adapters first, then
+/// the handler underneath them — because a handler torn down first turns an in-flight request into
+/// a fault nobody asked for.
+/// </remarks>
+public sealed class ClientWireSeams : IDisposable
+{
+    /// <summary>Pairs the two seams with the disposables they were built over.</summary>
+    /// <param name="api">The wire seam.</param>
+    /// <param name="content">The content-distribution seam.</param>
+    /// <param name="owned">What both were built over, disposed after them.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    public ClientWireSeams(
+        IGameApiPort api, IContentDistributionClient content, IReadOnlyList<IDisposable> owned)
+    {
+        ArgumentNullException.ThrowIfNull(api);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(owned);
+
+        Api = api;
+        Content = content;
+    }
+
+    /// <summary>The wire seam every command and state read goes through.</summary>
+    public IGameApiPort Api { get; }
+
+    /// <summary>The content-distribution seam the boot's sync stage speaks through.</summary>
+    public IContentDistributionClient Content { get; }
+
+    /// <inheritdoc/>
+    public void Dispose() => throw new NotImplementedException();
+}
+
+/// <summary>
 /// The object graph the client runs on, as the composition root hands it over.
 /// </summary>
-public sealed class ComposedClient
+public sealed class ComposedClient : IDisposable
 {
     /// <summary>Carries the composed graph. Built only by <see cref="ClientComposition"/>.</summary>
     /// <param name="gameHost">The in-process seam every presenter drives the game through.</param>
@@ -70,19 +128,21 @@ public sealed class ComposedClient
     /// <param name="revive">How a player reaches a revive.</param>
     /// <param name="content">The provider the host's snapshot was loaded from.</param>
     /// <param name="clock">The one clock the whole graph runs on.</param>
-    /// <param name="gameApi">The wire seam, or null when this client was composed over no server.</param>
+    /// <param name="arm">Which host arm this graph was composed on.</param>
+    /// <param name="wire">The wire half, or null when this client was composed over no server.</param>
     /// <param name="connection">
-    /// The connection presenter built over <paramref name="gameApi"/>, or null when there is none.
+    /// The connection presenter built over <paramref name="wire"/>, or null when there is none.
     /// The two are null together, by construction.
     /// </param>
     /// <exception cref="ArgumentNullException">Any non-optional part of the graph is null.</exception>
     public ComposedClient(
+        ClientArm arm,
         IGameHost gameHost,
         RewardedAdSelection rewardedAds,
         ReviveArm revive,
         ContentProvider content,
         IClockPort clock,
-        IGameApiPort? gameApi,
+        ClientWireSeams? wire,
         ConnectionPresenter? connection)
     {
         ArgumentNullException.ThrowIfNull(gameHost);
@@ -90,17 +150,24 @@ public sealed class ComposedClient
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(clock);
 
+        Arm = arm;
         GameHost = gameHost;
         RewardedAds = rewardedAds;
         Revive = revive;
         Content = content;
         Clock = clock;
-        GameApi = gameApi;
+        Wire = wire;
         Connection = connection;
     }
 
+    /// <summary>Which host arm this graph was composed on.</summary>
+    public ClientArm Arm { get; }
+
     /// <summary>The single entry point the presenters drive the game through.</summary>
     public IGameHost GameHost { get; }
+
+    /// <summary>The wire half, or <c>null</c> when this client was composed over no server.</summary>
+    public ClientWireSeams? Wire { get; }
 
     /// <summary>
     /// The wire seam this client was composed over, or <c>null</c> when it was composed over none.
@@ -112,7 +179,7 @@ public sealed class ComposedClient
     /// at all. Held rather than dropped for the reason the whole graph is held: hand-rolled
     /// composition has no container, so a port nobody references is a port nobody can reach.
     /// </remarks>
-    public IGameApiPort? GameApi { get; }
+    public IGameApiPort? GameApi => Wire?.Api;
 
     /// <summary>
     /// The one connection presenter the whole build shares, or <c>null</c> when no wire seam was
@@ -155,6 +222,9 @@ public sealed class ComposedClient
     /// board a player experiences as a deadline.
     /// </remarks>
     public IClockPort Clock { get; }
+
+    /// <summary>Tears the wire half down with the graph that owns it.</summary>
+    public void Dispose() => throw new NotImplementedException();
 }
 
 /// <summary>
@@ -189,10 +259,13 @@ public static class ClientComposition
     /// The locale the device reported, as a BCP-47 tag. Needed here rather than at the screen because
     /// the connection presenter is built here and every word it shows is a catalogue lookup.
     /// </param>
-    /// <param name="gameApi">
-    /// 🔒 The wire seam this client runs over, or <c>null</c> to say there is none — <b>stated, never
-    /// defaulted</b>. A root that cannot say whether it is running against a server has not decided
-    /// which game it composed, and a default would let a caller forget to.
+    /// <param name="arm">
+    /// 🔒 Which host arm this build resolves — <b>stated, never defaulted</b>. A root that cannot
+    /// say which game it composed has not decided.
+    /// </param>
+    /// <param name="wire">
+    /// 🔒 The wire half this client runs over, or <c>null</c> to say there is none — stated for the
+    /// same reason <paramref name="arm"/> is.
     /// </param>
     /// <exception cref="ArgumentException">A path is null, empty or whitespace.</exception>
     /// <exception cref="ArgumentNullException">An ambience value is null.</exception>
@@ -202,7 +275,8 @@ public static class ClientComposition
         Entitlements entitlements,
         FeatureFlags featureFlags,
         string localeTag,
-        IGameApiPort? gameApi)
+        ClientArm arm,
+        ClientWireSeams? wire)
     {
         // Every guard before anything touches a disk: a cache adapter creates its directory on
         // construction, so a root that validated as it went would leave a directory behind for a
@@ -238,14 +312,48 @@ public static class ClientComposition
             sinks: []);
 
         return new ComposedClient(
+            arm,
             gameHost,
             rewardedAds,
             SelectReviveArm(entitlements),
             content,
             clock,
-            gameApi,
-            SelectConnection(gameApi, content, localeTag, clock));
+            wire,
+            SelectConnection(wire?.Api, content, localeTag, clock));
     }
+
+    /// <summary>The subdirectory of the writable cache root the server arm's mirror lives in.</summary>
+    /// <remarks>
+    /// 🔒 A directory of its own, so the mirror can be deleted wholesale — which is what "a caller
+    /// may discard the whole of it at any moment" means — without touching the local profile the
+    /// in-process host writes beside it.
+    /// </remarks>
+    public const string MirrorCacheDirectoryName = "cache";
+
+    /// <summary>
+    /// Chooses the host arm from the server address the engine half resolved, and from nothing else.
+    /// </summary>
+    /// <param name="serverBaseAddress">The address a developer switch named, or null/blank for none.</param>
+    public static ClientArm SelectArm(string? serverBaseAddress) => throw new NotImplementedException();
+
+    /// <summary>
+    /// Builds the wire half for the server arm, or answers that there is none to build.
+    /// </summary>
+    /// <param name="arm">The arm this build resolved.</param>
+    /// <param name="serverBaseAddress">The address both seams are pointed at.</param>
+    public static ClientWireSeams? SelectWireSeams(ClientArm arm, string? serverBaseAddress) =>
+        throw new NotImplementedException();
+
+    /// <summary>
+    /// The credential holder, spelling out that no secure store is built rather than hiding it.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Named as its own method for the reason <see cref="NoAdNetworkResolved"/> is: the day a
+    /// platform keystore port exists this is the single site that changes, and it is findable by
+    /// name rather than by reading a constructor call.
+    /// </remarks>
+    public static EphemeralDeviceCredentials NoDeviceCredentialStoreResolved() =>
+        throw new NotImplementedException();
 
     /// <summary>
     /// Builds the connection half over the wire seam, or answers that there is none to build one over.
