@@ -282,19 +282,29 @@ internal static class Replies
     }
 
     /// <summary>Asserts a 200 rejection envelope and returns its parsed body.</summary>
-    internal static JsonElement Rejection(GatewayReply reply, string reason)
+    /// <param name="reply">The gateway's answer.</param>
+    /// <param name="reason">The rejection reason the caller expects, by name.</param>
+    /// <param name="what">
+    /// What the caller was driving, appended to a failure. A theory arm's own description belongs
+    /// here rather than in an assertion of its own — a string constant from <c>InlineData</c> cannot
+    /// be empty, so asserting on it is an assertion that cannot fail.
+    /// </param>
+    internal static JsonElement Rejection(GatewayReply reply, string reason, string? what = null)
     {
+        var context = what is null ? string.Empty : " (" + what + ")";
         var body = Parse(reply, 200);
 
         if (!body.TryGetProperty("rejected", out var rejected) || !rejected.GetBoolean())
         {
-            throw new InvalidOperationException("Expected a rejection envelope, got: " + reply.Body);
+            throw new InvalidOperationException(
+                "Expected a rejection envelope" + context + ", got: " + reply.Body);
         }
 
         var actual = body.GetProperty("reason").GetString();
         if (!string.Equals(actual, reason, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException($"Expected reason {reason}, got {actual}: {reply.Body}");
+            throw new InvalidOperationException(
+                $"Expected reason {reason}{context}, got {actual}: {reply.Body}");
         }
 
         return body;

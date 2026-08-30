@@ -96,8 +96,9 @@ public sealed class CommandGatewayEnvelopeTests
         var reply = await world.Gateway.SubmitPlayerCommandAsync(
             world.Player, Envelopes.Body("START_RUN", 1, "c-m", payload), Worlds.Cancel);
 
-        Replies.Rejection(reply, "MALFORMED_COMMAND");
-        why.ShouldNotBeEmpty();
+        // `why` names the arm rather than being asserted on: an InlineData string constant
+        // cannot be empty, so the assertion it used to carry could not fail.
+        Replies.Rejection(reply, "MALFORMED_COMMAND", why);
     }
 
     [Fact]

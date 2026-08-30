@@ -10,6 +10,25 @@ namespace SlayIdleRepeat.Application.Tests.Services.Inbox;
 /// <summary>Retention and capacity: what expires, what a full inbox may drop, and what it may not.</summary>
 public sealed class InboxRetentionTests
 {
+    /// <summary>
+    /// 🔒 The authored capacity, pinned rather than read back.
+    /// </summary>
+    /// <remarks>
+    /// Every capacity case in this file and in <c>MailSenderTests</c> sizes its fixture from
+    /// <see cref="InboxRetention.Capacity"/> itself — <c>Enumerable.Range(0, Capacity)</c>,
+    /// <c>Capacity + 2</c> — so all of them stay green at <c>Capacity = 1</c>, where an inbox holds
+    /// one message and the prune fires on the second. Nothing else in the repository states the
+    /// number, so this is the one assertion between the design's fifty and any value at all.
+    /// </remarks>
+    [Fact]
+    public void The_inbox_holds_the_fifty_messages_the_design_gives_it()
+    {
+        InboxRetention.Capacity.ShouldBe(
+            50,
+            "fifty is the authored cap. Every other capacity case here sizes itself from this " +
+            "constant and would pass at any value, including one.");
+    }
+
     [Fact]
     public void An_ordinary_message_expires_after_the_retention_window()
     {

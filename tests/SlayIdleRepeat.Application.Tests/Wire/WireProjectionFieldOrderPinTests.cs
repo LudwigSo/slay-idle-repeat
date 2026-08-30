@@ -55,6 +55,21 @@ public sealed class WireProjectionFieldOrderPinTests
             var actual = CanonicalStateWriter.CanonicalFieldOrder(type);
             var expected = pinned.TryGetValue(name, out var list) ? list : Array.Empty<string>();
 
+            // 🔴 The floor on both sides, before the comparison. This loop runs to
+            // Math.Max(actual, expected), so it iterates zero times over two empty lists — a
+            // CanonicalFieldOrder that stopped reflecting and a pinned entry that lost its fields
+            // would agree perfectly and report every wire projection guarded.
+            actual.Count.ShouldBeGreaterThan(
+                2,
+                $"{name} reflected {actual.Count} canonical field(s). A projection the writer cannot " +
+                "see is a projection whose field order nothing pins.");
+
+            expected.Count.ShouldBeGreaterThan(
+                2,
+                $"WireProjectionFieldOrder.json pins {expected.Count} field(s) for {name} at " +
+                $"SchemaVersion {SnapshotSchema.SchemaVersion}. An empty pinned list matches nothing " +
+                "and refuses nothing.");
+
             for (var i = 0; i < Math.Max(actual.Count, expected.Count); i++)
             {
                 var pinnedField = i < expected.Count ? expected[i] : "<no field>";

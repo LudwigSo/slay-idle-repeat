@@ -168,21 +168,39 @@ public sealed class AntiCheatOptionsTests
     /// throws out of the rate limiter on its first request — or out of OnRejected on its first
     /// refusal, which is the moment least able to absorb it.
     /// </summary>
+    /// <remarks>
+    /// 🔴 The BLAMED setting is a third column and is asserted on. Nine range rules across three
+    /// option classes all throw the same exception type, so pinning only the type is the symptom
+    /// rather than the identity: a validator that refused the wrong setting — or refused every
+    /// setting — passed every arm of this theory.
+    /// </remarks>
     [Theory]
-    [InlineData("RateLimit:Player:Burst", "0")]
-    [InlineData("RateLimit:Player:SustainedPerSecond", "0")]
-    [InlineData("RateLimit:Ip:PermitsPerSecond", "0")]
-    [InlineData("RateLimit:Ip:Burst", "-3")]
-    [InlineData("RateLimit:Ip:RetryAfterSeconds", "0")]
-    [InlineData("Plausibility:SweepIntervalMinutes", "0")]
-    [InlineData("Plausibility:SweepIntervalMinutes", "-30")]
-    [InlineData("Plausibility:SweepIntervalMinutes", "1441")]
-    [InlineData("Plausibility:MaxCurrencyPerDay", "-1")]
+    [InlineData("RateLimit:Player:Burst", "0", "Burst")]
+    // ⚠️ The blamed name here is NOT the operator's key. RateLimit:Player:SustainedPerSecond is
+    // passed to PlayerRateLimiter's `permitsPerSecond` parameter, so the startup crash names a
+    // word that appears nowhere in the deployment's configuration. Pinned as it is rather than
+    // as it ought to be — inventing the better name here would hide the mismatch instead of
+    // recording it, and renaming the production parameter is not this review's to take.
+    [InlineData("RateLimit:Player:SustainedPerSecond", "0", "permitsPerSecond")]
+    [InlineData("RateLimit:Ip:PermitsPerSecond", "0", "PermitsPerSecond")]
+    [InlineData("RateLimit:Ip:Burst", "-3", "Burst")]
+    [InlineData("RateLimit:Ip:RetryAfterSeconds", "0", "RetryAfterSeconds")]
+    [InlineData("Plausibility:SweepIntervalMinutes", "0", "SweepIntervalMinutes")]
+    [InlineData("Plausibility:SweepIntervalMinutes", "-30", "SweepIntervalMinutes")]
+    [InlineData("Plausibility:SweepIntervalMinutes", "1441", "SweepIntervalMinutes")]
+    [InlineData("Plausibility:MaxCurrencyPerDay", "-1", "MaxCurrencyPerDay")]
     public void A_setting_outside_its_range_is_refused_while_the_process_is_still_starting(
-        string key, string value)
+        string key, string value, string blamed)
     {
         Should.Throw<ArgumentOutOfRangeException>(
-            () => new AntiCheatComposition.AntiCheatArea(Configured((key, value))));
+                () => new AntiCheatComposition.AntiCheatArea(Configured((key, value))))
+            .Message.ShouldContain(
+                blamed,
+                Case.Insensitive,
+                "the refusal must name the setting it refused. Case-insensitive because the name "
+                + "reaches the message through nameof(parameter), which is camelCase, while the "
+                + "configuration key is Pascal. An operator reading a startup crash "
+                + "has the deployment's whole configuration in front of them and one line of log.");
     }
 
     [Fact]

@@ -343,6 +343,11 @@ public sealed class ClientServerParityTests
         header.ShouldContain("M7-06g", Case.Sensitive, "D45 moves these hashes and is still open.");
         header.ShouldContain("M4-16d", Case.Sensitive, "and D46 does the same.");
         header.ShouldContain("never between them", Case.Sensitive);
+
+        // 🔒 The expiry on the two ids above lives in CommittedTableOwnerExpiryTests, deliberately
+        // outside this namespace: it reads IMPLEMENTATION_TRACKER.md, and everything under
+        // `Parity` is swept onto the cross-architecture determinism legs, where a rule about a
+        // markdown file has nothing to prove and one more file to find.
     }
 
     [Fact]

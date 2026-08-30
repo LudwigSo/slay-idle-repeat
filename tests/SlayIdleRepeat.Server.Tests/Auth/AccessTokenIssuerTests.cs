@@ -142,6 +142,24 @@ public sealed class AccessTokenIssuerTests
             "the negative control for the expiry arm: a live token must not be refused for age.");
     }
 
+    /// <summary>
+    /// 🔒 The discriminating instant. The rule is <c>expiresAt &lt;= nowUtc</c>, so <c>exp</c> itself
+    /// is the only moment that separates it from <c>&lt;</c> — and the two cases above, at one second
+    /// either side, are both satisfied by either comparison.
+    /// </summary>
+    [Fact]
+    public void Validate_refuses_a_token_at_the_exact_instant_it_expires()
+    {
+        var issuer = Issuer();
+        var token = issuer.Mint(Player, Device, AuthFixtures.Now);
+
+        issuer.Validate(token, AuthFixtures.Now.AddMinutes(60)).Refusal.ShouldBe(
+            AccessTokenRefusal.EXPIRED,
+            "exp is the first instant the token is dead, not the last it is alive. A validator that " +
+            "used a strict comparison would hand out one more second of a token the family has " +
+            "already been told is over, and neither neighbouring case would notice.");
+    }
+
     [Fact]
     public void Validate_refuses_a_token_from_another_issuer_naming_the_issuer_rule()
     {

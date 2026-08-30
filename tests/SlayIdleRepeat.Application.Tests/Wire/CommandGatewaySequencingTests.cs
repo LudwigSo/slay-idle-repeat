@@ -85,6 +85,15 @@ public sealed class CommandGatewaySequencingTests
 
         var roll = Envelopes.Body("ROLL_DICE", 2, "c-roll");
         var first = await world.Gateway.SubmitRunCommandAsync(world.Player, run, roll, Worlds.Cancel);
+
+        // 🔴 The floor before the two differentials below. Both compare the replay against `first`,
+        // so a ROLL_DICE that started being REFUSED here would give two identical rejection bodies
+        // and two identical (unmoved) stream positions — and the whole idempotency case would stay
+        // green over a command that never executed.
+        Replies.Parse(first, expectedStatus: 200)
+            .TryGetProperty("rejected", out _)
+            .ShouldBeFalse("the first roll must be ACCEPTED, or there is no outcome to replay.");
+
         var rowsAfterFirst = await world.RowsAsync();
 
         var replay = await world.Gateway.SubmitRunCommandAsync(world.Player, run, roll, Worlds.Cancel);

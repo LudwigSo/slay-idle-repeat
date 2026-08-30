@@ -192,13 +192,25 @@ public sealed class RemoteConfigSourceTests
 
         try
         {
-            File.WriteAllText(path, "{\"pvpEnabled\": false, \"pvpEnabled\": true}");
+            // 🔴 The LAST value must differ from the default, or this case cannot fail. Written the
+            // other way round it read `false, true` — and `true` is both JsonDocument's last-wins
+            // answer AND the identity flags' value, so the assertion below held whether the document
+            // was refused or silently accepted.
+            File.WriteAllText(path, "{\"pvpEnabled\": true, \"pvpEnabled\": false}");
 
             var source = new RemoteConfigSource(path, warnings.Add);
 
-            warnings.ShouldContain(w => w.Contains("[remote-config]"));
+            warnings.ShouldContain(
+                w => w.Contains("[remote-config]") && w.Contains("Duplicate top-level member")
+                    && w.Contains("pvpEnabled"),
+                "the warning must name the rule that fired and the member it fired on, or a document " +
+                "refused for some other reason reads as this one." + Environment.NewLine +
+                string.Join(Environment.NewLine, warnings));
+
             source.Current.PvpEnabled.ShouldBeTrue(
-                "neither of a duplicate member's contradicting values may apply");
+                "neither of a duplicate member's contradicting values may apply, so the identity " +
+                "flags stand — and the last-wins value is now `false`, so this can only be true if " +
+                "the whole document was refused");
         }
         finally
         {

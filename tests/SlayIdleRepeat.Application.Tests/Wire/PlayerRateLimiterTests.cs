@@ -220,6 +220,13 @@ public sealed class PlayerRateLimiterTests
             limiter.ShouldReject(new PlayerId("PLAYER_invented_" + i));
         }
 
+        // Both ends of the bound. An upper bound alone is satisfied by a limiter that tracks
+        // NOTHING — which would throttle nobody while passing the case named for its capacity.
+        limiter.TrackedPlayers.ShouldBeGreaterThan(
+            0,
+            "the limiter tracked no identity at all after five hundred of them, so it is holding no "
+            + "buckets and throttling nobody.");
+
         limiter.TrackedPlayers.ShouldBeLessThanOrEqualTo(
             32,
             "an unauthenticated flood cannot be allowed to allocate memory per invented identity — "

@@ -177,6 +177,13 @@ public sealed class AnalyticsTranslatorTests
 
         var names = AnalyticsTranslator.Translate(batch).Select(e => e.Name).ToArray();
 
+        // The floor on the sweep: a translator that emitted NOTHING AT ALL satisfies both
+        // assertions below, and the only floor above is on the domain events going in.
+        names.ShouldNotBeEmpty(
+            "a victory batch translates to run_end and currency_changed at least. A translator that " +
+            "emitted nothing would pass the closed-vocabulary sweep and the gear_granted exclusion " +
+            "alike, while ignoring every event rather than the one this case is about.");
+
         names.ShouldAllBe(
             name => AnalyticsVocabulary.Emitted.Contains(name),
             "every emitted name comes from the closed vocabulary — this batch produced " +

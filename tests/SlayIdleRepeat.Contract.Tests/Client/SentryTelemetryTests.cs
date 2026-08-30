@@ -30,7 +30,10 @@ public sealed class SentryTelemetryTests
     {
         var telemetry = new SentryTelemetry();
 
-        Should.Throw<ArgumentException>(() => telemetry.BeginSpan(name!));
+        // The identity, not the symptom: ArgumentNullException derives from ArgumentException,
+        // so the null row passed on the wrong guard. ThrowIfBlank is the one under test.
+        Should.Throw<ArgumentException>(() => telemetry.BeginSpan(name!))
+            .ParamName.ShouldBe("name", "the refusal must name the parameter it refused.");
     }
 
     [Theory]
@@ -41,7 +44,8 @@ public sealed class SentryTelemetryTests
     {
         var telemetry = new SentryTelemetry();
 
-        Should.Throw<ArgumentException>(() => telemetry.RecordMetric(name!, 1));
+        Should.Throw<ArgumentException>(() => telemetry.RecordMetric(name!, 1))
+            .ParamName.ShouldBe("name", "the refusal must name the parameter it refused.");
     }
 
     [Fact]

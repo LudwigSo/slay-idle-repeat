@@ -194,6 +194,15 @@ public abstract class IGameApiPortContractTests
         var first = await api.SendCommandAsync(run: null, envelope, Cancel);
         var second = await api.SendCommandAsync(run: null, envelope, Cancel);
 
+        // 🔴 The floor before the differential. Every assertion below compares the two answers to
+        // each other, so an adapter that regressed BOTH to a refusal with no sequence and no hash
+        // would agree with itself perfectly and report idempotency over a command nothing ran.
+        first.Accepted.ShouldBeTrue("the first submission must be accepted, or there is no outcome " +
+            "for the second to replay.");
+        first.Sequence.ShouldBe(envelope.Sequence, "…answered against the sequence it was sent at.");
+        first.StateHash.ShouldNotBeNullOrWhiteSpace(
+            "…and carrying a state hash, which is the value the comparison below is about.");
+
         second.Accepted.ShouldBe(first.Accepted, "the same command id has one outcome, not two.");
         second.Sequence.ShouldBe(first.Sequence, "…answered against the same sequence.");
         second.StateHash.ShouldBe(
