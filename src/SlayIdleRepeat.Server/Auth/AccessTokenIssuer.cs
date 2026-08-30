@@ -249,10 +249,20 @@ public sealed class AccessTokenIssuer
             ? value.GetString()
             : null;
 
+    /// <summary>One numeric-date claim, or <c>null</c> when it is absent or unreadable.</summary>
+    /// <remarks>
+    /// The range is checked, not assumed: <c>TryGetInt64</c> accepts values <c>FromUnixTimeSeconds</c>
+    /// refuses, and an <see cref="ArgumentOutOfRangeException"/> out of a method whose entire
+    /// contract is to answer with a refusal would be the validator failing instead of refusing. Not
+    /// attacker-reachable today — the signature is checked before any claim is read — but this is
+    /// the seam a second issuer would open.
+    /// </remarks>
     private static DateTimeOffset? Seconds(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) &&
         value.ValueKind == JsonValueKind.Number &&
-        value.TryGetInt64(out var seconds)
+        value.TryGetInt64(out var seconds) &&
+        seconds >= DateTimeOffset.MinValue.ToUnixTimeSeconds() &&
+        seconds <= DateTimeOffset.MaxValue.ToUnixTimeSeconds()
             ? DateTimeOffset.FromUnixTimeSeconds(seconds)
             : null;
 }

@@ -34,6 +34,9 @@ public sealed class ConnectionPumpTests : IDisposable
     /// <summary>Frames driven after the store is moved, so a re-read would have had every chance.</summary>
     private const int FramesAfterTheStoreMoves = 5;
 
+    /// <summary>Frames driven against a server that never stops refusing. Enough that a per-frame retry is unmistakable.</summary>
+    private const int FramesUnderARefusal = 30;
+
     private readonly string _cacheRoot = RepoPaths.ScratchCacheRoot();
 
     /// <inheritdoc/>
@@ -151,6 +154,59 @@ public sealed class ConnectionPumpTests : IDisposable
             "the pump attempted again before the ladder said it was due. The delay is the whole " +
             "backoff: ignoring it turns a server that is refusing connections into a client that " +
             "hammers it once per frame.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>A server that goes on refusing the sign-in is asked again on the ladder, not on the frame.</b>
+    /// </summary>
+    /// <remarks>
+    /// The refusal budget is unbounded here, which is what the other refusal case above is not: with
+    /// a budget of one, the second frame finds the server answering and nothing hammers anything. A
+    /// refusal escapes the opener by design and leaves the connection reporting Connected — so
+    /// nothing else in this suite can see that the pump then reopens on every single frame, minting
+    /// a fresh anonymous account each time, with no pill drawn and no fault a player could act on.
+    /// </remarks>
+    [Fact]
+    public void Advance_holds_off_a_sign_in_the_server_keeps_refusing()
+    {
+        var api = RecordingGameApi.Reachable().RefusingFor(int.MaxValue, statusCode: 403);
+        var (pump, connection, clock) = Pump(api);
+
+        for (var frame = 0; frame < FramesUnderARefusal; frame++)
+        {
+            pump.Advance(CancellationToken.None);
+            Thread.Sleep(FramePause);
+        }
+
+        api.RegisterAttempts.ShouldBe(
+            1,
+            "the pump asked a refusing server again on the very next frame, and on every frame after " +
+            "it. At sixty frames a second that is sixty registrations a second for as long as the " +
+            "application is open — each one an attempt to mint another anonymous account — over an " +
+            "answer that is identical every time.");
+        connection.State.ShouldBe(
+            ConnectionState.Connected,
+            "and the hold must not be bought by turning a refusal into a connection loss. The " +
+            "network is demonstrably there: the server answered. Drawing a reconnect pill over it " +
+            "would tell the player the one thing that is not wrong.");
+        connection.ConsecutiveFailures.ShouldBe(
+            0,
+            "for the same reason, and this is the value the opener's own suite pins: a refusal that " +
+            "climbed the ladder would back off from a server that is up and answering.");
+
+        clock.Advance(ReconnectManager.SteadyRetryInterval);
+
+        for (var frame = 0; frame < FramesUnderARefusal; frame++)
+        {
+            pump.Advance(CancellationToken.None);
+            Thread.Sleep(FramePause);
+        }
+
+        api.RegisterAttempts.ShouldBe(
+            2,
+            "and the control: a hold is not a stop. A refusal can stop being one — an account " +
+            "service that was down comes back — so the sign-in is retried once the interval has " +
+            "passed, and exactly once, not once per frame from then on.");
     }
 
     // ------------------------------------ the mirror's two duties, which nothing else can observe

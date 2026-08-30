@@ -18,13 +18,19 @@ public sealed record MailClaim(
     DateTimeOffset AtUtc)
 {
     /// <summary>The ids to stamp, in claim order. Never null and never empty.</summary>
+    /// <remarks>
+    /// Copied while validating, as <c>AnalyticsEvent</c> and <c>PlayerMessage</c> both are: the list
+    /// is read again inside the unit of work's transaction, so a caller that kept its own and went
+    /// on writing to it would stamp a different set than the count above checked — paying a reward
+    /// and leaving it claimable, which is the double-grant the claim rides the commit to prevent.
+    /// </remarks>
     public IReadOnlyList<MessageId> Messages { get; } =
         Messages is null || Messages.Count == 0
             ? throw new ArgumentException(
                 "A claim with no messages is a commit carrying the shape of a payment nothing was " +
                 "paid for. Pass null for the claim instead.",
                 nameof(Messages))
-            : Messages;
+            : Messages.ToArray();
 }
 
 /// <summary>Everything one accepted — or one refused — command leaves behind, as a single value.</summary>

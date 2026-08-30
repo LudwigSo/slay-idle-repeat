@@ -391,6 +391,43 @@ public sealed class ReconnectManagerTests
             "gets a client rate-limited harder, which the ladder cannot see and the header states.");
     }
 
+    /// <summary>
+    /// 🔒 …but only upwards. A Retry-After SHORTER than the ladder buys the server nothing.
+    /// </summary>
+    /// <remarks>
+    /// Retry-After is a header, so its value is whatever the server or a proxy in front of it wrote,
+    /// and delta-seconds of zero is a legal spelling of it. Honoured literally on a ladder driven
+    /// from a per-frame callback, "retry immediately" is one request per frame at the very server
+    /// that just said it was overloaded — the ladder inverted by the header that exists to slow it
+    /// down. A server asking for less than this client would already have waited is asking for
+    /// nothing.
+    /// </remarks>
+    [Fact]
+    public async Task A_Retry_After_shorter_than_the_ladder_does_not_shorten_the_wait()
+    {
+        var clock = new ManualClock(FixtureInstant);
+        var api = RecordingGameApi.Reachable().UnreachableFor(int.MaxValue, TimeSpan.Zero);
+        var manager = Build(api, clock, out _);
+        manager.Follow(NetWorlds.Run);
+
+        await manager.PollAsync(CancellationToken.None);
+        await manager.PollAsync(CancellationToken.None);
+
+        api.FetchAttempts.ShouldBe(
+            1,
+            "the clock has not moved, so no wait of any length has elapsed — and the second poll " +
+            "went out anyway. A zero the client took at face value is the whole backoff cancelled " +
+            "by one header field.");
+
+        clock.Advance(ReconnectManager.DelayAfterFailure(1));
+        await manager.PollAsync(CancellationToken.None);
+
+        api.FetchAttempts.ShouldBe(
+            2,
+            "and the control: the floor is the ladder's own rung, not a refusal to retry. A client " +
+            "that answered a zero by never trying again would be worse than one that hammered.");
+    }
+
     private static ReconnectManager Build(RecordingGameApi api, IClockPort clock, out CommandQueue queue) =>
         Build(api, clock, out queue, out _);
 

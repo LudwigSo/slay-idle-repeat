@@ -130,8 +130,12 @@ public static class AuthComposition
         }
     }
 
+    // 🔒 Every reply on this surface carries a device secret, an access token or a refresh token.
+    // POSTs are not cached by default, but "by default" is a property of every proxy on the path
+    // agreeing — and the query surface pins the same header on far less than this. The plumbing is
+    // HttpReplies' (one place a handler's answer becomes a response); the header is this area's.
     private static Task WriteAsync(HttpContext http, AuthReply reply, CancellationToken ct) =>
-        HttpReplies.WriteAsync(http, reply.StatusCode, reply.Body, ct);
+        HttpReplies.WriteAsync(http, reply.StatusCode, reply.Body, ct, cacheControl: "no-store");
 }
 
 /// <summary>Everything the auth routes run on, built once per process.</summary>

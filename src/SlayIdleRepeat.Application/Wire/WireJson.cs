@@ -266,11 +266,14 @@ public static class WireJson
         }
 
         // Matched against the NAMES, never Enum.TryParse: that also accepts the numeric spelling,
-        // so a server sending "8" would silently become RATE_LIMITED here.
-        return Array.IndexOf(Enum.GetNames<RejectionReason>(), name) >= 0
-            ? Enum.Parse<RejectionReason>(name)
-            : null;
+        // so a server sending "8" would silently become RATE_LIMITED here. Built once rather than
+        // per call — Enum.GetNames allocates a fresh array every time, and a rejected command is
+        // the ordinary answer under throttling rather than a rare one.
+        return ReasonsByName.TryGetValue(name, out var reason) ? reason : null;
     }
+
+    private static readonly Dictionary<string, RejectionReason> ReasonsByName =
+        Enum.GetValues<RejectionReason>().ToDictionary(r => r.ToString(), StringComparer.Ordinal);
 
     private static JsonDocument Parse(string body, string what)
     {
@@ -319,9 +322,14 @@ public static class WireJson
         OptionalText(parent, name)
         ?? throw new WireParseException($"'{name}' is missing, or is not a non-empty string.");
 
+    /// <remarks>
+    /// 🔒 Blank counts as absent, not merely empty. Four ids are constructed straight off this
+    /// outside <see cref="Deserialise{T}"/>'s catch, and <c>IdText.Require</c> refuses whitespace
+    /// with an <c>ArgumentException</c> — a type this file's whole contract is that it never throws.
+    /// </remarks>
     private static string? OptionalText(JsonElement parent, string name) =>
         parent.TryGetProperty(name, out var member) && member.ValueKind == JsonValueKind.String
-            ? member.GetString() is { Length: > 0 } text ? text : null
+            ? member.GetString() is { } text && !string.IsNullOrWhiteSpace(text) ? text : null
             : null;
 
     private static long RequiredInteger(JsonElement parent, string name) =>

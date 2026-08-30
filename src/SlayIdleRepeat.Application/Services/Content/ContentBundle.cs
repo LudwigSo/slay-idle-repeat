@@ -70,7 +70,12 @@ public static class ContentBundle
         }
 
         var count = reader.ReadCount("the document count");
-        var documents = new List<ContentDocument>(count);
+
+        // Capacity capped rather than trusted, exactly as the array and object readers below cap
+        // theirs: the count is a declared number in bytes that have proved nothing yet, and a
+        // crafted one turns a nine-byte bundle into a multi-hundred-megabyte allocation before a
+        // single document has been read.
+        var documents = new List<ContentDocument>(Math.Min(count, 64));
 
         for (var index = 0; index < count; index++)
         {
@@ -269,7 +274,11 @@ public static class ContentBundle
 
         private void Demand(int bytes, string what)
         {
-            if (_offset + bytes > canonical.Length)
+            // Compared against what is LEFT rather than by summing: a crafted length near int.MaxValue
+            // overflows `_offset + bytes` to a negative, the check passes, and the read that follows
+            // throws ArgumentOutOfRangeException — a type outside this reader's whole contract, and
+            // outside the one catch the content sync has for a bad bundle.
+            if (bytes > canonical.Length - _offset)
             {
                 throw new ContentBundleFormatException(string.Create(
                     CultureInfo.InvariantCulture,

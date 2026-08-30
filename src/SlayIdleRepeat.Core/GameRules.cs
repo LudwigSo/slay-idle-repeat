@@ -664,14 +664,15 @@ public static class GameRules
         }
 
         // ---------------------------------------------- 4 · the lapsed run's settlement
-        if (RunExpiry.HasLapsed(state.Run, context.NowUtc, context.Content))
+        if (state.Run is { } lapsed && RunExpiry.HasLapsed(lapsed, context.NowUtc, context.Content))
         {
-            var lapsed = state.Run!;
-
             RunSettlement.Settle(player, lapsed, RunSettlement.OutcomeOf(lapsed), context.Content, events);
         }
 
-        return events.Count == 0 ? NoEvents : events;
+        // Wrapped, not handed out live: the other arm is already a ReadOnlyCollection, and one
+        // return typed IReadOnlyList that a caller can downcast back to the List this method is
+        // still holding is not the same promise as the other.
+        return events.Count == 0 ? NoEvents : new ReadOnlyCollection<DomainEvent>(events);
     }
 
     /// <summary>A <c>CommandKind.Meta</c> command may read the run it was handed but never write any part of it.</summary>

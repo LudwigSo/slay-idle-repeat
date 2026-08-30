@@ -100,7 +100,11 @@ public sealed record AnalyticsEvent(string Name, IReadOnlyDictionary<string, str
                     nameof(Properties));
             }
 
-            owned[key] = value;
+            owned[key] = value ?? throw new ArgumentException(
+                $"Property '{key}' carries no value. The port is fire-and-forget and buffered, so a "
+                + "null would surface at the backend on a flush thread with nothing left to trace it "
+                + "back to the call that queued it.",
+                nameof(Properties));
         }
 
         return owned;

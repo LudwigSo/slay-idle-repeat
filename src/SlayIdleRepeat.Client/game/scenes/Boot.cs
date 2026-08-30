@@ -1,3 +1,4 @@
+using System.Globalization;
 using Godot;
 using SlayIdleRepeat.Client.Composition;
 using SlayIdleRepeat.Client.Game.Presenters;
@@ -308,20 +309,32 @@ public partial class Boot : Node3D
     /// reader believe the game signed in as the profile it is playing.
     /// </para>
     /// </remarks>
+    /// <summary>The boot span in whole milliseconds, clamped rather than truncated blind.</summary>
+    /// <remarks>
+    /// A clock difference, so a non-monotonic step can make it negative — and an unchecked
+    /// double-to-long conversion of a value outside the range is undefined rather than saturating.
+    /// </remarks>
+    private static long ElapsedMilliseconds(BootPresenter presenter) =>
+        (long)Math.Clamp(presenter.Elapsed.TotalMilliseconds, 0d, long.MaxValue);
+
     private static void Report(BootPresenter presenter)
     {
         var atlas = presenter.Atlas;
 
         GD.Print(
-            $"{ColdStartMarker} engine_ms={Time.GetTicksMsec()} " +
-            $"boot_ms={(long)presenter.Elapsed.TotalMilliseconds} " +
+            $"{ColdStartMarker} engine_ms={Time.GetTicksMsec().ToString(CultureInfo.InvariantCulture)} " +
+
+            // Invariant, like every number Board writes into its own marker: the marker exists so
+            // tooling can grep this line, which makes it a data path rather than a message.
+            $"boot_ms={ElapsedMilliseconds(presenter).ToString(CultureInfo.InvariantCulture)} " +
             $"stage={presenter.Stage} " +
             $"session={presenter.SessionOutcome?.ToString() ?? StageWasNotComposed} " +
             $"player={presenter.PlayerId?.Value ?? StageWasNotComposed} " +
             $"account={presenter.AccountPlayerId?.Value ?? StageWasNotComposed} " +
             $"content_sync={presenter.ContentSync?.ToString() ?? StageWasNotComposed} " +
             $"atlas={(atlas is null ? "none" : atlas.IsAvailable ? "loaded" : "absent")} " +
-            $"atlas_count={atlas?.AtlasCount ?? 0} placements={atlas?.PlacementCount ?? 0} " +
+            $"atlas_count={(atlas?.AtlasCount ?? 0).ToString(CultureInfo.InvariantCulture)} " +
+            $"placements={(atlas?.PlacementCount ?? 0).ToString(CultureInfo.InvariantCulture)} " +
             $"atlas_detail=\"{atlas?.Detail ?? "no atlas result was recorded — the stage either did " +
                 "not run or its read threw"}\"");
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Application.Wire;
@@ -65,10 +66,10 @@ public sealed record WireSession(
     public override string ToString() =>
         $"{nameof(WireSession)} {{ {nameof(Player)} = {Player.Value}, " +
         $"{nameof(AccessToken)} = {WireRedaction.Withheld}, " +
-        $"{nameof(AccessExpiresInSeconds)} = {AccessExpiresInSeconds}, " +
-        $"{nameof(RenewAfterSeconds)} = {RenewAfterSeconds}, " +
+        $"{nameof(AccessExpiresInSeconds)} = {AccessExpiresInSeconds.ToString(CultureInfo.InvariantCulture)}, " +
+        $"{nameof(RenewAfterSeconds)} = {RenewAfterSeconds.ToString(CultureInfo.InvariantCulture)}, " +
         $"{nameof(RefreshToken)} = {WireRedaction.Withheld}, " +
-        $"{nameof(RefreshExpiresInSeconds)} = {RefreshExpiresInSeconds} }}";
+        $"{nameof(RefreshExpiresInSeconds)} = {RefreshExpiresInSeconds.ToString(CultureInfo.InvariantCulture)} }}";
 }
 
 /// <summary>One command's answer as a client reads it — the client-side half of <see cref="CommandResponse"/>.</summary>

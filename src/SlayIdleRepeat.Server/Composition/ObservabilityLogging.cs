@@ -1,3 +1,4 @@
+using System.Globalization;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
@@ -38,9 +39,20 @@ public static class ObservabilityLogging
             // The formatter writes an event as several writes, and sinks are called concurrently:
             // unsynchronised, two events interleave into lines that no JSON reader can parse, which
             // is the one property everything downstream of stdout depends on.
+            //
+            // 🔒 Rendered into a buffer first, so the line reaches the writer in ONE call. The lock
+            // only ever bound this sink's own callers, and this sink is not the only thing writing
+            // to the container's log stream: the areas that have no logger yet write their markers
+            // straight to Console.Error, which in a container is interleaved with stdout. A write
+            // arriving between two halves of a formatted event splits it just as surely as a second
+            // event would, and no lock here can reach that writer.
+            var line = new StringWriter(CultureInfo.InvariantCulture);
+
+            _formatter.Format(logEvent, line);
+
             lock (_writeGate)
             {
-                _formatter.Format(logEvent, output);
+                output.Write(line.ToString());
             }
         }
     }

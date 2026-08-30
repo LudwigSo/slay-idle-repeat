@@ -62,7 +62,7 @@ public sealed class RedisRunStateCache : IRunStateStore
             // Best-effort repopulate, or every read after a flush pays the fallback forever. The
             // true lifetime is the authority's; this entry rides a short one until the next save
             // restamps it.
-            await TrySetAsync(key, SnapshotCodec.EncodeRun(authoritative), RepopulateTtl, ct)
+            await TrySetAsync(() => key, () => SnapshotCodec.EncodeRun(authoritative), RepopulateTtl, ct)
                 .ConfigureAwait(false);
         }
 
@@ -78,7 +78,11 @@ public sealed class RedisRunStateCache : IRunStateStore
         // the next flush deletes.
         await _inner.SaveAsync(state, ttl, ct).ConfigureAwait(false);
 
-        await TrySetAsync(RedisKeys.ForRunState(state.Id), SnapshotCodec.EncodeRun(state), ttl, ct)
+        // Thunks, so the key build and the encode are INSIDE the guard rather than evaluated as
+        // arguments before it. Both can throw, and both would throw after the authority above has
+        // already saved — a post-save fault that this decorator's whole contract says it absorbs.
+        await TrySetAsync(
+                () => RedisKeys.ForRunState(state.Id), () => SnapshotCodec.EncodeRun(state), ttl, ct)
             .ConfigureAwait(false);
     }
 
@@ -102,11 +106,19 @@ public sealed class RedisRunStateCache : IRunStateStore
     /// <summary>What a repopulated entry rides with when no save has stated a lifetime: the configured window's shape, conservatively short.</summary>
     private static readonly TimeSpan RepopulateTtl = TimeSpan.FromHours(1);
 
-    private async Task TrySetAsync(string key, byte[] value, TimeSpan ttl, CancellationToken ct)
+    private async Task TrySetAsync(
+        Func<string> key, Func<byte[]> value, TimeSpan ttl, CancellationToken ct)
     {
         try
         {
-            await _cache.SetAsync(key, value, ttl, ct).ConfigureAwait(false);
+            await _cache.SetAsync(key(), value(), ttl, ct).ConfigureAwait(false);
+        }
+        catch (Exception failure) when (failure is not OperationCanceledException &&
+                                        !IsAbsorbable(failure))
+        {
+            // The key build's or the encode's own failure. Absorbed for the same reason the arm
+            // below absorbs the cache's: everything here runs after the authority answered.
+            _failures.Increment();
         }
         catch (Exception failure) when (IsAbsorbable(failure))
         {

@@ -65,6 +65,13 @@ public sealed class ReconnectManager
     private readonly CommandQueue _queue;
     private readonly IClockPort _clock;
 
+    // 🔒 Volatile, and only these two. The ladder's own writes happen on a thread-pool thread — the
+    // attempt awaits the port with ConfigureAwait(false) — and the connection overlay reads these
+    // two on the engine's frame thread every frame WITHOUT the in-flight-slot check that gives the
+    // pump its happens-before edge. Every other member here is read only through that check.
+    private volatile ConnectionState _state = ConnectionState.Connected;
+    private volatile bool _lastResyncChangedState;
+
     private int _consecutiveFailures;
     private DateTimeOffset _firstFailureAtUtc;
     private DateTimeOffset _nextAttemptAtUtc;
@@ -90,7 +97,11 @@ public sealed class ReconnectManager
     }
 
     /// <summary>The connection fact, as of the last <see cref="PollAsync"/>.</summary>
-    public ConnectionState State { get; private set; } = ConnectionState.Connected;
+    public ConnectionState State
+    {
+        get => _state;
+        private set => _state = value;
+    }
 
     /// <summary>The run a resync reads, or null when no run is open.</summary>
     public RunId? Run { get; private set; }
@@ -101,7 +112,11 @@ public sealed class ReconnectManager
     /// reconnect that finds the server exactly where the client left it changed nothing a player
     /// could see, and announcing it would be announcing the network rather than the game.
     /// </remarks>
-    public bool LastResyncChangedState { get; private set; }
+    public bool LastResyncChangedState
+    {
+        get => _lastResyncChangedState;
+        private set => _lastResyncChangedState = value;
+    }
 
     /// <summary>How many attempts in a row have failed. Zero while connected.</summary>
     public int ConsecutiveFailures => _consecutiveFailures;
@@ -138,6 +153,29 @@ public sealed class ReconnectManager
         ArgumentNullException.ThrowIfNull(failure);
 
         RecordConnectionLoss(failure);
+    }
+
+    /// <summary>…and one the server understood and said no to.</summary>
+    /// <remarks>
+    /// 🔒 <b>It holds the next attempt off without touching the connection fact.</b> A refusal is not
+    /// a connection loss — the network is demonstrably there — so the failure count and the state
+    /// stay exactly where they were and nothing is drawn about the network. But whatever is driving
+    /// this asks again on the very next frame, and "retrying it unchanged cannot help" is only true
+    /// of the answer, not of the traffic: without a hold, a server refusing the sign-in is asked
+    /// once per frame for as long as the application is open, with the connection reporting
+    /// <see cref="ConnectionState.Connected"/> the whole time.
+    /// </remarks>
+    /// <param name="refusal">The refusal, whose status is recorded.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="refusal"/> is null.</exception>
+    public void RecordRefused(GameApiRefusedException refusal)
+    {
+        ArgumentNullException.ThrowIfNull(refusal);
+
+        LastRefusalStatusCode = refusal.StatusCode;
+
+        // The ladder's ceiling rather than a second interval of its own: a refusal is the flattest
+        // case there is, so the wait it earns is the one the ladder already settles at.
+        _nextAttemptAtUtc = _clock.UtcNow + SteadyRetryInterval;
     }
 
     /// <summary>The delay before attempt <paramref name="consecutiveFailures"/> + 1, off the authored ladder.</summary>
@@ -323,7 +361,16 @@ public sealed class ReconnectManager
 
         // The server's own Retry-After wins over the ladder when it named one: the ladder is this
         // client guessing, and a 429 is the server saying.
-        _nextAttemptAtUtc = now + (failure.RetryAfter ?? DelayAfterFailure(_consecutiveFailures));
+        //
+        // 🔒 …but only upwards. Retry-After is a header, so it is whatever the server or a proxy in
+        // front of it emitted, and delta-seconds of zero is a legal spelling. Taken literally on a
+        // ladder driven from a per-frame callback, "retry immediately" is sixty requests a second
+        // at the one server that just said it was overloaded. A server asking for less than the
+        // client would already have waited is asking for nothing.
+        var ladder = DelayAfterFailure(_consecutiveFailures);
+        var asked = failure.RetryAfter is { } named && named > ladder ? named : ladder;
+
+        _nextAttemptAtUtc = now + asked;
 
         // A connection that dropped has to be re-read before it can be trusted again, whatever it
         // was showing before it dropped.

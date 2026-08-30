@@ -86,7 +86,10 @@ public sealed class HttpContentDistribution : IContentDistributionClient, IDispo
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(version);
 
-        var route = BundleRoutePrefix + version;
+        // Escaped, as HttpGameApi escapes every id it puts in a path. The stamp reaches this method
+        // "not yet known to be well-formed" by the seam's own contract, and an unescaped one would
+        // reach Uri resolution as path syntax rather than as a name.
+        var route = BundleRoutePrefix + Uri.EscapeDataString(version);
 
         using var response = await GetAsync(route, ct).ConfigureAwait(false);
 
@@ -129,7 +132,17 @@ public sealed class HttpContentDistribution : IContentDistributionClient, IDispo
     {
         Require(response, route);
 
-        return await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        }
+        catch (HttpRequestException fault)
+        {
+            // The same mid-body guard its sibling below already has. A body can stop arriving after
+            // the status line on either route, and this one answered with the transport's own
+            // exception where the other names the failure.
+            throw new ContentDistributionException($"the pointer at '{route}' stopped mid-body.", fault);
+        }
     }
 
     private static void Require(HttpResponseMessage response, string route)

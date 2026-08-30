@@ -58,6 +58,8 @@ public sealed class VolatileModerationStore : IModerationStore
     public Task<IReadOnlyList<PlausibilityObservation>> ObserveAccountsAsync(
         DateTimeOffset at, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+
         IReadOnlyList<PlausibilityObservation> observed = _accounts
             .Select(account => account with { ObservedAtUtc = at })
             .ToArray();
@@ -70,6 +72,7 @@ public sealed class VolatileModerationStore : IModerationStore
         IReadOnlyCollection<PlayerId> players, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(players);
+        ct.ThrowIfCancellationRequested();
 
         IReadOnlyDictionary<PlayerId, PlausibilityObservation> found = players
             .Distinct()
@@ -85,6 +88,7 @@ public sealed class VolatileModerationStore : IModerationStore
         IReadOnlyCollection<PlausibilityObservation> observations, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(observations);
+        ct.ThrowIfCancellationRequested();
 
         foreach (var observation in observations)
         {
@@ -98,6 +102,7 @@ public sealed class VolatileModerationStore : IModerationStore
     public Task RaiseReviewAsync(ReviewQueueEntry entry, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        ct.ThrowIfCancellationRequested();
 
         _reviews[entry.EntryId] = entry;
 
@@ -108,6 +113,7 @@ public sealed class VolatileModerationStore : IModerationStore
     public Task RecordVerdictAsync(ReviewQueueEntry decided, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(decided);
+        ct.ThrowIfCancellationRequested();
 
         _reviews[decided.EntryId] = decided;
 
@@ -117,6 +123,8 @@ public sealed class VolatileModerationStore : IModerationStore
     /// <inheritdoc/>
     public Task<IReadOnlyList<ReviewQueueEntry>> ReadReviewsAsync(ReviewState state, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+
         IReadOnlyList<ReviewQueueEntry> matching = _reviews.Values
             .Where(entry => entry.State == state)
             .OrderBy(entry => entry.RaisedAtUtc)
@@ -128,6 +136,8 @@ public sealed class VolatileModerationStore : IModerationStore
     /// <inheritdoc/>
     public Task<IReadOnlyList<PlayerSanction>> ReadSanctionsAsync(CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+
         IReadOnlyList<PlayerSanction> all = _sanctions.ToArray();
 
         return Task.FromResult(all);

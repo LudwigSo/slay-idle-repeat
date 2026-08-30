@@ -81,8 +81,24 @@ public sealed class ContentBundleStore
         // Written aside and moved: a reader is served a file name it can only find complete, never
         // a half-written stream whose hash would not check out.
         var staging = destination + ".partial";
-        File.WriteAllBytes(staging, CurrentBundle());
-        File.Move(staging, destination, overwrite: true);
+
+        try
+        {
+            File.WriteAllBytes(staging, CurrentBundle());
+            File.Move(staging, destination, overwrite: true);
+        }
+        catch (Exception fault) when (fault is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            // 🔒 The same degradation Shelf() applies, for the same stated reason. Shelf() only
+            // covers CreateDirectory: a root that exists and is creatable but is full, read-only at
+            // the file level, or being written by a second instance faults HERE — and this runs
+            // inside the backbone's construction, so an unguarded throw makes every request on the
+            // process answer 500 until somebody fixes the disk. That is precisely what this type
+            // says a misconfigured volume must not be able to do.
+            Announce(
+                "the current bundle could not be published to '" + BundleRoot + "' (" + fault.Message +
+                "). The current version is still servable from memory; nothing is retained.");
+        }
     }
 
     /// <summary>The bytes of one retained version, or <c>null</c> when the shelf does not hold it.</summary>
@@ -111,7 +127,18 @@ public sealed class ContentBundleStore
         // The cast is load-bearing. Without it the conditional's natural type is byte[], and a null
         // byte[] converts to an EMPTY ReadOnlyMemory rather than to no value at all — so "the shelf
         // does not hold this" would arrive at the endpoint as a zero-byte bundle served with a 200.
-        return File.Exists(file) ? File.ReadAllBytes(file) : (ReadOnlyMemory<byte>?)null;
+        try
+        {
+            return File.Exists(file) ? File.ReadAllBytes(file) : (ReadOnlyMemory<byte>?)null;
+        }
+        catch (Exception fault) when (fault is IOException or UnauthorizedAccessException)
+        {
+            // Sweep deletes on one thread while requests read on others, so the file can go between
+            // the Exists and the read. Absence is this method's documented answer, and the two
+            // causes of it are meant to be indistinguishable 404s — a race that answered 500 would
+            // make them distinguishable, and by timing rather than by anything the caller did.
+            return null;
+        }
     }
 
     /// <summary>Every version on the shelf, stamped with the file's last write time.</summary>
@@ -167,7 +194,19 @@ public sealed class ContentBundleStore
         foreach (var version in ContentRetention.Sweep(
                      nowUtc, Current.Version, inventory, ContentRetention.WindowAlignedToRunTtl))
         {
-            File.Delete(Path.Combine(root, version.Value + BundleSuffix));
+            try
+            {
+                File.Delete(Path.Combine(root, version.Value + BundleSuffix));
+            }
+            catch (Exception fault) when (fault is IOException or UnauthorizedAccessException)
+            {
+                // Retention is bookkeeping. A file that will not delete — held open by a concurrent
+                // read, or on a volume that has gone read-only — must leave the rest of the sweep
+                // running and the server serving, not abort the pass on its first refusal.
+                Announce(
+                    "version " + version.Short + " could not be swept from '" + BundleRoot + "' (" +
+                    fault.Message + "). It stays on the shelf and remains servable.");
+            }
         }
     }
 

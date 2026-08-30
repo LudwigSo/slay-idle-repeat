@@ -136,7 +136,7 @@ public sealed class MailTemplateCatalogue
             var template = new MailTemplate(
                 Text(entry, "body"),
                 Text(entry, "title"),
-                Enum.Parse<MessageCategory>(Text(entry, "category")),
+                Named<MessageCategory>(Text(entry, "category"), "category"),
                 ReadParams(entry));
 
             if (!templates.TryAdd(template.Body, template))
@@ -264,7 +264,23 @@ public sealed class MailTemplateCatalogue
 
         return list.Items
             .Select(p => new MailTemplateParam(
-                Text(p, "name"), Enum.Parse<MailParamType>(Text(p, "type"))))
+                Text(p, "name"), Named<MailParamType>(Text(p, "type"), "type")))
             .ToArray();
     }
+
+    /// <summary>One authored enum name, refused the way every other malformed member here is.</summary>
+    /// <remarks>
+    /// 🔒 Not <c>Enum.Parse</c>. It throws a bare <see cref="ArgumentException"/> where this reader's
+    /// whole contract is a located <see cref="InvalidOperationException"/> naming the document — and
+    /// it also accepts the NUMERIC spelling, so a value the schema never constrained would parse
+    /// into an enum member that does not exist. This parse is the last line of defence against the
+    /// C# enum and the schema drifting apart, which is the one failure it must not be silent about.
+    /// </remarks>
+    private static T Named<T>(string text, string member)
+        where T : struct, Enum =>
+        Enum.TryParse<T>(text, ignoreCase: false, out var value) && Enum.IsDefined(value)
+            ? value
+            : throw new InvalidOperationException(
+                DocumentPath + " authors '" + text + "' as a " + member + ", which is not one of " +
+                string.Join(", ", Enum.GetNames<T>()) + ".");
 }

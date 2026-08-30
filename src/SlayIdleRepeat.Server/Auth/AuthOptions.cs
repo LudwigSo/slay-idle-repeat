@@ -140,6 +140,16 @@ public sealed class AuthOptions
             throw Misconfigured(name, "a value that is not a number.");
         }
 
+        // 🔒 Refused here rather than by each range check below, because NaN passes every one of
+        // them: every comparison against NaN is false, so `fraction is <= 0 or >= 1` lets it
+        // through and `(long)Math.Floor(NaN)` is an unspecified conversion — long.MinValue on x64,
+        // zero on ARM64 — either of which tells the client to renew on every single request. The
+        // strictest-looking setting would become no renewal policy at all.
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            throw Misconfigured(name, "a value that is not a finite number.");
+        }
+
         return value;
     }
 

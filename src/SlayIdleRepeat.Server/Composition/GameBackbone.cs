@@ -159,7 +159,12 @@ public sealed class GameBackbone
 
             Bundles.Sweep(Clock.UtcNow, referenced);
         }
-        catch (Exception fault) when (fault is IOException or UnauthorizedAccessException or InvalidOperationException)
+        // 🔒 Every exception, not a named few. The pin store this reads is Postgres-backed on a
+        // configured deployment, and a database that is down answers with an NpgsqlException — which
+        // derives from DbException, not from any of the three types a narrower filter would name. It
+        // would escape into the backbone's constructor and the "never fatal" above would be false
+        // for the one store this actually runs against in production.
+        catch (Exception fault)
         {
             Console.Error.WriteLine(
                 "[content-bundles] the retention sweep did not run (" + fault.Message + "). Nothing " +

@@ -378,7 +378,11 @@ public sealed class CommandGateway
                 WireCommandCodec.EncodePayload(command),
                 responseBody,
                 openedScope is { } opening ? CommandScopes.KeyOf(opening) : null),
-            GameRules.RunLifetime(_content),
+            // Off the snapshot the command was JUDGED against, never the process's current one. The
+            // domain's own expiry rule reads the pinned content; a record whose TTL came from a
+            // patched tunable would expire out from under a run the rules still consider live, and
+            // a legitimate retry inside that window would find no record to replay.
+            GameRules.RunLifetime(context.Content),
 
             // A refusal commits its record alone: nothing moved, so a snapshot or an economy row
             // written here would describe a state no command ever produced.
