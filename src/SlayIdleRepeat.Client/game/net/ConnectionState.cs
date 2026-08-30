@@ -26,9 +26,9 @@ namespace SlayIdleRepeat.Client.Game.Net;
 /// doing?" while one is on screen.
 /// </para>
 /// <para>
-/// What is left is three: the last attempt worked, or it did not and nothing is drawn yet, or it did
+/// What is left is three: the last attempt worked, or it did not and no pill is drawn yet, or it did
 /// not and the pill is up. The middle one exists because the pill has a threshold — a blink of
-/// failure that recovers inside it must never flash anything at a player — and because a player's
+/// failure that recovers inside it must not flash a pill at a player — and because a player's
 /// actions are already unavailable during it, which is a different fact from the pill being visible.
 /// </para>
 /// </remarks>
@@ -39,8 +39,19 @@ public enum ConnectionState
 
     /// <summary>
     /// An attempt has failed and less than the pill threshold has elapsed since. Server-backed
-    /// actions are already unavailable; nothing at all is drawn yet.
+    /// actions are already unavailable, and the offline affordance is already drawn on them.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>"Nothing is drawn yet" is true of the PILL and of nothing else, and the difference is a
+    /// live question rather than a settled one.</b> The offline presentation keys off
+    /// <c>ServerActionsAvailable</c>, which is false here — so for up to the threshold every
+    /// server-backed control on screen is already at 40% and already carries the cloud-slash mark,
+    /// with no pill to say why, and all of it may vanish again a moment later. That is a bigger
+    /// change to a screen than the pill this state exists to withhold. The threshold was written for
+    /// the pill; whether the dim belongs behind it too — and whether a press inside the window
+    /// should be queued rather than refused, which is what the command queue is for — is not
+    /// something the specification answers.
+    /// </remarks>
     Waiting = 2,
 
     /// <summary>Failing for at least the pill threshold. The pill is drawn.</summary>

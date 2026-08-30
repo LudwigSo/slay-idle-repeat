@@ -196,10 +196,13 @@ public partial class ConnectionOverlay : CanvasLayer
     /// <param name="presenter">The one connection presenter the whole build shares.</param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
     /// <param name="reducedMotion">
-    /// 🔴 Whether motion is suppressed. Nothing passes true — see <see cref="_reducedMotion"/>.
+    /// 🔴 Whether motion is suppressed — <b>stated, never defaulted</b>, the way <c>BattleReplay</c>
+    /// and <c>PerkDraft</c> already require theirs. A default here is how a second call site takes
+    /// the unsuppressed arm without ever saying so. Nothing passes true — see
+    /// <see cref="_reducedMotion"/>.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="presenter"/> is null.</exception>
-    public void Drive(ConnectionPresenter presenter, CancellationToken lifetime, bool reducedMotion = false)
+    public void Drive(ConnectionPresenter presenter, CancellationToken lifetime, bool reducedMotion)
     {
         ArgumentNullException.ThrowIfNull(presenter);
 
