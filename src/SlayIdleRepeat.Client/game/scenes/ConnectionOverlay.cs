@@ -1,4 +1,5 @@
 using Godot;
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Client.Game.Presenters;
 
 namespace SlayIdleRepeat.Client.Game.Scenes;
@@ -31,14 +32,13 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// drawn rather than merely stated.
 /// </para>
 /// <para>
-/// 🔴 <b>Nothing drives this in a shipped build yet, and that is a named absence rather than a
-/// wiring bug.</b> The presenter is composed only when the client was composed over a remote API,
-/// and <c>GodotClientComposition.ComposeLocalHost</c> passes none — an in-process host has no
-/// connection to lose. So on today's builds no <c>ConnectionOverlay</c> is ever instantiated, which
-/// is exactly the specified rendering for <em>Connected</em>: nothing at all. The first live driver
-/// arrives with <c>M5-15</c>, which composes the HTTP adapter; a second thing is still owed even
-/// then, because the state this reads comes from <c>ReconnectManager</c> and nothing in production
-/// pumps its poll.
+/// 🔒 <b>Instantiated only on the arm that has a connection to lose.</b> The presenter is composed
+/// when the client was composed over a server, which <c>GodotClientComposition.ComposeClient</c>
+/// decides from the environment; an in-process build has no connection to lose, so no
+/// <c>ConnectionOverlay</c> is instantiated at all — which is exactly the specified rendering for
+/// <em>Connected</em>: nothing at all. On the server arm the state this draws moves because
+/// <see cref="AppRoot"/> advances the ladder every frame, and <see cref="StateMarker"/> is how a
+/// headless run proves both halves of that from outside the process.
 /// </para>
 /// <para>
 /// ⚠️ Every colour, corner and type size here is a per-node override with an inline
@@ -53,6 +53,18 @@ public partial class ConnectionOverlay : CanvasLayer
 {
     /// <summary>Where this scene lives, for the root that instantiates it.</summary>
     public const string ScenePath = "res://game/scenes/ConnectionOverlay.tscn";
+
+    /// <summary>
+    /// The one line a headless run reads the connection off. Distinctive on purpose, and the same
+    /// mechanism <c>Boot</c>'s cold-start marker already uses rather than a second scheme.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Two claims no unit tier can make, because both reach GodotSharp: that this overlay is
+    /// instantiated at all in a composed build, and that the state it draws actually moves. The
+    /// first is the first line printed; the second is the line printed again with a different
+    /// state, which can only happen if something advanced the ladder.
+    /// </remarks>
+    private const string StateMarker = "SIR_CONNECTION_OVERLAY";
 
     private const string SafeAreaPath = "%SafeArea";
     private const string PillRowPath = "%PillRow";
@@ -169,6 +181,9 @@ public partial class ConnectionOverlay : CanvasLayer
     private string _drawnToastText = "";
     private string _drawnResumeText = "";
 
+    /// <summary>The state the marker last carried, so a redraw prints nothing when nothing moved.</summary>
+    private ConnectionState? _reportedState;
+
     private bool _pillWasVisible;
     private bool _toastWasVisible;
     private bool _cardWasVisible;
@@ -215,6 +230,7 @@ public partial class ConnectionOverlay : CanvasLayer
         }
 
         Render();
+        Report();
     }
 
     /// <inheritdoc/>
@@ -250,6 +266,26 @@ public partial class ConnectionOverlay : CanvasLayer
         presenter.Poll();
 
         Render();
+        Report();
+    }
+
+    /// <summary>Prints the connection the moment it changes, and on no other frame.</summary>
+    /// <remarks>
+    /// Guarded by the state it last printed rather than by a frame counter, so a run's log carries
+    /// one line per transition — which is what makes "the ladder moved" readable from outside the
+    /// process at all. Printed here rather than inside <c>Render</c> because the marker is about the
+    /// connection, not about whether this overlay found its nodes.
+    /// </remarks>
+    private void Report()
+    {
+        if (_presenter is not { } presenter || _reportedState == presenter.State)
+        {
+            return;
+        }
+
+        _reportedState = presenter.State;
+
+        GD.Print($"{StateMarker} state={presenter.State}");
     }
 
     /// <summary>Writes the presenter's five answers into the scene, and animates the edges.</summary>

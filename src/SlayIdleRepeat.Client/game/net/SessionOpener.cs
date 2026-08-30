@@ -24,6 +24,8 @@ public sealed class SessionOpener
     private readonly EphemeralDeviceCredentials _credentials;
     private readonly ReconnectManager _connection;
 
+    private Task? _opening;
+
     /// <summary>Wires the opener over the seam, the credential it holds and the ladder it reports to.</summary>
     /// <param name="api">The wire seam.</param>
     /// <param name="credentials">The in-memory device credential.</param>
@@ -51,9 +53,20 @@ public sealed class SessionOpener
     /// Registers a device when none is held, otherwise reopens the family. Reports the outcome to
     /// the connection either way.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>One open at a time.</b> The boot opens the session and the pump reopens it, both from
+    /// the same frame loop over this same opener, so a second call arriving while one is still out
+    /// is ordinary rather than exceptional — and neither would be holding a credential yet, so both
+    /// would register and the second would abandon the account the first had just minted. The
+    /// second caller joins the open already under way instead. A settled one holds nothing back:
+    /// reopening after a loss is what the ladder is for.
+    /// </remarks>
     /// <param name="ct">Cancellation.</param>
     /// <exception cref="GameApiRefusedException">The server understood and said no.</exception>
-    public async Task OpenAsync(CancellationToken ct)
+    public Task OpenAsync(CancellationToken ct) =>
+        _opening is { IsCompleted: false } inFlight ? inFlight : _opening = OpenOnceAsync(ct);
+
+    private async Task OpenOnceAsync(CancellationToken ct)
     {
         try
         {

@@ -88,6 +88,50 @@ public sealed class SessionOpenerTests
     }
 
     /// <summary>
+    /// 🔒 <b>Two callers, one opener, and never two registrations in flight over it.</b>
+    /// </summary>
+    /// <remarks>
+    /// The boot opens the session and the pump reopens it, and on the server arm both are driven
+    /// from the same frame loop over the same opener — so an open still waiting on the server is the
+    /// ordinary state for the second caller to arrive in. Two in flight is not merely wasteful:
+    /// neither holds a credential yet, so both register, and every registration mints a NEW
+    /// anonymous account — the second silently replacing the one the first just opened.
+    /// </remarks>
+    [Fact]
+    public async Task A_second_open_joins_the_one_in_flight_rather_than_registering_again()
+    {
+        var gated = RecordingGameApi.Reachable().Gated();
+        var (opener, _, _) = Opener(gated);
+
+        var first = opener.OpenAsync(CancellationToken.None);
+        var second = opener.OpenAsync(CancellationToken.None);
+
+        first.IsCompleted.ShouldBeFalse(
+            "the arrangement has to actually leave an open in flight, or everything below is about a " +
+            "second call that simply followed a finished first one.");
+        gated.RegisterAttempts.ShouldBe(
+            1,
+            "the second caller found an open already under way and joined it. A second registration " +
+            "mints a second anonymous account and abandons the first — and on this arm that account " +
+            "is the only one the session has.");
+        second.ShouldBeSameAs(
+            first,
+            "and it joined rather than returned early: a caller handed a completed task walks on into " +
+            "a boot stage that believes a session is open while the sign-in is still out.");
+
+        var settled = RecordingGameApi.Reachable();
+        var (reopener, _, _) = Opener(settled);
+
+        await reopener.OpenAsync(CancellationToken.None);
+        await reopener.OpenAsync(CancellationToken.None);
+
+        settled.AuthenticateAttempts.ShouldBe(
+            2,
+            "the control, and the half that stops this becoming 'open once, ever': an open that has " +
+            "finished holds nothing back, because reopening after a loss is the pump's whole job.");
+    }
+
+    /// <summary>
     /// 🔒 <b>An unreachable server is recorded on the ladder and never rethrown.</b>
     /// </summary>
     [Fact]

@@ -200,12 +200,12 @@ public sealed class ComposedClient : IDisposable
     /// composed.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Nothing composes a wire seam yet.</b> <c>GodotClientComposition.ComposeLocalHost</c> is
-    /// the only production call into <see cref="ClientComposition.Compose"/> and it passes none, so in
-    /// a shipped build today this is always null: no overlay is instantiated and no screen dims a
-    /// control. That is the correct rendering for <em>Connected</em> and it is also an absence — the
-    /// first client that composes the HTTP adapter is <c>M5-15</c>, and even then something has to
-    /// pump <see cref="ReconnectManager.PollAsync"/> for the state to ever move.
+    /// 🔒 Null on the arm an exported build takes. <c>GodotClientComposition.ComposeClient</c> is the
+    /// only production call into <see cref="ClientComposition.Compose"/> and it composes a wire seam
+    /// only when the environment named a server, so a build without one instantiates no overlay and
+    /// dims no control — the correct rendering for <em>Connected</em>. Where there is one, the root
+    /// scene advances <see cref="ReconnectManager.PollAsync"/> through
+    /// <see cref="ConnectionPump.Advance"/> every frame, which is what makes this state move.
     /// </remarks>
     public ConnectionPresenter? Connection { get; }
 

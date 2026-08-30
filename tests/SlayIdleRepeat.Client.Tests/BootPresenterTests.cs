@@ -687,6 +687,88 @@ public sealed class BootPresenterTests
     }
 
     /// <summary>
+    /// 🔒 <b>The session stage ends in one of three named ways, and none of them is "nothing ran".</b>
+    /// </summary>
+    /// <remarks>
+    /// The cold-start line a headless run is read off prints this word, and the three are fixed by
+    /// different people: an opened session says the wire works, an unreachable one says the network
+    /// or the ops did not answer, and a refusal says the account service said no. Collapsing any two
+    /// of them makes that line say "the server arm ran" and nothing more.
+    /// </remarks>
+    [Fact]
+    public async Task An_opened_session_is_reported_as_the_outcome_beside_the_account()
+    {
+        var presenter = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
+            session: Opener(RecordingGameApi.Reachable()));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.AccountPlayerId.ShouldBe(
+            NetWorlds.Player,
+            "the stage has to have actually opened a session, or the outcome below is a claim about " +
+            "a stage that did not run.");
+        presenter.SessionOutcome.ShouldBe(
+            BootSessionOutcome.Open,
+            "and the outcome says so in one word, because that word is what the cold-start line " +
+            "carries — an account read off a presenter is not in the log a headless run is judged on.");
+
+        var localArm = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen());
+
+        await localArm.StartAsync(CancellationToken.None);
+
+        localArm.SessionOutcome.ShouldBeNull(
+            "the control, and the reason this is nullable at all: a build that opened no session is " +
+            "not a build whose session failed. An outcome invented for the arm every shipped build " +
+            "takes would report a server stage in a game that has no server.");
+    }
+
+    /// <summary>
+    /// 🔒 …and an unreachable server is one of the three rather than an absence.
+    /// </summary>
+    [Fact]
+    public async Task An_unreachable_server_is_reported_as_an_unreachable_session_rather_than_as_none()
+    {
+        var presenter = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
+            session: Opener(RecordingGameApi.Reachable().UnreachableFor(int.MaxValue)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Stage.ShouldBe(
+            BootStage.Ready,
+            "the boot still finished, which is the whole point of recording this rather than failing.");
+        presenter.SessionOutcome.ShouldBe(
+            BootSessionOutcome.Unreachable,
+            "a stage that ran and could not reach the server is a different fact from a stage that " +
+            "was never composed, and both leave the account null — so the account cannot tell them " +
+            "apart and this is the only thing that can.");
+    }
+
+    /// <summary>
+    /// 🔒 …and a refusal is the third, on a boot that stopped.
+    /// </summary>
+    [Fact]
+    public async Task A_refused_session_is_reported_as_refused_rather_than_as_unreachable()
+    {
+        var presenter = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
+            session: Opener(RecordingGameApi.Reachable().RefusingFor(int.MaxValue, statusCode: 403)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Stage.ShouldBe(
+            BootStage.Failed,
+            "a refusal is fatal, unlike the case above — the two arms of this outcome are two " +
+            "different boots, not two spellings of one.");
+        presenter.SessionOutcome.ShouldBe(
+            BootSessionOutcome.Refused,
+            "and the outcome names which of them stopped it. Reported as unreachable it would send " +
+            "whoever reads the line to a network that is working perfectly.");
+    }
+
+    /// <summary>
     /// 🔒 The control: the arm every shipped build composes opens no session, and skipping the stage
     /// is the reason its boot is byte-identical to what it was before a server existed.
     /// </summary>

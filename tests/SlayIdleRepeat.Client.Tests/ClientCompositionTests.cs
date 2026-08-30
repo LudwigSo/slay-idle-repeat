@@ -221,7 +221,7 @@ public sealed class ClientCompositionTests : IDisposable
     /// ⚠️ <b>Nothing in this tier can prove the real graph CALLS <c>SelectContentSource</c>.</b>
     /// </summary>
     /// <remarks>
-    /// The call site is <c>GodotClientComposition.ComposeLocalHost</c>, which reaches the engine, and
+    /// The call site is <c>GodotClientComposition.ComposeClient</c>, which reaches the engine, and
     /// M7-01b measured that a GodotSharp call from the unit tier kills the test host. So the counterpart
     /// of <see cref="Compose_carries_the_arm_the_entitlement_selected"/> — "the branch is on the path the
     /// game actually takes" — cannot be written here for this branch. What proves it instead is running
@@ -340,8 +340,9 @@ public sealed class ClientCompositionTests : IDisposable
     /// 🔒 <b>No wire seam composed means no connection presenter, and the two are null together.</b>
     /// </summary>
     /// <remarks>
-    /// This is the arm every build ships on today: <c>GodotClientComposition.ComposeLocalHost</c>
-    /// passes no API, because an in-process host has no connection to lose. Both halves are asserted
+    /// This is the arm every build ships on today: <c>GodotClientComposition.ComposeClient</c>
+    /// passes no API unless the environment named a server, because an in-process host has no
+    /// connection to lose. Both halves are asserted
     /// rather than one, because a graph holding a presenter over a port it does not have is a build
     /// that would draw a reconnect pill about nothing — and a graph holding the port without the
     /// presenter is a seam nothing can report on.

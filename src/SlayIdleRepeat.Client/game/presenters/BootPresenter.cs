@@ -60,6 +60,26 @@ public enum BootFailureKind
 }
 
 /// <summary>
+/// How the session stage ended — one name per outcome, because a log line has to say which.
+/// </summary>
+/// <remarks>
+/// 🔒 Carried beside <see cref="BootPresenter.AccountPlayerId"/> rather than derived from it: the
+/// account is null both when the stage could not reach the server and when the build composed no
+/// session at all, so the account cannot tell a failed server arm from the local one.
+/// </remarks>
+public enum BootSessionOutcome
+{
+    /// <summary>The server answered and the account session is open.</summary>
+    Open = 1,
+
+    /// <summary>The stage ran and the server could not be reached. Recorded, never fatal.</summary>
+    Unreachable = 2,
+
+    /// <summary>The server understood the sign-in and said no. The one outcome that stops a boot.</summary>
+    Refused = 3,
+}
+
+/// <summary>
 /// One boot failure, identified: where it happened, what kind it was, and what actually went wrong.
 /// </summary>
 public sealed class BootFailure
@@ -188,6 +208,11 @@ public sealed class BootPresenter
     /// </remarks>
     public PlayerId? AccountPlayerId { get; private set; }
 
+    /// <summary>
+    /// How the session stage ended, or null when this build ran none — or was shut down inside one.
+    /// </summary>
+    public BootSessionOutcome? SessionOutcome { get; private set; }
+
     /// <summary>How far the content sync got, or null when this build ran none.</summary>
     public SyncState? ContentSync { get; private set; }
 
@@ -266,6 +291,9 @@ public sealed class BootPresenter
                 await session.OpenAsync(ct).ConfigureAwait(false);
 
                 AccountPlayerId = session.Account;
+                SessionOutcome = session.IsOpen
+                    ? BootSessionOutcome.Open
+                    : BootSessionOutcome.Unreachable;
 
                 Mark();
             }
@@ -341,6 +369,11 @@ public sealed class BootPresenter
 
     private void Fail(BootStage stage, BootFailureKind kind, string detail)
     {
+        if (kind == BootFailureKind.SessionRefused)
+        {
+            SessionOutcome = BootSessionOutcome.Refused;
+        }
+
         Failure = new BootFailure(stage, kind, detail);
         Stage = BootStage.Failed;
     }

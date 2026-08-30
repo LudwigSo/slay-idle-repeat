@@ -41,11 +41,11 @@ public static class AppRootComposition
     /// presenter or a null.
     /// </para>
     /// <para>
-    /// 🔴 <b>It answers null in every build that ships today.</b> The only production caller of
-    /// <c>ClientComposition.Compose</c> is <c>GodotClientComposition.ComposeLocalHost</c>, which passes
-    /// no wire seam — so the overlay is never instantiated, and the connection is drawn exactly as the
-    /// specification says a working one is drawn: not at all. It stays honest rather than convenient:
-    /// there is no live driver behind this until <c>M5-15</c> composes the HTTP adapter.
+    /// 🔒 <b>It answers null on the arm an exported build takes, and a presenter on the other.</b>
+    /// The only production caller of <c>ClientComposition.Compose</c> is
+    /// <c>GodotClientComposition.ComposeClient</c>, which composes a wire seam only when the
+    /// environment named a server — so an in-process build instantiates no overlay and draws the
+    /// connection exactly as the specification says a working one is drawn: not at all.
     /// </para>
     /// </remarks>
     /// <param name="composed">The graph the application root built and holds.</param>

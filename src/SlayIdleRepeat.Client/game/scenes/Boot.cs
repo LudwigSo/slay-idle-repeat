@@ -58,6 +58,9 @@ public partial class Boot : Node3D
     /// </summary>
     private const string ColdStartMarker = "SIR_BOOT_COLDSTART";
 
+    /// <summary>What the two server stages report when this build composed neither of them.</summary>
+    private const string StageWasNotComposed = "none";
+
     private const string SafeAreaPath = "%SafeArea";
     private const string TitleLabelPath = "%TitleLabel";
     private const string StatusLabelPath = "%StatusLabel";
@@ -284,11 +287,19 @@ public partial class Boot : Node3D
     /// log where a developer will actually meet it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Two numbers rather than one, because they answer different questions: the presenter's span
     /// covers the work this screen did, while the engine's tick count runs from engine start and so
     /// includes the window opening, the assemblies loading and the root composing. Only the second
-    /// is comparable to a cold-start budget — and even that one covers a strict subset of the budget
-    /// as written, since it stops before authentication, which does not exist yet.
+    /// is comparable to a cold-start budget.
+    /// </para>
+    /// <para>
+    /// 🔒 On the server arm that number now covers the sign-in and the content-hash check as well,
+    /// which is why both are named on the line: a boot measured against a budget that includes
+    /// authentication has to say whether it authenticated. <c>none</c> is the local arm — the stage
+    /// was not composed, which is a different fact from a stage that ran and failed, and the two
+    /// must not read alike.
+    /// </para>
     /// </remarks>
     private static void Report(BootPresenter presenter)
     {
@@ -298,6 +309,8 @@ public partial class Boot : Node3D
             $"{ColdStartMarker} engine_ms={Time.GetTicksMsec()} " +
             $"boot_ms={(long)presenter.Elapsed.TotalMilliseconds} " +
             $"stage={presenter.Stage} " +
+            $"session={presenter.SessionOutcome?.ToString() ?? StageWasNotComposed} " +
+            $"content_sync={presenter.ContentSync?.ToString() ?? StageWasNotComposed} " +
             $"atlas={(atlas is null ? "none" : atlas.IsAvailable ? "loaded" : "absent")} " +
             $"atlas_count={atlas?.AtlasCount ?? 0} placements={atlas?.PlacementCount ?? 0} " +
             $"atlas_detail=\"{atlas?.Detail ?? "no atlas result was recorded — the stage either did " +
