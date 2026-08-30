@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://crrknma1ptrfq"
-path="res://.godot/imported/chr_hero_rogue_hero_orm.png-2bb01f4960142c9d2f0426b943f6e450.ctex"
+uid="uid://dsw1h35236gxr"
+path="res://.godot/imported/wpn_sword_basecolor.png-b4ce320d054d2c425e6d6ea292adc13c.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "39fbd735b3728f927e97f6acd0b91e9b"
+"md5": "4b20d92439a7293a01b086cbe136e2bf"
 }
 
 [deps]
 
-source_file="res://game/art/chr_hero_rogue_hero_orm.png"
-dest_files=["res://.godot/imported/chr_hero_rogue_hero_orm.png-2bb01f4960142c9d2f0426b943f6e450.ctex"]
+source_file="res://game/art/wpn_sword_basecolor.png"
+dest_files=["res://.godot/imported/wpn_sword_basecolor.png-b4ce320d054d2c425e6d6ea292adc13c.ctex"]
 
 [params]
 

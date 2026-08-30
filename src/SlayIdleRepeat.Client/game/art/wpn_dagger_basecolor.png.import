@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://crrknma1ptrfq"
-path="res://.godot/imported/chr_hero_rogue_hero_orm.png-2bb01f4960142c9d2f0426b943f6e450.ctex"
+uid="uid://bumh7yk63ym7y"
+path="res://.godot/imported/wpn_dagger_basecolor.png-e8df44c5ce986e341503e3df27daad88.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "39fbd735b3728f927e97f6acd0b91e9b"
+"md5": "5d41bc065db84a5b2ef1d8122ee23ced"
 }
 
 [deps]
 
-source_file="res://game/art/chr_hero_rogue_hero_orm.png"
-dest_files=["res://.godot/imported/chr_hero_rogue_hero_orm.png-2bb01f4960142c9d2f0426b943f6e450.ctex"]
+source_file="res://game/art/wpn_dagger_basecolor.png"
+dest_files=["res://.godot/imported/wpn_dagger_basecolor.png-e8df44c5ce986e341503e3df27daad88.ctex"]
 
 [params]
 

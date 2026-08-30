@@ -100,3 +100,6 @@ spikes/**/obj/
 # Blender writes a .blend1 backup beside every save. The .blend is the source; the
 # backup is a local undo step and never part of the tree.
 *.blend1
+
+# The asset build scripts are imported into Blender, which caches bytecode beside them.
+assets/source/__pycache__/
