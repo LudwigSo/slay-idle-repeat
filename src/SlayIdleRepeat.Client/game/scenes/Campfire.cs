@@ -43,20 +43,16 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// shared theme resource does not exist yet — M8-03's, to be re-checked rather than re-applied.
 /// </para>
 /// <para>
-/// 🔴 <b>The way this screen draws a host that did not answer is still the interim, and the
-/// replacement is now half built.</b> The specification is a 🔒 and authors five connection states:
-/// connected shows nothing; reconnecting slides a non-blocking pill in after 2 s and leaves the
-/// screen interactive; offline dims server-backed buttons to 40% with a cloud-slash glyph and answers
-/// a tap with an inline toast, never a modal; a resync flashes green; a resumed run shows a card.
-/// <c>M7-02</c> has written all five as behaviour — <c>ConnectionState</c>, <c>StateMirror</c>,
-/// <c>CommandQueue</c> and <c>ReconnectManager</c> under <c>game/net/</c>, and
-/// <c>ConnectionPresenter</c> beside this screen's own presenter, and the visible half now exists
-/// too: <c>ConnectionOverlay</c> on the application root draws all five. What is still missing is a
-/// DRIVER — no build composes a wire seam, so no connection presenter is ever built and this screen
-/// sees none of it. Until <c>M5-15</c> composes the HTTP adapter, this screen still does the most
-/// honest thing available to it without inventing the mechanism: it disables what it cannot submit
-/// and prints one status line. 🔒 The one rule the specification states as a hard prohibition
-/// <b>is</b> kept: no full-screen blocking connection error, during a run or otherwise.
+/// 🔴 <b>The way this screen draws a host that did not answer is still the interim, and what is
+/// missing is no longer the mechanism.</b> The five connection states are written AND composed now:
+/// <c>ConnectionOverlay</c> is up on the application root of every build that has a server, and it
+/// draws the pill, the toast, the resync flash and the resume card globally, over this screen
+/// included. What this screen has not adopted is the per-control half —
+/// <c>OfflineActionAffordance</c>, the 40% dim, the cloud-slash mark and the toast on a press — and
+/// it has nothing to adopt it for yet, because every action here is settled by the in-process host
+/// on both arms rather than by a server. So it still disables what it cannot submit and prints one
+/// status line. 🔒 The one rule stated as a hard prohibition <b>is</b> kept: no full-screen
+/// blocking connection error, during a run or otherwise.
 /// </para>
 /// <para>
 /// 🔴 <b>And the dead end above is the same gap seen from the other side.</b> A read that failed
