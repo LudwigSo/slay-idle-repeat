@@ -47,7 +47,7 @@ public static class GameCommandComposition
                 using var span = telemetry.BeginSpan("run_command");
                 var reply = await CommandRequestHandler.HandleRunCommandAsync(
                     principals, Gateway(app), http.Request.Headers.Authorization, runId,
-                    await ReadBodyAsync(http, ct), ct);
+                    await HttpReplies.ReadBodyAsync(http, ct), ct);
 
                 await WriteAsync(http, reply, ct);
             });
@@ -59,7 +59,7 @@ public static class GameCommandComposition
                 using var span = telemetry.BeginSpan("player_command");
                 var reply = await CommandRequestHandler.HandlePlayerCommandAsync(
                     principals, Gateway(app), http.Request.Headers.Authorization,
-                    await ReadBodyAsync(http, ct), ct);
+                    await HttpReplies.ReadBodyAsync(http, ct), ct);
 
                 await WriteAsync(http, reply, ct);
             });
@@ -107,20 +107,6 @@ public static class GameCommandComposition
         }
     }
 
-    private static async Task<string> ReadBodyAsync(HttpContext http, CancellationToken ct)
-    {
-        using var reader = new StreamReader(http.Request.Body);
-        return await reader.ReadToEndAsync(ct);
-    }
-
-    private static async Task WriteAsync(HttpContext http, GatewayReply reply, CancellationToken ct)
-    {
-        http.Response.StatusCode = reply.StatusCode;
-
-        if (reply.Body.Length > 0)
-        {
-            http.Response.ContentType = "application/json; charset=utf-8";
-            await http.Response.WriteAsync(reply.Body, ct);
-        }
-    }
+    private static Task WriteAsync(HttpContext http, GatewayReply reply, CancellationToken ct) =>
+        HttpReplies.WriteAsync(http, reply.StatusCode, reply.Body, ct);
 }

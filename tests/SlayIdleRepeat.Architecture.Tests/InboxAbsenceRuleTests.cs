@@ -296,7 +296,7 @@ public sealed class InboxAbsenceRuleTests
         ArchRule.Empty(
             PortCatalogue.OwnersNoLongerOpen(
                 Absences.Select(a => (Subject: "inbox absence '" + a.Subject + "'", a.Owner)),
-                PortCatalogue.TrackerStatuses(Tracker())),
+                PortCatalogue.TrackerStatuses(RepoLayout.TrackerText())),
             "Every inbox absence owner is a tracker task that is still open (steering S4).");
 
     /// <summary>
@@ -381,8 +381,4 @@ public sealed class InboxAbsenceRuleTests
 
         ArchRule.Empty(offenders, "The inbox absence register and its satisfied directions have floors (steering S3).");
     }
-
-    /// <summary>The tracker's raw text — the same read the other registers do.</summary>
-    private static string Tracker() =>
-        File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
 }

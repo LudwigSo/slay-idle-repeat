@@ -580,7 +580,7 @@ public sealed class GapRegisterTests
             "CHOOSE_FIXED_DIE arrived with the fixed dice that replaced them. All four were Handled, " +
             "so the DEFERRED floor moved with none of them.");
 
-        var tracker = File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
+        var tracker = RepoLayout.TrackerText();
 
         var declared = Regex.Matches(tracker, @"^\| (?<id>M\d{1,2}-\d{2}) \|", RegexOptions.Multiline)
             .Select(m => m.Groups["id"].Value)

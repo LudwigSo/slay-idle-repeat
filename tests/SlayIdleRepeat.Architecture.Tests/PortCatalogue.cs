@@ -1282,12 +1282,15 @@ internal static class PortCatalogue
     /// honest account of why there are still three).
     /// <list type="bullet">
     ///   <item><c>GapRegisterTests.Every_deferred_command_names_a_task_the_tracker_declares</c> is
-    ///   in this same assembly and checks EXISTENCE only. Measured on this branch, <b>four</b> of
-    ///   <c>GameRules</c>' 24 <c>Deferred</c> rows name a task that has already shipped:
-    ///   <c>REFORGE_ITEM</c>, <c>RETUNE_ITEM</c> and <c>SET_FOCUS</c> to M4-04 (✅), and
-    ///   <c>USE_CONSUMABLE</c> to M3-08 (✅). Pointing that rule at this predicate would turn the
-    ///   build red on four re-points that are milestone decisions — which task builds reforge,
-    ///   retune, focus and consumables — and inventing four owners is steering S6 with a task id
+    ///   in this same assembly and checks EXISTENCE only. Measured on this branch, <b>three</b> of
+    ///   <c>GameRules</c>' 22 <c>Deferred</c> rows name a task that has already shipped:
+    ///   <c>REFORGE_ITEM</c>, <c>RETUNE_ITEM</c> and <c>SET_FOCUS</c>, all to M4-04 (✅).
+    ///   ⚠️ M7-01c wrote "four of 24", counting <c>USE_CONSUMABLE</c>/M3-08 as a fourth; that row
+    ///   has since gained a handler and left <c>Deferred</c> altogether, so the count moved without
+    ///   anything re-reading this paragraph — which is the same rot the register mechanism exists to
+    ///   stop, arriving through prose instead. Pointing that rule at this predicate would turn the
+    ///   build red on three re-points that are milestone decisions — which task builds reforge,
+    ///   retune and focus — and inventing three owners is steering S6 with a task id
     ///   instead of a number. M7-01c reports it instead of guessing. ⚠️ Its PARSER is separable
     ///   from that decision and was deliberately left alone too: its id pattern lacks the
     ///   <c>[a-z]?</c> suffix, so lettered ids (<c>M7-01b</c>, <c>M2-16a</c>) fall out of its

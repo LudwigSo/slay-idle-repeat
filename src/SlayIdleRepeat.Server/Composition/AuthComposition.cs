@@ -40,7 +40,7 @@ public static class AuthComposition
                         area.Store,
                         new HeroNameDisplayNamePolicy(backbone.Content),
                         backbone.Clock.UtcNow,
-                        await ReadBodyAsync(http, ct),
+                        await HttpReplies.ReadBodyAsync(http, ct),
                         ct),
                     ct);
             });
@@ -58,7 +58,7 @@ public static class AuthComposition
                         area.Issuer,
                         area.Options,
                         GameBackbone.Shared(app.Configuration, app.Environment).Clock.UtcNow,
-                        await ReadBodyAsync(http, ct),
+                        await HttpReplies.ReadBodyAsync(http, ct),
                         ct),
                     ct);
             });
@@ -76,7 +76,7 @@ public static class AuthComposition
                         area.Issuer,
                         area.Options,
                         GameBackbone.Shared(app.Configuration, app.Environment).Clock.UtcNow,
-                        await ReadBodyAsync(http, ct),
+                        await HttpReplies.ReadBodyAsync(http, ct),
                         ct),
                     ct);
             });
@@ -94,7 +94,7 @@ public static class AuthComposition
                         area.Principals,
                         http.Request.Headers.Authorization,
                         GameBackbone.Shared(app.Configuration, app.Environment).Clock.UtcNow,
-                        await ReadBodyAsync(http, ct),
+                        await HttpReplies.ReadBodyAsync(http, ct),
                         ct),
                     ct);
             });
@@ -130,22 +130,8 @@ public static class AuthComposition
         }
     }
 
-    private static async Task<string> ReadBodyAsync(HttpContext http, CancellationToken ct)
-    {
-        using var reader = new StreamReader(http.Request.Body);
-        return await reader.ReadToEndAsync(ct);
-    }
-
-    private static async Task WriteAsync(HttpContext http, AuthReply reply, CancellationToken ct)
-    {
-        http.Response.StatusCode = reply.StatusCode;
-
-        if (reply.Body.Length > 0)
-        {
-            http.Response.ContentType = "application/json; charset=utf-8";
-            await http.Response.WriteAsync(reply.Body, ct);
-        }
-    }
+    private static Task WriteAsync(HttpContext http, AuthReply reply, CancellationToken ct) =>
+        HttpReplies.WriteAsync(http, reply.StatusCode, reply.Body, ct);
 }
 
 /// <summary>Everything the auth routes run on, built once per process.</summary>

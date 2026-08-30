@@ -908,7 +908,7 @@ public sealed class PortCatalogueTests
             .Concat(PortCatalogue.OmittedMembers.Select(o => (Subject: o.Port + "." + o.Member, o.Owner)));
 
         ArchRule.Empty(
-            PortCatalogue.OwnersNoLongerOpen(entries, PortCatalogue.TrackerStatuses(Tracker())),
+            PortCatalogue.OwnersNoLongerOpen(entries, PortCatalogue.TrackerStatuses(RepoLayout.TrackerText())),
             "Every PortCatalogue owner is a tracker task that is still open (23 §6, steering S4).");
     }
 
@@ -933,7 +933,7 @@ public sealed class PortCatalogueTests
     [Fact]
     public void The_owner_status_rule_fires_on_a_shipped_or_missing_owner_and_is_silent_on_an_open_one()
     {
-        var tracker = Tracker();
+        var tracker = RepoLayout.TrackerText();
         var statuses = PortCatalogue.TrackerStatuses(tracker);
 
         // 🔒 The anchor, pinned by IDENTITY on the three rows that discriminate it. Each of these
@@ -1035,10 +1035,6 @@ public sealed class PortCatalogueTests
     /// <summary>Every type Cecil finds in the plain-C# platform adapter beside it.</summary>
     private static IEnumerable<TypeDefinition> HostTypes() =>
         Il.AllTypes(ProductionAssemblies.Module(PortCatalogue.HostAdapterAssembly));
-
-    /// <summary>The tracker's raw text.</summary>
-    private static string Tracker() =>
-        File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
 
     /// <summary>
     /// The project names <c>SlayIdleRepeat.Contract.Tests</c> references.

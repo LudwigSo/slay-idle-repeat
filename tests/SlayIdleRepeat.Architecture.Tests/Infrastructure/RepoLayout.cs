@@ -22,6 +22,21 @@ internal static class RepoLayout
     internal static string ToolsRoot { get; } = Path.Combine(RepoRoot, "tools");
 
     /// <summary>
+    /// 🔒 <c>IMPLEMENTATION_TRACKER.md</c>'s raw text — the one read for the whole assembly
+    /// (steering S4).
+    /// </summary>
+    /// <remarks>
+    /// Four registers in this suite ask the tracker whether an owner is still open, and M5 added
+    /// three of them. Each arrived with its own private <c>Tracker()</c> reading the same file from
+    /// the same root: harmless while they agree, and four places to change the day the document
+    /// moves or the read needs an encoding. The owner-status <em>predicate</em> was already shared
+    /// (<c>PortCatalogue.OwnersNoLongerOpen</c>); this is the input to it, shared for the same
+    /// reason.
+    /// </remarks>
+    internal static string TrackerText() =>
+        File.ReadAllText(Path.Combine(RepoRoot, "IMPLEMENTATION_TRACKER.md"));
+
+    /// <summary>
     /// The roots holding hand-written, non-test C# that the dependency rules govern.
     /// </summary>
     /// <remarks>

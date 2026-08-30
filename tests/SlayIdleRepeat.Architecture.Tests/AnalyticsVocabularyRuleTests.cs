@@ -496,7 +496,7 @@ public sealed class AnalyticsVocabularyRuleTests
             .Concat(DerivedMetrics.Select(m => (Subject: "derived metric '" + m.Metric + "'", m.Owner)));
 
         ArchRule.Empty(
-            PortCatalogue.OwnersNoLongerOpen(entries, PortCatalogue.TrackerStatuses(Tracker())),
+            PortCatalogue.OwnersNoLongerOpen(entries, PortCatalogue.TrackerStatuses(RepoLayout.TrackerText())),
             "Every analytics register owner is a tracker task that is still open (steering S4).");
     }
 
@@ -619,8 +619,4 @@ public sealed class AnalyticsVocabularyRuleTests
             offenders,
             "The analytics vocabulary's subject sets are the ones these rules were written against (steering S3).");
     }
-
-    /// <summary>The tracker's raw text — the same read <c>PortCatalogueTests.Tracker</c> does.</summary>
-    private static string Tracker() =>
-        File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
 }
