@@ -68,24 +68,44 @@ public sealed class RedisCommitCache : IUnitOfWork
             : _ttl;
 
         await TrySetAsync(
-                RedisKeys.ForRecord(commit.Scope, commit.Outcome.CommandId),
-                RedisRecordCodec.Encode(commit.Outcome),
+                () => RedisKeys.ForRecord(commit.Scope, commit.Outcome.CommandId),
+                () => RedisRecordCodec.Encode(commit.Outcome),
                 recordTtl,
                 ct)
             .ConfigureAwait(false);
 
         if (commit.State?.ActiveRun is { } run)
         {
-            await TrySetAsync(RedisKeys.ForRunState(run.Id), SnapshotCodec.EncodeRun(run), _ttl, ct)
+            await TrySetAsync(
+                    () => RedisKeys.ForRunState(run.Id), () => SnapshotCodec.EncodeRun(run), _ttl, ct)
                 .ConfigureAwait(false);
         }
     }
 
-    private async Task TrySetAsync(string key, byte[] value, TimeSpan ttl, CancellationToken ct)
+    /// <summary>
+    /// One population attempt, with the key build and the encode INSIDE the guard.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Passed as thunks rather than as values, and that is the whole point of the shape. Arguments
+    /// are evaluated before the call, so building the key and encoding the record at the call site
+    /// put them outside this try — and both can throw. Every one of those throws would escape after
+    /// <c>_inner.CommitAsync</c> has already committed, which is exactly the outcome the absorb
+    /// below exists to prevent: a command that provably happened, reported to its client as failed.
+    /// </remarks>
+    private async Task TrySetAsync(
+        Func<string> key, Func<byte[]> value, TimeSpan ttl, CancellationToken ct)
     {
         try
         {
-            await _cache.SetAsync(key, value, ttl, ct).ConfigureAwait(false);
+            await _cache.SetAsync(key(), value(), ttl, ct).ConfigureAwait(false);
+        }
+        catch (Exception failure) when (failure is not OperationCanceledException &&
+                                        !RedisRunStateCache.IsAbsorbable(failure))
+        {
+            // Anything the key build or the encode raised. Same reasoning as the absorb below, and
+            // deliberately not folded into it: that arm answers a cache that is down, this one
+            // answers a defect here — both are post-commit, and neither may reach the client.
+            _failures.Increment();
         }
         catch (Exception failure) when (RedisRunStateCache.IsAbsorbable(failure))
         {

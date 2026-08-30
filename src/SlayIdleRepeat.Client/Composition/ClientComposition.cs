@@ -463,12 +463,27 @@ public static class ClientComposition
         }
 
         var options = new HttpGameApiOptions { BaseAddress = new Uri(serverBaseAddress, UriKind.Absolute) };
-        var transport = new SocketsHttpHandler();
 
-        return new ClientWireSeams(
-            new HttpGameApi(options, transport),
-            new HttpContentDistribution(options.BaseAddress, options.RequestTimeout, transport),
-            [transport]);
+        // Bounded rather than left at the default. A pooled connection that never retires is the
+        // classic stale-DNS trap for a process-lifetime handler, and this one outlives every screen.
+        var transport = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(2) };
+
+        try
+        {
+            // Nothing owns the handler until the seams do, so a throw between here and that
+            // constructor leaks it and any adapter already built over it — on the one path that
+            // exists because the composition can fail.
+            var api = new HttpGameApi(options, transport);
+            var content = new HttpContentDistribution(options.BaseAddress, options.RequestTimeout, transport);
+
+            return new ClientWireSeams(api, content, [transport]);
+        }
+        catch
+        {
+            transport.Dispose();
+
+            throw;
+        }
     }
 
     /// <summary>

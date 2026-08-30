@@ -252,7 +252,7 @@ public sealed class PostgresPlayerRepository : IPlayerRepository
             upsert.Parameters.Add(PostgresRows.JsonbOf("doc", PostgresRows.SliceDocOf(profile)));
             upsert.Parameters.AddWithValue("name", profile.Player.DisplayName);
             upsert.Parameters.AddWithValue("level", profile.Player.LegendLevel);
-            upsert.Parameters.AddWithValue("applied", profile.Player.LastAppliedAtUtc);
+            upsert.Parameters.AddWithValue("applied", PostgresRows.Utc(profile.Player.LastAppliedAtUtc));
 
             await upsert.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
@@ -284,7 +284,7 @@ public sealed class PostgresPlayerRepository : IPlayerRepository
             insert.Parameters.Add(PostgresRows.JsonbOf("doc", PostgresRows.SliceDocOf(initial)));
             insert.Parameters.AddWithValue("name", initial.Player.DisplayName);
             insert.Parameters.AddWithValue("level", initial.Player.LegendLevel);
-            insert.Parameters.AddWithValue("applied", initial.Player.LastAppliedAtUtc);
+            insert.Parameters.AddWithValue("applied", PostgresRows.Utc(initial.Player.LastAppliedAtUtc));
 
             if (await insert.ExecuteNonQueryAsync(ct).ConfigureAwait(false) == 0)
             {
@@ -642,7 +642,7 @@ public sealed class PostgresEconomyEventLog
             insert.Parameters.AddWithValue("run", (object?)record.Run?.Value ?? DBNull.Value);
             insert.Parameters.AddWithValue("command", record.CommandId.Value);
             insert.Parameters.AddWithValue("sequence", record.Sequence);
-            insert.Parameters.AddWithValue("occurred", record.OccurredAtUtc);
+            insert.Parameters.AddWithValue("occurred", PostgresRows.Utc(record.OccurredAtUtc));
             insert.Parameters.AddWithValue("type", record.EventType);
             insert.Parameters.Add(PostgresRows.JsonbOf("payload", record.PayloadJson));
 
@@ -656,6 +656,15 @@ public sealed class PostgresEconomyEventLog
 /// <summary>This adapter's shared row plumbing: document text, scope keys, jsonb parameters, id guards.</summary>
 internal static class PostgresRows
 {
+    /// <summary>Every instant reaches a <c>timestamptz</c> at offset zero; Npgsql accepts no other.</summary>
+    /// <remarks>
+    /// The auth store states this rule and routes every instant through its own copy. These rows did
+    /// not, and every value they bind happens to arrive at offset zero from the system clock — so the
+    /// rule held by luck rather than by construction, and the first instant that reached here from
+    /// anywhere else would fail the whole commit transaction rather than one column.
+    /// </remarks>
+    internal static object Utc(DateTimeOffset instant) => instant.ToUniversalTime();
+
     /// <summary>The players row's document: the canonical stored slice, exactly as the codec writes it.</summary>
     internal static string SliceDocOf(PlayerProfile profile) =>
         Encoding.UTF8.GetString(SnapshotCodec.EncodeSlice(new StoredSlice(profile.Player, profile.ActiveRun)));
@@ -707,7 +716,7 @@ internal static class PostgresRows
         upsert.Parameters.AddWithValue("phase", run.Phase.ToString());
         upsert.Parameters.AddWithValue("chapter", run.ChapterId);
         upsert.Parameters.AddWithValue("tier", run.Tier.ToString());
-        upsert.Parameters.AddWithValue("applied", run.LastAppliedAtUtc);
+        upsert.Parameters.AddWithValue("applied", PostgresRows.Utc(run.LastAppliedAtUtc));
         upsert.Parameters.AddWithValue("ttl", ttl);
 
         await upsert.ExecuteNonQueryAsync(ct).ConfigureAwait(false);

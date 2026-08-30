@@ -67,11 +67,31 @@ public sealed class QueuedBattleLogStore : IBattleLogStore
     }
 
     /// <inheritdoc/>
-    public Task<ReadOnlyMemory<byte>?> GetAsync(BattleLogId id, CancellationToken ct)
+    /// <remarks>
+    /// 🔒 A store that cannot be reached answers "no log", not an exception. The port's rule is that
+    /// a caller treats a missing log as a replay it cannot offer and never as a failed command — and
+    /// this decorator already keeps that rule for the write side. Left unabsorbed, the read side
+    /// broke it in the one direction no fixture could see: the in-memory sibling cannot raise here
+    /// at all, so a down object store would surface only in production.
+    /// </remarks>
+    public async Task<ReadOnlyMemory<byte>?> GetAsync(BattleLogId id, CancellationToken ct)
     {
         RequireId(id);
 
-        return _inner.GetAsync(id, ct);
+        try
+        {
+            return await _inner.GetAsync(id, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            _losses.Increment();
+
+            return null;
+        }
     }
 
     /// <summary>Uploads everything queued right now and returns how many logs landed. The deterministic drain tests and fixtures use.</summary>

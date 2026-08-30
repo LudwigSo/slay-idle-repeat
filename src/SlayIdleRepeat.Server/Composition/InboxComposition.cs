@@ -167,13 +167,22 @@ public sealed class InboxExpiryLifecycle : IHostedService
 
         _stopped = true;
 
-        if (_loop is { } loop)
+        try
         {
-            await _stop.CancelAsync().ConfigureAwait(false);
-            await loop.ConfigureAwait(false);
-        }
+            if (_loop is { } loop)
+            {
+                await _stop.CancelAsync().ConfigureAwait(false);
 
-        _stop.Dispose();
+                // Bounded by the host's own stop token, and in a try/finally: a loop that faulted
+                // stored its exception on the task, so an unguarded await here rethrows it and the
+                // token source below is never disposed.
+                await loop.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _stop.Dispose();
+        }
     }
 
     private async Task RunAsync(

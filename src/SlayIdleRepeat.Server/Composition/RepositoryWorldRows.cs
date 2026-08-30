@@ -128,10 +128,47 @@ public sealed class RepositoryWorldRows : ILocalCachePort
         throw OutsideVocabulary(key);
     }
 
-    private static string? TryIdOf(string key, string prefix) =>
-        key.StartsWith(prefix, StringComparison.Ordinal) && key.Length > prefix.Length
+    /// <summary>
+    /// The id after a known prefix, or <c>null</c>. Refuses a key outside the port's key space
+    /// first.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The charset check is the port's, not this bridge's. <see cref="ILocalCachePort"/> closes
+    /// its keys to <c>A-Z a-z 0-9 . _ -</c> and says every method refuses anything else with an
+    /// <see cref="ArgumentException"/> — that closure is what the port's own remarks call "safe by
+    /// construction". <c>PlaceholderVolatileWorldStore</c> enforces it; this one, the implementation
+    /// a configured deployment actually runs, did not, so the two implementations of one port
+    /// answered the same key differently and the guarantee was false where it mattered.
+    /// </remarks>
+    private static string? TryIdOf(string key, string prefix)
+    {
+        RequireKeySpace(key);
+
+        return key.StartsWith(prefix, StringComparison.Ordinal) && key.Length > prefix.Length
             ? key[prefix.Length..]
             : null;
+    }
+
+    /// <inheritdoc cref="TryIdOf"/>
+    private static void RequireKeySpace(string key)
+    {
+        if (key.Length == 0)
+        {
+            throw new ArgumentException("A cache key is non-empty (ILocalCachePort).", nameof(key));
+        }
+
+        foreach (var character in key)
+        {
+            if (character is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= '0' and <= '9') or '.' or '_' or '-')
+            {
+                continue;
+            }
+
+            throw new ArgumentException(
+                $"'{key}' is outside ILocalCachePort's closed key space (A-Z a-z 0-9 . _ -).",
+                nameof(key));
+        }
+    }
 
     private static InvalidOperationException OutsideVocabulary(string key) =>
         new(

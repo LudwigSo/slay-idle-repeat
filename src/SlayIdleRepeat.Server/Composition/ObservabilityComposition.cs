@@ -112,7 +112,13 @@ public static class ObservabilityComposition
         internal ObservabilityArea(IConfiguration configuration)
         {
             PostHogOptions = configuration.GetSection("PostHog").Get<PostHogOptions>() ?? new PostHogOptions();
-            Analytics = new PostHogAnalyticsSink(PostHogOptions, new SocketsHttpHandler());
+            Analytics = new PostHogAnalyticsSink(
+                PostHogOptions,
+
+                // Bounded rather than left at the default. This handler lives as long as the process
+                // and talks to an external host, which is the exact shape of the stale-DNS trap an
+                // infinite pooled-connection lifetime leaves open.
+                new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(2) });
             OpenTelemetry = new OpenTelemetryTelemetry();
 
             var sentryOptions = configuration.GetSection("Sentry").Get<SentryTelemetryOptions>()

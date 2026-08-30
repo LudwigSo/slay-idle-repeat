@@ -140,6 +140,11 @@ public static class AuthComposition
     {
         http.Response.StatusCode = reply.StatusCode;
 
+        // 🔒 Every reply on this surface carries a device secret, an access token or a refresh
+        // token. POSTs are not cached by default, but "by default" is a property of every proxy on
+        // the path agreeing — and the query surface pins the same header on far less than this.
+        http.Response.Headers.CacheControl = "no-store";
+
         if (reply.Body.Length > 0)
         {
             http.Response.ContentType = "application/json; charset=utf-8";

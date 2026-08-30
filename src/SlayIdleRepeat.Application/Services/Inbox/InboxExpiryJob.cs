@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Services.Analytics;
@@ -110,6 +111,7 @@ public sealed class InboxExpiryJob
         var granted = 0;
         var withheld = new List<(MessageId, MailAttachmentRefusal)>();
         var removable = new List<MessageId>(due.Count);
+        List<Exception>? unpayable = null;
 
         foreach (var message in due)
         {
@@ -128,12 +130,51 @@ public sealed class InboxExpiryJob
                 continue;
             }
 
-            await PayAsync(message, projection, asOfUtc, ct).ConfigureAwait(false);
+            try
+            {
+                await PayAsync(message, projection, asOfUtc, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception fault)
+            {
+                // 🔒 The message that could not be paid is isolated, not the batch. The read is
+                // "oldest expiry first" and it removes nothing, so a throw that escaped before the
+                // delete below left the batch intact — and tomorrow's sweep re-read the identical
+                // rows in the identical order and died on the identical message. One corrupt player
+                // row switched inbox expiry off permanently, for every player.
+                //
+                // It still stays: not added to `removable`, so nothing destroys its reward, and the
+                // faults are rethrown below so the night's loop stops and the failure is reported
+                // rather than counted as a clean pass.
+                (unpayable ??= []).Add(fault);
+
+                continue;
+            }
+
             granted++;
             removable.Add(message.Id);
         }
 
         await _messages.DeleteAsync(removable, ct).ConfigureAwait(false);
+
+        if (unpayable is { Count: 1 })
+        {
+            // Rethrown as itself, stack intact, because the diagnosis IS the message: it names the
+            // message and the player, and that is what the sweep's contract promises a reader.
+            ExceptionDispatchInfo.Capture(unpayable[0]).Throw();
+        }
+
+        if (unpayable is not null)
+        {
+            throw new AggregateException(
+                "The sweep could not pay " + unpayable.Count.ToString(CultureInfo.InvariantCulture) +
+                " of " + due.Count.ToString(CultureInfo.InvariantCulture) + " due messages. Those " +
+                "rows are untouched and still owed; the rest of the batch was paid and removed.",
+                unpayable);
+        }
 
         return new InboxSweep(due.Count, granted, removable.Count, withheld);
     }

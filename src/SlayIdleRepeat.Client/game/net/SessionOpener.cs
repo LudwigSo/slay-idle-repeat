@@ -90,5 +90,17 @@ public sealed class SessionOpener
 
             _connection.RecordLost(failure);
         }
+        catch (GameApiRefusedException refusal)
+        {
+            // Recorded and rethrown, not swallowed: the caller still has to see the refusal, and the
+            // ladder still must not back off from a server that is up. What the record buys is the
+            // hold — the pump reopens on every frame a session is shut, so a refusal nothing noted
+            // is a sign-in attempt per frame for the life of the process.
+            IsOpen = false;
+
+            _connection.RecordRefused(refusal);
+
+            throw;
+        }
     }
 }

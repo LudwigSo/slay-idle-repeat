@@ -1,3 +1,5 @@
+using SlayIdleRepeat.Adapters.ObjectStore.S3;
+
 namespace SlayIdleRepeat.Server.Composition;
 
 /// <summary>
@@ -55,8 +57,36 @@ public sealed class PersistenceLifecycle : IHostedService
 
         if (persistence.BattleLogQueue is { } queue)
         {
-            _drain = Task.Run(() => queue.RunAsync(_stopDrain.Token), CancellationToken.None);
+            _drain = Task.Run(() => DrainAsync(queue), CancellationToken.None);
             _logger.LogInformation(BattleLogStoreReadyMarker);
+        }
+    }
+
+    /// <summary>The drain, with its fault reported here rather than stored for shutdown to find.</summary>
+    /// <remarks>
+    /// 🔒 Two things this guard buys, and the second is why it is not merely tidiness. A drain that
+    /// died on its first upload is dead for the life of the process, and the only line in the log
+    /// would be the marker above claiming it is running — which is exactly what the compose-boot
+    /// probe greps for as proof that it is. And an unguarded fault is stored on the task, so the
+    /// <c>await</c> in <see cref="StopAsync"/> rethrows it and the persistence dispose below it
+    /// never runs: the one path written to close the connection pools cleanly is skipped by the one
+    /// failure that most wants them closed.
+    /// </remarks>
+    private async Task DrainAsync(QueuedBattleLogStore queue)
+    {
+        try
+        {
+            await queue.RunAsync(_stopDrain.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_stopDrain.IsCancellationRequested)
+        {
+        }
+        catch (Exception fault)
+        {
+            _logger.LogError(
+                fault,
+                "The battle-log drain stopped. Nothing further will be uploaded for the life of " +
+                "this process; queued logs are lost at shutdown.");
         }
     }
 
@@ -70,22 +100,32 @@ public sealed class PersistenceLifecycle : IHostedService
 
         _stopped = true;
 
-        if (_drain is { } drain)
+        try
         {
-            await _stopDrain.CancelAsync().ConfigureAwait(false);
-            await drain.ConfigureAwait(false);
+            if (_drain is { } drain)
+            {
+                await _stopDrain.CancelAsync().ConfigureAwait(false);
+
+                // Bounded by the host's own stop token: a drain that will not come down must not
+                // hold the shutdown past the timeout the host is willing to wait, and abandoning it
+                // still leaves the dispose below to run.
+                await drain.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
-
-        _stopDrain.Dispose();
-
-        // The drain is down, so the stores it uploads through can close cleanly. The instance
-        // StartAsync built, never a fresh Shared() call: Shared rebuilds after a dispose, so
-        // shutting down a host that never started would OPEN a connection pool in order to close
-        // one.
-        if (_started is { } persistence)
+        finally
         {
-            await persistence.DisposeAsync().ConfigureAwait(false);
-            _started = null;
+            _stopDrain.Dispose();
+
+            // The drain is down, so the stores it uploads through can close cleanly. The instance
+            // StartAsync built, never a fresh Shared() call: Shared rebuilds after a dispose, so
+            // shutting down a host that never started would OPEN a connection pool in order to close
+            // one. In a finally because a drain that faulted or would not stop is the case that most
+            // needs the pools closed, not the one that may skip closing them.
+            if (_started is { } persistence)
+            {
+                await persistence.DisposeAsync().ConfigureAwait(false);
+                _started = null;
+            }
         }
     }
 }

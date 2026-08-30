@@ -60,7 +60,7 @@ public sealed class RedisIdempotencyCache : IIdempotencyStore
 
         if (authoritative is not null && cacheAnswered)
         {
-            await TrySetAsync(key, authoritative, RepopulateTtl, ct).ConfigureAwait(false);
+            await TrySetAsync(() => key, authoritative, RepopulateTtl, ct).ConfigureAwait(false);
         }
 
         return authoritative;
@@ -81,7 +81,11 @@ public sealed class RedisIdempotencyCache : IIdempotencyStore
         // process would replay a record its authority already answers null for.
         var cacheTtl = scope.Kind == IdempotencyScopeKind.Run ? RepopulateTtl : ttl;
 
-        await TrySetAsync(RedisKeys.ForRecord(scope, outcome.CommandId), outcome, cacheTtl, ct).ConfigureAwait(false);
+        // A thunk, so the key build happens INSIDE the guard rather than as an argument evaluated
+        // before it: RedisKeys.ForRecord can throw, and it would throw after the authority above
+        // has already recorded — a post-record fault this decorator is contracted to absorb.
+        await TrySetAsync(() => RedisKeys.ForRecord(scope, outcome.CommandId), outcome, cacheTtl, ct)
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -113,11 +117,18 @@ public sealed class RedisIdempotencyCache : IIdempotencyStore
     internal static readonly TimeSpan RepopulateTtl = TimeSpan.FromHours(1);
 
     private async Task TrySetAsync(
-        string key, RecordedCommandOutcome outcome, TimeSpan ttl, CancellationToken ct)
+        Func<string> key, RecordedCommandOutcome outcome, TimeSpan ttl, CancellationToken ct)
     {
         try
         {
-            await _cache.SetAsync(key, RedisRecordCodec.Encode(outcome), ttl, ct).ConfigureAwait(false);
+            await _cache.SetAsync(key(), RedisRecordCodec.Encode(outcome), ttl, ct).ConfigureAwait(false);
+        }
+        catch (Exception failure) when (failure is not OperationCanceledException &&
+                                        !RedisRunStateCache.IsAbsorbable(failure))
+        {
+            // The key build's or the encode's own failure, absorbed for the arm below's reason:
+            // everything here runs after the authority recorded the command.
+            _failures.Increment();
         }
         catch (Exception failure) when (RedisRunStateCache.IsAbsorbable(failure))
         {

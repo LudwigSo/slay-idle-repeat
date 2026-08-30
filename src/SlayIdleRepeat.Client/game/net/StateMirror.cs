@@ -28,24 +28,43 @@ namespace SlayIdleRepeat.Client.Game.Net;
 /// </remarks>
 public sealed class StateMirror
 {
+    /// <summary>Everything the mirror holds, as one value that is replaced rather than edited.</summary>
+    /// <remarks>
+    /// 🔒 <b>One immutable value behind a volatile reference, not five mutable fields.</b> The applies
+    /// run on a thread-pool thread — the ladder awaits the port with <c>ConfigureAwait(false)</c> —
+    /// while the connection overlay polls these members on the engine's frame thread every frame.
+    /// Five ordinary field stores give a reader no ordering at all, so the frame thread could see a
+    /// new <c>Run</c> beside the previous <c>StateHash</c>: a screen drawn from half of one answer
+    /// and half of another, with the hash that decides whether to announce a resync being the stale
+    /// half. Publishing the whole reading at once makes a torn read unrepresentable.
+    /// </remarks>
+    private sealed record Reading(
+        PlayerWireProjection? Profile,
+        RunWireProjection? Run,
+        long Sequence,
+        string? StateHash,
+        bool LastChanged);
+
+    private volatile Reading _held = new(null, null, 0, null, false);
+
     /// <summary>The player as the server last projected it, or null before the first answer.</summary>
-    public PlayerWireProjection? Profile { get; private set; }
+    public PlayerWireProjection? Profile => _held.Profile;
 
     /// <summary>The run as the server last projected it, or null when no run is open.</summary>
-    public RunWireProjection? Run { get; private set; }
+    public RunWireProjection? Run => _held.Run;
 
     /// <summary>The highest sequence this mirror has taken an answer from. Zero before the first.</summary>
-    public long Sequence { get; private set; }
+    public long Sequence => _held.Sequence;
 
     /// <summary>The hash the last applied answer carried, or null before one carried a hash.</summary>
-    public string? StateHash { get; private set; }
+    public string? StateHash => _held.StateHash;
 
     /// <summary>Whether the most recent apply moved anything.</summary>
     /// <remarks>
     /// The flag a scene polls, so it can redraw on a change without holding a subscription. It is the
     /// last answer, not a latch: a later apply that changes nothing clears it.
     /// </remarks>
-    public bool LastChanged { get; private set; }
+    public bool LastChanged => _held.LastChanged;
 
     /// <summary>Takes one command outcome, if it is not older than what is already held.</summary>
     /// <param name="result">The outcome, as the port answered it.</param>
@@ -63,7 +82,9 @@ public sealed class StateMirror
 
         if (result.Sequence < Sequence)
         {
-            return LastChanged = false;
+            _held = _held with { LastChanged = false };
+
+            return false;
         }
 
         return Record(result.Sequence, result.StateHash, result.Profile, result.Run);
@@ -87,24 +108,29 @@ public sealed class StateMirror
 
     private bool Record(long sequence, string? stateHash, PlayerWireProjection? profile, RunWireProjection? run)
     {
-        Sequence = Math.Max(Sequence, sequence);
+        var held = _held;
+        var advanced = Math.Max(held.Sequence, sequence);
 
         // A null hash is an exchange that read no state — a refusal the server answered without
         // touching the row. There is nothing to compare it against and nothing it could have moved,
         // so it is not the same case as a hash that matches and it is not a change either.
-        if (stateHash is null || string.Equals(StateHash, stateHash, StringComparison.Ordinal))
+        if (stateHash is null || string.Equals(held.StateHash, stateHash, StringComparison.Ordinal))
         {
-            return LastChanged = false;
-        }
+            _held = held with { Sequence = advanced, LastChanged = false };
 
-        StateHash = stateHash;
+            return false;
+        }
 
         // Kept rather than cleared when an answer carries none: this class records what the server
         // said and nothing else, and "the response omitted the run" is not the server saying the run
         // is gone.
-        Profile = profile ?? Profile;
-        Run = run ?? Run;
+        _held = new Reading(
+            profile ?? held.Profile,
+            run ?? held.Run,
+            advanced,
+            stateHash,
+            LastChanged: true);
 
-        return LastChanged = true;
+        return true;
     }
 }

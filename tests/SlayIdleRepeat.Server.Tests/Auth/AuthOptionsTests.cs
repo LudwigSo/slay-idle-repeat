@@ -154,6 +154,40 @@ public sealed class AuthOptionsTests
                 "silent-renewal design exists to prevent.");
     }
 
+    /// <summary>
+    /// 🔒 <b>A non-finite number is refused, because no range check can refuse it.</b>
+    /// </summary>
+    /// <remarks>
+    /// Every comparison against NaN is false, so the open-interval guard above passes it through —
+    /// and <c>(long)Math.Floor(NaN)</c> is an unspecified conversion: <c>long.MinValue</c> on x64,
+    /// zero on ARM64. Either answer tells the client to renew on every request, so the strictest
+    /// spelling of the setting produces no renewal policy at all. The three settings share one
+    /// parser, so all three are pinned here.
+    /// </remarks>
+    [Theory]
+    [InlineData("Auth:SilentRenewalFraction", "Auth__SilentRenewalFraction", "NaN")]
+    [InlineData("Auth:AccessTokenLifetimeMinutes", "Auth__AccessTokenLifetimeMinutes", "NaN")]
+    [InlineData("Auth:RefreshTokenLifetimeDays", "Auth__RefreshTokenLifetimeDays", "NaN")]
+
+    // The infinity chosen where the range check does NOT already answer it: +∞ is ">= 1", so the
+    // fraction's own guard catches that one and a row over it would prove nothing. A lifetime is
+    // only checked for "at or below zero", so +∞ walks past it into TimeSpan.FromMinutes, which
+    // overflows with a bare ArgumentException that names no environment variable at all.
+    [InlineData("Auth:AccessTokenLifetimeMinutes", "Auth__AccessTokenLifetimeMinutes", "Infinity")]
+    public void Bind_refuses_a_non_finite_number(string key, string variable, string configured)
+    {
+        Should.Throw<InvalidOperationException>(
+                () => AuthOptions.Bind(Configuration(
+                    ("Auth:JwtSigningKey", AuthFixtures.SigningKey),
+                    (key, configured))))
+            .Message.ShouldContain(
+                variable,
+                Case.Sensitive,
+                "NaN and the infinities pass every range check by construction, so the refusal has " +
+                "to be the parse's rather than the range's — and it has to name the variable, or a " +
+                "deployment that mistyped one cannot grep the boot log for which.");
+    }
+
     [Fact]
     public void Bind_accepts_a_renewal_fraction_inside_the_open_unit_interval()
     {

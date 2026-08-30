@@ -58,7 +58,11 @@ public sealed class DomainEventDispatcher
             catch (Exception error)
             {
                 failures ??= [];
-                failures.Add(new EventDispatchFailure(sink.GetType().Name, error.Message));
+                // The type with the message: the record's own contract is that the text is enough to
+                // diagnose without re-running the command, and a NullReferenceException's message
+                // alone is "Object reference not set to an instance of an object."
+                failures.Add(new EventDispatchFailure(
+                    sink.GetType().Name, error.GetType().Name + ": " + error.Message));
             }
         }
 

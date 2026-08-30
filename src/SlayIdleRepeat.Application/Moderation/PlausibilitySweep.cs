@@ -87,6 +87,17 @@ public sealed class PlausibilitySweep
                 continue;
             }
 
+            // 🔒 Skipped, never thrown over. Every reading in this pass is stamped with one instant
+            // and the previous pass's stamps came from an earlier one — so a wall clock that stepped
+            // backwards between passes (an NTP correction is the ordinary cause) makes EVERY account
+            // here a negative window. Letting that escape aborts the pass before the readings below
+            // are recorded, and no standing refreshes until real time passes the old stamp. The
+            // sweep's own delta rule already refuses to throw over one bad account for this reason.
+            if (current.ObservedAtUtc < earlier.ObservedAtUtc)
+            {
+                continue;
+            }
+
             measured++;
 
             foreach (var flag in _envelope.Breaches(PlausibilityDelta.Between(earlier, current)))

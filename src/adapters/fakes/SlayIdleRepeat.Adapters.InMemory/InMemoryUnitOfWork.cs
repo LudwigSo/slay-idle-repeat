@@ -21,6 +21,7 @@ public sealed class InMemoryUnitOfWork : IUnitOfWork
     private readonly IIdempotencyStore _idempotency;
     private readonly IMessageRepository? _messages;
     private readonly List<EconomyEventRecord> _economyEvents = [];
+    private readonly object _economyGate = new();
 
     /// <summary>Builds the unit of work over the stores it commits into.</summary>
     /// <param name="players">Where the aggregate snapshots land.</param>
@@ -48,7 +49,22 @@ public sealed class InMemoryUnitOfWork : IUnitOfWork
     public bool FailingClaimWrites { get; set; }
 
     /// <summary>Every economy-log row committed so far, in commit order.</summary>
-    public IReadOnlyList<EconomyEventRecord> EconomyEvents => _economyEvents;
+    /// <remarks>
+    /// A snapshot under the same gate the append takes, as the recording sink and the recording
+    /// telemetry beside it both do. Handing out the live list makes a reader enumerating it while
+    /// a parallel commit appends throw <c>InvalidOperationException</c> — a fixture failing on the
+    /// arrangement rather than on the claim, which is the worst way for a suite to go red.
+    /// </remarks>
+    public IReadOnlyList<EconomyEventRecord> EconomyEvents
+    {
+        get
+        {
+            lock (_economyGate)
+            {
+                return _economyEvents.ToArray();
+            }
+        }
+    }
 
     /// <inheritdoc/>
     /// <remarks>
@@ -106,6 +122,9 @@ public sealed class InMemoryUnitOfWork : IUnitOfWork
             await _messages!.MarkClaimedAsync(claim.Player, claim.Messages, ct).ConfigureAwait(false);
         }
 
-        _economyEvents.AddRange(commit.EconomyEvents);
+        lock (_economyGate)
+        {
+            _economyEvents.AddRange(commit.EconomyEvents);
+        }
     }
 }
