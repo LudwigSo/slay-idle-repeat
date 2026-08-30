@@ -176,6 +176,9 @@ public partial class ConnectionOverlay : CanvasLayer
     private Tween? _cardAppear;
     private Tween? _flashTween;
 
+    /// <summary>The viewport whose resizes this layer re-measures against, held so it can be let go.</summary>
+    private Viewport? _viewport;
+
     /// <summary>What each label was last written with, so a redraw writes nothing when nothing moved.</summary>
     private string _drawnPillText = "";
     private string _drawnToastText = "";
@@ -224,10 +227,18 @@ public partial class ConnectionOverlay : CanvasLayer
 
         IgnoreInputEverywhere(this);
 
-        if (_safeArea is not null)
-        {
-            SafeAreaInsets.ApplyTo(_safeArea, GetViewport().GetVisibleRect().Size);
-        }
+        _viewport = GetViewport();
+
+        ResolveSafeArea();
+
+        // 🔒 …and again on every resize, which is a duty no screen in this build carries. A screen
+        // measures its insets on the way in and is replaced by one that measures them again, so
+        // "once, in _Ready" is a fresh reading each time. This layer enters the tree inside the
+        // application root's own _Ready — before the first drawn frame, and so before a handset has
+        // necessarily settled the window it will actually run at — and then never enters it again
+        // for the life of the process. One reading taken that early and kept that long is how the
+        // pill ends up drawn under a cutout on a device this one never re-measured for.
+        _viewport.SizeChanged += ResolveSafeArea;
 
         Render();
         Report();
@@ -235,12 +246,27 @@ public partial class ConnectionOverlay : CanvasLayer
 
     /// <inheritdoc/>
     /// <remarks>
+    /// <para>
     /// ⚠️ Every tween is killed, including the looping one. A tween outlives the node that created
     /// it unless it is bound or killed, and the pulse loops forever by construction — so a build that
     /// forgot this line would leave one running against a freed control for the life of the process.
+    /// </para>
+    /// <para>
+    /// ⚠️ And the resize connection is let go, off the reference taken when it was made rather than
+    /// off a fresh lookup: the viewport outlives this layer, and a connection left on it would call
+    /// back into a node that no longer exists. A signal owes a disconnect — which is why the tweens
+    /// here use chained callbacks instead, and why this one is worth its four lines.
+    /// </para>
     /// </remarks>
     public override void _ExitTree()
     {
+        if (_viewport is not null && IsInstanceValid(_viewport))
+        {
+            _viewport.SizeChanged -= ResolveSafeArea;
+        }
+
+        _viewport = null;
+
         Stop(ref _slide);
         Stop(ref _pulse);
         Stop(ref _toastAppear);
@@ -520,6 +546,22 @@ public partial class ConnectionOverlay : CanvasLayer
 
             IgnoreInputEverywhere(child);
         }
+    }
+
+    /// <summary>Measures the display's real insets and lays this layer out inside them.</summary>
+    /// <remarks>
+    /// Guarded rather than assumed, because it is reached from a signal as well as from the way in:
+    /// a resize arriving while this layer is being torn down would otherwise measure against a
+    /// viewport that has already gone.
+    /// </remarks>
+    private void ResolveSafeArea()
+    {
+        if (_safeArea is null || _viewport is null || !IsInstanceValid(_viewport))
+        {
+            return;
+        }
+
+        SafeAreaInsets.ApplyTo(_safeArea, _viewport.GetVisibleRect().Size);
     }
 
     /// <summary>Kills a tween if there is one, and forgets it either way.</summary>
