@@ -20,6 +20,10 @@ namespace SlayIdleRepeat.Client.Game.Net;
 /// </remarks>
 public sealed class SessionOpener
 {
+    private readonly IGameApiPort _api;
+    private readonly EphemeralDeviceCredentials _credentials;
+    private readonly ReconnectManager _connection;
+
     /// <summary>Wires the opener over the seam, the credential it holds and the ladder it reports to.</summary>
     /// <param name="api">The wire seam.</param>
     /// <param name="credentials">The in-memory device credential.</param>
@@ -31,13 +35,17 @@ public sealed class SessionOpener
         ArgumentNullException.ThrowIfNull(api);
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(connection);
+
+        _api = api;
+        _credentials = credentials;
+        _connection = connection;
     }
 
     /// <summary>Whether a session is open right now.</summary>
-    public bool IsOpen => throw new NotImplementedException();
+    public bool IsOpen { get; private set; }
 
     /// <summary>The account the open session belongs to, or <c>null</c> while none is open.</summary>
-    public PlayerId? Account => throw new NotImplementedException();
+    public PlayerId? Account { get; private set; }
 
     /// <summary>
     /// Registers a device when none is held, otherwise reopens the family. Reports the outcome to
@@ -45,5 +53,29 @@ public sealed class SessionOpener
     /// </summary>
     /// <param name="ct">Cancellation.</param>
     /// <exception cref="GameApiRefusedException">The server understood and said no.</exception>
-    public Task OpenAsync(CancellationToken ct) => throw new NotImplementedException();
+    public async Task OpenAsync(CancellationToken ct)
+    {
+        try
+        {
+            if (!_credentials.IsHeld)
+            {
+                // Once per process, because every registration mints a NEW anonymous account: a
+                // reopen that registered again would abandon the player's account on every blink.
+                _credentials.Adopt(await _api.RegisterDeviceAsync(null, ct).ConfigureAwait(false));
+            }
+
+            var session = await _api.AuthenticateAsync(_credentials.Held!, ct).ConfigureAwait(false);
+
+            Account = session.Player;
+            IsOpen = true;
+
+            _connection.RecordReached();
+        }
+        catch (GameApiUnavailableException failure)
+        {
+            IsOpen = false;
+
+            _connection.RecordLost(failure);
+        }
+    }
 }

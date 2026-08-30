@@ -163,6 +163,12 @@ public sealed class ReconnectManager
     /// <remarks>
     /// A resync is owed after this, even while connected: a run that has just been opened has never
     /// been read, and the mirror holds whatever the previous one left.
+    /// <para>
+    /// 🔴 <b>Nothing in production calls this yet, and that is a stated absence rather than an
+    /// oversight.</b> The only run id the composed client holds is the in-process host's, which no
+    /// server ever minted, so pointing the ladder at it would turn every resync into a refusal.
+    /// It acquires a caller when the presenters submit through the wire and the server mints the run.
+    /// </para>
     /// </remarks>
     public void Follow(RunId? run)
     {

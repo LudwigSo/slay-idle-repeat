@@ -44,7 +44,8 @@ public static class BootComposition
 
             // 🔴 Both stated rather than defaulted, and both null on the arm every shipped build
             // composes: an in-process host asks no server for content and opens no account session.
-            contentSync: null,
-            session: null);
+            // A null skips the stage entirely, which is what keeps that arm's boot as it was.
+            contentSync: composed.Client.ContentSync,
+            session: composed.Client.Session);
     }
 }

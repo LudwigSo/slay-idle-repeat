@@ -78,6 +78,6 @@ public static class AppRootComposition
     {
         ArgumentNullException.ThrowIfNull(composed);
 
-        throw new NotImplementedException();
+        return composed.Pump;
     }
 }

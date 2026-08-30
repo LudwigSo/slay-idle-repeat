@@ -21,13 +21,15 @@
       "$ref": "#/$defs/locKey"
     },
     "stageStatus": {
-      "description": "One line per boot stage the player can be waiting in. The member set is closed and required in full: a stage with no line renders blank, and a blank line during a slow start is indistinguishable from a hung game.",
+      "description": "One line per boot stage the player can be waiting in. The member set is closed and required in full: a stage with no line renders blank, and a blank line during a slow start is indistinguishable from a hung game. contentSync and session are stages only a build composed over a server ever enters — an in-process build skips both — but their lines are authored unconditionally, because a key the document stops naming is a fatal orphan and a stage that is entered without one renders blank.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["splash", "content", "profile", "atlas", "ready"],
+      "required": ["splash", "content", "contentSync", "session", "profile", "atlas", "ready"],
       "properties": {
         "splash": { "$ref": "#/$defs/locKey" },
         "content": { "$ref": "#/$defs/locKey" },
+        "contentSync": { "$ref": "#/$defs/locKey" },
+        "session": { "$ref": "#/$defs/locKey" },
         "profile": { "$ref": "#/$defs/locKey" },
         "atlas": { "$ref": "#/$defs/locKey" },
         "ready": { "$ref": "#/$defs/locKey" }

@@ -36,7 +36,7 @@ public enum BootStage
 }
 
 /// <summary>
-/// Why a boot did not finish — one name per cause, because the four are fixed by different people.
+/// Why a boot did not finish — one name per cause, because they are fixed by different people.
 /// </summary>
 public enum BootFailureKind
 {
@@ -89,7 +89,8 @@ public sealed class BootFailure
 }
 
 /// <summary>
-/// Drives the boot screen: content, profile, atlas, then Ready — or a named failure.
+/// Drives the boot screen: content, the two server stages when there are any, profile, atlas, then
+/// Ready — or a named failure.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -103,9 +104,11 @@ public sealed class BootFailure
 /// draws, which is the one outcome worse than saying what broke.
 /// </para>
 /// <para>
-/// ⚠️ Auth, the server session and the content-hash check are deliberately absent — they arrive with
-/// the task that builds them, and a stage here that pretended to do them would make an unbuilt flow
-/// look shipped. So would a first-run beat: the tutorial belongs to the milestone that owns it.
+/// ⚠️ The content-hash check and the server session are here, and both are <b>skipped entirely</b>
+/// when the composition root hands in no collaborator for them — which is what keeps the boot of an
+/// in-process build exactly what it was before a server existed. A first-run beat is still
+/// deliberately absent: the tutorial belongs to the milestone that owns it, and a stage here
+/// pretending to run one would make an unbuilt flow look shipped.
 /// </para>
 /// </remarks>
 public sealed class BootPresenter
@@ -131,6 +134,8 @@ public sealed class BootPresenter
     private readonly LocaleStringCatalogue _strings;
     private readonly IBootAtlasCatalogue _atlas;
     private readonly IClockPort _clock;
+    private readonly ContentSyncPresenter? _contentSync;
+    private readonly SessionOpener? _session;
 
     private DateTimeOffset _startedAt;
 
@@ -163,6 +168,8 @@ public sealed class BootPresenter
         _strings = strings;
         _atlas = atlas;
         _clock = clock;
+        _contentSync = contentSync;
+        _session = session;
     }
 
     /// <summary>Where the boot is now. The stage the screen draws.</summary>
@@ -179,13 +186,13 @@ public sealed class BootPresenter
     /// the client genuinely holds two identities and nothing reconciles them — reconciling them is
     /// the presenter migration. Exposing both is what keeps the divergence visible.
     /// </remarks>
-    public PlayerId? AccountPlayerId => throw new NotImplementedException();
+    public PlayerId? AccountPlayerId { get; private set; }
 
     /// <summary>How far the content sync got, or null when this build ran none.</summary>
-    public SyncState? ContentSync => throw new NotImplementedException();
+    public SyncState? ContentSync { get; private set; }
 
     /// <summary>Why the content sync stopped, or null when it did not.</summary>
-    public ContentSyncFailure? ContentSyncFailure => throw new NotImplementedException();
+    public ContentSyncFailure? ContentSyncFailure { get; private set; }
 
     /// <summary>What the atlas stage found, or null before it has run.</summary>
     public BootAtlasResult? Atlas { get; private set; }
@@ -209,7 +216,8 @@ public sealed class BootPresenter
     public string StatusText => _strings.Resolve(KeyFor(Stage));
 
     /// <summary>
-    /// Walks the boot: content, profile, atlas. Ends at <see cref="BootStage.Ready"/>, or at
+    /// Walks the boot: content, content sync, session, profile, atlas — the middle two only when
+    /// this build composed them. Ends at <see cref="BootStage.Ready"/>, or at
     /// <see cref="BootStage.Failed"/> with a <see cref="Failure"/> that names where and why.
     /// </summary>
     /// <param name="ct">Cancellation — the app saying the window is closing.</param>
@@ -229,6 +237,39 @@ public sealed class BootPresenter
             }
 
             Mark();
+
+            if (_contentSync is { } sync)
+            {
+                reached = BootStage.ContentSync;
+                Stage = BootStage.ContentSync;
+
+                // 🔒 Never fatal. The installed content is playable — the build shipped with it —
+                // so a server that could not be reached leaves the game one revision behind, not
+                // unstartable. The sync turns every fault into state and never throws.
+                await sync.RunAsync(ct).ConfigureAwait(false);
+
+                ContentSync = sync.State;
+                ContentSyncFailure = sync.Failure;
+
+                ContentSnapshotIsNotAdoptedYet(sync);
+
+                Mark();
+            }
+
+            if (_session is { } session)
+            {
+                reached = BootStage.Session;
+                Stage = BootStage.Session;
+
+                // An unreachable server is swallowed in here and recorded on the ladder; a refusal
+                // escapes and stops the boot, which is what makes the two tellable apart.
+                await session.OpenAsync(ct).ConfigureAwait(false);
+
+                AccountPlayerId = session.Account;
+
+                Mark();
+            }
+
             reached = BootStage.Profile;
             Stage = BootStage.Profile;
 
@@ -278,9 +319,23 @@ public sealed class BootPresenter
     private static BootFailureKind KindFor(BootStage stage) => stage switch
     {
         BootStage.Content => BootFailureKind.ContentUnavailable,
+        BootStage.Session => BootFailureKind.SessionRefused,
         BootStage.Profile => BootFailureKind.ProfileUnavailable,
         _ => BootFailureKind.Unexpected,
     };
+
+    /// <summary>
+    /// 🔴 <b>The verified snapshot the sync downloaded is dropped, and this names the drop.</b>
+    /// </summary>
+    /// <remarks>
+    /// There is no route from a snapshot produced by the bundle verifier to the one the graph was
+    /// composed over: the content provider only ever re-reads its own source, and swapping mid-boot
+    /// would invalidate every presenter already built over the installed set. So the whole check →
+    /// download → verify flow runs and is reported, and the bytes are discarded until something owns
+    /// adopting them.
+    /// </remarks>
+    /// <param name="sync">The sync whose download is being discarded.</param>
+    private static void ContentSnapshotIsNotAdoptedYet(ContentSyncPresenter sync) => _ = sync.Downloaded;
 
     private static string Describe(Exception failure) => $"{failure.GetType().Name}: {failure.Message}";
 

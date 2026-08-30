@@ -19,6 +19,21 @@ public sealed class ConnectionPumpTests : IDisposable
 {
     private static readonly DateTimeOffset StartedAt = new(2026, 5, 2, 9, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The restore, the sign-in, one turn of the ladder, and the write back.</summary>
+    private const int SettledAfterAPersist = 4;
+
+    /// <summary>The one duty a gated pump can finish: the restore, before it reaches the server.</summary>
+    private const int SettledAfterTheRestore = 1;
+
+    /// <summary>Enough frames for a file read or write to land, and few enough that a stall fails.</summary>
+    private const int FrameBudget = 500;
+
+    /// <summary>How long a frame waits, so the budget is a real interval rather than a spin count.</summary>
+    private static readonly TimeSpan FramePause = TimeSpan.FromMilliseconds(1);
+
+    /// <summary>Frames driven after the store is moved, so a re-read would have had every chance.</summary>
+    private const int FramesAfterTheStoreMoves = 5;
+
     private readonly string _cacheRoot = RepoPaths.ScratchCacheRoot();
 
     /// <inheritdoc/>
@@ -136,6 +151,187 @@ public sealed class ConnectionPumpTests : IDisposable
             "the pump attempted again before the ladder said it was due. The delay is the whole " +
             "backoff: ignoring it turns a server that is refusing connections into a client that " +
             "hammers it once per frame.");
+    }
+
+    // ------------------------------------ the mirror's two duties, which nothing else can observe
+
+    /// <summary>
+    /// 🔒 <b>The mirror is filled from the store before the pump ever reaches the server.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every other case here is about the ladder, and every one of them passes against a pump that
+    /// ignores the mirror and its cache outright — <c>Advance</c> starts a task and returns, so a
+    /// duty that never ran leaves no trace in a return value. This is the case that says the cold
+    /// start has something to draw with, which is the entire reason the store exists.
+    /// </para>
+    /// <para>
+    /// The api is gated so the sign-in never answers, which is what makes the settled-work signal a
+    /// fact rather than a race: the restore is then the only duty that can have finished.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task Advance_fills_the_mirror_from_the_store_on_the_first_tick()
+    {
+        var cache = new LocalFileCache(_cacheRoot);
+        await Store(cache, NetWorlds.SomeHash, sequence: 4);
+
+        var (pump, mirror) = PumpOver(RecordingGameApi.Reachable().Gated(), cache);
+        RunUntilSettled(pump, SettledAfterTheRestore);
+
+        pump.LastSettledWork.ShouldBe(
+            ConnectionPumpWork.MirrorRestore,
+            "the restore is the first thing a frame does and nothing else here had answered yet, so " +
+            "a pump that skipped it settled a different duty — or none at all, which is what a pump " +
+            "that never touched the cache would report.");
+        mirror.StateHash.ShouldBe(
+            NetWorlds.SomeHash,
+            "and the restore has to reach the MIRROR, not merely read the file. The hash is what the " +
+            "first server answer is compared against: a mirror left empty makes that answer look like " +
+            "a change and announces a resync for a state the player was already looking at.");
+        mirror.Sequence.ShouldBe(
+            4,
+            "the sequence comes back with it, or the first slow answer to an old command walks the " +
+            "screen backwards.");
+        mirror.Run.ShouldNotBeNull(
+            "and the projections, since a mirror with a hash and nothing to draw is the one thing it " +
+            "does not exist for.");
+    }
+
+    /// <summary>
+    /// 🔒 …and only on the first tick. The store is a cold-start convenience, never a second opinion.
+    /// </summary>
+    /// <remarks>
+    /// The store is moved underneath the pump after it has finished with it. A pump that re-read it
+    /// every frame would stamp whatever is on disk over live state sixty times a second — which is
+    /// the cache becoming authoritative, the one thing it may never be — and would do a file read
+    /// per frame on a handset to do it.
+    /// </remarks>
+    [Fact]
+    public async Task Advance_fills_the_mirror_from_the_store_only_once()
+    {
+        var cache = new LocalFileCache(_cacheRoot);
+        await Store(cache, NetWorlds.SomeHash, sequence: 4);
+
+        var (pump, mirror) = PumpOver(RecordingGameApi.Reachable(), cache);
+
+        RunUntilSettled(pump, SettledAfterAPersist);
+
+        await Store(cache, NetWorlds.AnotherHash, sequence: 9);
+
+        for (var frame = 0; frame < FramesAfterTheStoreMoves; frame++)
+        {
+            pump.Advance(CancellationToken.None);
+        }
+
+        mirror.StateHash.ShouldBe(
+            NetWorlds.SomeHash,
+            "the mirror took the store's newer contents, so the restore is running on more than the " +
+            "first tick. Nothing on disk is news: the ladder owes a resync and the server's answer is " +
+            "what may move this.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>A mirror that moved is written back, so the next cold start opens on it.</b>
+    /// </summary>
+    [Fact]
+    public async Task Advance_persists_the_mirror_once_the_state_moves()
+    {
+        var cache = new LocalFileCache(_cacheRoot);
+        var (pump, mirror) = PumpOver(RecordingGameApi.Reachable(), cache);
+
+        pump.Advance(CancellationToken.None);
+        mirror.Apply(NetWorlds.State(NetWorlds.SomeHash, sequence: 6));
+
+        RunUntilSettled(pump, SettledAfterAPersist);
+
+        var stored = new StateMirror();
+
+        (await new MirrorCache(cache).RestoreAsync(stored, CancellationToken.None)).ShouldBeTrue(
+            "nothing was written, so every restart after this one opens on a blank screen until the " +
+            "network answers — which is the whole of what the mirror buys and it is bought by this " +
+            "one duty.");
+        stored.StateHash.ShouldBe(
+            NetWorlds.SomeHash,
+            "and it has to be what the mirror actually holds. A pump that wrote a stale copy would " +
+            "hand the next cold start a screen the server had already moved past.");
+        stored.Sequence.ShouldBe(
+            6,
+            "the sequence with it, for the reason the restore case gives: it is what tells a stale " +
+            "answer from news.");
+    }
+
+    /// <summary>
+    /// 🔒 The control: the mirror holds a state and has not moved, so nothing is written.
+    /// </summary>
+    /// <remarks>
+    /// The mirror is deliberately filled first and then given an answer that changes nothing, so
+    /// there IS something a careless pump could write: a case over an empty mirror would pass
+    /// against a pump that persisted on every single frame, because the cache declines to store an
+    /// empty one anyway. What that pump would actually cost is a compress-and-write of two whole
+    /// projections sixty times a second on a battery.
+    /// </remarks>
+    [Fact]
+    public async Task Advance_persists_nothing_while_the_mirror_has_not_moved()
+    {
+        var cache = new LocalFileCache(_cacheRoot);
+        var (pump, mirror) = PumpOver(RecordingGameApi.Reachable(), cache);
+
+        mirror.Apply(NetWorlds.State(NetWorlds.SomeHash, sequence: 3));
+        mirror.Apply(NetWorlds.State(NetWorlds.SomeHash, sequence: 4));
+
+        RunUntilSettled(pump, SettledAfterAPersist);
+
+        (await new MirrorCache(cache).RestoreAsync(new StateMirror(), CancellationToken.None))
+            .ShouldBeFalse(
+                "the mirror was written back although the last answer moved nothing. A reconnect " +
+                "that finds the server exactly where the client left it is the ordinary case, and " +
+                "paying a compress-and-write for it every frame is what turns an idle screen into a " +
+                "flat battery.");
+    }
+
+    /// <summary>Stores a mirror carrying the given answer, the way the pump would have.</summary>
+    private static async Task Store(LocalFileCache cache, string stateHash, long sequence)
+    {
+        var mirror = new StateMirror();
+        mirror.Apply(NetWorlds.State(stateHash, sequence));
+
+        await new MirrorCache(cache).PersistAsync(mirror, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Drives frames until the pump has settled <paramref name="count"/> duties.
+    /// </summary>
+    /// <remarks>
+    /// The settled count is the only thing that can say a started task has finished: the pump never
+    /// awaits and hands out no task. Spinning on a wall clock instead would make every case here a
+    /// timing bet on a build agent.
+    /// </remarks>
+    private static void RunUntilSettled(ConnectionPump pump, int count)
+    {
+        for (var frame = 0; frame < FrameBudget && pump.SettledCount < count; frame++)
+        {
+            pump.Advance(CancellationToken.None);
+            Thread.Sleep(FramePause);
+        }
+
+        pump.SettledCount.ShouldBeGreaterThanOrEqualTo(
+            count,
+            $"the pump settled {pump.SettledCount} duties in {FrameBudget} frames and needed {count}, " +
+            "so one it started never finished — and everything below would be asserting about work " +
+            "that did not happen.");
+    }
+
+    /// <summary>A pump and the mirror it drives, over a given store.</summary>
+    private (ConnectionPump Pump, StateMirror Mirror) PumpOver(IGameApiPort api, LocalFileCache cache)
+    {
+        var clock = new ManualClock(StartedAt);
+        var mirror = new StateMirror();
+        var connection = new ReconnectManager(
+            api, mirror, new CommandQueue(CountingIdGenerator.Counting()), clock);
+        var session = new SessionOpener(api, new EphemeralDeviceCredentials(), connection);
+
+        return (new ConnectionPump(connection, session, mirror, new MirrorCache(cache), clock), mirror);
     }
 
     private (ConnectionPump Pump, ReconnectManager Connection, ManualClock Clock) Pump(IGameApiPort api)
