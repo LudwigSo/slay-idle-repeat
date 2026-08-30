@@ -7,6 +7,7 @@ using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Content;
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core;
 
@@ -64,13 +65,25 @@ public sealed class RewardedAdSelection
 public sealed class ComposedClient
 {
     /// <summary>Carries the composed graph. Built only by <see cref="ClientComposition"/>.</summary>
-    /// <exception cref="ArgumentNullException">Any part of the graph is null.</exception>
+    /// <param name="gameHost">The in-process seam every presenter drives the game through.</param>
+    /// <param name="rewardedAds">The rewarded-ad port with the arm that chose it.</param>
+    /// <param name="revive">How a player reaches a revive.</param>
+    /// <param name="content">The provider the host's snapshot was loaded from.</param>
+    /// <param name="clock">The one clock the whole graph runs on.</param>
+    /// <param name="gameApi">The wire seam, or null when this client was composed over no server.</param>
+    /// <param name="connection">
+    /// The connection presenter built over <paramref name="gameApi"/>, or null when there is none.
+    /// The two are null together, by construction.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Any non-optional part of the graph is null.</exception>
     public ComposedClient(
         IGameHost gameHost,
         RewardedAdSelection rewardedAds,
         ReviveArm revive,
         ContentProvider content,
-        IClockPort clock)
+        IClockPort clock,
+        IGameApiPort? gameApi,
+        ConnectionPresenter? connection)
     {
         ArgumentNullException.ThrowIfNull(gameHost);
         ArgumentNullException.ThrowIfNull(rewardedAds);
@@ -82,10 +95,38 @@ public sealed class ComposedClient
         Revive = revive;
         Content = content;
         Clock = clock;
+        GameApi = gameApi;
+        Connection = connection;
     }
 
     /// <summary>The single entry point the presenters drive the game through.</summary>
     public IGameHost GameHost { get; }
+
+    /// <summary>
+    /// The wire seam this client was composed over, or <c>null</c> when it was composed over none.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Null is a decision, not an omission. A client composed over an in-process host has no
+    /// connection to lose, so there is nothing for the reconnect ladder to climb and nothing for the
+    /// overlay to draw — which is the specification's own rendering for a working connection: nothing
+    /// at all. Held rather than dropped for the reason the whole graph is held: hand-rolled
+    /// composition has no container, so a port nobody references is a port nobody can reach.
+    /// </remarks>
+    public IGameApiPort? GameApi { get; }
+
+    /// <summary>
+    /// The one connection presenter the whole build shares, or <c>null</c> when no wire seam was
+    /// composed.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Nothing composes a wire seam yet.</b> <c>GodotClientComposition.ComposeLocalHost</c> is
+    /// the only production call into <see cref="ClientComposition.Compose"/> and it passes none, so in
+    /// a shipped build today this is always null: no overlay is instantiated and no screen dims a
+    /// control. That is the correct rendering for <em>Connected</em> and it is also an absence — the
+    /// first client that composes the HTTP adapter is <c>M5-15</c>, and even then something has to
+    /// pump <see cref="ReconnectManager.PollAsync"/> for the state to ever move.
+    /// </remarks>
+    public ConnectionPresenter? Connection { get; }
 
     /// <summary>The rewarded-ad port, with the arm that chose it.</summary>
     public RewardedAdSelection RewardedAds { get; }
@@ -144,13 +185,24 @@ public static class ClientComposition
     /// </param>
     /// <param name="entitlements">The resolved entitlement. Never inferred from a local receipt.</param>
     /// <param name="featureFlags">The resolved feature flags.</param>
+    /// <param name="localeTag">
+    /// The locale the device reported, as a BCP-47 tag. Needed here rather than at the screen because
+    /// the connection presenter is built here and every word it shows is a catalogue lookup.
+    /// </param>
+    /// <param name="gameApi">
+    /// 🔒 The wire seam this client runs over, or <c>null</c> to say there is none — <b>stated, never
+    /// defaulted</b>. A root that cannot say whether it is running against a server has not decided
+    /// which game it composed, and a default would let a caller forget to.
+    /// </param>
     /// <exception cref="ArgumentException">A path is null, empty or whitespace.</exception>
     /// <exception cref="ArgumentNullException">An ambience value is null.</exception>
     public static ComposedClient Compose(
         string cacheDirectoryPath,
         IContentSourcePort contentSource,
         Entitlements entitlements,
-        FeatureFlags featureFlags)
+        FeatureFlags featureFlags,
+        string localeTag,
+        IGameApiPort? gameApi)
     {
         // Every guard before anything touches a disk: a cache adapter creates its directory on
         // construction, so a root that validated as it went would leave a directory behind for a
@@ -159,6 +211,7 @@ public static class ClientComposition
         ArgumentNullException.ThrowIfNull(contentSource);
         ArgumentNullException.ThrowIfNull(entitlements);
         ArgumentNullException.ThrowIfNull(featureFlags);
+        ArgumentNullException.ThrowIfNull(localeTag);
 
         // ⚠️ Canonical, not Shipping. The shipping gate fails while any translation sentinel
         // remains, and every DE value is one today — a shipping load here would refuse to start
@@ -185,7 +238,54 @@ public static class ClientComposition
             sinks: []);
 
         return new ComposedClient(
-            gameHost, rewardedAds, SelectReviveArm(entitlements), content, clock);
+            gameHost,
+            rewardedAds,
+            SelectReviveArm(entitlements),
+            content,
+            clock,
+            gameApi,
+            SelectConnection(gameApi, content, localeTag, clock));
+    }
+
+    /// <summary>
+    /// Builds the connection half over the wire seam, or answers that there is none to build one over.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The port and the presenter are null together.</b> Anything else is a build claiming to
+    /// draw a connection it has no way of losing, or holding a seam nothing can report on. Making it
+    /// one branch rather than two arguments is what keeps the two from disagreeing.
+    /// </para>
+    /// <para>
+    /// The mirror, the queue and the ladder are built here and reachable only through the presenter,
+    /// which is the shape they want: only the presenter is allowed to be handed to a scene, and the
+    /// three below are the machinery it reads.
+    /// </para>
+    /// </remarks>
+    /// <param name="gameApi">The wire seam, or null when there is none.</param>
+    /// <param name="content">The loaded content set the connection's four sentences are read out of.</param>
+    /// <param name="localeTag">The locale the device reported.</param>
+    /// <param name="clock">The one clock the ladder and the two timed announcements are measured on.</param>
+    /// <exception cref="ArgumentNullException">A collaborator other than <paramref name="gameApi"/> is null.</exception>
+    public static ConnectionPresenter? SelectConnection(
+        IGameApiPort? gameApi, ContentProvider content, string localeTag, IClockPort clock)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(localeTag);
+        ArgumentNullException.ThrowIfNull(clock);
+
+        if (gameApi is null)
+        {
+            return null;
+        }
+
+        var mirror = new StateMirror();
+
+        return new ConnectionPresenter(
+            new ReconnectManager(gameApi, mirror, new CommandQueue(new SystemIdGenerator()), clock),
+            mirror,
+            new LocaleStringCatalogue(content.Current, localeTag),
+            clock);
     }
 
     /// <summary>

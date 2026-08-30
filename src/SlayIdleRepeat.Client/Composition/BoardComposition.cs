@@ -30,14 +30,19 @@ public sealed class ComposedBoardScreen
     /// <param name="shop">Builds the shop screen for the shop tile the run is standing on.</param>
     /// <param name="campfire">Builds the campfire / shrine screen for the tile the run is standing on.</param>
     /// <param name="runEnd">Builds the run-end screen for the run this board is playing.</param>
-    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <param name="connection">
+    /// The one connection presenter, or null when this client was composed over no server. Optional
+    /// on purpose: the board is playable against an in-process host, which has no connection to lose.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Any non-optional argument is null.</exception>
     public ComposedBoardScreen(
         BoardPresenter board,
         Func<ComposedBattleScreen> battle,
         Func<ComposedPerkDraftScreen> perkDraft,
         Func<ComposedShopScreen> shop,
         Func<ComposedCampfireScreen> campfire,
-        Func<ComposedRunEndScreen> runEnd)
+        Func<ComposedRunEndScreen> runEnd,
+        ConnectionPresenter? connection)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(battle);
@@ -52,7 +57,20 @@ public sealed class ComposedBoardScreen
         Shop = shop;
         Campfire = campfire;
         RunEnd = runEnd;
+        Connection = connection;
     }
+
+    /// <summary>
+    /// The connection, for the two controls on this screen the server has to answer, or null when
+    /// there is no server.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Passed down rather than composed here, because there is exactly one of it in the build and a
+    /// per-screen copy would be a second answer to whether the client is online. Null in every build
+    /// that ships today — see <c>ClientComposition.Connection</c> — which means the board's roll and
+    /// resolve are drawn and routed exactly as they were before this existed.
+    /// </remarks>
+    public ConnectionPresenter? Connection { get; }
 
     /// <summary>Drives the Board screen.</summary>
     public BoardPresenter Board { get; }
@@ -141,6 +159,7 @@ public static class BoardComposition
             () => PerkDraftComposition.CreatePerkDraftScreen(composed, player, run),
             () => ShopComposition.CreateShopScreen(composed, player, run),
             () => CampfireComposition.CreateCampfireScreen(composed, player, run),
-            () => RunEndComposition.CreateRunEndScreen(composed, player, run));
+            () => RunEndComposition.CreateRunEndScreen(composed, player, run),
+            composed.Client.Connection);
     }
 }

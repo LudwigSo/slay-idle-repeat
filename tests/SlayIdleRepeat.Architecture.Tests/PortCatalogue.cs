@@ -156,29 +156,31 @@ internal static class PortCatalogue
             "alone would satisfy the port's shape and prove nothing about either store's purchase " +
             "flow, which is where every defect in this area lives."),
 
-        new("IGameApiPort", "M7-02",
-            "M7-09 landed the in-process game seam — Application.Hosting.IGameHost, one real " +
-            "implementation over the M5-02 use cases — and deliberately did NOT declare this port. " +
-            "IGameHost is typed on Core's GameCommand; this port carries the command envelope M5-03 " +
-            "owns (commandId, sequence, stateHash), which no assembly declares. Its second " +
-            "implementation is the HTTP adapter, which needs a running server. And 23 §5 A5 is a " +
-            "live CI gate: a declared port needs a shared contract suite under Contract.Tests, so " +
-            "declaring it without one fails the build. M7-02 writes the suite, the HTTP adapter and " +
-            "the envelope's port shape together, and implements it by wrapping IGameHost. " +
-            "🔒 AND THE CONDITION THIS ENTRY IS THE ONLY RECORD OF, because no rule can hold it: " +
-            "IGameHost is not a port while its one implementation lives inside Application and " +
-            "depends on nothing outside it. The commit that has an ADAPTER PROJECT implement it makes " +
-            "it one by 23 §2.2 — an application-owned interface a vendor conforms to — and neither " +
-            "Every_port_has_at_least_two_implementations nor X-06 quantifies over anything outside " +
-            "Ports/, so that commit goes green with no A5 gate and no suite. M7-02 either moves " +
-            "IGameHost under Ports/Client with its shared suite in the same commit, or keeps every " +
-            "HTTP implementation above the seam so the interface keeps its single in-process one."),
+        // ⚠️ IGameApiPort was here, deferred to M7-02, and this register forced its deletion on the
+        // commit that declared it. The condition the entry recorded — that IGameHost is not a port
+        // while its one implementation lives inside Application, and that an adapter implementing it
+        // there would satisfy no gate — was answered by taking the first of the two arms it named:
+        // IGameHost moved under Ports/Client with its shared suite, and IGameApiPort was declared
+        // beside it as the separate wire seam, because ApplyCommandOutcome carries the Core
+        // aggregates (run seed included) and no HTTP client can honestly produce one.
 
-        new("IRealtimeChannelPort", "M7-02",
-            "A push channel with no server to push from. Its real implementation is a WebSocket " +
-            "client against the server M5-06 authenticates and M7-09 first stands up in process; " +
-            "the connection-state vocabulary its events carry is M7-02's, and M7-09's in-process " +
-            "host answers one command at a time with no channel to push down."),
+        new("IRealtimeChannelPort", "M16-04",
+            "🔒 NOT BLOCKED ON INFRASTRUCTURE — blocked on a DESIGN THAT DOES NOT EXIST, which is " +
+            "why the owner moved off M7-02. Measured: 14 §2.3 and §3 contain no WebSocket at all. " +
+            "The command protocol is POST /run/{runId}/command and POST /player/command; the " +
+            "reconnect flow is GET /run/{runId}/state?sinceSequence=N with exponential backoff. " +
+            "M5-06 descoped the WebSocket upgrade-auth design at kickoff on the measured ground that " +
+            "no hub exists or is built in M5, and M7-02 then built all five connection states — " +
+            "Connected, Reconnecting, Offline read-only, Resynced, Run resumed — over polling plus " +
+            "backoff, needing no channel of any kind. So the client machinery this entry used to " +
+            "wait for now EXISTS and did not want the port. Nothing in the plan pushes to a client " +
+            "except M16-04's notification provider, which is the only row that builds any " +
+            "server→client push mechanism at all, and a channel port cannot be shaped before the " +
+            "thing that would push down it. ⚠️ THE HONEST CONSEQUENCE, stated so the next reader " +
+            "does not treat this as a promise: if a push channel is never designed, this entry is " +
+            "DELETED rather than satisfied. `23` §4.1 declaring the interface is not by itself a " +
+            "reason to build one, and a port whose only implementation would be a fake is the hollow " +
+            "port steering S7 refuses."),
 
         // ⚠️ IPlatformInfoPort was here, deferred to M7-01. M7-01b declared it — Adapters.Platform.Host
         // over the BCL beside the InMemory fake — and this register FORCED the deletion rather than
@@ -424,6 +426,20 @@ internal static class PortCatalogue
             "IsReady",
             "ShowAsync",
             "PreloadAsync",
+        }),
+
+        // 🔒 M7-02's wire seam, transcribed in the commit that declared it — the coverage rule
+        // demands a row the moment a specified port exists. All three of the section's members are
+        // declared, differently shaped: the section takes a typed command and answers with snapshot
+        // types, while the declaration takes the command ENVELOPE and answers with projections,
+        // because the run seed never leaves the server and no transport can honestly build the
+        // aggregates. RegisterDeviceAsync is a fourth member the section does not write; extras are
+        // the declaration's business and only MISSING members are what these directions can see.
+        new("23 §4.1", "IGameApiPort", new[]
+        {
+            "AuthenticateAsync",
+            "SendCommandAsync",
+            "FetchRunStateAsync",
         }),
 
         // 🔒 M5-05's four persistence ports, transcribed in the commit that declared them.

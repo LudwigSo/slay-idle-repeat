@@ -64,7 +64,7 @@ public sealed class PortCatalogueTests
     /// worth of headroom and nothing goes red. Counted against the repository, not against either
     /// branch's arithmetic.
     /// </remarks>
-    private const int DeclaredPortFloor = 14;
+    private const int DeclaredPortFloor = 16;
 
     /// <summary>
     /// Entries in the register. At zero, <see cref="No_port_deferral_outlives_the_port_it_defers"/>,

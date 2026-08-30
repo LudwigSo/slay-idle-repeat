@@ -235,16 +235,21 @@ public sealed class AnalyticsVocabularyRuleTests
             + "the ftue.json data package with its per-beat resume is that row's deliverable, so "
             + "there is no step to report until it lands."),
 
-        new("disconnect", "M7-02",
-            "A disconnect is a client-side fact — the server observes silence, not an event — and "
-            + "the client machinery that knows it happened (the 5 connection states, "
-            + "ReconnectManager) is M7-02's. Until that exists, nothing can carry a disconnect with "
-            + "14 §10.1's duration and screen to the server (kickoff ruling 7)."),
+        new("disconnect", "M18-08",
+            "🔒 THE MACHINERY NOW EXISTS AND THE ENTRY STILL HOLDS, which is why the owner moved off "
+            + "M7-02. That task built the five connection states and ReconnectManager, so the fact "
+            + "is known client-side with 14 §10.1's duration and screen both to hand. What is still "
+            + "missing is a CHANNEL: IAnalyticsSinkPort is a SERVER port and every name in 14 "
+            + "§10.1's set is emitted server-side off the accepted-command stream, so a client "
+            + "holding this fact has nothing to hand it to. M18-08 already owns 'disconnect rate by "
+            + "region and screen' in this file's own DerivedMetrics, which makes it the row that "
+            + "first needs the name to reach a sink at all."),
 
-        new("resync", "M7-02",
-            "Same client-side machinery as disconnect: the resync flash is literally M7-02's row, "
-            + "and a resync the client performs silently is invisible to the accepted-command "
-            + "stream (kickoff ruling 7)."),
+        new("resync", "M18-08",
+            "The same missing channel as disconnect, and the same owner. M7-02 built the resync "
+            + "flash and the state mirror that knows the client moved, so the fact exists; what does "
+            + "not is any route from a client-side fact to a server-side sink, and a resync the "
+            + "client performs silently still reaches no accepted-command stream."),
     };
 
     /// <summary>

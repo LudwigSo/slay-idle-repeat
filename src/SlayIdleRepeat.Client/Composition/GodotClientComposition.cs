@@ -56,8 +56,8 @@ public sealed class GodotClientCapabilities
 /// </para>
 /// <para>
 /// The root node is what holds this, because the root node is the only thing whose lifetime
-/// is the application's. That is not a scene reaching into a port — the root hands the host
-/// to its presenter and reads nothing else — it is the container's job, done by hand.
+/// is the application's. That is not a scene reaching into a port — the root hands this whole
+/// object to a factory and reads nothing out of it — it is the container's job, done by hand.
 /// </para>
 /// </remarks>
 public sealed class ComposedGodotClient
@@ -146,6 +146,14 @@ public static class GodotClientComposition
                 ClientComposition.SelectContentSource(
                     capabilities.Paths.ContentDataRootOnDisk(), new GodotPackedDocuments()),
                 LocalHostAmbience.NoSubscriptionResolved(),
-                LocalHostAmbience.NoRemoteConfigResolved()));
+                LocalHostAmbience.NoRemoteConfigResolved(),
+                capabilities.PlatformInfo.Locale,
+
+                // 🔴 No wire seam, stated rather than defaulted: this arm composes an IN-PROCESS
+                // host, which has no connection to lose. So no connection presenter is built, no
+                // overlay is instantiated and nothing about the network is ever drawn — which is
+                // the specified rendering for a working connection. The first arm that passes one
+                // is M5-15's, which composes the HTTP adapter.
+                gameApi: null));
     }
 }

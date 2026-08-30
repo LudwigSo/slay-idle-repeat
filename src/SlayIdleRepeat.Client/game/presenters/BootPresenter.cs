@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Core.Primitives;
 

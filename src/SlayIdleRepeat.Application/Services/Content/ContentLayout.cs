@@ -134,6 +134,10 @@ public static class ContentLayout
             // document — one per incident class — and the day the second lands the stem rule would
             // start demanding a schema per template file.
             [ContentDirectory + "mail/"] = SchemaDirectory + "mail" + SchemaSuffix,
+            // The connection-state strings. Not a screen's slots: they are drawn over whatever
+            // screen the player is on, which is why they are a type of their own rather than a
+            // member of one.
+            [ContentDirectory + "net/"] = SchemaDirectory + "net" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

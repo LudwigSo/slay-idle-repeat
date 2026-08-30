@@ -45,14 +45,16 @@ public sealed class ContractSuiteCoverageTests
     /// persistence ports (<c>IPlayerRepository</c>, <c>IRunStateStore</c>, <c>IIdempotencyStore</c>,
     /// <c>IBattleLogStore</c>) and M5-11's two observability ports (<c>IAnalyticsSinkPort</c>,
     /// <c>ITelemetryPort</c>). M5-04 raised it 12 → 13 for <c>IUnitOfWork</c>, moving the same
-    /// three floors in the commit that declares the port, and M5-08 raised it 13 → 14 for
-    /// <c>IMessageRepository</c>, the inbox store.
+    /// three floors in the commit that declares the port; M5-08 raised it 13 → 14 for
+    /// <c>IMessageRepository</c>, and M7-02 14 → 16 for the two client seams — <c>IGameHost</c>
+    /// moved under <c>Ports/Client</c> so an adapter could implement it under a gate that watches,
+    /// and <c>IGameApiPort</c>, the wire seam, was declared beside it.
     /// </remarks>
-    private const int PortFloor = 14;
+    private const int PortFloor = 16;
 
     /// <summary>Attributed suites in this assembly. At zero, rule 3's suite arm has nothing to check.</summary>
     /// <remarks>Moves with <see cref="PortFloor"/>: rule 1 is one suite per port, exactly.</remarks>
-    private const int SuiteFloor = 14;
+    private const int SuiteFloor = 16;
 
     /// <summary>
     /// Adapter assemblies the scan finds. At zero, rule 2 finds no implementations and reports
@@ -184,6 +186,13 @@ public sealed class ContractSuiteCoverageTests
         // are: it carries no fixture, and the scan is what its exemption anchors to.
         "SlayIdleRepeat.Adapters.InMemory.InMemoryMessageRepository",
         "SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresMessageRepository",
+        // M7-02's two client seams. IGameHost's real implementation is InProcessGameHost, which
+        // lives in Application rather than in an adapter — the scan appends that assembly for
+        // exactly this case, and naming it here is what notices if that append is ever dropped.
+        "SlayIdleRepeat.Application.Hosting.InProcessGameHost",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryGameHost",
+        "SlayIdleRepeat.Adapters.Api.Http.HttpGameApi",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryGameApi",
     };
 
     private const string PortsNamespace = "SlayIdleRepeat.Application.Ports";

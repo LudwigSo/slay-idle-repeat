@@ -53,7 +53,7 @@ public partial class AppRoot : Node3D
     /// and the root node is the only object whose lifetime is the application's — so if the root
     /// lets go, every later screen has to compose again, and a second graph means a second cache
     /// over the same directory. Holding it is what makes injection downward possible; the root
-    /// still reads nothing out of it but the host it gives its presenter.
+    /// reads nothing out of it at all, and hands it whole to the factories that do.
     /// </remarks>
     private ComposedGodotClient? _composed;
 
@@ -76,12 +76,12 @@ public partial class AppRoot : Node3D
     public override void _ExitTree() => _lifetime.Cancel();
 
     /// <summary>
-    /// Runs the composition root once, hands the host to the presenter, and shows where it got to.
+    /// Runs the composition root once, asks it for the root presenter, and shows where it got to.
     /// </summary>
     /// <remarks>
-    /// The graph is composed once, here, and kept. What the root does NOT do is read it: the
-    /// presenter gets the host and the root touches nothing else in it. That is the line the
-    /// split actually draws — a scene may not use a port, and something has to own one.
+    /// The graph is composed once, here, and kept. What the root does NOT do is read it: it asks a
+    /// factory for a presenter and touches nothing inside the graph itself. That is the line the
+    /// split actually draws — a scene may not name a port, and something has to.
     /// </remarks>
     private async Task ComposeAndStartAsync()
     {
@@ -89,7 +89,7 @@ public partial class AppRoot : Node3D
         {
             _composed = GodotClientComposition.ComposeLocalHost(GodotClientComposition.BuildCapabilities(this));
 
-            _presenter = new AppRootPresenter(_composed.Client.GameHost);
+            _presenter = AppRootComposition.CreateAppRootPresenter(_composed);
 
             // No ConfigureAwait(false) here, and that is deliberate rather than an omission: the
             // continuation writes to a node, and only the thread the engine runs the scene tree on
@@ -173,6 +173,54 @@ public partial class AppRoot : Node3D
         GetNode<CanvasLayer>(UiLayerPath).Visible = false;
 
         AddChild(boot);
+
+        ShowConnectionOverlay(composed);
+    }
+
+    /// <summary>Puts the connection overlay up, if this build composed a connection to draw.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 Parented to the root and to nothing else. What it draws is global — one connection, not one
+    /// per screen — and the root is the only node whose lifetime is the application's, so this is the
+    /// only parent that survives every handover. It is a sibling of the layer hidden two lines above
+    /// rather than a child of it, which is the whole reason it is its own <see cref="CanvasLayer"/>:
+    /// a child would have gone dark with the boot chrome on the very first handover.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>There is no live driver behind this yet, and the null branch is the ordinary one.</b>
+    /// This build composes no wire seam, so the factory answers null, nothing is instantiated and
+    /// nothing about the connection is ever drawn. That is the specified rendering for a working
+    /// connection rather than a stub — but it does mean the overlay ships unexercised until
+    /// <c>M5-15</c> composes the HTTP adapter. Do not read the presence of this call as wiring.
+    /// </para>
+    /// </remarks>
+    private void ShowConnectionOverlay(ComposedGodotClient composed)
+    {
+        if (AppRootComposition.CreateConnectionPresenter(composed) is not { } connection)
+        {
+            return;
+        }
+
+        var scene = GD.Load<PackedScene>(ConnectionOverlay.ScenePath);
+
+        if (scene is null)
+        {
+            // Load answers null rather than throwing when the resource is missing or its import
+            // cannot be read. Reported and then dropped: a missing overlay costs the player the
+            // status pill, and taking the application down over it would be the blocking connection
+            // error the overlay exists to avoid.
+            GD.PushError(
+                $"The connection overlay could not be loaded from '{ConnectionOverlay.ScenePath}', " +
+                "so this build will draw none of the connection states.");
+
+            return;
+        }
+
+        var overlay = scene.Instantiate<ConnectionOverlay>();
+
+        overlay.Drive(connection, _lifetime.Token);
+
+        AddChild(overlay);
     }
 
     /// <summary>Writes a line of status into the scene, if the scene is still there to write it into.</summary>

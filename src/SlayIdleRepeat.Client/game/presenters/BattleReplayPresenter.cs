@@ -1,5 +1,5 @@
 using System.Globalization;
-using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Primitives;

@@ -338,7 +338,11 @@
     "loc.mail.moderation.report_outcome.title": "About the report you filed",
     "loc.mail.moderation.report_outcome.body": "We looked into the report you filed. The outcome was: {outcome}. Thank you for telling us.",
     "loc.mail.account.new_device.title": "A new device signed in",
-    "loc.mail.account.new_device.body": "{deviceName} signed in to your account on {atUtc} UTC. If that was not you, unlink the device in Settings."
+    "loc.mail.account.new_device.body": "{deviceName} signed in to your account on {atUtc} UTC. If that was not you, unlink the device in Settings.",
+    "loc.net.reconnecting.status": "Reconnecting…",
+    "loc.net.waiting_for_connection.status": "Waiting for connection.",
+    "loc.net.caught_up.status": "Caught up.",
+    "loc.net.run_resumed.status": "Picking up where you left off — Chapter {chapter}, Stage {stage}."
 
   }
 }
