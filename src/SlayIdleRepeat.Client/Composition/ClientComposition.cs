@@ -93,13 +93,13 @@ public enum ClientArm
 /// </remarks>
 public sealed class ClientWireSeams : IDisposable
 {
+    private readonly IReadOnlyList<IDisposable> _owned;
+
     /// <summary>Pairs the two seams with the disposables they were built over.</summary>
     /// <param name="api">The wire seam.</param>
     /// <param name="content">The content-distribution seam.</param>
     /// <param name="owned">What both were built over, disposed after them.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
-    private readonly IReadOnlyList<IDisposable> _owned;
-
     public ClientWireSeams(
         IGameApiPort api, IContentDistributionClient content, IReadOnlyList<IDisposable> owned)
     {

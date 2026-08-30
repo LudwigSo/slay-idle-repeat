@@ -177,25 +177,37 @@ public static class GodotClientComposition
         // that object down is what closes the transport.
         var wire = ClientComposition.SelectWireSeams(arm, serverBaseAddress);
 
-        // The capabilities are handed back out rather than consumed and forgotten. Only the paths
-        // have a caller today; audio, haptics and platform info have none until the ports they are
-        // standing in for exist, and a composition root that dropped them would be constructing
-        // three objects for nothing at all.
-        return new ComposedGodotClient(
-            capabilities,
-            ClientComposition.Compose(
-                capabilities.Paths.ResolveWritableCacheRoot(),
+        try
+        {
+            // The capabilities are handed back out rather than consumed and forgotten. Only the paths
+            // have a caller today; audio, haptics and platform info have none until the ports they are
+            // standing in for exist, and a composition root that dropped them would be constructing
+            // three objects for nothing at all.
+            return new ComposedGodotClient(
+                capabilities,
+                ClientComposition.Compose(
+                    capabilities.Paths.ResolveWritableCacheRoot(),
 
-                // Lookup, then decision, split the way this file's remarks describe: the engine half
-                // answers whether the mirror is on disk, and the pure half chooses the source. The
-                // engine-backed reader is constructed either way and costs nothing unpicked — it holds
-                // no handle and opens nothing until it is asked.
-                ClientComposition.SelectContentSource(
-                    capabilities.Paths.ContentDataRootOnDisk(), new GodotPackedDocuments()),
-                LocalHostAmbience.NoSubscriptionResolved(),
-                LocalHostAmbience.NoRemoteConfigResolved(),
-                capabilities.PlatformInfo.Locale,
-                arm,
-                wire));
+                    // Lookup, then decision, split the way this file's remarks describe: the engine
+                    // half answers whether the mirror is on disk, and the pure half chooses the
+                    // source. The engine-backed reader is constructed either way and costs nothing
+                    // unpicked — it holds no handle and opens nothing until it is asked.
+                    ClientComposition.SelectContentSource(
+                        capabilities.Paths.ContentDataRootOnDisk(), new GodotPackedDocuments()),
+                    LocalHostAmbience.NoSubscriptionResolved(),
+                    LocalHostAmbience.NoRemoteConfigResolved(),
+                    capabilities.PlatformInfo.Locale,
+                    arm,
+                    wire));
+        }
+        catch
+        {
+            // The seams are built before the graph that would own them, and a graph that never got
+            // built owns nothing — so a compose that threw would leave the transport open for the
+            // life of a process the root goes on running after reporting the failure.
+            wire?.Dispose();
+
+            throw;
+        }
     }
 }

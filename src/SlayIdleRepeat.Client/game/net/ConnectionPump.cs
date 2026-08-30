@@ -32,10 +32,11 @@ public enum ConnectionPumpWork
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>No <c>async</c> method, no continuation, no <c>async void</c>.</b> This is driven from the
-/// engine's per-frame callback, where an exception escaping a void async method is unobservable and
-/// fatal. <see cref="Advance"/> starts at most one task, drains the previous one's outcome on the
-/// next frame, and never awaits.
+/// 🔒 <b>No <c>async</c> method and no <c>async void</c>, and no continuation on the frame path.</b>
+/// This is driven from the engine's per-frame callback, where an exception escaping a void async
+/// method is unobservable and fatal. <see cref="Advance"/> starts at most one task, drains the
+/// previous one's outcome on the next frame, and never awaits. <see cref="Stop"/> is the one place
+/// that cannot wait for a next frame, and it is the one place with a continuation.
 /// </para>
 /// <para>
 /// 🔴 <c>ReconnectManager.Follow</c> is deliberately never called from here. The only run id this
@@ -151,10 +152,28 @@ public sealed class ConnectionPump
 
     /// <summary>Stops the pump for good.</summary>
     /// <remarks>
-    /// Nothing is drained or started afterwards. A task still in flight at that moment belongs to a
-    /// graph being torn down, and reporting its fault as an error would file every clean exit as one.
+    /// 🔒 A task still in flight here belongs to a graph being torn down under it — the transport it
+    /// is inside is disposed moments later — so its fault is a clean exit seen from this side and is
+    /// not counted as an error. It is still <b>read</b>: nothing calls <see cref="Advance"/> again,
+    /// so the frame drain will never reach it, and a fault left unread is a fault dropped in silence.
     /// </remarks>
-    public void Stop() => Stopped = true;
+    public void Stop()
+    {
+        Stopped = true;
+
+        if (_inFlight is not { } running)
+        {
+            return;
+        }
+
+        _inFlight = null;
+
+        running.ContinueWith(
+            static settled => _ = settled.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
 
     /// <summary>Reopening while shut, or one turn of the ladder while open.</summary>
     private void StartConnectionWork(CancellationToken ct)

@@ -69,10 +69,8 @@ public partial class AppRoot : Node3D
     /// What advances the connection each frame on a build that has one, and null on one that does not.
     /// </summary>
     /// <remarks>
-    /// 🔒 The root drives it for the reason the root parents the overlay: what it advances is
-    /// global — one connection, not one per screen — and the root is the only node whose lifetime is
-    /// the application's, so it is the only driver that survives every handover. It is asked for
-    /// rather than read off the graph, so the scene still names nothing the graph is made of.
+    /// 🔒 Driven from here for the reason the overlay is parented here, which
+    /// <see cref="ShowConnectionOverlay"/> states.
     /// </remarks>
     private ConnectionPump? _pump;
 
@@ -104,7 +102,8 @@ public partial class AppRoot : Node3D
     /// The order is the point. Cancelling first stops anything new being started, stopping the
     /// driver keeps it from starting one on the way past, and disposing last closes the transport
     /// underneath both. A request already inside the socket at this instant faults — after
-    /// cancellation that is a shutdown rather than an error, and it is counted as one.
+    /// cancellation that is a shutdown rather than an error, and the driver reads it rather than
+    /// leaving it to be dropped in silence.
     /// </para>
     /// </remarks>
     public override void _ExitTree()
