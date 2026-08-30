@@ -241,6 +241,17 @@ public partial class AppRoot : Node3D
     /// working connection. The other branch is live: the server arm composes the presenter and the
     /// root drives its ladder from <see cref="_Process"/>.
     /// </para>
+    /// <para>
+    /// 🔴 <b>Raised here rather than after the boot screen, so it can draw over the splash — which
+    /// is deliberate, and which quietly enters a state nobody has specified.</b> Deliberate because
+    /// a cold start is when a connection is most likely to be missing, the pill's own threshold
+    /// already keeps a blink of failure off the screen, and nothing it draws can be tapped or
+    /// blocked. Unspecified because what a player is shown when the FIRST connection of a launch is
+    /// the one that fails is O32, still open — <see cref="Boot"/> names the same gap for the screen
+    /// underneath. What is drawn during that window today is the mid-session reconnect pill, for
+    /// want of anything authored; it is the least-wrong default rather than an answer, and the
+    /// milestone that closes O32 should read this paragraph before assuming it was one.
+    /// </para>
     /// </remarks>
     private void ShowConnectionOverlay(ComposedGodotClient composed)
     {

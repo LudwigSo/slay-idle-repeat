@@ -65,10 +65,12 @@ public sealed class ComposedBoardScreen
     /// there is no server.
     /// </summary>
     /// <remarks>
-    /// 🔴 Passed down rather than composed here, because there is exactly one of it in the build and a
-    /// per-screen copy would be a second answer to whether the client is online. Null in every build
-    /// that ships today — see <c>ClientComposition.Connection</c> — which means the board's roll and
-    /// resolve are drawn and routed exactly as they were before this existed.
+    /// 🔴 Passed down rather than composed here, because there is exactly one of it in the build and
+    /// a per-screen copy would be a second answer to whether the client is online. Null on <b>every
+    /// arm</b>, including the one that has a live connection — see
+    /// <c>BoardComposition.NoServerSettledBoardActionResolved</c>, which is where that is decided
+    /// and why. So the board's roll and resolve are drawn and routed exactly as they were before
+    /// this existed.
     /// </remarks>
     public ConnectionPresenter? Connection { get; }
 
@@ -160,6 +162,33 @@ public static class BoardComposition
             () => ShopComposition.CreateShopScreen(composed, player, run),
             () => CampfireComposition.CreateCampfireScreen(composed, player, run),
             () => RunEndComposition.CreateRunEndScreen(composed, player, run),
-            composed.Client.Connection);
+            NoServerSettledBoardActionResolved());
     }
+
+    /// <summary>
+    /// 🔴 <b>No connection is handed to the board, on either arm, and this is why.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The board dims a control and refuses its press when the connection cannot carry it — right
+    /// for a control the server settles, and wrong for every control this build actually has.
+    /// Rolling and resolving go to the in-process host on both arms; no arm composes a host that
+    /// needs a network to answer them. Handing the board the wire's connection would stop a player
+    /// rolling because of a server their roll never touches, and a run is never stopped by the
+    /// network.
+    /// </para>
+    /// <para>
+    /// It is the invariant the wire half is built on, too: the facts the server owns — the session,
+    /// the content stamp, the connection and the mirror — are read by the connection presenter and
+    /// by nothing else, and nothing computes across them and the local host's state. A board gating
+    /// a local action on a remote fact would be the first thing to.
+    /// </para>
+    /// <para>
+    /// The affordance is not dead — the board still asks it about every press, and its null answer
+    /// is the one every build takes. It gets its other answer from the change that moves the
+    /// presenters onto the wire, which is the change that first makes a roll something a server
+    /// settles.
+    /// </para>
+    /// </remarks>
+    private static ConnectionPresenter? NoServerSettledBoardActionResolved() => null;
 }
