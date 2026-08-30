@@ -1,7 +1,9 @@
 using System.Text;
 using SlayIdleRepeat.Application.Ports.Client;
+using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Events;
+using SlayIdleRepeat.Application.Services.Inbox;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core;
@@ -57,7 +59,14 @@ public sealed class InProcessGameHost : IGameHost
     /// <param name="entitlements">The subscription entitlement, resolved once at boot.</param>
     /// <param name="flags">The kill switches, resolved once at boot.</param>
     /// <param name="sinks">Where an accepted command's events go, in delivery order. May be empty.</param>
-    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <param name="messages">
+    /// The inbox store, or an explicit <c>null</c> for a process that has none — which is what the
+    /// game client passes, because mail is a server-held account fact and no local store holds one.
+    /// It is the one argument whose <c>null</c> is a value rather than an omission, so it is stated
+    /// rather than defaulted: a host that filled this in would be deciding, silently, whether the
+    /// player's rewards are reachable from here.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Any argument but <paramref name="messages"/> is null.</exception>
     /// <remarks>
     /// Nothing is defaulted. A composition root that cannot say which entitlement or which flags it is
     /// running under is one that has not decided, and a default here would decide for it silently.
@@ -69,7 +78,8 @@ public sealed class InProcessGameHost : IGameHost
         ContentSnapshot content,
         Entitlements entitlements,
         FeatureFlags flags,
-        IReadOnlyList<IDomainEventSink> sinks)
+        IReadOnlyList<IDomainEventSink> sinks,
+        IMessageRepository? messages)
     {
         ArgumentNullException.ThrowIfNull(cache);
         ArgumentNullException.ThrowIfNull(clock);
@@ -87,7 +97,10 @@ public sealed class InProcessGameHost : IGameHost
         _flags = flags;
 
         _store = new WorldSliceStore(cache);
-        _apply = new ApplyCommandUseCase(_store, new DomainEventDispatcher(sinks));
+        _apply = new ApplyCommandUseCase(
+            _store,
+            new DomainEventDispatcher(sinks),
+            messages is null ? null : new InboxCommandSupport(messages));
         _read = new ReadOwnStateUseCase(_store);
     }
 

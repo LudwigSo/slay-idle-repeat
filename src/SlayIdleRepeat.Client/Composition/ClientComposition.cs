@@ -235,7 +235,10 @@ public static class ClientComposition
             content.Current,
             entitlements,
             featureFlags,
-            sinks: []);
+            sinks: [],
+            // No local message store, said rather than defaulted: an inbox is a server-held account
+            // fact, so CLAIM_INBOX arriving here is a miswired caller and the rules say so.
+            messages: null);
 
         return new ComposedClient(
             gameHost,

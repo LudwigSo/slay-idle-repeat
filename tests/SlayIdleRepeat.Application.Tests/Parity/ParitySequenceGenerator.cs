@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Application.Services.Inbox;
 using SlayIdleRepeat.Core;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
@@ -33,6 +34,14 @@ internal sealed record ParitySequence(int Index, IReadOnlyList<GameCommand> Comm
 /// somewhere neither host goes. That costs the walk some of its aim and nothing else: the assertion
 /// is that the two hosts agree with EACH OTHER on the sequence, never that either agrees with the
 /// walker.
+/// </para>
+/// <para>
+/// 🔒 <b>The walker stands in for the Application layer, so it loads what that layer loads.</b> It
+/// probes <c>GameRules.Apply</c> directly, which means the one step <c>ApplyCommandUseCase</c> takes
+/// between loading a slice and calling the rules is the walker's to take too: a command that reads
+/// the inbox is probed against a slice carrying one. The predicate and the projection are the
+/// production ones rather than a second answer to "which commands need an inbox", so a later command
+/// joining that set reaches this walk with no edit here.
 /// </para>
 /// <para>
 /// 🔴 <c>START_RUN</c> is excluded. It is the one command the two hosts are DESIGNED to disagree on:
@@ -85,19 +94,25 @@ internal static class ParitySequenceGenerator
     /// <param name="nowUtc">The instant both hosts read from their shared clock.</param>
     /// <param name="entitlements">The entitlement ambience both hosts carry.</param>
     /// <param name="flags">The kill switches both hosts carry.</param>
+    /// <param name="inbox">
+    /// The baseline player's inbox, loaded through the production seam — <c>InboxView.Empty</c> for a
+    /// player with no messages, never <c>null</c>, which is the miswired caller the rules refuse.
+    /// </param>
     internal static IReadOnlyList<ParitySequence> Corpus(
         WorldSlice baseline,
         ContentSnapshot content,
         DateTimeOffset nowUtc,
         Entitlements entitlements,
-        FeatureFlags flags)
+        FeatureFlags flags,
+        InboxView inbox)
     {
         ArgumentNullException.ThrowIfNull(baseline);
+        ArgumentNullException.ThrowIfNull(inbox);
 
         var sequences = new List<ParitySequence>(SequenceCount);
         for (var index = 0; index < SequenceCount; index++)
         {
-            sequences.Add(SequenceAt(index, baseline, content, nowUtc, entitlements, flags));
+            sequences.Add(SequenceAt(index, baseline, content, nowUtc, entitlements, flags, inbox));
         }
 
         return sequences;
@@ -110,10 +125,12 @@ internal static class ParitySequenceGenerator
         ContentSnapshot content,
         DateTimeOffset nowUtc,
         Entitlements entitlements,
-        FeatureFlags flags)
+        FeatureFlags flags,
+        InboxView inbox)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
         ArgumentNullException.ThrowIfNull(baseline);
+        ArgumentNullException.ThrowIfNull(inbox);
 
         // RngStreams.Draft, not a name of this corpus's own: DeterministicRng refuses any stream
         // `14` §8.1's registry does not carry, and a fixture is not a system that belongs in it.
@@ -150,10 +167,17 @@ internal static class ParitySequenceGenerator
                     entitlements,
                     flags);
 
-                var result = GameRules.Apply(state, candidate, context);
+                var result = GameRules.Apply(
+                    InboxCommandSupport.Reads(candidate) ? state with { Inbox = inbox } : state,
+                    candidate,
+                    context);
+
                 if (result.Accepted)
                 {
-                    state = result.NewState;
+                    // The inbox is a per-command loan the Application layer makes, never part of the
+                    // stored slice, so the walk gives it back rather than carrying it into a step
+                    // whose real dispatch would not have it.
+                    state = result.NewState with { Inbox = null };
                     break;
                 }
             }

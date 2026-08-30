@@ -25,5 +25,8 @@ public sealed class InProcessGameHostContractTests : IGameHostContractTests
             ClientWorlds.Content,
             LocalHostAmbience.NoSubscriptionResolved(),
             LocalHostAmbience.NoRemoteConfigResolved(),
-            Array.Empty<IDomainEventSink>());
+            Array.Empty<IDomainEventSink>(),
+            // No inbox store, the same absence the shipped client states — this fixture is the host
+            // the client boots on, and a store here would make it a different composition.
+            messages: null);
 }

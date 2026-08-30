@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Services.Inbox;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.Tests.Hosting;
 using SlayIdleRepeat.Application.Tests.UseCases;
@@ -71,10 +72,19 @@ internal sealed record NamedSequence(string Id, int Index);
 /// </para>
 /// <para>
 /// The two sides are handed deliberately identical ambience — one clock instance, one content
-/// snapshot, the same entitlements and flags, and two <see cref="LockstepIdGenerator"/>s on the same
-/// seed — because anything else would make them differ for a reason that is not parity. The host's
-/// generator is advanced past the one guid the gateway spends minting the run id, and
-/// <see cref="ParityCorpus.HostGuidLead"/> is asserted rather than assumed.
+/// snapshot, one inbox store, the same entitlements and flags, and two
+/// <see cref="LockstepIdGenerator"/>s on the same seed — because anything else would make them differ
+/// for a reason that is not parity. The host's generator is advanced past the one guid the gateway
+/// spends minting the run id, and <see cref="ParityCorpus.HostGuidLead"/> is asserted rather than
+/// assumed.
+/// </para>
+/// <para>
+/// ⚠️ <b>That shared inbox is empty, and the corpus only compares what an empty one reaches.</b>
+/// <c>CLAIM_INBOX</c> against no messages is an acceptance that pays nothing, so the one place the
+/// two pipelines are NOT alike about mail — the gateway stamps claimed rows inside the accepted
+/// command's transaction and the in-process host has no such commit — is never entered. Seeding a
+/// message here would drive the two sides onto genuinely different write paths, and that asymmetry
+/// has to be answered before it would be a parity finding rather than a fixture one.
 /// </para>
 /// </remarks>
 internal sealed class ParityCorpus
@@ -260,12 +270,19 @@ internal sealed class ParityCorpus
         var baselineRows = await baselineWorld.RowsAsync().ConfigureAwait(false);
         var baseline = Rehydrate(baselineRows);
 
+        // Loaded rather than spelled as InboxView.Empty: the projection a claim is judged against is
+        // whatever this seam answers for this player, and a literal here would be the corpus deciding
+        // that for itself the day the fixture starts seeding a message.
+        var inbox = await new InboxCommandSupport(baselineWorld.Messages)
+            .LoadAsync(baselineWorld.Player, Worlds.Cancel).ConfigureAwait(false);
+
         var sequences = ParitySequenceGenerator.Corpus(
             baseline,
             Worlds.Content,
             baselineWorld.Clock.UtcNow,
             LocalHostAmbience.NoSubscriptionResolved(),
-            LocalHostAmbience.NoRemoteConfigResolved());
+            LocalHostAmbience.NoRemoteConfigResolved(),
+            inbox);
 
         var generation = clock.Elapsed;
         clock.Restart();
@@ -336,8 +353,14 @@ internal sealed class ParityCorpus
         var hostIds = new LockstepIdGenerator(IdSeed);
         hostIds.Advance(HostGuidLead);
 
+        // The same inbox instance the gateway reads, for the reason the two sides share one clock and
+        // one content snapshot: two stores would be two answers to what this player has been sent.
         var host = Hosts.Over(
-            Worlds.CacheHolding(Rehydrate(rows)), clock: world.Clock, ids: hostIds, content: Worlds.Content);
+            Worlds.CacheHolding(Rehydrate(rows)),
+            clock: world.Clock,
+            ids: hostIds,
+            content: Worlds.Content,
+            messages: world.Messages);
 
         // START_RUN consumed player sequence 1 in this world; the run scope opened with it and starts
         // its own counter at 1.
