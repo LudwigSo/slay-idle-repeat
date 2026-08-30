@@ -287,7 +287,33 @@ D60 re-authors `15` and nothing else. Each of the following is real work, is nam
 
 ---
 
-# PART B — Remaining Open Items (33)
+## A15. Rulings from the M5 kickoff (2026-08-26)
+
+🔴 **EVERY RULING BELOW IS THE CONDUCTOR'S, NOT THE PRODUCT OWNER'S.** `/kickoff-milestone M5` ran
+`--non-interactive`, so each of these is the recommendation the owner *would have been shown*, taken
+as the answer and tagged `[auto-accepted]` in `.claude/.milestone-runs/M5/kickoff.md`. They are
+recorded here because they closed open items and shaped shipped code, not because anyone signed them.
+**A15 is the section to re-read first if a later decision contradicts one** — unlike A12, where only
+two of twelve were the conductor's, here all five are.
+
+| ID | Decision | Rationale | Consequences |
+|---|---|---|---|
+| **D62** | 🔓 **O5 CLOSED — push is FCM integrated directly, no wrapper service; APNs is deferred with iOS.** | `14` §12's own recommendation (*"FCM + APNs directly rather than a wrapper service, to stay lock-in-free"*), narrowed by **D34**: iOS is descoped, so at v1 the only live transport is FCM. | **No M5 task declares the push port or builds the adapter** — it has no verifiable implementation and no consumer until M16. `28` A5's COMPENSATION push is a named, greppable absence carrying this text, owner **M16-04**. The port stays provider-neutral (device-token registration + send) so APNs is a later adapter, not a port change. |
+| **D63** | 🔓 **O33 CLOSED — newest-wins confirmed, and it is enforced STRUCTURALLY: no session-eviction machinery is built.** | Any token-eviction scheme is defeated by `14` §16.5's own device-secret fallback — an *evicted* device silently re-auths and wins as newest, by design, because re-auth is never player-visible. What actually enforces newest-wins is **run-command sequencing** (§16.3): one monotone counter per run, so the last device to submit `last + 1` is the single writer; the other gets `SEQUENCE_STALE`/`SEQUENCE_GAP`, resyncs, and becomes newest by acting. | Token families are **per device**, and concurrent sessions may exist at the transport level. M5-06 built no eviction. ⚠️ The consequence accepted with the ruling: two devices can each hold a live session, and the loser of any race learns so only when it submits. |
+| **D64** | 🔓 **O34 CLOSED — display names are NOT unique; `07` §1's lifecycle stands; the sanction outcome for a name is a forced reset to the default.** | Public identity is the player id. Nothing authored demands uniqueness, and a reservation economy is new scope that no surface needs at v1; PvP and guild surfaces disambiguate when they ship (`27` already authors a 4-character guild tag). | **No unique index on the name column** (M5-06). Creation and rename keep `07` §1 verbatim — player-chosen, 12 characters, `27` §1's filter at creation and on every edit, default *"Wanderer"*. **No rename endpoint in M5** (no surface exists; FTUE naming is M9's) and **no rename cooldown invented** (S6) — abuse falls under M5-14's per-player limits. The sanction is `NAME_RESET`, a kind in M5-14's `player_sanctions` model, enforced by nothing yet. |
+| **D65** | 🔓 **O6 CONFIRMED OPEN — managed vs self-hosted Postgres stays a deploy-time choice.** | Either satisfies the no-lock-in rule, and **D22** makes swapping a one-adapter change. Nothing in M5 depends on the answer. | M5-05's migrations target vanilla Postgres: numbered SQL applied at API startup under `pg_advisory_lock` against a checksummed `meta.migrations`, no ORM and no vendor extension. The item stays in Part B deliberately — recorded as *decided to remain open*, not as forgotten. |
+| **D66** | 🔒 **`runSeed` NEVER crosses the wire. `02` §2 wins; `14` §16.6's Input row yields and is amended.** The wire `stateHash`, the client mirror and the parity hashes are all computed over a **client-visible projection**: `PlayerSnapshot` + `RunSnapshot` **with `RunSeed` excluded**. | `02` §2 is explicit (*"the `runSeed` is server-side state and is **never sent to the client**"*) and gives the reason: a client holding it could read tomorrow's draft options and drops — an information cheat even though outcomes are unspoofable. **`14` §8.1 already agreed** (*"the client receives `battleSeed` … **without ever holding `runSeed`**"*), so the contradiction was internal to `14` and §16.6 was the odd sentence out. Closes **M1 carry-forward 10**. | `RunSnapshot` **persists `RunSeed` unchanged** — the redaction is a wire projection, not a snapshot change, so **`SchemaVersion` did not move**. **One `CanonicalStateWriter` remains** (§16.6's *"there is exactly one"* is about the writer, not its input): M5-03 pinned `PlayerWireProjection` (62 slots) and `RunWireProjection` (50 slots) in `WireProjectionFieldOrder.json`, hashed by that writer on both sides. `GET /run/{id}/state` returns the same projection. 🔴 **An agent excluded `BattleHashMismatches` too**, beyond this ruling, on the repo's own contract that `14` §9's tamper tally is never player-facing — recorded as an assumption, not as part of the ruling. |
+
+⚠️ **What A15 does NOT close.** M5's kickoff also took twelve readiness rulings (R1–R12) that shaped
+the milestone without closing an O-item — the verification strategy under the no-infrastructure rule,
+the chaos test's shape, the inbox's projection boundary and v1 attachment kinds, the JWT and
+refresh-family shapes, and the rate-limit numbers. They live in the kickoff record, and **three of
+them were overruled from the repo by the agents that implemented them** (Redis rate-limit counters,
+pre-assigned migration ordinals, and the `plusActive` segment predicate). A reader reconciling this
+section with the code should read that record, not assume the rulings survived contact.
+
+---
+# PART B — Remaining Open Items (30, was 33 — O5/O33/O34 closed by A15; O6 confirmed open)
 
 Everything still genuinely unresolved, prioritised. Nothing here blocks starting implementation.
 
@@ -299,8 +325,8 @@ Everything still genuinely unresolved, prioritised. Nothing here blocks starting
 | **O2** | **Event outcome weights and value scalars** for events 11–30. Several (26, 28, 30) can swing a run's rewards by >50%. | `19` Part A | Same dependency: run them through the simulator. |
 | **O3** | ✅ **Closed structurally by D25.** The Weekly Challenge is now an `EVENT_SCORE_RUSH` package and its scoring formula is a data field (`leaderboard.formula`), retunable weekly on live evidence. The underlying concern — that the formula may reward the strongest account rather than the best run — still stands, but it is no longer a launch blocker, because fixing it is a JSON edit rather than an app release. | `19` Part C, `26` §3.2 | Ship the default formula; watch the correlation between rank and PlayerPower in week 1 and correct. |
 | **O4** | **Server cost model at scale.** ~2.4M requests/day at 10k DAU is trivially servable, but no actual estimate exists. | `14` §11 | Do this before committing to a hosting tier. |
-| **O5** | **Push notification transport.** FCM + APNs directly is recommended over a wrapper, to stay lock-in-free. | `14` §12 | Small, but unowned. |
-| **O6** | **Managed vs self-hosted Postgres** in production. | `14` §1.1 | A cost/ops choice, not an architectural one. Either satisfies the no-lock-in rule — and with D22, swapping is a one-adapter change. |
+| **O5** | ✅ **CLOSED 2026-08-26 by D62 (A15 — the conductor's, `--non-interactive`): FCM directly, no wrapper; APNs deferred with D34.** No M5 task declares the port; owner M16-04. | `14` §12 | Small, but unowned. |
+| **O6** | 🔓 **CONFIRMED OPEN 2026-08-26 by D65 (A15 — the conductor's): a deploy-time choice, decided to remain open.** M5-05's migrations target vanilla Postgres, so nothing in M5 depends on it. | `14` §1.1 | A cost/ops choice, not an architectural one. Either satisfies the no-lock-in rule — and with D22, swapping is a one-adapter change. |
 | **O16** | **Subscription display name.** Currently **Slay Plus**, derived from the title. Alternatives: "Repeat Plus" (fits the loop framing better), or plain "Plus" (shortest, and the store already shows the game name above it). | `12` §2, `00` §0a | Low stakes, but it appears on the store page, the Plus tab and the ladder tag — pick before store assets are produced. |
 | **O17** | **"Idle" in the title vs D2 (no idle income).** The game is auto-battle, not idle-accrual. Store-search traffic from "idle RPG" may install and churn on discovering an active, Energy-gated 10-minute run loop. | `01` §1.1 | Keep the name; set expectations in the store's first line (*"Auto-battle roguelike. Roll, fight, loot, repeat."*). **Measure D1 retention by install source.** If idle-search installs churn markedly worse, fix listing copy and creative — not the name. |
 | **O18** | **Bundle / package identifier** needs a studio or organisation prefix. Placeholder `com.<studio>.slayidlerepeat`. | `00` §0a | Blocking for the first store upload, trivial before then. |
@@ -350,8 +376,8 @@ Found by the 2026-08-11 gap review (A7) but deliberately *not* ruled with the Fi
 | **O30** | **Art/audio manifests never reconciled with docs 24–28 and the A7 amendments** — missing icons, curse HUD, dungeon assets, minigame presentation set (incl. the NPC gambler), the A7 consumable set (Draught/Rope item icons, the S05 pouch button, the armed-rope indicator — `13` §3) and the unopened-shelf UI; stale 975/106 totals and small count errors ("39 screens" vs 38 listed). | `15`, `20`, `00` §4 | Step 10 |
 | **O31** | **Replay history (a locked free feature) has no owning screen.** Assign a History surface or the `12` §2.5 fairness ruling silently unwinds. | `12` §2.5, `13` | The step-11 UI build |
 | **O32** | **First-boot failure, maintenance mode and forced-update states** unspecified — three S01 states plus one lightweight status endpoint. | `13` S01, `14` | Soft launch (step 17) |
-| **O33** | **Simultaneous sessions on two devices** — no single-session rule or eviction behaviour. Newest-wins eviction is the expected default. | `14` | Launch |
-| **O34** | **Player display-name lifecycle** — uniqueness, rename, sanction outcome. | `11`, `27` §6 | Launch ladder / the R9 queue |
+| **O33** | ✅ **CLOSED 2026-08-26 by D63 (A15 — the conductor's): newest-wins, enforced structurally by run-command sequencing; NO eviction machinery built.** | `14` | Launch |
+| **O34** | ✅ **CLOSED 2026-08-26 by D64 (A15 — the conductor's): names NOT unique; `07` §1's lifecycle stands; sanction = forced reset to default (`NAME_RESET`).** | `11`, `27` §6 | Launch ladder / the R9 queue |
 | **O35** | **Redesign `PK_DICELORD_GIFT`** — made redundant by A7's free-fork-choice movement ruling. | `04` §5 | Perk content fill |
 | **O36** | **Name the FTUE beat-7 mini-boss.** Default: Thornmaw phase 1 (the Chapter 1 boss). | `19` Part D | The `ftue.json` authoring (A7) |
 

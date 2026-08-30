@@ -331,7 +331,7 @@ internal static class PortCatalogue
         // Contract.Tests' StoreBackedAdapterExemptions, where each vendor adapter carries the owner
         // that observes it instead of a fixture.
 
-        new("IRemoteConfigPort", "M5-15",
+        new("IRemoteConfigPort", "M5-17",
             "Its only real implementation fetches JSON over HTTP from GET /config, so it needs a " +
             "running server. 🔒 THE M1 CARRY-FORWARD 7 RECONCILIATION IS CLOSED, AT M5-10: Core's " +
             "deliberately CLOSED FeatureFlags won. 23 §4.2's open string-keyed surface, " +
@@ -340,8 +340,11 @@ internal static class PortCatalogue
             "SERVER half shipped PORTLESS as ops config: a server-disk JSON document (RemoteConfig:" +
             "Path, reloaded periodically) behind GET /config, feeding the gateway's kill switches " +
             "with no port declared anywhere. What stays deferred is the CLIENT side — consuming " +
-            "that endpoint over HTTP with 14 §10's 6 h cache — which lands with the composition-" +
-            "root swap at M5-15."),
+            "that endpoint over HTTP with 14 §10's 6 h cache. ⚠️ RE-POINTED M5-15 -> M5-17 at " +
+            "the M5 wrap-up: M5-15 SHIPPED WITHOUT IT. Its swap composed IGameApiPort and the " +
+            "content socket, but no presenter submits through the wire, so the client has no place " +
+            "a 6 h config cache would be read from. M5-17 is the row that moves the presenters, and " +
+            "this lands with them."),
     };
 
     /// <summary>
