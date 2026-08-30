@@ -402,6 +402,19 @@ public partial class Board : Node3D
     private Button? _rollButton;
     private Button? _resolveButton;
     private Button? _abandonButton;
+
+    /// <summary>
+    /// The connection, for the two controls here the server has to answer. Null when there is none.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 This screen is the WORKED EXAMPLE of the offline affordance, not the whole of it. Rolling
+    /// and resolving a tile are the two actions here that only a server can settle, so they are the
+    /// two drawn out of use and answered with a toast while it cannot be reached. Every other screen
+    /// with a server-backed control still has none of this, and that gap is named by the task that
+    /// wrote this rather than half-filled in passing.
+    /// </remarks>
+    private ConnectionPresenter? _connection;
+
     /// <summary>Whether a submission is in flight, so a second press cannot start another.</summary>
     private bool _busy;
 
@@ -429,6 +442,7 @@ public partial class Board : Node3D
         _shop = screen.Shop;
         _campfire = screen.Campfire;
         _runEnd = screen.RunEnd;
+        _connection = screen.Connection;
         _home = home;
         _lifetime = lifetime;
     }
@@ -738,6 +752,12 @@ public partial class Board : Node3D
         _resolveButton.Text = presenter.ResolveText;
         _resolveButton.Visible = tilePending;
         _resolveButton.Disabled = _busy;
+
+        // 🔒 Drawn out of use rather than disabled. A disabled control accepts no press, and a press
+        // is exactly what the offline rule answers with a toast — so the affordance dims the face and
+        // marks it, and the press handler is what refuses to submit.
+        OfflineActionAffordance.ApplyTo(_rollButton, _connection);
+        OfflineActionAffordance.ApplyTo(_resolveButton, _connection);
 
         // 🔒 Drawn from AbandonOffered and from NOTHING else on this screen — not from the block,
         // not from whether a tile is pending, not from whether a fork is open. It is the one control
@@ -1106,10 +1126,31 @@ public partial class Board : Node3D
               $"{count.ToString(CultureInfo.InvariantCulture)}"
             : "";
 
-    private void OnRollPressed() => _ = SubmitAsync(presenter => presenter.RollAsync(_lifetime));
+    /// <remarks>
+    /// 🔒 The offline answer comes FIRST and stops the submission. Rolling is a server-settled action,
+    /// so a press that reached the presenter while the connection is out would queue a command the
+    /// player was never told about — "silently broken" is the phrase the rule uses for it.
+    /// </remarks>
+    private void OnRollPressed()
+    {
+        if (!OfflineActionAffordance.MayBeSubmitted(_connection))
+        {
+            return;
+        }
 
-    private void OnResolvePressed() =>
+        _ = SubmitAsync(presenter => presenter.RollAsync(_lifetime));
+    }
+
+    /// <remarks>Resolving a tile is server-settled too — see <see cref="OnRollPressed"/>.</remarks>
+    private void OnResolvePressed()
+    {
+        if (!OfflineActionAffordance.MayBeSubmitted(_connection))
+        {
+            return;
+        }
+
         _ = SubmitAsync(presenter => presenter.ResolvePendingTileAsync(_lifetime));
+    }
 
     /// <remarks>
     /// The first press arms and the second submits, and the presenter holds which one this is — see

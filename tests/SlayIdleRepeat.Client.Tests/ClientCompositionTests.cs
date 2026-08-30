@@ -2,9 +2,13 @@ using Shouldly;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Adapters.Content.LocalFile;
 using SlayIdleRepeat.Adapters.Content.Packed;
+using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
+using SlayIdleRepeat.Application.Wire;
 using SlayIdleRepeat.Client.Composition;
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Core;
+using SlayIdleRepeat.Core.Primitives;
 using Xunit;
 
 namespace SlayIdleRepeat.Client.Tests;
@@ -23,6 +27,12 @@ public sealed class ClientCompositionTests : IDisposable
 
     /// <summary>A document the checkout's own <c>game-data</c> holds, used to prove the root was read.</summary>
     private const string ShippedDocument = "content/enemies/enemies.json";
+
+    /// <summary>
+    /// The locale every case here composes under — the source one, so a case about wiring cannot fail
+    /// for a missing translation, which is not what any of them is about.
+    /// </summary>
+    private const string SourceLocale = "en";
 
     private readonly string _cacheRoot = RepoPaths.ScratchCacheRoot();
 
@@ -123,7 +133,9 @@ public sealed class ClientCompositionTests : IDisposable
                   cacheDirectoryPath: "   ",
                   contentSource: ShippedContentSource(),
                   entitlements: LocalHostAmbience.NoSubscriptionResolved(),
-                  featureFlags: LocalHostAmbience.NoRemoteConfigResolved()))
+                  featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
+                  localeTag: SourceLocale,
+                  gameApi: null))
               .ParamName.ShouldBe(
                   "cacheDirectoryPath",
                   "nothing here is defaulted, exactly as the host it composes defaults nothing. A blank " +
@@ -138,7 +150,9 @@ public sealed class ClientCompositionTests : IDisposable
                   cacheDirectoryPath: _cacheRoot,
                   contentSource: null!,
                   entitlements: LocalHostAmbience.NoSubscriptionResolved(),
-                  featureFlags: LocalHostAmbience.NoRemoteConfigResolved()))
+                  featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
+                  localeTag: SourceLocale,
+                  gameApi: null))
               .ParamName.ShouldBe(
                   "contentSource",
                   "the content set is the one input that cannot be recovered from at runtime. Failing " +
@@ -229,7 +243,9 @@ public sealed class ClientCompositionTests : IDisposable
                   cacheDirectoryPath: _cacheRoot,
                   contentSource: ShippedContentSource(),
                   entitlements: null!,
-                  featureFlags: LocalHostAmbience.NoRemoteConfigResolved()))
+                  featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
+                  localeTag: SourceLocale,
+                  gameApi: null))
               .ParamName.ShouldBe(
                   "entitlements",
                   "the absence of a subscription is stated by a factory that says so, never by a null " +
@@ -243,7 +259,9 @@ public sealed class ClientCompositionTests : IDisposable
                   cacheDirectoryPath: _cacheRoot,
                   contentSource: ShippedContentSource(),
                   entitlements: LocalHostAmbience.NoSubscriptionResolved(),
-                  featureFlags: null!))
+                  featureFlags: null!,
+                  localeTag: SourceLocale,
+                  gameApi: null))
               .ParamName.ShouldBe(
                   "featureFlags",
                   "the flags are kill switches, and their identity element is 'everything on, nothing " +
@@ -258,7 +276,9 @@ public sealed class ClientCompositionTests : IDisposable
             cacheDirectoryPath: _cacheRoot,
             contentSource: ShippedContentSource(),
             entitlements: LocalHostAmbience.NoSubscriptionResolved(),
-            featureFlags: LocalHostAmbience.NoRemoteConfigResolved());
+            featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
+            localeTag: SourceLocale,
+            gameApi: null);
 
         composed.GameHost.ShouldBeOfType<InProcessGameHost>(
             "the local host is the whole point of composing at all before there is a server: the client " +
@@ -273,7 +293,9 @@ public sealed class ClientCompositionTests : IDisposable
             cacheDirectoryPath: _cacheRoot,
             contentSource: ShippedContentSource(),
             entitlements: LocalHostAmbience.NoSubscriptionResolved(),
-            featureFlags: LocalHostAmbience.NoRemoteConfigResolved());
+            featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
+            localeTag: SourceLocale,
+            gameApi: null);
 
         composed.Content.Current.DocumentPaths.ShouldContain(
             ShippedDocument,
@@ -293,7 +315,9 @@ public sealed class ClientCompositionTests : IDisposable
             cacheDirectoryPath: _cacheRoot,
             contentSource: ShippedContentSource(),
             entitlements: new Entitlements(hasPlus, expiresAtUtc: null),
-            featureFlags: LocalHostAmbience.NoRemoteConfigResolved());
+            featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
+            localeTag: SourceLocale,
+            gameApi: null);
 
         composed.RewardedAds.Arm.ShouldBe(
             expected,
@@ -302,6 +326,104 @@ public sealed class ClientCompositionTests : IDisposable
             "to be written first — and one entitlement is not enough to tell 'selected' from 'constant', " +
             "which is why both are driven through here.");
     }
+    // ---- M7-02: the connection half --------------------------------------------------------------
+
+    /// <summary>
+    /// 🔒 <b>No wire seam composed means no connection presenter, and the two are null together.</b>
+    /// </summary>
+    /// <remarks>
+    /// This is the arm every build ships on today: <c>GodotClientComposition.ComposeLocalHost</c>
+    /// passes no API, because an in-process host has no connection to lose. Both halves are asserted
+    /// rather than one, because a graph holding a presenter over a port it does not have is a build
+    /// that would draw a reconnect pill about nothing — and a graph holding the port without the
+    /// presenter is a seam nothing can report on.
+    /// </remarks>
+    [Fact]
+    public void Compose_builds_no_connection_half_when_no_api_is_composed()
+    {
+        var composed = ClientComposition.Compose(
+            cacheDirectoryPath: _cacheRoot,
+            contentSource: ShippedContentSource(),
+            entitlements: LocalHostAmbience.NoSubscriptionResolved(),
+            featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
+            localeTag: SourceLocale,
+            gameApi: null);
+
+        composed.GameApi.ShouldBeNull(
+            "the graph holds a wire seam nobody handed it. The only way one can get here is through " +
+            "the argument, so a non-null answer means the root invented an adapter — which is the one " +
+            "decision a composition root may not take on the caller's behalf.");
+
+        composed.Connection.ShouldBeNull(
+            "the graph holds a connection presenter with no connection behind it. Everything it " +
+            "reports is derived from the wire port's failures, so one built over nothing can only " +
+            "ever say 'connected' — a permanently green status light, which is exactly the thing the " +
+            "specification forbids drawing at all.");
+    }
+
+    /// <summary>
+    /// 🔒 …and a composed wire seam yields a presenter that starts <see cref="ConnectionState.Connected"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Both arms are driven for the reason <see cref="Compose_carries_the_arm_the_entitlement_selected"/>
+    /// gives about its own: one input cannot tell a decision from a constant. A root that ignored the
+    /// argument and always answered null would pass the case above and fail only this one.
+    /// </para>
+    /// <para>
+    /// 🔒 The opening state is asserted as <c>Connected</c> and that is a claim about behaviour, not a
+    /// formality: nothing has failed yet, and a client that opened in <c>Reconnecting</c> would put a
+    /// pill on screen before it had ever tried to reach anything.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Compose_builds_a_connection_presenter_over_the_api_it_was_handed()
+    {
+        var api = new StubGameApi();
+
+        var composed = ClientComposition.Compose(
+            cacheDirectoryPath: _cacheRoot,
+            contentSource: ShippedContentSource(),
+            entitlements: LocalHostAmbience.NoSubscriptionResolved(),
+            featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
+            localeTag: SourceLocale,
+            gameApi: api);
+
+        composed.GameApi.ShouldBeSameAs(
+            api,
+            "the graph is holding a different wire seam from the one it was composed over. With no " +
+            "container, the reference the root keeps is the only thing that makes the port reachable " +
+            "— and a second one would be a second set of tokens against the same account.");
+
+        composed.Connection.ShouldNotBeNull(
+            "an API was composed and nothing reports on it. The overlay is driven by this presenter " +
+            "and by nothing else, so a null here is a build that can lose its connection and never " +
+            "say so.")
+                .State.ShouldBe(
+                    ConnectionState.Connected,
+                    "a freshly composed client opens in the connected state. Nothing has been " +
+                    "attempted yet, so anything else means the ladder starts a frame behind — and " +
+                    "the first thing a player would see is a reconnect pill about a request that was " +
+                    "never made.");
+    }
+
+    [Fact]
+    public void Compose_rejects_a_null_locale_tag()
+    {
+        Should.Throw<ArgumentNullException>(() => ClientComposition.Compose(
+                  cacheDirectoryPath: _cacheRoot,
+                  contentSource: ShippedContentSource(),
+                  entitlements: LocalHostAmbience.NoSubscriptionResolved(),
+                  featureFlags: LocalHostAmbience.NoRemoteConfigResolved(),
+                  localeTag: null!,
+                  gameApi: null))
+              .ParamName.ShouldBe(
+                  "localeTag",
+                  "the locale is what every player-facing word in the connection presenter is looked " +
+                  "up through. A null one would have to be read as 'the source locale', which is a " +
+                  "guess about a device this root never asked.");
+    }
+
     /// <summary>The shipped content, read off the checkout — what every Compose case here is about.</summary>
     private static IContentSourcePort ShippedContentSource() =>
         new LocalFileContentSource(RepoPaths.ContentDataRoot);
@@ -327,5 +449,42 @@ public sealed class ClientCompositionTests : IDisposable
 
             return false;
         }
+    }
+
+    /// <summary>
+    /// A wire seam that is composed over and never called.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every member refuses rather than answering, and that is the assertion rather than a shortcut:
+    /// composing a client must not talk to a server. If the root ever opened a session or read a run
+    /// while wiring the graph, these cases would fail by name instead of quietly making a network call
+    /// on the cold-start path.
+    /// </para>
+    /// <para>
+    /// Hand-written for the reason <see cref="StubPackedDocuments"/> is: there is no mocking library
+    /// here, and the InMemory fake for this port lives in an adapter project this suite deliberately
+    /// does not reference — nothing here is allowed to depend on an adapter.
+    /// </para>
+    /// </remarks>
+    private sealed class StubGameApi : IGameApiPort
+    {
+        public Task<WireDeviceRegistration> RegisterDeviceAsync(string? displayName, CancellationToken ct) =>
+            throw new NotSupportedException(Unreached);
+
+        public Task<WireSession> AuthenticateAsync(WireCredentials credentials, CancellationToken ct) =>
+            throw new NotSupportedException(Unreached);
+
+        public Task<WireCommandResult> SendCommandAsync(
+            RunId? run, CommandEnvelope envelope, CancellationToken ct) =>
+            throw new NotSupportedException(Unreached);
+
+        public Task<WireRunState> FetchRunStateAsync(RunId run, long sinceSequence, CancellationToken ct) =>
+            throw new NotSupportedException(Unreached);
+
+        private const string Unreached =
+            "the composition root reached the network while building the graph. Composing is wiring: " +
+            "it opens no session and reads no run, because the cold-start path must not wait on a " +
+            "server that may not be there.";
     }
 }

@@ -153,12 +153,21 @@ public sealed class SceneBoundaryRuleTests
     /// viewport's camera. A copy of it filed outside these rules would be the mechanism EVERY screen
     /// transition in the build stands on, one edit from holding a port, and nothing would say so.
     /// </para>
+    /// <para>
+    /// 🔴 M7-02 added the twelfth: the affordance that draws a server-backed control out of use while
+    /// the connection cannot carry it, and answers a press on it with the inline toast. It is the one
+    /// helper here that reads a PRESENTER — which is the permitted side of the line and one edit from
+    /// the forbidden one, since the presenter it reads was built over the wire port. A copy of it
+    /// filed outside these rules would be the client's only offline affordance, sitting in a namespace
+    /// nothing governs, free to reach past the presenter to the port behind it.
+    /// </para>
     /// </remarks>
     private static readonly string[] SceneHelperNames =
     [
         "SafeAreaInsets",
         "ButtonTextColours",
         "ScreenStage",
+        "OfflineActionAffordance",
         "BoardHandover",
         "BattleHandover",
         "RunDecisionHandover",

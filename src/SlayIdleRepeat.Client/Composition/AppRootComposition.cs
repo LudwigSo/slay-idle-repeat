@@ -28,4 +28,31 @@ public static class AppRootComposition
 
         return new AppRootPresenter(composed.Client.GameHost);
     }
+
+    /// <summary>
+    /// Hands back the one connection presenter the build shares, or nothing when none was composed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 A factory rather than a property read, for the same reason
+    /// <see cref="CreateAppRootPresenter"/> is one: reading the connection half off the graph means
+    /// naming the wire port beside it, and a scene holds no port references. The root asks, and gets a
+    /// presenter or a null.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>It answers null in every build that ships today.</b> The only production caller of
+    /// <c>ClientComposition.Compose</c> is <c>GodotClientComposition.ComposeLocalHost</c>, which passes
+    /// no wire seam — so the overlay is never instantiated, and the connection is drawn exactly as the
+    /// specification says a working one is drawn: not at all. It stays honest rather than convenient:
+    /// there is no live driver behind this until <c>M5-15</c> composes the HTTP adapter.
+    /// </para>
+    /// </remarks>
+    /// <param name="composed">The graph the application root built and holds.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="composed"/> is null.</exception>
+    public static ConnectionPresenter? CreateConnectionPresenter(ComposedGodotClient composed)
+    {
+        ArgumentNullException.ThrowIfNull(composed);
+
+        return composed.Client.Connection;
+    }
 }

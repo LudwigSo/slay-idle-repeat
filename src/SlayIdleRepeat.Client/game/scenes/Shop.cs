@@ -30,12 +30,13 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// a tap with an inline toast, never a modal; a resync flashes green; a resumed run shows a card.
 /// <c>M7-02</c> has written all five as behaviour — <c>ConnectionState</c>, <c>StateMirror</c>,
 /// <c>CommandQueue</c> and <c>ReconnectManager</c> under <c>game/net/</c>, and
-/// <c>ConnectionPresenter</c> beside this screen's own presenter. What does NOT exist yet is the half
-/// a player can see: there is no overlay scene, and nothing composes the presenter or drives its
-/// poll, so no screen in this build draws any of the five. Until that pass lands, this screen still
-/// does the most honest thing available to it without inventing the mechanism: it disables what it
-/// cannot submit and prints one status line. 🔒 The one rule the specification states as a hard
-/// prohibition <b>is</b> kept: no full-screen blocking connection error, during a run or otherwise.
+/// <c>ConnectionPresenter</c> beside this screen's own presenter, and the visible half now exists
+/// too: <c>ConnectionOverlay</c> on the application root draws all five. What is still missing is a
+/// DRIVER — no build composes a wire seam, so no connection presenter is ever built and this screen
+/// sees none of it. Until <c>M5-15</c> composes the HTTP adapter, this screen still does the most
+/// honest thing available to it without inventing the mechanism: it disables what it cannot submit
+/// and prints one status line. 🔒 The one rule the specification states as a hard prohibition
+/// <b>is</b> kept: no full-screen blocking connection error, during a run or otherwise.
 /// </para>
 /// <para>
 /// 🔴 <b>And the dead end above is the same gap seen from the other side.</b> A read that failed
