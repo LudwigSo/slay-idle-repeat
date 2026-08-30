@@ -266,7 +266,13 @@ public partial class AppRoot : Node3D
 
         var overlay = scene.Instantiate<ConnectionOverlay>();
 
-        overlay.Drive(connection, _lifetime.Token);
+        // 🔴 The motion setting is named at the call site rather than left to its default, the way
+        // the battle replay and the perk draft already name theirs: this is the first live caller
+        // the overlay has ever had, and a reader who found it would otherwise have no way of seeing
+        // that the pulse, the slide and the flash have a switch at all. False because there is
+        // nowhere for a preference to have come from — this client has no settings screen — and
+        // saying so here is what keeps that a stated absence rather than an oversight.
+        overlay.Drive(connection, _lifetime.Token, reducedMotion: false);
 
         AddChild(overlay);
     }
