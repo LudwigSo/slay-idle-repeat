@@ -40,6 +40,12 @@ public static class BootComposition
             new PlaceholderAtlasCatalogue(
                 composed.Capabilities.Paths.ContentDataRootOnDisk()
                 ?? composed.Capabilities.Paths.ResolveInstallationRoot()),
-            new SystemClock());
+            new SystemClock(),
+
+            // 🔴 Both stated rather than defaulted, and both null on the arm every shipped build
+            // composes: an in-process host asks no server for content and opens no account session.
+            // A null skips the stage entirely, which is what keeps that arm's boot as it was.
+            contentSync: composed.Client.ContentSync,
+            session: composed.Client.Session);
     }
 }

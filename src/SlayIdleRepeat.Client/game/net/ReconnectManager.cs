@@ -115,6 +115,31 @@ public sealed class ReconnectManager
     /// </remarks>
     public int? LastRefusalStatusCode { get; private set; }
 
+    /// <summary>The next instant an attempt is due, the server's own Retry-After included.</summary>
+    /// <remarks>
+    /// Read by whatever drives this per frame, so the ladder is stated once here rather than
+    /// recomputed beside it — two schedules would be two answers to "may I try again yet".
+    /// </remarks>
+    public DateTimeOffset NextAttemptAtUtc => _nextAttemptAtUtc;
+
+    /// <summary>Records an exchange made outside this manager that reached the server.</summary>
+    /// <remarks>
+    /// 🔒 Without this the ladder has no input at all on an arm whose presenters do not yet submit
+    /// through the wire: an attempt is only due for a queued command, a followed run or a prior
+    /// failure, and the first two never happen there.
+    /// </remarks>
+    public void RecordReached() => MarkReached();
+
+    /// <summary>…and one that did not.</summary>
+    /// <param name="failure">The transport failure, whose Retry-After wins over the ladder.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="failure"/> is null.</exception>
+    public void RecordLost(GameApiUnavailableException failure)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+
+        RecordConnectionLoss(failure);
+    }
+
     /// <summary>The delay before attempt <paramref name="consecutiveFailures"/> + 1, off the authored ladder.</summary>
     /// <param name="consecutiveFailures">How many attempts have failed in a row. One or more.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="consecutiveFailures"/> is below one.</exception>
@@ -138,6 +163,12 @@ public sealed class ReconnectManager
     /// <remarks>
     /// A resync is owed after this, even while connected: a run that has just been opened has never
     /// been read, and the mirror holds whatever the previous one left.
+    /// <para>
+    /// 🔴 <b>Nothing in production calls this yet, and that is a stated absence rather than an
+    /// oversight.</b> The only run id the composed client holds is the in-process host's, which no
+    /// server ever minted, so pointing the ladder at it would turn every resync into a refusal.
+    /// It acquires a caller when the presenters submit through the wire and the server mints the run.
+    /// </para>
     /// </remarks>
     public void Follow(RunId? run)
     {

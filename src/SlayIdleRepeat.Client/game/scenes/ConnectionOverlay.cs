@@ -1,4 +1,5 @@
 using Godot;
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Client.Game.Presenters;
 
 namespace SlayIdleRepeat.Client.Game.Scenes;
@@ -31,14 +32,13 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// drawn rather than merely stated.
 /// </para>
 /// <para>
-/// 🔴 <b>Nothing drives this in a shipped build yet, and that is a named absence rather than a
-/// wiring bug.</b> The presenter is composed only when the client was composed over a remote API,
-/// and <c>GodotClientComposition.ComposeLocalHost</c> passes none — an in-process host has no
-/// connection to lose. So on today's builds no <c>ConnectionOverlay</c> is ever instantiated, which
-/// is exactly the specified rendering for <em>Connected</em>: nothing at all. The first live driver
-/// arrives with <c>M5-15</c>, which composes the HTTP adapter; a second thing is still owed even
-/// then, because the state this reads comes from <c>ReconnectManager</c> and nothing in production
-/// pumps its poll.
+/// 🔒 <b>Instantiated only on the arm that has a connection to lose.</b> The presenter is composed
+/// when the client was composed over a server, which <c>GodotClientComposition.ComposeClient</c>
+/// decides from the environment; an in-process build has no connection to lose, so no
+/// <c>ConnectionOverlay</c> is instantiated at all — which is exactly the specified rendering for
+/// <em>Connected</em>: nothing at all. On the server arm the state this draws moves because
+/// <see cref="AppRoot"/> advances the ladder every frame, and <see cref="StateMarker"/> is how a
+/// headless run proves both halves of that from outside the process.
 /// </para>
 /// <para>
 /// ⚠️ Every colour, corner and type size here is a per-node override with an inline
@@ -53,6 +53,18 @@ public partial class ConnectionOverlay : CanvasLayer
 {
     /// <summary>Where this scene lives, for the root that instantiates it.</summary>
     public const string ScenePath = "res://game/scenes/ConnectionOverlay.tscn";
+
+    /// <summary>
+    /// The one line a headless run reads the connection off. Distinctive on purpose, and the same
+    /// mechanism <c>Boot</c>'s cold-start marker already uses rather than a second scheme.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Two claims no unit tier can make, because both reach GodotSharp: that this overlay is
+    /// instantiated at all in a composed build, and that the state it draws actually moves. The
+    /// first is the first line printed; the second is the line printed again with a different
+    /// state, which can only happen if something advanced the ladder.
+    /// </remarks>
+    private const string StateMarker = "SIR_CONNECTION_OVERLAY";
 
     private const string SafeAreaPath = "%SafeArea";
     private const string PillRowPath = "%PillRow";
@@ -164,10 +176,16 @@ public partial class ConnectionOverlay : CanvasLayer
     private Tween? _cardAppear;
     private Tween? _flashTween;
 
+    /// <summary>The viewport whose resizes this layer re-measures against, held so it can be let go.</summary>
+    private Viewport? _viewport;
+
     /// <summary>What each label was last written with, so a redraw writes nothing when nothing moved.</summary>
     private string _drawnPillText = "";
     private string _drawnToastText = "";
     private string _drawnResumeText = "";
+
+    /// <summary>The state the marker last carried, so a redraw prints nothing when nothing moved.</summary>
+    private ConnectionState? _reportedState;
 
     private bool _pillWasVisible;
     private bool _toastWasVisible;
@@ -209,22 +227,46 @@ public partial class ConnectionOverlay : CanvasLayer
 
         IgnoreInputEverywhere(this);
 
-        if (_safeArea is not null)
-        {
-            SafeAreaInsets.ApplyTo(_safeArea, GetViewport().GetVisibleRect().Size);
-        }
+        _viewport = GetViewport();
+
+        ResolveSafeArea();
+
+        // 🔒 …and again on every resize, which is a duty no screen in this build carries. A screen
+        // measures its insets on the way in and is replaced by one that measures them again, so
+        // "once, in _Ready" is a fresh reading each time. This layer enters the tree inside the
+        // application root's own _Ready — before the first drawn frame, and so before a handset has
+        // necessarily settled the window it will actually run at — and then never enters it again
+        // for the life of the process. One reading taken that early and kept that long is how the
+        // pill ends up drawn under a cutout on a device this one never re-measured for.
+        _viewport.SizeChanged += ResolveSafeArea;
 
         Render();
+        Report();
     }
 
     /// <inheritdoc/>
     /// <remarks>
+    /// <para>
     /// ⚠️ Every tween is killed, including the looping one. A tween outlives the node that created
     /// it unless it is bound or killed, and the pulse loops forever by construction — so a build that
     /// forgot this line would leave one running against a freed control for the life of the process.
+    /// </para>
+    /// <para>
+    /// ⚠️ And the resize connection is let go, off the reference taken when it was made rather than
+    /// off a fresh lookup: the viewport outlives this layer, and a connection left on it would call
+    /// back into a node that no longer exists. A signal owes a disconnect — which is why the tweens
+    /// here use chained callbacks instead, and why this one is worth its four lines.
+    /// </para>
     /// </remarks>
     public override void _ExitTree()
     {
+        if (_viewport is not null && IsInstanceValid(_viewport))
+        {
+            _viewport.SizeChanged -= ResolveSafeArea;
+        }
+
+        _viewport = null;
+
         Stop(ref _slide);
         Stop(ref _pulse);
         Stop(ref _toastAppear);
@@ -250,6 +292,26 @@ public partial class ConnectionOverlay : CanvasLayer
         presenter.Poll();
 
         Render();
+        Report();
+    }
+
+    /// <summary>Prints the connection the moment it changes, and on no other frame.</summary>
+    /// <remarks>
+    /// Guarded by the state it last printed rather than by a frame counter, so a run's log carries
+    /// one line per transition — which is what makes "the ladder moved" readable from outside the
+    /// process at all. Printed here rather than inside <c>Render</c> because the marker is about the
+    /// connection, not about whether this overlay found its nodes.
+    /// </remarks>
+    private void Report()
+    {
+        if (_presenter is not { } presenter || _reportedState == presenter.State)
+        {
+            return;
+        }
+
+        _reportedState = presenter.State;
+
+        GD.Print($"{StateMarker} state={presenter.State}");
     }
 
     /// <summary>Writes the presenter's five answers into the scene, and animates the edges.</summary>
@@ -484,6 +546,22 @@ public partial class ConnectionOverlay : CanvasLayer
 
             IgnoreInputEverywhere(child);
         }
+    }
+
+    /// <summary>Measures the display's real insets and lays this layer out inside them.</summary>
+    /// <remarks>
+    /// Guarded rather than assumed, because it is reached from a signal as well as from the way in:
+    /// a resize arriving while this layer is being torn down would otherwise measure against a
+    /// viewport that has already gone.
+    /// </remarks>
+    private void ResolveSafeArea()
+    {
+        if (_safeArea is null || _viewport is null || !IsInstanceValid(_viewport))
+        {
+            return;
+        }
+
+        SafeAreaInsets.ApplyTo(_safeArea, _viewport.GetVisibleRect().Size);
     }
 
     /// <summary>Kills a tween if there is one, and forgets it either way.</summary>

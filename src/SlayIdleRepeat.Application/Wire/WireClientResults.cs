@@ -2,17 +2,46 @@ using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Application.Wire;
 
+/// <summary>What stands in a rendered record where a secret would otherwise have been printed.</summary>
+/// <remarks>
+/// One spelling for all three records below, so a reader who has seen it once recognises it
+/// everywhere and a grep for it finds every value this repository refuses to render.
+/// </remarks>
+internal static class WireRedaction
+{
+    /// <summary>The stand-in itself.</summary>
+    internal const string Withheld = "<withheld>";
+}
+
 /// <summary>The device credential a client presents to open a session — 14 §16.5's stored pair.</summary>
 /// <param name="DeviceId">The device the account was minted for.</param>
 /// <param name="DeviceSecret">The secret that proves it. Never logged, never rendered.</param>
-public sealed record WireCredentials(string DeviceId, string DeviceSecret);
+public sealed record WireCredentials(string DeviceId, string DeviceSecret)
+{
+    /// <summary>Names the device and withholds the secret.</summary>
+    /// <remarks>
+    /// 🔒 Overridden because the compiler's own <c>ToString</c> prints every member, which puts the
+    /// account's root credential into any log line, exception message or debugger watch that ever
+    /// formats one of these.
+    /// </remarks>
+    public override string ToString() =>
+        $"{nameof(WireCredentials)} {{ {nameof(DeviceId)} = {DeviceId}, " +
+        $"{nameof(DeviceSecret)} = {WireRedaction.Withheld} }}";
+}
 
 /// <summary>What <c>POST /auth/device</c> answers: a fresh anonymous account and the credential that reopens it.</summary>
 /// <param name="DeviceId">The device the account was minted for.</param>
 /// <param name="DeviceSecret">The secret that proves it, issued once and never re-readable.</param>
 /// <param name="Player">The account this installation now plays.</param>
 /// <param name="DisplayName">The name the server's own filter decided — never the one the caller asked for.</param>
-public sealed record WireDeviceRegistration(string DeviceId, string DeviceSecret, PlayerId Player, string DisplayName);
+public sealed record WireDeviceRegistration(string DeviceId, string DeviceSecret, PlayerId Player, string DisplayName)
+{
+    /// <summary>Names the device and the account, and withholds the secret.</summary>
+    public override string ToString() =>
+        $"{nameof(WireDeviceRegistration)} {{ {nameof(DeviceId)} = {DeviceId}, " +
+        $"{nameof(DeviceSecret)} = {WireRedaction.Withheld}, {nameof(Player)} = {Player.Value}, " +
+        $"{nameof(DisplayName)} = {DisplayName} }}";
+}
 
 /// <summary>An open token family — what both issuing routes answer with.</summary>
 /// <param name="Player">Whose session this is.</param>
@@ -30,7 +59,17 @@ public sealed record WireSession(
     long AccessExpiresInSeconds,
     long RenewAfterSeconds,
     string RefreshToken,
-    long RefreshExpiresInSeconds);
+    long RefreshExpiresInSeconds)
+{
+    /// <summary>Names the account and withholds both tokens.</summary>
+    public override string ToString() =>
+        $"{nameof(WireSession)} {{ {nameof(Player)} = {Player.Value}, " +
+        $"{nameof(AccessToken)} = {WireRedaction.Withheld}, " +
+        $"{nameof(AccessExpiresInSeconds)} = {AccessExpiresInSeconds}, " +
+        $"{nameof(RenewAfterSeconds)} = {RenewAfterSeconds}, " +
+        $"{nameof(RefreshToken)} = {WireRedaction.Withheld}, " +
+        $"{nameof(RefreshExpiresInSeconds)} = {RefreshExpiresInSeconds} }}";
+}
 
 /// <summary>One command's answer as a client reads it — the client-side half of <see cref="CommandResponse"/>.</summary>
 /// <param name="Sequence">The request's sequence, echoed.</param>
