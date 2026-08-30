@@ -35,6 +35,18 @@
     Write the test filter to stdout and exit. This is how the ARM64 leg gets the
     filter without a second copy of it living in the workflow YAML.
 
+.PARAMETER PrintSuites
+    Write the suite list to stdout, one per line, and exit. Same reason: the
+    emulated leg loops over these, and a second copy in YAML would be a second
+    thing to keep in step.
+
+.PARAMETER Suites
+    The suites this leg runs. See the parameter's own note.
+
+.PARAMETER Configuration
+    The build configuration, passed to dotnet test. The emulated leg reads it
+    through -PrintConfiguration for the same reason as the two above.
+
 .PARAMETER MinimumTestsBySuite
     The floor each suite's own count has to clear. Per suite rather than one
     total: the two suites are wildly different sizes, so an aggregate floor is
@@ -48,6 +60,7 @@
 .EXAMPLE
     pwsh build/ci/Assert-DeterminismRun.ps1 -Run
     pwsh build/ci/Assert-DeterminismRun.ps1 -PrintFilter
+    pwsh build/ci/Assert-DeterminismRun.ps1 -PrintSuites
     pwsh build/ci/Assert-DeterminismRun.ps1 -ResultsDirectory artifacts/determinism
 #>
 [CmdletBinding()]
@@ -55,6 +68,10 @@ param(
     [switch]$Run,
 
     [switch]$PrintFilter,
+
+    [switch]$PrintSuites,
+
+    [switch]$PrintConfiguration,
 
     [string]$Configuration = 'Release',
 
@@ -73,6 +90,16 @@ param(
         'SlayIdleRepeat.Core.Tests'        = 780
         'SlayIdleRepeat.Application.Tests' = 35
     },
+
+    # The suites that hold every committed determinism table, and the only ones
+    # this leg runs. Named rather than globbed: no other suite carries such a
+    # table, and running them here would make this job's cost and its floors
+    # depend on work that has nothing to do with 14 §8.2. The ARM64 leg reads this
+    # list through -PrintSuites rather than restating it in YAML.
+    [string[]]$Suites = @(
+        'tests/SlayIdleRepeat.Core.Tests',
+        'tests/SlayIdleRepeat.Application.Tests'
+    ),
 
     # Both suites must report. The per-TRX check below catches a suite that ran and
     # matched nothing; this catches one that produced no TRX at all, which reads
@@ -107,38 +134,45 @@ $PSNativeCommandUseErrorActionPreference = $false
       Parity           - 14 §13's 1 000 command sequences
       FieldOrderPin    - the snapshot and wire-projection field orders
 
-    ⚠️ The two wall-clock BUDGET cases live outside every one of these terms, in
-    SlayIdleRepeat.Core.Tests.Cost and SlayIdleRepeat.Application.Tests.Cost, on
-    purpose. They measure how long a corpus takes on the machine running it, and
-    the ARM64 leg runs under emulation an order of magnitude slower than native -
-    so sweeping them in here would turn a slow runner into a report that two
-    architectures disagree about floating point. Do not widen a term to reach
-    them. The leg's own cost is bounded by the job's timeout-minutes.
+    ⚠️ The `.Cost.` EXCLUSION is not decoration. The two wall-clock budget cases
+    measure how long a corpus takes on the machine running it, and the ARM64 leg
+    runs under emulation an order of magnitude slower than native - so a leg that
+    swept them in would turn a slow runner into a report that two architectures
+    disagree about floating point, with fixed-point Q32.32 as the escalation.
+    Putting them in a `Cost` NAMESPACE is not enough on its own: `~` is a
+    substring test over the whole fully qualified name, so a class called
+    ParityCorpusBudgetTests matches `~Parity` wherever it lives. The exclusion is
+    what actually holds, and it holds structurally - a future cost class named
+    after any term above cannot silently re-break it. Do not remove it, and do not
+    put anything but a cost measurement under a `Cost` namespace. The leg's own
+    cost is bounded by the job's timeout-minutes instead.
 #>
-$DeterminismFilter = @(
+$DeterminismFilter = '(' + (@(
     'FullyQualifiedName~Determinism',
     'FullyQualifiedName~ReferenceVector',
     'FullyQualifiedName~KnownAnswer',
     'FullyQualifiedName~Hash64',
     'FullyQualifiedName~Parity',
     'FullyQualifiedName~FieldOrderPin'
-) -join '|'
+) -join '|') + ')&FullyQualifiedName!~.Cost.'
 
 if ($PrintFilter) {
     Write-Output $DeterminismFilter
     exit 0
 }
 
+if ($PrintSuites) {
+    $Suites | ForEach-Object { Write-Output $_ }
+    exit 0
+}
+
+if ($PrintConfiguration) {
+    Write-Output $Configuration
+    exit 0
+}
+
 $root = Get-RepositoryRoot -Override $RepositoryRoot
 if (-not $ResultsDirectory) { $ResultsDirectory = Join-Path $root 'artifacts' 'testresults' }
-
-# The two suites that hold every committed table. Named rather than globbed: the
-# other suites carry no determinism artefact, and running them here would make
-# this job's cost and its floor depend on work that has nothing to do with 14 §8.2.
-$suites = @(
-    'tests/SlayIdleRepeat.Core.Tests',
-    'tests/SlayIdleRepeat.Application.Tests'
-)
 
 Write-Section 'Determinism run'
 Write-Host "Repository root : $root"
@@ -155,7 +189,7 @@ $failures = [System.Collections.Generic.List[string]]::new()
 if ($Run) {
     $null = New-Item -ItemType Directory -Path $ResultsDirectory -Force
 
-    foreach ($suite in $suites) {
+    foreach ($suite in $Suites) {
         $name = Split-Path -Leaf $suite
         Write-Section "dotnet test $name"
 
@@ -198,7 +232,7 @@ foreach ($trx in $trxFiles) {
     if (-not $counts.Measured) {
         $failures.Add(
             "$($trx.Name) : carries no counters. The run did not complete, so its zero is 'not " +
-            "measured' rather than 'measured zero'.")
+            "measured' rather than 'measured zero' — this leg compared nothing through this suite.")
     }
     elseif ($counts.Total -eq 0) {
         $failures.Add(

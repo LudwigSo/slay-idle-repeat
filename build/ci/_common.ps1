@@ -82,16 +82,24 @@ function Read-TrxCounters {
         The real test counts out of a TRX, and whether they were measured at all.
 
         `dotnet test` returns exit code 0 for an assembly containing zero tests, so
-        every script here reads the counters rather than the exit code. `Measured`
-        is $false when there is no TRX: a Total of 0 then means "not measured",
-        which is a different failure from "measured zero" and must not be reported
-        as an empty suite.
+        every script here reads the counters rather than the exit code.
+
+        THREE states, not two, because the callers word them differently:
+          Present=$false            - no TRX at all. The run did not complete.
+          Present=$true, Measured=$false - a TRX carrying no <Counters>. Also not
+                                    a measurement, but a different one: the file
+                                    exists and the reader should be told so.
+          Measured=$true            - real counts, including a genuine zero.
+
+        A Total of 0 with Measured=$false means "not measured", which must never
+        be reported as an empty suite: that sends the reader off to declare an
+        exemption for a suite whose real problem is that it did not run.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Path)
 
     if (-not (Test-Path -LiteralPath $Path)) {
-        return [pscustomobject]@{ Measured = $false; Total = 0; Passed = 0; Failed = 0 }
+        return [pscustomobject]@{ Present = $false; Measured = $false; Total = 0; Passed = 0; Failed = 0 }
     }
 
     $xml = [xml](Get-Content -Raw -LiteralPath $Path)
@@ -99,10 +107,11 @@ function Read-TrxCounters {
     $ns.AddNamespace('t', 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010')
     $counters = $xml.SelectSingleNode('//t:Counters', $ns)
     if (-not $counters) {
-        return [pscustomobject]@{ Measured = $false; Total = 0; Passed = 0; Failed = 0 }
+        return [pscustomobject]@{ Present = $true; Measured = $false; Total = 0; Passed = 0; Failed = 0 }
     }
 
     return [pscustomobject]@{
+        Present  = $true
         Measured = $true
         Total    = [int]$counters.total
         Passed   = [int]$counters.passed

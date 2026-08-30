@@ -104,6 +104,16 @@ internal static class BattleTripleGenerator
     /// </remarks>
     internal const int AttritionOdds = 32;
 
+    /// <summary>
+    /// How many difficulty tiers there are, read once.
+    /// </summary>
+    /// <remarks>
+    /// <c>Enum.GetValues</c> allocates a fresh array on every call, and this generator asks ten
+    /// thousand times per corpus build. It does not change an answer; it just costs, and it costs
+    /// most on the emulated ARM64 leg.
+    /// </remarks>
+    private static readonly int DifficultyTierCount = Enum.GetValues<DifficultyTier>().Length;
+
     /// <summary>The fold label that derives a triple's battle seed from the baseline.</summary>
     /// <remarks>
     /// A <see cref="Hash64"/> argument, not an RNG stream name: <see cref="DeterministicRng"/>
@@ -148,7 +158,7 @@ internal static class BattleTripleGenerator
         var heroLevel = rng.Range(1, 201);
         var stats = DrawStats(rng, attrition, roster);
         var chapter = rng.Range(FirstChapter, FirstChapter + ChapterSpan);
-        var tierOrdinal = rng.Range(0, Enum.GetValues<DifficultyTier>().Length);
+        var tierOrdinal = rng.Range(0, DifficultyTierCount);
 
         // Enemy power is drawn RELATIVE to the build it faces, not on an absolute range. An absolute
         // range lets the drawn attack value decide the fight before the seed does — a corpus whose
@@ -157,7 +167,8 @@ internal static class BattleTripleGenerator
         // A decade first and a mantissa inside it, because the interesting span is four decades wide:
         // a body worth a tenth of the build's attack loses instantly, one worth a thousand times it
         // wins instantly, and everything in between is a fight. Explicit multiplication rather than
-        // Math.Pow, which §8.2 asks combat code to avoid and this fixture has no reason to introduce.
+        // Math.Pow, whose result is not bit-reproducible across libm implementations — the one thing
+        // a corpus built to be reproduced on a second architecture cannot afford to depend on.
         var decade = attrition ? 0 : rng.Range(0, PowerDecades);
         var scale = 1.0;
         for (var step = 0; step < decade; step++)

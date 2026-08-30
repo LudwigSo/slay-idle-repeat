@@ -199,8 +199,13 @@ foreach ($project in $selected) {
     # twice — once for the missing TRX and once for a ZERO-test count it never
     # actually read — and the second message sends the reader off to add a
     # knownEmpty exemption for a suite whose real problem is that it did not run.
-    $countsAreReal = $counts.Measured
-    if (-not $countsAreReal) {
+    #
+    # A TRX that EXISTS but carries no counters keeps its historical wording:
+    # this script's empty-suite and stale-exemption rules were written to run over
+    # it, and the message it produces ("EMPTY - not declared") is the one this
+    # job's readers know.
+    $countsAreReal = $counts.Measured -or $counts.Present
+    if (-not $counts.Present) {
         $failures.Add("$name : dotnet test produced no TRX at $trxPath. The run did not complete.")
     }
 

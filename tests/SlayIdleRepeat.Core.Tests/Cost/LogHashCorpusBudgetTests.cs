@@ -11,14 +11,16 @@ namespace SlayIdleRepeat.Core.Tests.Cost;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔴 <b>In a namespace of its own, and that is the point.</b> The cross-architecture determinism
-/// leg selects its cases by fully qualified name, and every term in that filter — including
-/// <c>Determinism</c> — would sweep this case up with the corpus it measures. That leg runs under
-/// QEMU emulation, an order of magnitude slower than native, and it reports ANY red case as a
-/// floating-point divergence between architectures with fixed-point Q32.32 as the documented
-/// escalation. A wall-clock guard measuring a busy local machine has no business being the thing
-/// that says two architectures disagree, so it lives where the filter cannot reach it. The leg's own
-/// cost is bounded by the job's <c>timeout-minutes</c> instead.
+/// 🔴 <b>In a <c>Cost</c> namespace, which the determinism leg's filter excludes by name.</b> That
+/// leg selects its cases by fully qualified name, and <c>~</c> is a SUBSTRING test over the whole
+/// name — so a class here named after any filter term would be swept up with the corpus it measures
+/// however it were arranged. The filter's <c>!~.Cost.</c> clause is what actually holds it out, and
+/// this class must keep <c>Cost</c> in its namespace for that to work. Why it must be held out: the
+/// leg runs under QEMU emulation, an order of magnitude slower than native, and it reports ANY red
+/// case as a floating-point divergence between architectures with fixed-point Q32.32 as the
+/// documented escalation. A wall-clock guard measuring a busy machine has no business being the
+/// thing that says two architectures disagree. The leg's own cost is bounded by the job's
+/// <c>timeout-minutes</c> instead.
 /// </para>
 /// <para>
 /// It is a guard against an algorithmic regression, not a performance target — the failure it exists

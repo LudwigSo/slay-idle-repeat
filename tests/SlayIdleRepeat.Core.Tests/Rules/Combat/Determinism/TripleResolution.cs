@@ -10,8 +10,8 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Determinism;
 /// `14` §8.2's subject: the fight's battle log hash, taken straight off
 /// <see cref="SimulationResult.LogHash"/>. This is the value the two architectures compare.
 /// </param>
-/// <param name="HeroWon">Who won.</param>
-/// <param name="DurationTicks">How long the fight ran.</param>
+/// <param name="HeroWon">Who won — the coarsest thing a divergence can move, and the first a reader looks at.</param>
+/// <param name="DurationTicks">How long it ran, which separates a drift that changed the outcome from one that only changed its timing.</param>
 /// <param name="HeroHpRemaining">
 /// The hero's remaining HP. Carried alongside the log hash rather than instead of it: a
 /// <c>LogHash</c> is 64 bits over an event list, and a run that diverged only in a value the log
@@ -42,9 +42,9 @@ internal sealed record TripleCorpus(int Triples, int ChunkSize, IReadOnlyList<st
 /// the stat caps a divergence would show up in are all content, and a corpus over invented content
 /// would compare arithmetic the shipped game never runs.
 /// <para>
-/// Hashing goes through <c>CanonicalStateWriter</c>'s public door only. `14` §16.6 allows exactly one
-/// serialiser for the state hash, the battle <c>LogHash</c> and these rows alike, and assembling
-/// bytes here would be the second one it forbids.
+/// Hashing goes through <c>CanonicalStateWriter</c>'s public door only. A second byte assembler is a
+/// second thing that has to be kept in step with the field-order pin, and the day the two drift is
+/// the day a table goes red for a reason nobody can localise.
 /// </para>
 /// </remarks>
 internal static class TripleResolution

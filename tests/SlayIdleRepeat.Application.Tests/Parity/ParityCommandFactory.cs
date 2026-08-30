@@ -54,6 +54,24 @@ internal static class ParityCommandFactory
     /// </remarks>
     private const string ContentClaimParameter = "ContentHash";
 
+    /// <summary>
+    /// The enum vocabularies and the per-type constructor plan, resolved once.
+    /// </summary>
+    /// <remarks>
+    /// <c>Enum.GetValues</c> allocates a fresh array on every call and reflection re-resolves a
+    /// constructor's parameters on every ask, and this factory is called up to six times per step of
+    /// eight steps of a thousand sequences. None of that changes an answer; it just costs, and it
+    /// costs most on the emulated ARM64 leg.
+    /// </remarks>
+    private static readonly DifficultyTier[] Tiers = Enum.GetValues<DifficultyTier>();
+
+    private static readonly GearSlot[] Slots = Enum.GetValues<GearSlot>();
+
+    private static readonly GearFamily[] Families = Enum.GetValues<GearFamily>();
+
+    private static readonly Dictionary<Type, (ConstructorInfo Constructor, ParameterInfo[] Parameters)> Plans =
+        new();
+
     /// <summary>Builds one command of the given type, drawing every argument.</summary>
     /// <param name="commandType">The registered command type.</param>
     /// <param name="rng">The corpus's draw stream.</param>
@@ -65,8 +83,30 @@ internal static class ParityCommandFactory
         ArgumentNullException.ThrowIfNull(rng);
         ArgumentException.ThrowIfNullOrWhiteSpace(contentVersion);
 
-        // Single, not First: a tie-break between two constructors would silently pick, in a builder
-        // that drives the whole vocabulary.
+        var (constructor, parameters) = PlanFor(commandType);
+
+        var arguments = new object?[parameters.Length];
+        for (var index = 0; index < parameters.Length; index++)
+        {
+            arguments[index] = Draw(parameters[index], rng, contentVersion);
+        }
+
+        return (GameCommand)constructor.Invoke(arguments);
+    }
+
+    /// <summary>One command type's constructor and its parameters, resolved on first sight.</summary>
+    /// <remarks>
+    /// Single, not First: a tie-break between two constructors would silently pick, in a builder that
+    /// drives the whole vocabulary. The corpus is built once per process on one thread, so the cache
+    /// needs no lock — and taking one here would be the only synchronisation in the fixture.
+    /// </remarks>
+    private static (ConstructorInfo Constructor, ParameterInfo[] Parameters) PlanFor(Type commandType)
+    {
+        if (Plans.TryGetValue(commandType, out var cached))
+        {
+            return cached;
+        }
+
         var constructors = commandType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
         if (constructors.Length != 1)
         {
@@ -75,12 +115,10 @@ internal static class ParityCommandFactory
                 "is genuinely wanted, choose here deliberately rather than letting a tie-break pick.");
         }
 
-        var constructor = constructors[0];
-        var arguments = constructor.GetParameters()
-            .Select(parameter => Draw(parameter, rng, contentVersion))
-            .ToArray();
+        var plan = (constructors[0], constructors[0].GetParameters());
+        Plans[commandType] = plan;
 
-        return (GameCommand)constructor.Invoke(arguments);
+        return plan;
     }
 
     private static object? Draw(ParameterInfo parameter, DeterministicRng rng, string contentVersion)
@@ -117,17 +155,17 @@ internal static class ParityCommandFactory
 
         if (type == typeof(DifficultyTier))
         {
-            return Enum.GetValues<DifficultyTier>()[rng.Range(0, Enum.GetValues<DifficultyTier>().Length)];
+            return Tiers[rng.Range(0, Tiers.Length)];
         }
 
         if (type == typeof(GearSlot) || type == typeof(GearSlot?))
         {
-            return Enum.GetValues<GearSlot>()[rng.Range(0, Enum.GetValues<GearSlot>().Length)];
+            return Slots[rng.Range(0, Slots.Length)];
         }
 
         if (type == typeof(GearFamily) || type == typeof(GearFamily?))
         {
-            return Enum.GetValues<GearFamily>()[rng.Range(0, Enum.GetValues<GearFamily>().Length)];
+            return Families[rng.Range(0, Families.Length)];
         }
 
         if (type == typeof(GearInstanceId))

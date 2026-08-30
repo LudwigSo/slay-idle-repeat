@@ -509,6 +509,16 @@ jobs:
   determinism:
     name: determinism ${{ matrix.platform }} (14 §8.2)
     runs-on: ${{ matrix.runner }}
+    env:
+      # ⚠️ A FLOATING TAG, and knowingly so. The x64 leg's SDK is pinned through
+      # global.json, so this one drifts independently and a future red ARM64 leg
+      # cannot be attributed to architecture rather than toolchain on its own. It
+      # is not pinned to a digest today because nothing here has ever run: a
+      # digest chosen blind is a leg that cannot start, which is worse than one
+      # whose toolchain moves. FIRST TIME THIS LEG GOES RED: pin this to the
+      # digest the last green run used, re-run, and only then read the diff as a
+      # divergence. The tag must stay inside the band global.json names.
+      SDK_IMAGE: mcr.microsoft.com/dotnet/sdk:8.0
     # Emulated ARM64 is roughly an order of magnitude slower than native, and the
     # two corpora cost about 20 s between them on x64. Generous, but far short of
     # the six-hour default that would let a hung leg burn a whole runner.
@@ -560,27 +570,45 @@ jobs:
       # Two steps, not one, because the SDK image carries no PowerShell and
       # installing it under emulation costs more than the tests do. The container
       # runs the tests; the host asserts on the TRX files it wrote to the mounted
-      # results directory. The filter comes from the script rather than from a
-      # second copy of it in this file.
+      # results directory. The filter, the suite list and the configuration all
+      # come from the script rather than from a second copy of them in this file —
+      # a second copy is a second thing to keep in step, and this leg is the one
+      # nobody watches.
       - name: Determinism + parity corpora (arm64, emulated)
         if: matrix.emulated
         shell: bash
         run: |
           set -euo pipefail
-          filter="$(pwsh -NoProfile -File ./build/ci/Assert-DeterminismRun.ps1 -PrintFilter)"
+          harness=./build/ci/Assert-DeterminismRun.ps1
+          filter="$(pwsh -NoProfile -File "$harness" -PrintFilter)"
+          configuration="$(pwsh -NoProfile -File "$harness" -PrintConfiguration)"
           echo "Filter: $filter"
+
+          # Nothing downstream can tell x64 from arm64: a TRX records counts, not
+          # an architecture, so dropping --platform would leave this leg green
+          # having compared x64 against x64 — the whole job asserting nothing.
+          # Ask the image what it is before trusting anything it produces.
+          arch="$(docker run --rm --platform linux/arm64 "$SDK_IMAGE" uname -m)"
+          if [ "$arch" != "aarch64" ]; then
+            echo "::error::The arm64 determinism leg ran on '$arch'. QEMU did not register, or the image has no arm64 variant — either way this leg would have compared x64 against x64 and reported success."
+            exit 1
+          fi
+          echo "Container architecture: $arch"
+
           mkdir -p artifacts/determinism
-          for suite in SlayIdleRepeat.Core.Tests SlayIdleRepeat.Application.Tests; do
+          while read -r suite; do
+            name="$(basename "$suite")"
             docker run --rm --platform linux/arm64 \
               -v "$GITHUB_WORKSPACE:/src" -w /src \
               -e DOTNET_NOLOGO=true -e DOTNET_CLI_TELEMETRY_OPTOUT=true \
-              mcr.microsoft.com/dotnet/sdk:8.0 \
-              dotnet test "tests/$suite" \
-                --configuration Release \
+              -e NUGET_PACKAGES=/src/.nuget/packages \
+              "$SDK_IMAGE" \
+              dotnet test "$suite" \
+                --configuration "$configuration" \
                 --filter "$filter" \
-                --logger "trx;LogFileName=$suite.trx" \
+                --logger "trx;LogFileName=$name.trx" \
                 --results-directory artifacts/determinism
-          done
+          done < <(pwsh -NoProfile -File "$harness" -PrintSuites)
 
       - name: Assert the leg actually compared the corpora
         shell: pwsh
@@ -660,7 +688,12 @@ jobs:
     name: determinism ran on both architectures (14 §8.2)
     runs-on: ubuntu-24.04
     needs: [determinism]
-    if: always()
+    # !cancelled(), not always(): this workflow cancels in-progress runs on the
+    # same ref, so every superseded push would otherwise report this job red for
+    # "the leg left no results behind" — which is true, and which teaches everyone
+    # to ignore it. It still runs when the matrix FAILS or is SKIPPED, which is
+    # the whole reason the job exists.
+    if: ${{ !cancelled() }}
     steps:
       - uses: actions/checkout@v4
 

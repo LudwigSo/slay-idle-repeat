@@ -101,16 +101,23 @@ internal sealed class SimulatedCorpus
     /// <summary>The individually pinned rows, resolved to the triples that carry their property.</summary>
     internal IReadOnlyList<NamedTriple> Named { get; }
 
-    /// <summary>How long generating the 10 000 triples took.</summary>
+    /// <summary>
+    /// The three phases, timed separately so a budget failure says WHICH one moved.
+    /// </summary>
+    /// <remarks>
+    /// One total would say only that the corpus got slower. Split, the number names the regression:
+    /// generation is pure arithmetic over the seed, simulation is the ten thousand fights, and
+    /// hashing is the canonical writer. An accidental O(n²) lands in exactly one of them.
+    /// </remarks>
     internal TimeSpan GenerationElapsed { get; }
 
-    /// <summary>How long simulating them took.</summary>
+    /// <inheritdoc cref="GenerationElapsed"/>
     internal TimeSpan SimulationElapsed { get; }
 
-    /// <summary>How long hashing the outcomes took.</summary>
+    /// <inheritdoc cref="GenerationElapsed"/>
     internal TimeSpan HashingElapsed { get; }
 
-    /// <summary>Generation, simulation and hashing together.</summary>
+    /// <inheritdoc cref="GenerationElapsed"/>
     internal TimeSpan TotalElapsed => GenerationElapsed + SimulationElapsed + HashingElapsed;
 
     /// <summary>The wire hash of one named row.</summary>

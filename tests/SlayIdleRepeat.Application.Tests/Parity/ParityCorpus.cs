@@ -160,7 +160,47 @@ internal sealed class ParityCorpus
         };
 
     /// <summary>The corpus, built once for the process.</summary>
-    internal static ParityCorpus Instance { get; } = BuildAsync().GetAwaiter().GetResult();
+    /// <remarks>
+    /// Built by <see cref="Holder"/>, which is the whole point of that type existing — see its own
+    /// remarks. A property, not a field initialiser, so reading it does not put the build inside
+    /// <c>ParityCorpus</c>'s own type initialiser.
+    /// </remarks>
+    internal static ParityCorpus Instance => Holder.Value;
+
+    /// <summary>
+    /// Where the blocking build actually happens, and why it is not in <see cref="ParityCorpus"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Two deadlocks, in opposite directions, and this shape is the only thing that avoids
+    /// both.</b> The build is asynchronous because the host and the gateway are, and xUnit gives no
+    /// async fixture that two independent test classes can share — so something has to block.
+    /// </para>
+    /// <para>
+    /// Blocking DIRECTLY in <c>ParityCorpus</c>'s initialiser risks the first deadlock: the CLR
+    /// holds that type's initialisation lock across the block, and if anything on the host or
+    /// gateway path ever yields onto xUnit's limited-concurrency scheduler, its continuation needs a
+    /// slot the blocked thread is occupying. Every await on that path completes synchronously today,
+    /// which makes it safe by luck rather than by construction.
+    /// </para>
+    /// <para>
+    /// Handing the build to <c>Task.Run</c> from inside <c>ParityCorpus</c>'s own initialiser causes
+    /// the second, and this one is not hypothetical — it was measured. <c>BuildAsync</c> is a static
+    /// member of <c>ParityCorpus</c>, so the pool thread calling it must wait for that type's
+    /// initialiser to finish; the initialising thread is meanwhile waiting on the pool thread. The
+    /// suite hangs with the test host at a few seconds of CPU and no output at all.
+    /// </para>
+    /// <para>
+    /// So the block lives in a type of its own. <c>ParityCorpus</c>'s initialiser completes on the
+    /// calling thread before this one starts, the pool thread touches <c>Holder</c> never, and the
+    /// pool has no synchronisation context for an un-configured await to be posted back to.
+    /// </para>
+    /// </remarks>
+    private static class Holder
+    {
+        internal static ParityCorpus Value { get; } =
+            Task.Run(static () => BuildAsync()).GetAwaiter().GetResult();
+    }
 
     /// <summary>The 1 000 generated sequences, in ordinal order.</summary>
     internal IReadOnlyList<ParitySequence> Sequences { get; }
@@ -195,13 +235,20 @@ internal sealed class ParityCorpus
     /// <summary>The individually pinned rows, resolved to the sequences that carry their property.</summary>
     internal IReadOnlyList<NamedSequence> Named { get; }
 
-    /// <summary>How long generating the 1 000 sequences took.</summary>
+    /// <summary>
+    /// The two phases, timed separately so a budget failure says WHICH one moved.
+    /// </summary>
+    /// <remarks>
+    /// One total would say only that the corpus got slower. Split, the number names the regression:
+    /// generation is the walker probing <c>GameRules.Apply</c>, comparison is driving both dispatch
+    /// pipelines. An accidental O(n²) lands in exactly one of them.
+    /// </remarks>
     internal TimeSpan GenerationElapsed { get; }
 
-    /// <summary>How long driving them through both hosts took.</summary>
+    /// <inheritdoc cref="GenerationElapsed"/>
     internal TimeSpan ComparisonElapsed { get; }
 
-    /// <summary>Generation and comparison together.</summary>
+    /// <inheritdoc cref="GenerationElapsed"/>
     internal TimeSpan TotalElapsed => GenerationElapsed + ComparisonElapsed;
 
     private static async Task<ParityCorpus> BuildAsync()
@@ -233,8 +280,20 @@ internal sealed class ParityCorpus
         {
             var outcome = await DriveAsync(sequence, mismatches, driven).ConfigureAwait(false);
             outcomes.Add(outcome);
-            accepted += outcome.Steps.Count(step => step.Accepted);
-            refused += outcome.Steps.Count(step => !step.Accepted);
+
+            // Counted in one pass and the complement derived: two LINQ sweeps over every step of a
+            // thousand sequences buys nothing, and this runs on an emulated leg.
+            var acceptedHere = 0;
+            foreach (var step in outcome.Steps)
+            {
+                if (step.Accepted)
+                {
+                    acceptedHere++;
+                }
+            }
+
+            accepted += acceptedHere;
+            refused += outcome.Steps.Count - acceptedHere;
         }
 
         var wires = outcomes.Select(ParityResolution.Hash).ToList();
@@ -312,7 +371,10 @@ internal sealed class ParityCorpus
                 : await world.Gateway
                     .SubmitRunCommandAsync(world.Player, run, envelope, Worlds.Cancel).ConfigureAwait(false);
 
-            var body = JsonDocument.Parse(reply.Body).RootElement;
+            // Disposed per step: five and a half thousand of these are parsed per corpus build, and
+            // each holds a pooled buffer that is only returned on disposal.
+            using var replyBody = JsonDocument.Parse(reply.Body);
+            var body = replyBody.RootElement;
             var gatewayHash = body.TryGetProperty("stateHash", out var hash) ? hash.GetString() : null;
             var rejected = body.TryGetProperty("rejected", out var flag) && flag.GetBoolean();
             var reason = rejected ? body.GetProperty("reason").GetString() ?? string.Empty : string.Empty;
@@ -321,8 +383,12 @@ internal sealed class ParityCorpus
             // consumes no sequence number — every command after it in the sequence would then be a
             // SEQUENCE_GAP, and the comparison would degrade into a thousand cascades that all
             // "agree" about nothing. It is a fault in the driver, not a finding about parity, so it
-            // stops the corpus here and says which command caused it.
-            if (rejected && !RejectionReasons.IsDomainTier(Enum.Parse<RejectionReason>(reason)))
+            // stops the corpus here and says which command caused it. TryParse rather than Parse: a
+            // reason outside the enum is the same fault, and a bare ArgumentException would throw
+            // away the message below that says what to do about it.
+            if (rejected &&
+                (!Enum.TryParse<RejectionReason>(reason, out var parsed) ||
+                 !RejectionReasons.IsDomainTier(parsed)))
             {
                 throw new InvalidOperationException(
                     $"Sequence {sequence.Index.ToString(CultureInfo.InvariantCulture)} step " +
@@ -362,9 +428,10 @@ internal sealed class ParityCorpus
     /// <remarks>
     /// The gateway decides run-scoped by ENDPOINT — <c>routedRun is not null || opensRun</c> — and
     /// the in-process host has no endpoint, so the rule is restated here from the same predicate the
-    /// host itself routes by. Both sides go through <c>WireProjections</c>, which is the one
-    /// serialiser `14` §16.6 allows: hashing the raw snapshots instead would compare bytes no client
-    /// ever holds.
+    /// host itself routes by. Both sides go through <c>WireProjections</c> rather than the raw
+    /// snapshots: the projection is what a client actually holds, and the snapshots carry the run
+    /// seed, which never leaves the server and therefore cannot be part of a value a mirror is meant
+    /// to reproduce.
     /// </remarks>
     private static string HashOf(WorldSlice state, bool meta)
     {

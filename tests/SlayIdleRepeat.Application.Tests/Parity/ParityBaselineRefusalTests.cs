@@ -39,14 +39,28 @@ public sealed class ParityBaselineRefusalTests
                 "'reviewed' with no reason is a checkbox rather than a record of what moved.");
     }
 
-    [Fact]
-    public void A_review_that_names_nobody_is_refused()
+    /// <summary>
+    /// A review naming neither a task nor a date is refused — one case, because the loader states it
+    /// as one rule.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <c>Validate</c> checks <c>why</c>, <c>reviewedBy</c> and <c>reviewedOn</c> in a single
+    /// condition and answers a single message that names all three, so no assertion over that message
+    /// can say WHICH field was blank. Splitting this into two cases would read as though it could.
+    /// What is genuinely asserted is that each field is load-bearing: blanking either one on its own
+    /// is refused.
+    /// </remarks>
+    [Theory]
+    [InlineData("reviewedBy")]
+    [InlineData("reviewedOn")]
+    public void A_review_that_names_neither_a_task_nor_a_date_is_refused(string field)
     {
-        Should.Throw<FormatException>(() => Read(WithReviewField("reviewedBy", string.Empty)))
-            .Message.ShouldContain("review.reviewedBy", Case.Sensitive);
-
-        Should.Throw<FormatException>(() => Read(WithReviewField("reviewedOn", string.Empty)))
-            .Message.ShouldContain("review.reviewedOn", Case.Sensitive);
+        Should.Throw<FormatException>(() => Read(WithReviewField(field, string.Empty)))
+            .Message.ShouldContain(
+                "does not say who concluded what",
+                Case.Sensitive,
+                $"blanking '{field}' alone must still be refused: a 'reviewed' stamp with no task or " +
+                "no date behind it is a checkbox rather than a record.");
     }
 
     [Fact]
