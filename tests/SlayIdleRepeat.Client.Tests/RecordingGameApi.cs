@@ -49,6 +49,9 @@ internal sealed class RecordingGameApi : IGameApiPort
     private int _refusedCallsLeft;
     private int _refusalStatusCode;
 
+    private Exception? _fault;
+    private bool _silent;
+
     private TaskCompletionSource? _gate;
 
     private RecordingGameApi()
@@ -82,6 +85,13 @@ internal sealed class RecordingGameApi : IGameApiPort
     /// <summary>Every credential a sign-in presented, in order.</summary>
     internal IReadOnlyList<WireCredentials> Presented => _presented;
 
+    /// <summary>How many calls ended because their own token was cancelled.</summary>
+    /// <remarks>
+    /// The difference between an attempt that was called off and one that was merely walked away
+    /// from, which the caller's own state cannot tell apart.
+    /// </remarks>
+    internal int CancelledCalls { get; private set; }
+
     /// <summary>
     /// Makes the next <paramref name="calls"/> calls fail as an unreachable transport.
     /// </summary>
@@ -108,6 +118,38 @@ internal sealed class RecordingGameApi : IGameApiPort
     {
         _refusedCallsLeft = calls;
         _refusalStatusCode = statusCode;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Makes every call fault with a failure that is neither of the two the port names.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The third shape, and the one nothing else here can produce: a body that arrived and could
+    /// not be read is a defect on one side of the wire rather than a transport that could not answer
+    /// or a server that said no, and a caller that files all three under one name loses it.
+    /// </remarks>
+    /// <param name="failure">The failure every call raises.</param>
+    internal RecordingGameApi Faulting(Exception failure)
+    {
+        _fault = failure;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Makes every call answer nothing at all until its own token is cancelled.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A refused connection answers instantly, and every other arrangement here is written
+    /// against one. This is the black-holed network: the packets are accepted and nothing ever comes
+    /// back, so what ends the call is whatever bound the caller put on it — which is the only way to
+    /// observe that there is one.
+    /// </remarks>
+    internal RecordingGameApi Silent()
+    {
+        _silent = true;
 
         return this;
     }
@@ -148,6 +190,11 @@ internal sealed class RecordingGameApi : IGameApiPort
     {
         RegisterAttempts++;
 
+        if (_silent)
+        {
+            return Silence<WireDeviceRegistration>(ct);
+        }
+
         return NextFailure() is { } failure
             ? Task.FromException<WireDeviceRegistration>(failure)
             : Gate(
@@ -160,6 +207,11 @@ internal sealed class RecordingGameApi : IGameApiPort
     {
         AuthenticateAttempts++;
         _presented.Add(credentials);
+
+        if (_silent)
+        {
+            return Silence<WireSession>(ct);
+        }
 
         return NextFailure() is { } failure
             ? Task.FromException<WireSession>(failure)
@@ -181,6 +233,11 @@ internal sealed class RecordingGameApi : IGameApiPort
         _sent.Add(envelope);
         _sentTo.Add(run);
 
+        if (_silent)
+        {
+            return Silence<WireCommandResult>(ct);
+        }
+
         if (NextFailure() is { } failure)
         {
             return Task.FromException<WireCommandResult>(failure);
@@ -198,6 +255,11 @@ internal sealed class RecordingGameApi : IGameApiPort
         FetchAttempts++;
         _fetchedFrom.Add(sinceSequence);
 
+        if (_silent)
+        {
+            return Silence<WireRunState>(ct);
+        }
+
         if (NextFailure() is { } failure)
         {
             return Task.FromException<WireRunState>(failure);
@@ -207,6 +269,22 @@ internal sealed class RecordingGameApi : IGameApiPort
             _state ?? throw new NotSupportedException(
                 "This api was not told what a state read answers with. Call " +
                 nameof(Answering) + " in the arrangement."));
+    }
+
+    /// <summary>A call that never answers, ending only when its token is cancelled.</summary>
+    private Task<T> Silence<T>(CancellationToken ct)
+    {
+        var pending = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        ct.Register(
+            () =>
+            {
+                CancelledCalls++;
+
+                pending.TrySetCanceled(ct);
+            });
+
+        return pending.Task;
     }
 
     /// <summary>Answers now, or once the gate opens.</summary>
@@ -235,6 +313,6 @@ internal sealed class RecordingGameApi : IGameApiPort
             return new GameApiRefusedException(_refusalStatusCode, "The scripted server said no.");
         }
 
-        return null;
+        return _fault;
     }
 }

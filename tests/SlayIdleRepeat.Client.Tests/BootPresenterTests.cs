@@ -2,6 +2,7 @@ using Shouldly;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Content;
+using SlayIdleRepeat.Application.Wire;
 using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Content;
@@ -857,6 +858,200 @@ public sealed class BootPresenterTests
             SyncState.UpToDate,
             "stated as the state the sync actually reached, because a presenter that recorded Failed " +
             "unconditionally would satisfy every case above and none of this one.");
+    }
+
+    // ------------------------------- M5-15: a server stage is bounded, never open-ended
+
+    /// <summary>
+    /// 🔒 <b>A server that says nothing at all must not hold the splash screen.</b>
+    /// </summary>
+    /// <remarks>
+    /// Every other server case here is written against a connection that is REFUSED, which answers
+    /// in a millisecond. A black-holed network is the other shape: the packets are accepted and
+    /// nothing ever comes back, and there each request runs to its own transport timeout — a number
+    /// several times the whole cold-start budget this stage is one part of. Nothing else in this
+    /// file can catch that, because nothing else waits.
+    /// </remarks>
+    [Fact]
+    public async Task A_sign_in_that_is_never_answered_does_not_hold_the_boot()
+    {
+        var api = RecordingGameApi.Reachable().Silent();
+        var presenter = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
+            session: Opener(api));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        api.RegisterAttempts.ShouldBe(
+            1,
+            "the stage has to have actually reached the seam, or everything below is a claim about a " +
+            "stage that never ran — and a boot that skipped the server entirely would satisfy all of it.");
+        presenter.Stage.ShouldBe(
+            BootStage.Ready,
+            "a run is never blocked on the network, and a server that accepts the connection and then " +
+            "says nothing is not different in kind from one that refuses it — only in how long it " +
+            "takes to find out. A boot with no bound here waits out one transport timeout per request " +
+            "in front of a player who could be playing offline.");
+        presenter.Failure.ShouldBeNull(
+            "and running out of time is no more a boot failure than an unreachable server is: both " +
+            "leave a game that starts and a session the ladder opens behind it.");
+        presenter.SessionOutcome.ShouldBe(
+            BootSessionOutcome.Unreachable,
+            "recorded as exactly what an unreachable server is recorded as, because that is what it " +
+            "is — a stage that ran and did not get an answer. Inventing a fourth outcome for it would " +
+            "put a word in the cold-start line that nothing downstream knows.");
+    }
+
+    /// <summary>
+    /// 🔒 …and the attempt it gave up on is <b>cancelled</b>, not left running behind the game.
+    /// </summary>
+    /// <remarks>
+    /// The ladder owns retry. An abandoned attempt still holding a connection open is a second
+    /// mechanism doing the same job, and the two would each open a session against a server that was
+    /// merely slow rather than dead.
+    /// </remarks>
+    [Fact]
+    public async Task The_attempt_a_deadline_ended_is_cancelled_rather_than_left_running()
+    {
+        var api = RecordingGameApi.Reachable().Silent();
+        var presenter = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
+            session: Opener(api));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        api.CancelledCalls.ShouldBe(
+            1,
+            "walking on and calling the attempt off are two different things, and the presenter's own " +
+            "state cannot tell them apart — a boot that merely stopped waiting reports the same " +
+            "outcome while the request runs on to its transport timeout with nobody left to read it.");
+    }
+
+    /// <summary>
+    /// 🔒 …and the content check is bounded the same way, on the same grounds.
+    /// </summary>
+    [Fact]
+    public async Task A_content_check_that_is_never_answered_does_not_hold_the_boot()
+    {
+        var client = ScriptedContentClient.Silent();
+        var presenter = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
+            contentSync: new ContentSyncPresenter(client, InstalledContent));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        client.PointerReads.ShouldBe(1, "the same guard: the stage has to have reached the seam");
+        client.CancelledCalls.ShouldBe(
+            1,
+            "and the pointer read is called off rather than left running, for the reason the sign-in " +
+            "above is.");
+        presenter.Stage.ShouldBe(
+            BootStage.Ready,
+            "the installed content is playable whatever the server does, so this stage never had " +
+            "grounds to stop a boot and running out of time gives it none.");
+        presenter.ContentSync.ShouldBe(
+            SyncState.Failed,
+            "recorded as exactly what a sync that could not reach the server is recorded as. A stage " +
+            "that walked on leaving the state at Checking would say the check is still running on a " +
+            "boot that has finished.");
+        presenter.ContentSyncFailure.ShouldNotBeNull(
+            "and it says which of the three causes it was, like every other sync failure — a state " +
+            "with no failure beside it is the one shape the sync itself never produces.")
+                 .Kind.ShouldBe(
+                     ContentSyncFailureKind.Unreachable,
+                     "a server that did not answer in time is the same cause as one that could not be " +
+                     "reached: ops or the player's network, not the distribution pipeline.");
+    }
+
+    /// <summary>
+    /// 🔒 The control that keeps the bound from swallowing the thing it is not for: the app being
+    /// closed mid-start is still a cancelled boot, and it is a different report.
+    /// </summary>
+    /// <remarks>
+    /// Both arrive as the same exception type, so only the caller's own token tells them apart. A
+    /// stage that treated every cancellation as its own expiry would walk on past a window that is
+    /// already closing and report a start that finished after the app was gone.
+    /// </remarks>
+    [Fact]
+    public async Task A_shutdown_inside_a_server_stage_is_still_reported_as_Cancelled()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+        var presenter = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
+            session: Opener(RecordingGameApi.Reachable().Silent()));
+
+        await presenter.StartAsync(cancellation.Token);
+
+        presenter.Stage.ShouldBe(
+            BootStage.Failed,
+            "the window is closing, so there is no boot to walk on to. Reaching Ready here would hand " +
+            "the next screen a graph nothing is going to draw.");
+        presenter.Failure.ShouldNotBeNull(
+            "shutting down mid-start is carried, not silently absorbed into an ordinary finish.")
+                 .Kind.ShouldBe(
+                     BootFailureKind.Cancelled,
+                     "and it is the player closing the app, not the server being slow — the two are " +
+                     "the same exception and only the caller's token separates them.");
+    }
+
+    // ------------------------------- M5-15: a refusal is a refusal, and nothing else is
+
+    /// <summary>
+    /// 🔒 <b>Only the server understanding and saying no is a refusal.</b>
+    /// </summary>
+    /// <remarks>
+    /// A 200 whose body the wire's own reader cannot make sense of is a defect on one side of the
+    /// wire — somebody's serialiser — and filing it as SessionRefused sends whoever reads the report
+    /// to the account service to look for a rejection that was never issued.
+    /// </remarks>
+    [Fact]
+    public async Task A_session_stage_that_breaks_some_other_way_is_Unexpected_rather_than_SessionRefused()
+    {
+        var presenter = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
+            session: Opener(RecordingGameApi.Reachable().Faulting(
+                new WireParseException("the sign-in answered with a body that is not a session"))));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Failure.ShouldNotBeNull(
+            "an answer nobody can read is not a session, so the boot cannot walk on as though one " +
+            "opened.")
+                 .Kind.ShouldBe(
+                     BootFailureKind.Unexpected,
+                     "carried rather than swallowed, and under the name that means 'nobody " +
+                     "anticipated this' — which is exactly what it is.");
+        presenter.Failure!.Stage.ShouldBe(
+            BootStage.Session,
+            "and it still happened in the session stage: narrowing the KIND must not lose WHERE.");
+    }
+
+    /// <summary>…and the two do not collapse — the refusal beside it keeps its own name.</summary>
+    [Fact]
+    public async Task A_refusal_and_a_body_that_will_not_parse_do_not_share_a_kind()
+    {
+        var refused = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
+            session: Opener(RecordingGameApi.Reachable().RefusingFor(int.MaxValue, statusCode: 403)));
+        var malformed = Boot(
+            StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), Frozen(),
+            session: Opener(RecordingGameApi.Reachable().Faulting(
+                new WireParseException("the sign-in answered with a body that is not a session"))));
+
+        await refused.StartAsync(CancellationToken.None);
+        await malformed.StartAsync(CancellationToken.None);
+
+        refused.Failure!.Kind.ShouldNotBe(
+            malformed.Failure!.Kind,
+            "one is fixed by whoever owns the account service and the other by whoever wrote the " +
+            "serialiser. Compared against each other rather than against literals, because an " +
+            "implementation that reported one shared kind would satisfy every literal assertion " +
+            "elsewhere by simply being that literal.");
+        refused.SessionOutcome.ShouldBe(
+            BootSessionOutcome.Refused,
+            "and the refusal is still the one outcome that stops a boot — narrowing what counts as " +
+            "one must not stop the genuine article counting.");
     }
 
     // ------------------------------------------------------------------------ null guards

@@ -126,7 +126,8 @@ public sealed class BootFailure
 /// <para>
 /// ⚠️ The content-hash check and the server session are here, and both are <b>skipped entirely</b>
 /// when the composition root hands in no collaborator for them — which is what keeps the boot of an
-/// in-process build exactly what it was before a server existed. A first-run beat is still
+/// in-process build exactly what it was before a server existed — and neither may hold the boot
+/// past the share of the cold start it is allowed. A first-run beat is still
 /// deliberately absent: the tutorial belongs to the milestone that owns it, and a stage here
 /// pretending to run one would make an unbuilt flow look shipped.
 /// </para>
@@ -144,6 +145,34 @@ public sealed class BootPresenter
     private const string AtlasStatusKey = "loc.boot.atlas.status";
     private const string ReadyStatusKey = "loc.boot.ready.status";
     private const string FailureStatusKey = "loc.boot.failure.status";
+
+    /// <summary>
+    /// The whole share of a cold start the two stages that talk to a server may spend between them.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Derived from the cold-start budget rather than picked.</b> A cold start has four
+    /// seconds to reach a playable screen, the sign-in and the profile read included, and the engine
+    /// itself plus the content read, the profile open and the atlas read already account for most of
+    /// it — so a quarter is what is genuinely spare for a server. One request's own transport
+    /// timeout is fifteen times that, and there are three requests here, so without this a network
+    /// that accepts the connection and then says nothing (which is not what a refused one does)
+    /// holds the splash screen for the better part of a minute.
+    /// </remarks>
+    private static readonly TimeSpan ServerStageBudget = TimeSpan.FromSeconds(1);
+
+    /// <summary>How long one server stage may hold the boot: the budget above, split evenly.</summary>
+    /// <remarks>
+    /// Evenly rather than weighted, because expiry costs nothing that is not recovered a moment
+    /// later — the reconnect ladder owns retry and opens the session behind the first playable
+    /// screen — so there is no stage worth giving the other's share to.
+    /// </remarks>
+    private static readonly TimeSpan ServerStageDeadline = ServerStageBudget / 2;
+
+    /// <summary>What a content check that never answered in time is recorded as.</summary>
+    private static readonly ContentSyncFailure ContentCheckRanOutOfTime = new(
+        ContentSyncFailureKind.Unreachable,
+        "the content pointer could not be read — the server had still not answered inside the share " +
+        "of the cold start this check is allowed, and the attempt was called off");
 
     /// <summary>What an empty content set means, said in terms of what a player can be told to do.</summary>
     private const string EmptyContentSetDetail =
@@ -271,10 +300,10 @@ public sealed class BootPresenter
                 // 🔒 Never fatal. The installed content is playable — the build shipped with it —
                 // so a server that could not be reached leaves the game one revision behind, not
                 // unstartable. The sync turns every fault into state and never throws.
-                await sync.RunAsync(ct).ConfigureAwait(false);
+                var answered = await WithinTheDeadlineAsync(sync.RunAsync, ct).ConfigureAwait(false);
 
-                ContentSync = sync.State;
-                ContentSyncFailure = sync.Failure;
+                ContentSync = answered ? sync.State : SyncState.Failed;
+                ContentSyncFailure = answered ? sync.Failure : ContentCheckRanOutOfTime;
 
                 ContentSnapshotIsNotAdoptedYet(sync);
 
@@ -287,8 +316,9 @@ public sealed class BootPresenter
                 Stage = BootStage.Session;
 
                 // An unreachable server is swallowed in here and recorded on the ladder; a refusal
-                // escapes and stops the boot, which is what makes the two tellable apart.
-                await session.OpenAsync(ct).ConfigureAwait(false);
+                // escapes and stops the boot, which is what makes the two tellable apart. A server
+                // that answers neither way is ended by the deadline and reads as unreachable.
+                await WithinTheDeadlineAsync(session.OpenAsync, ct).ConfigureAwait(false);
 
                 AccountPlayerId = session.Account;
                 SessionOutcome = session.IsOpen
@@ -322,7 +352,7 @@ public sealed class BootPresenter
         }
         catch (Exception failure)
         {
-            Fail(reached, KindFor(reached), Describe(failure));
+            Fail(reached, KindFor(reached, failure), Describe(failure));
         }
         finally
         {
@@ -344,13 +374,50 @@ public sealed class BootPresenter
     };
 
     /// <summary>Which cause a thrown failure in a given stage is.</summary>
-    private static BootFailureKind KindFor(BootStage stage) => stage switch
+    /// <remarks>
+    /// 🔒 The session arm asks what escaped rather than only where it escaped from. A refusal is the
+    /// server having understood and said no; a body its own reader could not make sense of is
+    /// somebody's serialiser, and reporting it under the same name sends whoever reads it to the
+    /// account service to look for a rejection nobody issued.
+    /// </remarks>
+    private static BootFailureKind KindFor(BootStage stage, Exception failure) => stage switch
     {
         BootStage.Content => BootFailureKind.ContentUnavailable,
-        BootStage.Session => BootFailureKind.SessionRefused,
+        BootStage.Session when failure is GameApiRefusedException => BootFailureKind.SessionRefused,
         BootStage.Profile => BootFailureKind.ProfileUnavailable,
         _ => BootFailureKind.Unexpected,
     };
+
+    /// <summary>
+    /// Runs one server stage under <see cref="ServerStageDeadline"/>, answering whether it finished.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 An expired attempt is <b>cancelled</b>, not merely walked away from, and nothing here
+    /// retries it: the reconnect ladder owns retry, and a second schedule inside the boot would be
+    /// two answers to "may I try again yet". The caller's own token is linked in, so a shutdown
+    /// still cancels at once — and it is what tells a closing window apart from a slow server,
+    /// since both arrive here as the same exception.
+    /// </remarks>
+    /// <param name="stage">The work to run.</param>
+    /// <param name="ct">The caller's token.</param>
+    private static async Task<bool> WithinTheDeadlineAsync(
+        Func<CancellationToken, Task> stage, CancellationToken ct)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        deadline.CancelAfter(ServerStageDeadline);
+
+        try
+        {
+            await stage(deadline.Token).ConfigureAwait(false);
+
+            return true;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// 🔴 <b>The verified snapshot the sync downloaded is dropped, and this names the drop.</b>

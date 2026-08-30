@@ -13,8 +13,11 @@ namespace SlayIdleRepeat.Client.Tests;
 /// </remarks>
 internal sealed class ScriptedContentClient : IContentDistributionClient
 {
+    private const string NothingScripted = "A silent seam answers nothing at all.";
+
     private readonly Func<string> _version;
     private readonly Func<string, ReadOnlyMemory<byte>> _bundle;
+    private readonly bool _silent;
 
     /// <summary>Answers the pointer and the bundle from the two functions given.</summary>
     internal ScriptedContentClient(Func<string> version, Func<string, ReadOnlyMemory<byte>> bundle)
@@ -22,6 +25,21 @@ internal sealed class ScriptedContentClient : IContentDistributionClient
         _version = version;
         _bundle = bundle;
     }
+
+    private ScriptedContentClient()
+    {
+        _version = () => throw new NotSupportedException(NothingScripted);
+        _bundle = _ => throw new NotSupportedException(NothingScripted);
+        _silent = true;
+    }
+
+    /// <summary>A seam that accepts the call and never answers it.</summary>
+    /// <remarks>
+    /// 🔒 A refused connection answers instantly, and every other arrangement here is written
+    /// against one. This is the black-holed network, where what ends the call is whatever bound the
+    /// caller put on it — which is the only way to observe that there is one.
+    /// </remarks>
+    internal static ScriptedContentClient Silent() => new();
 
     /// <summary>Reads the sync's state at call time, so the sequence of states is observable.</summary>
     internal Func<SyncState>? Observe { get; set; }
@@ -38,13 +56,16 @@ internal sealed class ScriptedContentClient : IContentDistributionClient
     /// </summary>
     internal int PointerReads { get; private set; }
 
+    /// <summary>How many calls ended because their own token was cancelled.</summary>
+    internal int CancelledCalls { get; private set; }
+
     /// <inheritdoc/>
     public Task<string> FetchCurrentVersionAsync(CancellationToken ct)
     {
         PointerReads++;
         Record();
 
-        return Task.FromResult(_version());
+        return _silent ? Silence<string>(ct) : Task.FromResult(_version());
     }
 
     /// <inheritdoc/>
@@ -53,7 +74,23 @@ internal sealed class ScriptedContentClient : IContentDistributionClient
         Record();
         BundlesAskedFor.Add(version);
 
-        return Task.FromResult(_bundle(version));
+        return _silent ? Silence<ReadOnlyMemory<byte>>(ct) : Task.FromResult(_bundle(version));
+    }
+
+    /// <summary>A call that never answers, ending only when its token is cancelled.</summary>
+    private Task<T> Silence<T>(CancellationToken ct)
+    {
+        var pending = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        ct.Register(
+            () =>
+            {
+                CancelledCalls++;
+
+                pending.TrySetCanceled(ct);
+            });
+
+        return pending.Task;
     }
 
     private void Record()
