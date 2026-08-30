@@ -77,7 +77,28 @@ public sealed class InMemoryMessageRepository : IMessageRepository
         RequireId(id);
         ct.ThrowIfCancellationRequested();
 
-        var now = _clock.UtcNow;
+        StampClaimed(id, ids, _clock.UtcNow);
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Stamps a claim at the CALLER's instant — the shape the unit of work commits through.</summary>
+    /// <remarks>
+    /// The port member above owns its own transaction and its own clock, and <c>IMessageRepository</c>
+    /// rules it out for an accepted <c>CLAIM_INBOX</c>: those ids ride <c>CommandCommit.Claim</c>, and
+    /// the stamp has to date the payment rather than the write. The Postgres unit of work already
+    /// passes <c>MailClaim.AtUtc</c> through its own caller-owned overload; this is the same door, so
+    /// the two implementations of one contract stamp the same instant.
+    /// </remarks>
+    /// <param name="id">The owner.</param>
+    /// <param name="ids">The messages the claim paid.</param>
+    /// <param name="atUtc">The command's own instant.</param>
+    internal void StampClaimed(PlayerId id, IReadOnlyList<MessageId> ids, DateTimeOffset atUtc)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        RequireId(id);
+
+        var now = atUtc;
 
         foreach (var messageId in ids)
         {
@@ -95,8 +116,6 @@ public sealed class InMemoryMessageRepository : IMessageRepository
                 _rows.TryUpdate(messageId.Value, stored with { ClaimedAtUtc = now }, stored);
             }
         }
-
-        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>

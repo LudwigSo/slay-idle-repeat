@@ -500,15 +500,15 @@ public sealed class PostgresIdempotencyStore : IIdempotencyStore
         // The advance, in the same transaction — the port's one atomic effect. GREATEST keeps a
         // replayed lower sequence from ever winding a counter back.
         var advance = scope.Kind == IdempotencyScopeKind.Run
-            ? "UPDATE runs SET last_sequence = GREATEST(COALESCE(last_sequence, 0), @sequence) WHERE run_id = @id;"
+            ? "UPDATE runs SET last_sequence = GREATEST(COALESCE(last_sequence, 0), @sequence) " +
+              "WHERE run_id = @id AND player_id = @player;"
             : "UPDATE players SET last_meta_sequence = GREATEST(COALESCE(last_meta_sequence, 0), @sequence) " +
               "WHERE player_id = @id;";
 
         await using (var update = new NpgsqlCommand(advance, connection, transaction))
         {
             update.Parameters.AddWithValue("sequence", outcome.Sequence);
-            update.Parameters.AddWithValue(
-                "id", scope.Kind == IdempotencyScopeKind.Run ? scope.Run!.Value.Value : scope.Player.Value);
+            BindScope(update, scope);
 
             if (await update.ExecuteNonQueryAsync(ct).ConfigureAwait(false) == 0)
             {
@@ -532,12 +532,11 @@ public sealed class PostgresIdempotencyStore : IIdempotencyStore
         // never existed" — for every command addressed to a run that had merely gone quiet, and the
         // domain was never invoked to say what had actually happened to it.
         var sql = scope.Kind == IdempotencyScopeKind.Run
-            ? "SELECT last_sequence FROM runs WHERE run_id = @id;"
+            ? "SELECT last_sequence FROM runs WHERE run_id = @id AND player_id = @player;"
             : "SELECT last_meta_sequence FROM players WHERE player_id = @id;";
 
         await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue(
-            "id", scope.Kind == IdempotencyScopeKind.Run ? scope.Run!.Value.Value : scope.Player.Value);
+        BindScope(command, scope);
 
         return await command.ExecuteScalarAsync(ct).ConfigureAwait(false) is long last ? last : null;
     }
@@ -571,18 +570,41 @@ public sealed class PostgresIdempotencyStore : IIdempotencyStore
 
         // COALESCE is the whole of "idempotent, never a reset".
         var sql = scope.Kind == IdempotencyScopeKind.Run
-            ? "UPDATE runs SET last_sequence = COALESCE(last_sequence, 0) WHERE run_id = @id;"
+            ? "UPDATE runs SET last_sequence = COALESCE(last_sequence, 0) " +
+              "WHERE run_id = @id AND player_id = @player;"
             : "UPDATE players SET last_meta_sequence = COALESCE(last_meta_sequence, 0) WHERE player_id = @id;";
 
         await using var command = new NpgsqlCommand(sql, connection, transaction);
-        command.Parameters.AddWithValue(
-            "id", scope.Kind == IdempotencyScopeKind.Run ? scope.Run!.Value.Value : scope.Player.Value);
+        BindScope(command, scope);
 
         if (await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false) == 0)
         {
             throw new InvalidOperationException(
                 "No row exists to open the scope " + PostgresRows.ScopeKeyOf(scope) + " on. The " +
                 "accepted command's save precedes its open, so a missing subject is a miswired caller.");
+        }
+    }
+
+    /// <summary>Binds the identity every counter statement keys on: the run and its OWNER, or the player.</summary>
+    /// <remarks>
+    /// 🔒 A run scope is qualified by its owner on every member, because <c>IdempotencyScope</c>
+    /// carries one and the gateway relies on it: <c>CommandGateway</c> reads a null last-sequence as
+    /// <c>RUN_NOT_FOUND</c>, so a counter keyed on the run id ALONE answers a foreign player with the
+    /// owner's counter and then lets a dispatched rejection advance it. The record key
+    /// (<c>PostgresRows.ScopeKeyOf</c>) already qualified; these three statements did not, while the
+    /// in-memory store qualified all five — the divergence compiled, and the shared contract suite
+    /// never varied the owner.
+    /// </remarks>
+    private static void BindScope(NpgsqlCommand command, IdempotencyScope scope)
+    {
+        if (scope.Kind == IdempotencyScopeKind.Run)
+        {
+            command.Parameters.AddWithValue("id", scope.Run!.Value.Value);
+            command.Parameters.AddWithValue("player", scope.Player.Value);
+        }
+        else
+        {
+            command.Parameters.AddWithValue("id", scope.Player.Value);
         }
     }
 }

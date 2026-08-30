@@ -515,6 +515,44 @@ public sealed class ClientCompositionTests : IDisposable
     }
 
     /// <summary>
+    /// 🔒 <b>A base address the switch named without a trailing slash still keeps its path prefix.</b>
+    /// </summary>
+    /// <remarks>
+    /// Both wire seams resolve RELATIVE routes ("auth/device", "content/current") against this, and
+    /// <see cref="Uri"/> drops a base's last segment unless it ends in a slash — so
+    /// <c>https://host/v1</c> sent every route to <c>https://host/</c> and the prefix vanished with
+    /// nothing failing. <c>HttpGameApiOptions.BaseAddress</c> writes that contract down; this is the
+    /// one production site that has to honour it, and it did not.
+    /// <para>
+    /// The already-slashed and no-path cases are the controls: a method that appended
+    /// unconditionally would double the slash on the first and is indistinguishable from doing
+    /// nothing on the second.
+    /// </para>
+    /// </remarks>
+    /// <param name="named">What the developer switch carries.</param>
+    /// <param name="expected">The base every relative route must resolve under.</param>
+    [Theory]
+    [InlineData("https://api.example.com/v1", "https://api.example.com/v1/")]
+    [InlineData("https://api.example.com/v1/", "https://api.example.com/v1/")]
+    [InlineData("https://api.example.com", "https://api.example.com/")]
+    [InlineData("http://127.0.0.1:8080/a/b", "http://127.0.0.1:8080/a/b/")]
+    public void BaseAddressOf_keeps_a_path_prefix_every_relative_route_would_otherwise_lose(
+        string named, string expected)
+    {
+        var resolved = ClientComposition.BaseAddressOf(named);
+
+        resolved.AbsoluteUri.ShouldBe(
+            expected,
+            "a base without a trailing slash is not a prefix, it is a sibling: every route resolves " +
+            "over the last segment rather than under it.");
+
+        new Uri(resolved, "auth/device").AbsoluteUri.ShouldBe(
+            expected + "auth/device",
+            "and that is the resolution the adapters actually perform — asserting the base alone " +
+            "would pass on a value HttpClient still resolved wrongly.");
+    }
+
+    /// <summary>
     /// 🔒 <b>The server arm's seams are the HTTP adapters — this is where the client stops talking
     /// only to itself.</b>
     /// </summary>

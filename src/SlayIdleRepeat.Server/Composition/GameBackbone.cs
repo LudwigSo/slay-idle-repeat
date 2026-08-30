@@ -34,9 +34,16 @@ namespace SlayIdleRepeat.Server.Composition;
 /// </para>
 /// <para>
 /// Built lazily WITHOUT caching a failure: the content set lives at <c>GameData:Root</c> (default
-/// <c>game-data</c> under the content root), and a deployment without one — today's container
-/// image — must still boot and answer <c>GET /health</c>; the first command on such a host faults
-/// loudly, and a later call retries rather than replaying the first fault forever.
+/// <c>game-data</c> under the content root), and a deployment without one must still boot and answer
+/// <c>GET /health</c>; the first command on such a host faults loudly, and a later call retries
+/// rather than replaying the first fault forever.
+/// </para>
+/// <para>
+/// ⚠️ The container image WAS such a deployment for the whole of M5 — its Dockerfile copied
+/// <c>src/</c> and nothing else — so every endpoint below <c>/health</c> faulted on the compose
+/// stack and only an unobserved CI job would have said so. The image now carries the content set;
+/// this paragraph stays because the lazy build is what made that a first-request fault rather than
+/// a boot failure, which is why it went unnoticed.
 /// </para>
 /// <para>
 /// A process-wide singleton rather than a per-<c>WebApplication</c> value because the process

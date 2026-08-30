@@ -27,9 +27,12 @@ public static class DeviceCredentialFactory
 
     /// <summary>Base64url over the requested count of CSPRNG bytes — the shape every opaque credential here takes.</summary>
     /// <param name="byteCount">How many random bytes the value carries.</param>
-    public static string OpaqueToken(int byteCount) =>
-        Convert.ToBase64String(RandomNumberGenerator.GetBytes(byteCount))
-            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    public static string OpaqueToken(int byteCount) => Base64Url(RandomNumberGenerator.GetBytes(byteCount));
+
+    /// <summary>Unpadded base64url — the one encoding every credential and every JWT segment in this area carries.</summary>
+    /// <param name="bytes">The bytes to encode.</param>
+    public static string Base64Url(byte[] bytes) =>
+        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
     /// <summary>The stored form of a secret: SHA-256 over its UTF-8 bytes.</summary>
     /// <param name="secret">The secret as presented or as minted.</param>

@@ -19,16 +19,16 @@ public sealed class InMemoryUnitOfWork : IUnitOfWork
 {
     private readonly IPlayerRepository _players;
     private readonly IIdempotencyStore _idempotency;
-    private readonly IMessageRepository? _messages;
+    private readonly InMemoryMessageRepository? _messages;
     private readonly List<EconomyEventRecord> _economyEvents = [];
 
     /// <summary>Builds the unit of work over the stores it commits into.</summary>
     /// <param name="players">Where the aggregate snapshots land.</param>
     /// <param name="idempotency">Where the outcome record and the sequence advance land.</param>
-    /// <param name="messages">Where a claim's stamp lands, or <c>null</c> for an arrangement with no inbox — one that is then handed a commit carrying a claim raises rather than dropping it.</param>
+    /// <param name="messages">Where a claim's stamp lands, or <c>null</c> for an arrangement with no inbox — one that is then handed a commit carrying a claim raises rather than dropping it. The concrete store, for the Postgres unit of work's reason: the stamp rides the claim's own instant, which the port member cannot carry.</param>
     /// <exception cref="ArgumentNullException"><paramref name="players"/> or <paramref name="idempotency"/> is null.</exception>
     public InMemoryUnitOfWork(
-        IPlayerRepository players, IIdempotencyStore idempotency, IMessageRepository? messages = null)
+        IPlayerRepository players, IIdempotencyStore idempotency, InMemoryMessageRepository? messages = null)
     {
         ArgumentNullException.ThrowIfNull(players);
         ArgumentNullException.ThrowIfNull(idempotency);
@@ -103,7 +103,10 @@ public sealed class InMemoryUnitOfWork : IUnitOfWork
 
         if (commit.Claim is { } claim)
         {
-            await _messages!.MarkClaimedAsync(claim.Player, claim.Messages, ct).ConfigureAwait(false);
+            // The claim's OWN instant, not this store's clock — the port reserves MarkClaimedAsync
+            // for callers with no transaction (the expiry sweep), and an accepted CLAIM_INBOX is not
+            // one. Postgres stamps claim.AtUtc through its caller-owned overload; so does this.
+            _messages!.StampClaimed(claim.Player, claim.Messages, claim.AtUtc);
         }
 
         _economyEvents.AddRange(commit.EconomyEvents);

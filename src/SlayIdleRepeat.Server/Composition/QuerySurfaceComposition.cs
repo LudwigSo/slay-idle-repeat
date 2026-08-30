@@ -20,7 +20,9 @@ namespace SlayIdleRepeat.Server.Composition;
 /// to a default — and this deployment has one database and no replica to route to in any case.
 /// </para>
 /// <para>
-/// The principal seam is the command area's placeholder (M5-06's real one replaces both together).
+/// The principal seam is the command area's, decorator included — M5-06's resolver under M5-14's
+/// account-standing check, so the two areas cannot disagree about who a caller is or whether their
+/// account may act at all.
 /// </para>
 /// </remarks>
 public static class QuerySurfaceComposition
@@ -39,6 +41,11 @@ public static class QuerySurfaceComposition
         ArgumentNullException.ThrowIfNull(app);
 
         IPrincipalResolver principals = AuthComposition.Principals(app);
+
+        // The same account-standing decorator the command area applies. An account action is an
+        // ACCOUNT-level refusal, not a write-level one: without this, a player 403'd on both command
+        // routes was still served their whole profile projection and every replayable outcome here.
+        principals = AntiCheatComposition.WithAccountStanding(principals, app.Configuration);
 
         // The server's only tracing: no ASP.NET auto-instrumentation package is pinned, so a request
         // that is not wrapped here appears on no trace at all.
