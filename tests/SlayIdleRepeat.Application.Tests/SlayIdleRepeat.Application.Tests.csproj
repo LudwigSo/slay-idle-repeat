@@ -36,6 +36,17 @@
   </ItemGroup>
 
   <!--
+    14 §13's client/server parity corpus: 1 000 command sequences through both dispatch pipelines,
+    pinned by 10 chunk hashes and one aggregate. Embedded rather than copied to the output directory
+    so the cross-platform determinism job finds it on Android ARM64, where the working directory is
+    not ours to predict. The job's live legs are Linux x64 and Android ARM64; the iOS ARM64 leg is
+    authored and gated off with iOS itself (16 D34).
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Parity\ParityCorpusBaseline.json" />
+  </ItemGroup>
+
+  <!--
     Shared test vocabulary, linked rather than project-referenced. tests/Shared/ holds no
     .csproj on purpose: build/ci/test-suites.json discovers suites with the glob
     tests/*/*.csproj and fails any it finds containing zero tests, so a helper project here

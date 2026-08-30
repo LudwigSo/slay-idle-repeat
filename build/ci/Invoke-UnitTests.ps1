@@ -191,25 +191,21 @@ foreach ($project in $selected) {
     $testExitCode = $LASTEXITCODE
 
     # ---- read the real counts, not the exit code
-    $total = 0; $passed = 0; $failed = 0
-    $countsAreReal = $true
-    if (Test-Path -LiteralPath $trxPath) {
-        $xml = [xml](Get-Content -Raw -LiteralPath $trxPath)
-        $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
-        $ns.AddNamespace('t', 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010')
-        $counters = $xml.SelectSingleNode('//t:Counters', $ns)
-        if ($counters) {
-            $total = [int]$counters.total
-            $passed = [int]$counters.passed
-            $failed = [int]$counters.failed + [int]$counters.error + [int]$counters.aborted + [int]$counters.timeout
-        }
-    } else {
-        # $total stays 0, but that 0 means "not measured", not "measured zero".
-        # Without this flag the run below reports the same suite twice — once for
-        # the missing TRX and once for a ZERO-test count it never actually read —
-        # and the second message sends the reader off to add a knownEmpty
-        # exemption for a suite whose real problem is that it did not run.
-        $countsAreReal = $false
+    $counts = Read-TrxCounters -Path $trxPath
+    $total = $counts.Total; $passed = $counts.Passed; $failed = $counts.Failed
+
+    # $total stays 0 when nothing was measured, but that 0 means "not measured",
+    # not "measured zero". Without this flag the run below reports the same suite
+    # twice — once for the missing TRX and once for a ZERO-test count it never
+    # actually read — and the second message sends the reader off to add a
+    # knownEmpty exemption for a suite whose real problem is that it did not run.
+    #
+    # A TRX that EXISTS but carries no counters keeps its historical wording:
+    # this script's empty-suite and stale-exemption rules were written to run over
+    # it, and the message it produces ("EMPTY - not declared") is the one this
+    # job's readers know.
+    $countsAreReal = $counts.Measured -or $counts.Present
+    if (-not $counts.Present) {
         $failures.Add("$name : dotnet test produced no TRX at $trxPath. The run did not complete.")
     }
 

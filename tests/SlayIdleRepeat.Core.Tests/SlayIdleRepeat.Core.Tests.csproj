@@ -61,8 +61,10 @@
 
   <!--
     The Hash64 / DeterministicRng determinism pin (14 §8.0, §8.2). Embedded rather than
-    copied to the output directory so the cross-platform determinism job (M5-12) finds it
-    on Android/iOS ARM64 regardless of the working directory the runner happens to use.
+    copied to the output directory so the cross-platform determinism job finds it on
+    Android ARM64 regardless of the working directory the runner happens to use. The job's
+    live legs are Linux x64 and Android ARM64; the iOS ARM64 leg is authored and gated off
+    with iOS itself (16 D34).
   -->
   <ItemGroup>
     <EmbeddedResource Include="Rng\Hash64ReferenceVectors.json" />
@@ -70,8 +72,8 @@
 
   <!--
     The CanonicalStateWriter determinism pin (14 §16.6) and the field-order pin it is
-    keyed to, embedded for the same reason as the file above: M5-12 re-asserts both on
-    Android/iOS ARM64, where the working directory is not ours to predict.
+    keyed to, embedded for the same reason as the file above: the determinism job re-asserts
+    both on Android ARM64, where the working directory is not ours to predict.
   -->
   <ItemGroup>
     <EmbeddedResource Include="Model\Snapshots\CanonicalStateWriterReferenceVectors.json" />
@@ -79,12 +81,27 @@
   </ItemGroup>
 
   <!--
-    The battle LogHash determinism pin (05 §7), embedded for the same reason as the two
-    above: M5-12 re-asserts it on Android/iOS ARM64, and 11 §6 depends on the client and
+    The battle LogHash encoding pin (05 §7), embedded for the same reason as the two above:
+    the determinism job re-asserts it on Android ARM64, and 11 §6 depends on the client and
     the server agreeing on these bytes.
   -->
   <ItemGroup>
     <EmbeddedResource Include="Rules\Combat\CombatLogReferenceVectors.json" />
+  </ItemGroup>
+
+  <!--
+    14 §8.2's own corpus: 10 000 fixed (seed, build, enemy) triples simulated to their LogHash,
+    pinned by 100 chunk hashes and one aggregate. Embedded for the same reason as the tables
+    above — the Android ARM64 leg runs somewhere whose working directory is not ours to predict.
+
+    🔴 Like M2-17's baseline below, it is NOT a reference-vector table in M0-06's or M0-07's
+    sense: nobody publishes "(seed, build, enemy) -> LogHash" vectors, so it is self-generated
+    and proves stability on one machine and cross-architecture agreement when the determinism
+    job runs it on both. The hash functions underneath it ARE externally validated. Its own
+    $comment header says so, and BattleLogHashBaselineTests asserts that it still does.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Rules\Combat\Determinism\BattleLogHashBaseline.json" />
   </ItemGroup>
 
   <!--

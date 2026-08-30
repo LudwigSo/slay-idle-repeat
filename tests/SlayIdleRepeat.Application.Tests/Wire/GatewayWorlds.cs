@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Events;
 using SlayIdleRepeat.Application.Services.Inbox;
@@ -45,7 +46,8 @@ internal sealed class GatewayWorld
         PlayerId player,
         FeatureFlags flags,
         PinnedContent pins,
-        InMemoryMessageRepository messages)
+        InMemoryMessageRepository messages,
+        IIdGeneratorPort ids)
     {
         Gateway = gateway;
         Store = store;
@@ -58,6 +60,7 @@ internal sealed class GatewayWorld
         Flags = flags;
         Pins = pins;
         Messages = messages;
+        Ids = ids;
     }
 
     internal CommandGateway Gateway { get; }
@@ -85,6 +88,13 @@ internal sealed class GatewayWorld
     /// <summary>The inbox the gateway's claim path reads and stamps — empty until a case fills it.</summary>
     internal InMemoryMessageRepository Messages { get; }
 
+    /// <summary>
+    /// The generator the gateway mints run ids and meta command seeds from — exposed so a case that
+    /// needs a second host drawing the SAME entropy (the client/server parity corpus) can align the
+    /// two sides rather than guessing at how many draws this one has made.
+    /// </summary>
+    internal IIdGeneratorPort Ids { get; }
+
     /// <summary>A world holding one starting player and nothing else.</summary>
     /// <param name="flags">The kill switches, defaulting to none thrown.</param>
     /// <param name="ledger">The ledger seam, defaulting to the placeholder — a case about the seam's failure shapes passes a decorated one.</param>
@@ -92,13 +102,15 @@ internal sealed class GatewayWorld
     /// <param name="pins">The content pins, defaulting to an empty store over the shipped snapshot alone.</param>
     /// <param name="sinks">The post-commit fan-out, defaulting to none — a case about delivery failure passes one that throws.</param>
     /// <param name="order">A shared log the unit of work and the sinks write their step into, for the cases about what happens before what.</param>
+    /// <param name="ids">The id generator, defaulting to a fresh counting one. The parity corpus passes a generator a second host can reproduce.</param>
     internal static async Task<GatewayWorld> WithAStartingPlayerAsync(
         FeatureFlags? flags = null,
         ICommandLedgerStore? ledger = null,
         Func<FeatureFlags>? currentFlags = null,
         PinnedContent? pins = null,
         IReadOnlyList<IDomainEventSink>? sinks = null,
-        List<string>? order = null)
+        List<string>? order = null,
+        IIdGeneratorPort? ids = null)
     {
         if (flags is not null && currentFlags is not null)
         {
@@ -115,6 +127,7 @@ internal sealed class GatewayWorld
         var throttle = new ManualThrottle();
         var resolvedFlags = flags ?? LocalHostAmbience.NoRemoteConfigResolved();
         var resolvedPins = pins ?? PinnedContent.OverTheShippedSnapshot();
+        var resolvedIds = ids ?? new CountingIdGenerator();
 
         var player = new PlayerId("PLAYER_wire");
         var starting = PlayerAggregate.CreateStartingNamedAfterItsOwnId(player, clock.UtcNow, Worlds.Content);
@@ -135,7 +148,7 @@ internal sealed class GatewayWorld
             new ApplyCommandUseCase(
                 store, new DomainEventDispatcher(sinks ?? []), new InboxCommandSupport(messages)),
             clock,
-            new CountingIdGenerator(),
+            resolvedIds,
             Worlds.Content,
             LocalHostAmbience.NoSubscriptionResolved(),
             currentFlags ?? (() => resolvedFlags),
@@ -146,7 +159,7 @@ internal sealed class GatewayWorld
 
         return new GatewayWorld(
             gateway, store, cache, volatileLedger, unitOfWork, throttle, clock, player, resolvedFlags,
-            resolvedPins, messages);
+            resolvedPins, messages, resolvedIds);
     }
 
     /// <summary>A second starting player in the same world, so cross-player claims compare two real principals.</summary>
@@ -169,9 +182,11 @@ internal sealed class GatewayWorld
     /// gateway itself, so the run scope is genuinely open. Player sequence 1 is consumed.
     /// </summary>
     /// <param name="pins">The content pins, defaulting to an empty store over the shipped snapshot alone.</param>
-    internal static async Task<(GatewayWorld World, RunId Run)> InAStartedRunAsync(PinnedContent? pins = null)
+    /// <param name="ids">The id generator, defaulting to a fresh counting one.</param>
+    internal static async Task<(GatewayWorld World, RunId Run)> InAStartedRunAsync(
+        PinnedContent? pins = null, IIdGeneratorPort? ids = null)
     {
-        var world = await WithAStartingPlayerAsync(pins: pins);
+        var world = await WithAStartingPlayerAsync(pins: pins, ids: ids);
 
         var reply = await world.Gateway.SubmitPlayerCommandAsync(
             world.Player, Envelopes.StartRun(sequence: 1, commandId: "c-start"), Worlds.Cancel);
