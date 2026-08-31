@@ -1,9 +1,9 @@
 {
   "stryker-config": {
     "solution": "SlayIdleRepeat.sln",
-    "project": "SlayIdleRepeat.Core.csproj",
+    "project": "SlayIdleRepeat.Application.csproj",
     "test-projects": [
-      "tests/SlayIdleRepeat.Core.Tests/SlayIdleRepeat.Core.Tests.csproj"
+      "tests/SlayIdleRepeat.Application.Tests/SlayIdleRepeat.Application.Tests.csproj"
     ],
     "reporters": [
       "html",
