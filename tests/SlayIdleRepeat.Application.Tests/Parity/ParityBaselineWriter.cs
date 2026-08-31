@@ -88,11 +88,12 @@ internal static class ParityBaselineWriter
         "most states, so a uniform walk would be a thousand sequences of refusals. A moved chunk " +
         "localises a break to a hundred sequences, which is a diff a person can read.",
 
-        "⚠️ THIS TABLE IS SCHEDULED TO MOVE, ONCE. D45 (a hero's HP persists across a run — owner " +
-        "M7-06g) and D46 (DMG% and DR% become multiplier stats — owner M4-16d) both change state " +
-        "these sequences reach. Re-baseline AFTER BOTH have landed, never between them, so these " +
-        "hashes move once rather than twice. A SchemaVersion bump moves them too, since the hashes " +
-        "are taken over the wire projection.",
+        "⚠️ THIS TABLE WAS SCHEDULED TO MOVE FOR D45 AND D46, AND DID NOT. Both landed " +
+        "together on 2026-08-31 (D45 — a hero's HP persists across a run, owner M7-06g; D46 — DMG% " +
+        "and DR% become multiplier stats, owner M4-16d). Recomputing this corpus against them left every " +
+        "chunk hash and the baseline state unchanged: the sequences walked here never resolve combat, " +
+        "because START_RUN — the command that opens the run — is the one this corpus excludes. A " +
+        "SchemaVersion bump still moves these hashes, since they are taken over the wire projection.",
     };
 
     /// <summary>
