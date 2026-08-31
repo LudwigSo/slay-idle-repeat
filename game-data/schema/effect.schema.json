@@ -304,7 +304,7 @@
     },
     {
       "title": "18 §2.4 — SURVIVE_LETHAL",
-      "description": "18 §2.4 — 'survive an otherwise-fatal hit at a given HP fraction'. 18 §7.4 authors PK_UNBREAKABLE with \"value\": 1, which as a fraction is FULL HP, while 06's row for the same perk reads 'survive a lethal hit at 1 HP'. M2-03 resolves the contradiction by giving the op a valueMode exactly as the 18 §2.2 damage ops have one, rather than by picking a reading: PK_UNBREAKABLE is {\"value\": 1, \"valueMode\": \"FLAT\"} = 1 HP. Recorded as errata against 18 §2.4 and §7.4. ⚠️ REVIVE has the identical shape and the identical wording and is deliberately NOT changed — no authored content needs a flat revive, and widening it too would be a key nobody asked for.",
+      "description": "18 §2.4 — 'survive an otherwise-fatal hit at a given HP fraction'. 18 §7.4 authors PK_UNBREAKABLE with \"value\": 1, which as a fraction is FULL HP, while 06's row for the same perk reads 'survive a lethal hit at 1 HP'. M2-03 resolves the contradiction by giving the op a valueMode exactly as the 18 §2.2 damage ops have one, rather than by picking a reading: PK_UNBREAKABLE is {\"value\": 1, \"valueMode\": \"FLAT\"} = 1 HP. Recorded as errata against 18 §2.4 and §7.4. ⚠️ REVIVE has the identical shape and the identical wording and is deliberately NOT changed — no authored content needs a flat revive, and widening it too would be a key nobody asked for. 16 D49 (M4-16g) adds valueMode NEGATE — the lethal hit is voided and HP is unchanged, authored WITHOUT value or valueScale (Ironvow's six-piece, 08 §3.2); the owner ruled that the bonus be implemented, and the NEGATE shape is the conductor's call, recorded as such in the decision log. EffectOpValidation refuses NEGATE on every other op and a value or valueScale under it.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "op"],
@@ -428,7 +428,7 @@
     },
 
     "valueMode": {
-      "description": "18 §2.2 — what value is a multiple of. ATK_MULT is the stated default. ⚠️ HEAL_AMOUNT and OVERHEAL_AMOUNT exist only inside ON_HEAL contexts, which this schema cannot assert: the context may come from the wrapper an effect list sits in rather than from the effect's own trigger (a pet active block carries no trigger of its own, 18 §7.7). M2-06 enforces it at evaluation.",
+      "description": "18 §2.2 — what value is a multiple of. ATK_MULT is the stated default. ⚠️ HEAL_AMOUNT and OVERHEAL_AMOUNT exist only inside ON_HEAL contexts, which this schema cannot assert: the context may come from the wrapper an effect list sits in rather than from the effect's own trigger (a pet active block carries no trigger of its own, 18 §7.7). M2-06 enforces it at evaluation. NEGATE (16 D49, M4-16g under 18 §10) is SURVIVE_LETHAL's alone and is not an amount: the hit is voided, HP unchanged, and the effect carries no value — which this schema also cannot assert per-token; EffectOpValidation refuses NEGATE on every other op and refuses a value or valueScale under it.",
       "enum": [
         "ATK_MULT",
         "FLAT",
@@ -437,7 +437,8 @@
         "TARGET_MISSING_HP_PCT",
         "DAMAGE_DEALT_PCT",
         "HEAL_AMOUNT",
-        "OVERHEAL_AMOUNT"
+        "OVERHEAL_AMOUNT",
+        "NEGATE"
       ]
     },
 

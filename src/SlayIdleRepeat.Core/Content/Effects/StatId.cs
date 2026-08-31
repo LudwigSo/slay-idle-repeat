@@ -1,6 +1,6 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>The 26 stats a stat op may name: 14 combat stats and 12 non-combat stats.</summary>
+/// <summary>The 24 stats a stat op may name: 14 combat stats and 10 non-combat stats.</summary>
 /// <remarks>
 /// <para>
 /// The 14 combat stats are exactly the full combat stat block: every actor, hero and enemy alike,
@@ -9,7 +9,8 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// </para>
 /// <para>
 /// Wire values, as <see cref="EffectOp"/>: append, never renumber, never reuse; no <c>0</c> member.
-/// The 14 combat stats occupy 1..14 and the 12 non-combat stats 15..26, so
+/// The 14 combat stats occupy 1..14 and the 10 non-combat stats 15..26 (21 and 22 are retired
+/// wire values, see below), so
 /// <see cref="StatIds.IsCombat"/> is a fact about the enum rather than a second list to keep in
 /// step — but it is still written as an exhaustive switch, because a renumbering would otherwise
 /// silently reclassify a stat.
@@ -49,10 +50,10 @@ public enum StatId
     /// <summary>Armour penetration, 0..1.</summary>
     PEN = 10,
 
-    /// <summary>Outgoing damage percent.</summary>
+    /// <summary>Outgoing damage multiplier, consumed bare; base 1.0.</summary>
     DMG_PCT = 11,
 
-    /// <summary>Damage reduction percent.</summary>
+    /// <summary>Damage-taken multiplier, consumed bare; base 1.0, so lower is better.</summary>
     DR_PCT = 12,
 
     /// <summary>Multiplier on all healing received; base 1.0.</summary>
@@ -61,7 +62,7 @@ public enum StatId
     /// <summary>Thorns — damage returned to an attacker.</summary>
     THORNS = 14,
 
-    // ------------------------------------------------------- non-combat (12)
+    // ------------------------------------------------------- non-combat (10)
 
     /// <summary>Gold gain percent.</summary>
     GOLD_PCT = 15,

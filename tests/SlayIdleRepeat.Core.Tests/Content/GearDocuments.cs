@@ -192,11 +192,20 @@ internal static class GearDocuments
         new("AFX_DODGE", "DODGE", "STAT_ADD_FLAT", 0.02m, 0.08m, ["BOOTS", "AMULET"], null),
         new("AFX_BLOCK", "BLOCK", "STAT_ADD_FLAT", 0.03m, 0.12m, ["ARMOR", "HELMET"], null),
         new("AFX_LIFESTEAL", "LIFESTEAL", "STAT_ADD_FLAT", 0.02m, 0.09m, ["AMULET", "WEAPON"], null),
-        new("AFX_DAMAGE_REDUCTION", "DR_PCT", "STAT_ADD_FLAT", 0.02m, 0.08m, ["ARMOR", "AMULET"], null),
+        new("AFX_DAMAGE_REDUCTION", "DR_PCT", "STAT_ADD_FLAT", -0.08m, -0.02m, ["ARMOR", "AMULET"], null),
         new("AFX_GOLD_GAIN", "GOLD_PCT", "STAT_ADD_FLAT", 0.08m, 0.3m, ["RING", "AMULET"], null),
         new("AFX_PET_AURA_POWER", "PET_AURA_PCT", "STAT_ADD_FLAT", 0.05m, 0.2m, ["AMULET", "RING"], null),
-        new("AFX_DAMAGE_VS_ELITES", null, null, 0.08m, 0.25m, ["WEAPON", "RING"], null),
+        new(
+            "AFX_DAMAGE_VS_ELITES", "DMG_PCT", "STAT_ADD_PCT", 0.08m, 0.25m, ["WEAPON", "RING"],
+            null, TargetIsEliteGate()),
     ];
+
+    /// <summary>The damage-vs-Elites gate: <c>{"fn": "TARGET_IS_ELITE", "op": "eq", "value": true}</c>.</summary>
+    internal static ContentValue TargetIsEliteGate() =>
+        Members(
+            ("fn", ContentValue.Text("TARGET_IS_ELITE")),
+            ("op", ContentValue.Text("eq")),
+            ("value", ContentValue.True));
 
     /// <summary>All three shipped documents, together.</summary>
     internal static ContentSnapshot Shipped { get; } = With();
@@ -352,6 +361,11 @@ internal static class GearDocuments
             members.Add(("minRarity", ContentValue.Text(floor)));
         }
 
+        if (affix.Condition is { } condition)
+        {
+            members.Add(("condition", condition));
+        }
+
         return Members(members.ToArray());
     }
 
@@ -496,6 +510,11 @@ internal readonly record struct AuthoredPercentStat(
 /// <param name="Maximum">The top of its range, inclusive.</param>
 /// <param name="Slots">The slots it may roll on.</param>
 /// <param name="MinimumRarity">Its rarity floor, or null where it authors none.</param>
+/// <param name="Condition">
+/// Its context gate as authored JSON, or null for an ungated affix — appended last for
+/// <c>Inventories.Item</c>'s enhanceFailures reason: a parameter inserted ahead of an existing
+/// optional one silently re-binds every positional argument after it.
+/// </param>
 internal readonly record struct AuthoredAffix(
     string AffixId,
     string? Stat,
@@ -503,4 +522,5 @@ internal readonly record struct AuthoredAffix(
     decimal Minimum,
     decimal Maximum,
     IReadOnlyList<string> Slots,
-    string? MinimumRarity);
+    string? MinimumRarity,
+    ContentValue? Condition = null);

@@ -148,9 +148,34 @@ internal static class EffectOpValidation
 
                 break;
 
+            case EffectOp.SURVIVE_LETHAL:
+                if (effect.ValueMode == ValueMode.NEGATE)
+                {
+                    // 16 D49: the voided hit has no HP number. A value (or a scale for one) under
+                    // NEGATE reads as "negate at N?" — refused rather than ignored, the
+                    // FORCE_CRIT_NEXT precedent.
+                    if (effect.Value is not null)
+                    {
+                        problems.Add("SURVIVE_LETHAL under valueMode NEGATE carries a value; 16 D49 " +
+                                     "voids the hit outright and leaves HP unchanged, so there is no " +
+                                     "HP number for one to be");
+                    }
+
+                    if (effect.ValueScale is not null)
+                    {
+                        problems.Add("SURVIVE_LETHAL under valueMode NEGATE carries a valueScale; " +
+                                     "16 D49 gives it no value to scale");
+                    }
+                }
+                else
+                {
+                    RequireValue(effect, problems);
+                }
+
+                break;
+
             case EffectOp.EXTRA_ATTACK:
             case EffectOp.REDUCE_COOLDOWN:
-            case EffectOp.SURVIVE_LETHAL:
             case EffectOp.REVIVE:
             case EffectOp.SET_TARGET_PRIORITY:
             case EffectOp.DAMAGE_TAKEN_MULT:
@@ -246,6 +271,16 @@ internal static class EffectOpValidation
             problems.Add(
                 $"{effect.Op} carries valueMode {mode}, and 18 §2.2 gives it " +
                 $"[{string.Join(", ", rules.Admits)}] — {rules.Reason}");
+        }
+        else if (effect.Op == EffectOp.STAT_SET && mode == ValueMode.NEGATE)
+        {
+            // STAT_SET admits the valueMode key without an OpValueRules row, so without this arm a
+            // NEGATE on it would validate clean and mean nothing. Narrowed to STAT_SET: every other
+            // rules-less op is already refused the key itself by the ExclusiveTo above, and a second
+            // problem for the same mistake would be noise.
+            problems.Add(
+                $"{effect.Op} carries valueMode {mode}, and 16 D49 grants NEGATE to SURVIVE_LETHAL " +
+                "alone — with no hit to void, it has no stated meaning anywhere else");
         }
     }
 

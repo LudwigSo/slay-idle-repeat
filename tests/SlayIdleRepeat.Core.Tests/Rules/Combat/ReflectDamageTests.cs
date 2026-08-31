@@ -63,15 +63,16 @@ public sealed class ReflectDamageTests
             });
 
     /// <summary>
-    /// The reflect is reduced by the receiver's <c>DR%</c> and <c>DAMAGE_TAKEN_MULT</c> and nothing
-    /// else the attack pipeline applies: DEF/PEN are irrelevant since a reflect takes no mitigation,
-    /// and the 0.9 DR row separately proves there is no floor (2.6925 is well under 10% of raw).
+    /// The reflect is multiplied by the receiver's bare <c>DR%</c> and <c>DAMAGE_TAKEN_MULT</c> and
+    /// nothing else the attack pipeline applies: DEF/PEN are irrelevant since a reflect takes no
+    /// mitigation, and the 0.1 DR row separately proves there is no floor (2.6925 is well under
+    /// 10% of raw).
     /// </summary>
     [Theory]
-    [InlineData(0.0, 1.0, 26.925)]
+    [InlineData(1.0, 1.0, 26.925)]
     [InlineData(0.5, 1.0, 13.4625)]
-    [InlineData(0.9, 1.0, 2.6925)]
-    [InlineData(0.0, 0.5, 13.4625)]
+    [InlineData(0.1, 1.0, 2.6925)]
+    [InlineData(1.0, 0.5, 13.4625)]
     public void The_reflect_takes_DR_and_the_damage_taken_multiplier_but_no_mitigation_and_no_floor(
         double dr, double damageTakenMult, double expected) =>
         Fight(

@@ -162,7 +162,11 @@ internal sealed class OpTestBench
             bench.Record(nameof(DealTrueDamage), target.Id, amount, sourceEffectId);
 
         public void DealMaxHpPctDamage(
-            IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId)
+            IEffectActorView target,
+            double amount,
+            bool bypassesWards,
+            string sourceEffectId,
+            IEffectActorView? source)
         {
             bench.WardBypasses.Add(bypassesWards);
             bench.Record(nameof(DealMaxHpPctDamage), target.Id, amount, sourceEffectId);
@@ -236,6 +240,9 @@ internal sealed class OpTestBench
 
         public void ArmSurviveLethal(IEffectActorView holder, double hp, string sourceEffectId) =>
             bench.Record(nameof(ArmSurviveLethal), holder.Id, hp, sourceEffectId);
+
+        public void ArmNegateLethal(IEffectActorView holder, string sourceEffectId) =>
+            bench.Record(nameof(ArmNegateLethal), holder.Id, 0.0, sourceEffectId);
 
         public void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId) =>
             bench.Record(nameof(ArmRevive), holder.Id, hp, sourceEffectId);

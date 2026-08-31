@@ -52,8 +52,8 @@ public sealed class EnemyDerivationTests
 
             stats[StatId.BLOCK].ShouldBe(0.0, $"05 §6 — BLOCK is 0.00 for {row.Id}");
             stats[StatId.PEN].ShouldBe(0.0, $"05 §6 — PEN is 0.00 for {row.Id}");
-            stats[StatId.DMG_PCT].ShouldBe(0.0, $"05 §6 — DMG% is 0.00 for {row.Id}");
-            stats[StatId.DR_PCT].ShouldBe(0.0, $"05 §6 — DR% is 0.00 for {row.Id}");
+            stats[StatId.DMG_PCT].ShouldBe(1.0, $"05 §6 / 16 D46 — DMG% is the bare multiplier identity 1.00 for {row.Id}");
+            stats[StatId.DR_PCT].ShouldBe(1.0, $"05 §6 / 16 D46 — DR% is the damage-taken identity 1.00 for {row.Id}");
             stats[StatId.HEAL_PCT].ShouldBe(1.0, $"05 §6 — HEAL% is 1.00 for {row.Id}");
             stats[StatId.THORNS].ShouldBe(0.0, $"05 §6 — THORN is 0.00 for {row.Id}");
         }

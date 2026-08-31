@@ -69,7 +69,7 @@ This makes `PlayerPower` an **absolute, comparable scalar**: the same build scor
 ```
 EffectiveHP = MaxHP
             / (1 - MitigationVsReference)
-            / (1 - DR)
+            / DR                        // 16 D46: DR% IS the damage-taken multiplier (base 1.00, floored 0.40)
             / (1 - Dodge)
             / (1 - Block * 0.5)
             * (1 + Lifesteal * LS_WEIGHT)
@@ -81,7 +81,7 @@ EffectiveHP = MaxHP
 DPS = ATK
     * ASPD
     * (1 + CRIT * CDMG)
-    * (1 + DMG%)
+    * DMG%                          // 16 D46: a bare multiplier, base 1.00
     * (1 - MitigationOfReference)
     * (1 + PetDpsShare)
 

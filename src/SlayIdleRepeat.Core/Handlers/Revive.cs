@@ -5,7 +5,7 @@ using SlayIdleRepeat.Core.Primitives;
 namespace SlayIdleRepeat.Core.Handlers;
 
 /// <summary>
-/// The <c>REVIVE</c> handler: once per run, restores 50% Max HP and restarts the fight that killed
+/// The <c>REVIVE</c> handler: on the first death only, restores the tuned share of Max HP (66%) and restarts the fight that killed
 /// the hero from its beginning.
 /// </summary>
 /// <remarks>

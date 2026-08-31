@@ -2225,8 +2225,8 @@ public sealed class BattleReplayPresenterTests
             [StatId.DODGE] = 0,
             [StatId.BLOCK] = 0,
             [StatId.PEN] = 0,
-            [StatId.DMG_PCT] = 0,
-            [StatId.DR_PCT] = 0,
+            [StatId.DMG_PCT] = 1,
+            [StatId.DR_PCT] = 1,
             [StatId.HEAL_PCT] = 1,
             [StatId.THORNS] = 0,
         });

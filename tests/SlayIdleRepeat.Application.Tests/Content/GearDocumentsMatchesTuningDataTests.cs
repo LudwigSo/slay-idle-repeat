@@ -266,7 +266,9 @@ public sealed class GearDocumentsMatchesTuningDataTests
         { 6, "AFX_DODGE", 0.02, 0.08, ["BOOTS", "AMULET"], null },
         { 7, "AFX_BLOCK", 0.03, 0.12, ["ARMOR", "HELMET"], null },
         { 8, "AFX_LIFESTEAL", 0.02, 0.09, ["AMULET", "WEAPON"], null },
-        { 9, "AFX_DAMAGE_REDUCTION", 0.02, 0.08, ["ARMOR", "AMULET"], null },
+        // D46 re-sign: a flat add onto the 1.0 damage-taken multiplier, so "2 to 8 points
+        // less damage taken" authors as a negative range.
+        { 9, "AFX_DAMAGE_REDUCTION", -0.08, -0.02, ["ARMOR", "AMULET"], null },
         { 10, "AFX_GOLD_GAIN", 0.08, 0.3, ["RING", "AMULET"], null },
         { 11, "AFX_PET_AURA_POWER", 0.05, 0.2, ["AMULET", "RING"], null },
         { 12, "AFX_DAMAGE_VS_ELITES", 0.08, 0.25, ["WEAPON", "RING"], null },
@@ -317,6 +319,33 @@ public sealed class GearDocumentsMatchesTuningDataTests
             minRarity,
             $"{id} carries a band floor; without it the affix becomes reachable at every band that " +
             "rolls one.");
+    }
+
+    /// <summary>
+    /// The damage-vs-Elites affix ships as the target-gated percent-add the fixture transcribes.
+    /// </summary>
+    /// <remarks>
+    /// The one affix whose <c>stat</c>/<c>op</c> pair and gate are load-bearing enough to pin here:
+    /// it was the pool's single null pair until the conditional standing-effect bucket made it
+    /// authorable, and <c>GearDocuments</c> now transcribes the authored shape — so the real file
+    /// must author the same one, or fifteen hundred lines of Core gear assertions are resting on a
+    /// row the game does not ship.
+    /// </remarks>
+    [Fact]
+    public void The_shipped_damage_vs_elites_affix_is_the_target_gated_shape_the_fixture_transcribes()
+    {
+        var row = Affixes()[12];
+
+        row.GetProperty("id").GetString().ShouldBe("AFX_DAMAGE_VS_ELITES");
+        row.GetProperty("stat").GetString().ShouldBe(
+            "DMG_PCT", "the roll composes onto the damage multiplier, ×(1 + v) against elites");
+        row.GetProperty("op").GetString().ShouldBe(
+            "STAT_ADD_PCT", "the multiplier stat takes the percent bucket off its base 1.0");
+
+        var condition = row.GetProperty("condition");
+        condition.GetProperty("fn").GetString().ShouldBe("TARGET_IS_ELITE");
+        condition.GetProperty("op").GetString().ShouldBe("eq");
+        condition.GetProperty("value").GetBoolean().ShouldBeTrue();
     }
 
     /// <summary>The pool is thirteen — the number an SS roll of four draws against.</summary>

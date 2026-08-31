@@ -108,7 +108,7 @@ public sealed class AttackPipelineInternalTests
                 p.Pipeline.GrantWard(p.Enemy(), 1000.0, null, "EFF_W");
 
                 // 100, halved by DR% to 50.
-                p.Pipeline.DealMaxHpPctDamage(p.Enemy(), 100.0, bypassesWards, "CP_BLOOD_PRICE");
+                p.Pipeline.DealMaxHpPctDamage(p.Enemy(), 100.0, bypassesWards, "CP_BLOOD_PRICE", source: null);
 
                 p.Enemy().CurrentHp.ShouldBe(expectedHp);
                 p.Enemy().Wards.Total.ShouldBe(expectedWard);

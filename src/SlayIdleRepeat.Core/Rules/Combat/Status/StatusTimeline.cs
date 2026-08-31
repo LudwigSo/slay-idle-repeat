@@ -486,7 +486,11 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
         }
 
         // Ward absorption, the HP write and the phase check that follows it — see type remarks.
-        Attack.DealMaxHpPctDamage(actor, amount, bypassesWards: false, instance.SourceEffectId);
+        // A DoT tick names no caster on purpose: the status instance carries its source EFFECT,
+        // not the actor that applied it, so the receiver's DR is read ambient — a recorded limit
+        // of the conditional standing-effect bucket (an attacker-gated DR does not reduce burns),
+        // not a ruling that it should never.
+        Attack.DealMaxHpPctDamage(actor, amount, bypassesWards: false, instance.SourceEffectId, source: null);
     }
 
     // ══════════════════════════════════════════════════════════════════ helpers

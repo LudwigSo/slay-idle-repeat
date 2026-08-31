@@ -116,9 +116,10 @@ internal static class AttackPipelineBench
     }
 
     /// <summary>
-    /// A stat block with the named stats set, <c>ASPD</c> and <c>HEAL_PCT</c> at their bases, and
-    /// every other stat at zero. <c>HEAL_PCT</c> is 1.0 rather than 0 and is load-bearing: a zero
-    /// here would make every lifesteal and heal case in the suite pass by healing nothing.
+    /// A stat block with the named stats set, <c>ASPD</c>, <c>HEAL_PCT</c>, <c>DMG_PCT</c> and
+    /// <c>DR_PCT</c> at their identity bases, and every other stat at zero. The 1.0s are
+    /// load-bearing: a zero <c>HEAL_PCT</c> would make every heal case pass by healing nothing,
+    /// and the two bare multipliers at zero would zero every hit dealt and delete every hit taken.
     /// </summary>
     internal static ActorStats Stats(double maxHp, params (StatId Stat, double Value)[] rest)
     {
@@ -127,6 +128,8 @@ internal static class AttackPipelineBench
             (StatId.MAX_HP, maxHp),
             (StatId.ASPD, 1.0),
             (StatId.HEAL_PCT, 1.0),
+            (StatId.DMG_PCT, 1.0),
+            (StatId.DR_PCT, 1.0),
         };
 
         values.AddRange(rest.Select(r => (r.Stat, r.Value)));

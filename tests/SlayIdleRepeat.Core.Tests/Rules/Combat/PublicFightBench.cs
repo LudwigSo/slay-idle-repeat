@@ -63,8 +63,8 @@ internal static class PublicFightBench
             StatFixtures.CombatCapsSnapshot(capOverrides: capOverrides, mitigation: mitigation));
 
     /// <summary>
-    /// A stat block with the named stats set, <c>ASPD</c> and <c>HEAL_PCT</c> at their bases, and
-    /// every other stat at zero.
+    /// A stat block with the named stats set, <c>ASPD</c>/<c>HEAL_PCT</c>/<c>DMG_PCT</c>/<c>DR_PCT</c>
+    /// at their identity bases, and every other stat at zero.
     /// </summary>
     internal static ActorStats Stats(double maxHp, params (StatId Stat, double Value)[] rest) =>
         AttackPipelineBench.Stats(maxHp, rest);

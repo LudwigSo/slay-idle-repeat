@@ -39,8 +39,8 @@ public sealed class EncounterEntryPointTests
         [StatId.DODGE] = 0.02,
         [StatId.BLOCK] = 0.0,
         [StatId.PEN] = 0.0,
-        [StatId.DMG_PCT] = 0.0,
-        [StatId.DR_PCT] = 0.0,
+        [StatId.DMG_PCT] = 1.0,
+        [StatId.DR_PCT] = 1.0,
         [StatId.HEAL_PCT] = 1.0,
         [StatId.THORNS] = 0.0,
     });
@@ -105,8 +105,8 @@ public sealed class EncounterEntryPointTests
         [StatId.DODGE] = 0.0,
         [StatId.BLOCK] = 0.0,
         [StatId.PEN] = 0.0,
-        [StatId.DMG_PCT] = 0.0,
-        [StatId.DR_PCT] = 0.0,
+        [StatId.DMG_PCT] = 1.0,
+        [StatId.DR_PCT] = 1.0,
         [StatId.HEAL_PCT] = 1.0,
         [StatId.THORNS] = 0.0,
     });

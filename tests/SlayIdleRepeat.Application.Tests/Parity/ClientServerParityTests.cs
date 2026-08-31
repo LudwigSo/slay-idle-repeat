@@ -340,14 +340,16 @@ public sealed class ClientServerParityTests
             "the cross-architecture half of parity is the determinism job's, and a reader who takes " +
             "this corpus for that has been misled by the file rather than by the test.");
 
-        header.ShouldContain("M7-06g", Case.Sensitive, "D45 moves these hashes and is still open.");
-        header.ShouldContain("M4-16d", Case.Sensitive, "and D46 does the same.");
-        header.ShouldContain("never between them", Case.Sensitive);
+        // D45 (M7-06g) and D46 (M4-16d) both landed on 2026-08-31 and moved nothing here. The header
+        // still names them, now as the record of a predicted move that did not happen rather than as
+        // a warning, so this asserts the record survives — not that the corpus is still waiting.
+        header.ShouldContain("M7-06g", Case.Sensitive, "D45 was predicted to move these hashes.");
+        header.ShouldContain("M4-16d", Case.Sensitive, "and D46 with it.");
+        header.ShouldContain("AND DID NOT", Case.Sensitive, "the prediction is recorded as unfulfilled.");
 
-        // 🔒 The expiry on the two ids above lives in CommittedTableOwnerExpiryTests, deliberately
-        // outside this namespace: it reads IMPLEMENTATION_TRACKER.md, and everything under
-        // `Parity` is swept onto the cross-architecture determinism legs, where a rule about a
-        // markdown file has nothing to prove and one more file to find.
+        // 🔒 CommittedTableOwnerExpiryTests used to expire the two ids above while they were open
+        // blockers. Both have shipped and the header no longer claims to be waiting on them, so that
+        // rule had no subject left and was retired with this edit.
     }
 
     [Fact]

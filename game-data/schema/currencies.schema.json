@@ -171,7 +171,7 @@
                   "id": { "type": "string", "pattern": "^SHR_[A-Z0-9_]+$" },
                   "displayName": { "$ref": "#/$defs/locKey" },
                   "stat": { "type": ["string", "null"], "pattern": "^[A-Z][A-Z0-9_]*$" },
-                  "magnitude": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+                  "magnitude": { "description": "Signed since 16 D46: SHR_DR moves DR_PCT, a damage-taken multiplier off base 1.0, so its buff is a NEGATIVE percentage-point move. Zero stays unauthorable — a zero-magnitude buff is an option that does nothing.", "oneOf": [ { "type": "null" }, { "type": "number", "exclusiveMinimum": 0 }, { "type": "number", "exclusiveMaximum": 0 } ] },
                   "immediateHealPctMaxHp": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
                 }
               }

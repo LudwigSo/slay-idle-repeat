@@ -28,8 +28,8 @@ The visual battle is a **replay of a pre-computed log**, not a live simulation. 
 | Dodge | `DODGE` | 0..1 | capped at 0.50 |
 | Block | `BLOCK` | 0..1 | capped at 0.60; a block halves the hit |
 | Armor Penetration | `PEN` | 0..1 | capped at 0.70 |
-| Damage Bonus | `DMG%` | float | additive multiplier bucket |
-| Damage Reduction | `DR%` | 0..1 | capped at 0.60 |
+| Damage Bonus | `DMG%` | float | multiplier, base 1.00, consumed bare (`16` D46) |
+| Damage Reduction | `DR%` | float | damage-taken multiplier, base 1.00, consumed bare; floored at 0.40 (`16` D46) |
 | Healing Received | `HEAL%` | float | |
 | Thorns | `THORN` | float | % of damage taken reflected |
 
@@ -43,7 +43,8 @@ Final(stat) = ( Base(stat)
 ```
 
 - **Flat** adds first, **percent** buckets are additive with each other, **multiplicative** sources (rare, Legendary perks only) multiply last.
-- Caps are applied **after** all aggregation.
+- Caps are applied **after** all aggregation. The one floor is applied there too: `DR%` is floored at **0.40** (`16` D46 re-expressing the old 0.60 reduction cap as `1.0 − 0.6`).
+- 🔒 **`DMG%` and `DR%` are MULTIPLIER stats** (`16` D46): base **1.00**, aggregated through the same `(Base + Σflat) × (1 + Σpct)` form as every stat, and **consumed bare** — `raw = ATK × attackMultiplier × DMG%` and `damageTaken = dmg × DR%`, never inside a `(1 ± x)` term. A `+15%` percent-add lands `1.00 × 1.15 = 1.15`, exactly "+15% damage"; a damage-reduction percent-add is authored **negative**, so `−0.30` lands `0.70` — "30% less damage taken". `DAMAGE_TAKEN_MULT` stays a separate op multiplied alongside `DR%`, not a spelling of it.
 - Rounding: all combat math uses `double`, **rounded to 4 decimal places (`Math.Round(x, 4)`) at every accumulation point** — after each damage calculation, each heal, and each stat aggregation step. This is the locked determinism rule (`14` §8.2, `18` §8 step 10, `16` A3). Display rounding is separate and cosmetic. *(Corrected in `16` A7 — this line previously said "round only for display", which contradicted `14` §8.2.)*
 
 📐 TUNABLE: every cap above lives in `res://data/combat_caps.json`.
@@ -63,8 +64,8 @@ LS     = 0.00
 DODGE  = 0.02
 BLOCK  = 0.00
 PEN    = 0.00
-DMG%   = 0.00
-DR%    = 0.00
+DMG%   = 1.00      // multiplier consumed bare (16 D46); 0 would zero all damage dealt
+DR%    = 1.00      // damage-taken multiplier consumed bare (16 D46); base is the identity
 HEAL%  = 1.00      // multiplier on ALL healing received; base 1.0, so lifesteal and
                    // heals work with no modifiers. "+35% Healing Received" ⇒ ×1.35.
 THORN  = 0.00
@@ -330,8 +331,8 @@ EnemyStats(power, archetype):
     LS     = archetype.lifesteal
     BLOCK  = 0.00
     PEN    = 0.00
-    DMG%   = 0.00
-    DR%    = 0.00
+    DMG%   = 1.00                             // 16 D46 — bare multiplier identity
+    DR%    = 1.00                             // 16 D46 — bare multiplier identity
     HEAL%  = 1.00
     THORN  = 0.00
     Level  = EnemyLevel(chapter, tier)        // §6.0
@@ -367,7 +368,7 @@ All enemies, Elites, Guardians (`25` §3) and bosses in a `(chapter, tier)` shar
 | `LEECH` | 1.10 | 0.95 | 0.90 | 1.10 | 0.05 | 0.50 | 0.03 | 0.25 | Sustain drain |
 | `REAVER` | 0.90 | 1.20 | 0.80 | 1.00 | 0.30 | 1.20 | 0.05 | 0 | Crit spiker |
 
-📐 All secondary columns authored per `16` A7. The three values previously stated in prose are preserved exactly: SKIRMISHER dodge 0.15, LEECH lifesteal 0.25, REAVER crit 0.30 / critDamage 1.20. All other secondaries are new and tunable. `BLOCK`/`PEN`/`DMG%`/`DR%`/`THORN` are 0 and `HEAL%` is 1.0 for every archetype (§6 formula).
+📐 All secondary columns authored per `16` A7. The three values previously stated in prose are preserved exactly: SKIRMISHER dodge 0.15, LEECH lifesteal 0.25, REAVER crit 0.30 / critDamage 1.20. All other secondaries are new and tunable. `BLOCK`/`PEN`/`THORN` are 0 and `DMG%`/`DR%`/`HEAL%` are 1.0 for every archetype (§6 formula, `16` D46).
 
 ### 6.1a On-hit status parameters *(ruled in `16` A7)*
 
@@ -510,7 +511,7 @@ public readonly struct CombatEvent {
 The following must hold after tuning; write automated tests for them.
 
 1. A player at exactly `ParPower(c, t)` clears `(c, t)` **62–78%** of the time — target 70%. 🔒 This is no longer just a guardrail: it is the **definition** of `ParPower` (`29_POWER_MODEL.md` §4), it is authored as a 24-cell table rather than a formula, and it is enforced as simulator assertion **A11**. A cell outside the band means either the table is mis-authored or the content behind it has drifted.
-2. No single perk may increase clear rate by more than 12 percentage points in isolation.
+2. ~~No single perk may increase clear rate by more than 12 percentage points in isolation.~~ 🔒 **STRUCK by `16` D44** — removed from the guardrail set outright, not deferred: *"I don't want balancing to be relevant yet."* The number is kept struck-through so the remaining guardrails keep their historical numbering.
 3. No build should be able to reduce a boss fight below 12 s at par power (prevents degenerate burst).
 4. No build should require more than 70 s for a boss fight at par power (prevents unwinnable stall).
 5. The `mitigation` term must never exceed 0.85 for any reachable DEF value at any chapter.

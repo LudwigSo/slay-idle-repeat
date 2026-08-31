@@ -172,7 +172,11 @@ internal sealed class RecordingAttackPipeline : IAttackPipeline
 
     /// <inheritdoc />
     public void DealMaxHpPctDamage(
-        IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId) =>
+        IEffectActorView target,
+        double amount,
+        bool bypassesWards,
+        string sourceEffectId,
+        IEffectActorView? source) =>
         DealTrueDamage(target, amount, sourceEffectId);
 
     /// <inheritdoc />

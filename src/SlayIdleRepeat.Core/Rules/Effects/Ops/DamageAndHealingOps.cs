@@ -101,7 +101,8 @@ internal static class DamageAndHealingOps
         foreach (var target in OpTargets.Resolve(effect, context))
         {
             var amount = OpValue.Amount(effect, context, target, OpValueRules.DamageMaxHpPct);
-            context.Seams.Attack.DealMaxHpPctDamage(target, amount, selfInflicted, effect.Id);
+            context.Seams.Attack.DealMaxHpPctDamage(
+                target, amount, selfInflicted, effect.Id, context.Evaluation.Holder);
             total += amount;
         }
 

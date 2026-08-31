@@ -54,8 +54,8 @@ public sealed class HeroBuildTests
         Stat(build, StatId.LIFESTEAL).ShouldBe(0.0);
         Stat(build, StatId.BLOCK).ShouldBe(0.0);
         Stat(build, StatId.PEN).ShouldBe(0.0);
-        Stat(build, StatId.DMG_PCT).ShouldBe(0.0);
-        Stat(build, StatId.DR_PCT).ShouldBe(0.0);
+        Stat(build, StatId.DMG_PCT).ShouldBe(1.0, "a multiplier stat consumed bare, not an additive bucket");
+        Stat(build, StatId.DR_PCT).ShouldBe(1.0, "the damage-taken multiplier's identity");
         Stat(build, StatId.THORNS).ShouldBe(0.0);
     }
 
@@ -194,24 +194,72 @@ public sealed class HeroBuildTests
             "and it is named as unapplied rather than dropped on the floor");
     }
 
-    /// <summary>An affix the pool authors with no stat contributes nothing and breaks nothing.</summary>
+    /// <summary>
+    /// The pet-aura affix — the other shipped non-combat row — is reported the same way, and it is
+    /// the ONLY thing reported: the amulet's own combat contributions must not land beside it.
+    /// </summary>
     /// <remarks>
-    /// The damage-vs-Elites affix rolls onto real items today. It writes no stat, so the build must
-    /// carry the item without it — not throw, and not invent a stat for it.
+    /// 🔒 D48 kept <c>AFX_PET_AURA_POWER</c> and <c>AFX_GOLD_GAIN</c> in the pool as the armed side
+    /// of the cut — rolled, collected, reported, waiting on a consumer. The gold row's reporting is
+    /// pinned above; this pins the pet row against the same shipped tuning, so a drops.json edit
+    /// that unmapped either stat fails by name rather than by census. The single-item form is the
+    /// control the case above lacks: a pipeline that skipped everything it collected would satisfy
+    /// two ShouldContains, but not this.
     /// </remarks>
     [Fact]
-    public void An_affix_with_no_authored_stat_contributes_nothing()
+    public void A_pet_aura_affix_is_the_only_skip_its_build_reports()
+    {
+        var amulet = Inventories.Item(
+            "amulet", GearFamily.PENDANT, Rarity.S, affixes: [new GearAffixRoll("AFX_PET_AURA_POWER", 0.2)]);
+
+        var build = HeroBuild.Of(Level, [amulet], Content);
+
+        build.Effects.ShouldContain(
+            e => e.Id.Contains("AFX_PET_AURA_POWER", StringComparison.Ordinal),
+            "the affix is collected — it is a real bonus the player rolled");
+
+        var skipped = build.Aggregated.SkippedNonCombatStatEffects.ShouldHaveSingleItem(
+            "exactly the pet-aura affix is unapplied; the amulet's primary and secondary are " +
+            "combat stats and belong in the block, not in the skip report");
+
+        skipped.ShouldContain("AFX_PET_AURA_POWER", Case.Sensitive, "PET_AURA_PCT has no consumer yet");
+    }
+
+    /// <summary>
+    /// The target-gated damage-vs-Elites affix reaches the fight's effect list with its gate — with
+    /// zero per-affix code anywhere on the path.
+    /// </summary>
+    [Fact]
+    public void A_target_gated_affix_is_collected_with_its_gate()
     {
         var weapon = Inventories.Item(
             "w", GearFamily.BLADE, Rarity.S, affixes: [new GearAffixRoll("AFX_DAMAGE_VS_ELITES", 0.25)]);
 
-        var build = HeroBuild.Of(Level, [weapon], Content);
+        var affix = HeroBuild.Of(Level, [weapon], Content)
+            .Effects.SingleOrDefault(
+                e => e.Id.Contains("AFX_DAMAGE_VS_ELITES", StringComparison.Ordinal))
+            .ShouldNotBeNull("the rolled affix is a real bonus and reaches the fight's effect list");
 
-        build.Effects.ShouldNotContain(
-            e => e.Id.Contains("AFX_DAMAGE_VS_ELITES", StringComparison.Ordinal),
-            "the pool authors no stat and no op for it, so there is nothing to contribute");
+        affix.Condition.ShouldNotBeNull("the pool's gate rides the synthesised effect unchanged")
+            .Term.ShouldNotBeNull()
+            .Fn.ShouldBe(ConditionFunction.TARGET_IS_ELITE);
+        affix.Value.ShouldBe(0.25, "the roll is the magnitude");
+    }
 
-        build.Effects.Count.ShouldBe(2, "the weapon still contributes its own primary and secondary");
+    /// <summary>The hero screen composes a build wearing the gated affix, showing the off-gate block.</summary>
+    /// <remarks>
+    /// The strict gate treats a context-gated standing effect as inactive rather than refusing it —
+    /// a refusal here bricks the hero screen for anyone wearing the affix — and outside a fight
+    /// there is no target for the gate to hold against, so the multiplier shows its base.
+    /// </remarks>
+    [Fact]
+    public void A_build_wearing_the_gated_affix_composes_off_gate_to_the_identity_multiplier()
+    {
+        var weapon = Inventories.Item(
+            "w", GearFamily.BLADE, Rarity.S, affixes: [new GearAffixRoll("AFX_DAMAGE_VS_ELITES", 0.25)]);
+
+        Stat(HeroBuild.Of(Level, [weapon], Content), StatId.DMG_PCT).ShouldBe(
+            1.0, "off its gate the affix contributes nothing, so the multiplier shows its base");
     }
 
     // ───────────────────────────────────────────────────────────────── the set bonuses

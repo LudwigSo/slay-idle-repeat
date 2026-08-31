@@ -11,11 +11,11 @@
     "baseAspd": 1.0,
     "roundingDecimals": 4,
     "fixedStats": {
-      "_doc": "05 §6 — BLOCK 0.00, PEN 0.00, DMG% 0.00, DR% 0.00, HEAL% 1.00, THORN 0.00, for every archetype. Keyed by 18 §2.1 StatId name: 05 §6's DMG% is DMG_PCT, its DR% is DR_PCT, its HEAL% is HEAL_PCT and its THORN is THORNS.",
+      "_doc": "05 §6 / 16 D46 — BLOCK 0.00, PEN 0.00, DMG% 1.00, DR% 1.00, HEAL% 1.00, THORN 0.00, for every archetype. DMG% and DR% are multiplier stats consumed bare, so 1.00 is their identity — a 0 would zero every enemy's damage and delete every hit an enemy takes. Keyed by 18 §2.1 StatId name: 05 §6's DMG% is DMG_PCT, its DR% is DR_PCT, its HEAL% is HEAL_PCT and its THORN is THORNS.",
       "BLOCK": 0.0,
       "PEN": 0.0,
-      "DMG_PCT": 0.0,
-      "DR_PCT": 0.0,
+      "DMG_PCT": 1.0,
+      "DR_PCT": 1.0,
       "HEAL_PCT": 1.0,
       "THORNS": 0.0
     }

@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
-/// <summary>The six stat ceilings, and their application.</summary>
+/// <summary>The five stat ceilings and the one floor, and their application.</summary>
 public sealed class StatCapsTests
 {
     [Theory]
@@ -14,7 +14,6 @@ public sealed class StatCapsTests
     [InlineData(StatId.DODGE, 0.50)]
     [InlineData(StatId.BLOCK, 0.60)]
     [InlineData(StatId.PEN, 0.70)]
-    [InlineData(StatId.DR_PCT, 0.60)]
     public void A_stat_above_its_ceiling_is_bound_to_it(StatId stat, double cap)
     {
         StatFixtures.Caps().Apply(stat, cap + 0.5).ShouldBe(cap);
@@ -30,13 +29,26 @@ public sealed class StatCapsTests
     }
 
     /// <summary>
-    /// Deliberately no floor: capping is one-directional, and inventing a lower clamp would be an
-    /// unauthorised rule. Recorded as a case so the absence is a decision, not an oversight.
+    /// `16` D46's one authored floor binds: <c>DR_PCT</c>, the damage-taken multiplier, never
+    /// aggregates below 0.4 — the old 0.60 reduction cap re-expressed as <c>1.0 − 0.6</c>.
+    /// </summary>
+    [Fact]
+    public void DR_PCT_is_floored_at_the_authored_damage_taken_floor()
+    {
+        StatFixtures.Caps().Apply(StatId.DR_PCT, 0.2).ShouldBe(0.4);
+        StatFixtures.Caps().Apply(StatId.DR_PCT, 0.4).ShouldBe(0.4, "the floor itself is reachable");
+        StatFixtures.Caps().Apply(StatId.DR_PCT, 0.55).ShouldBe(0.55, "above the floor nothing happens");
+        StatFixtures.Caps().Apply(StatId.DR_PCT, 1.7).ShouldBe(1.7, "no ceiling remains on the multiplier");
+    }
+
+    /// <summary>
+    /// No other stat gained a floor: `16` D46 authors exactly one, and inventing a lower clamp for
+    /// the rest would be an unauthorised rule. Recorded as a case so the absence stays a decision.
     /// </summary>
     [Fact]
     public void A_negative_value_is_not_clamped_because_05_authorises_no_floor()
     {
-        StatFixtures.Caps().Apply(StatId.DR_PCT, -0.25).ShouldBe(-0.25);
+        StatFixtures.Caps().Apply(StatId.BLOCK, -0.25).ShouldBe(-0.25);
         StatFixtures.Caps().Apply(StatId.CRIT, -1.0).ShouldBe(-1.0);
     }
 

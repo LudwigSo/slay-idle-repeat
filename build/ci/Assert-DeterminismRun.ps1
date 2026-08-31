@@ -5,9 +5,16 @@
     the committed corpora.
 
 .DESCRIPTION
-    14 §8.2 asks CI to simulate 10 000 fixed (seed, build, enemy) triples on Linux
-    x64 and Android ARM64 and fail on any divergence, and 14 §13 asks the same of
-    the 1 000 client/server parity sequences. Both comparisons are made by the
+    14 §13 asks CI to compare the 1 000 client/server parity sequences on Linux
+    x64 and Android ARM64 and fail on any divergence, and every other committed
+    table rides the same legs.
+
+    14 §8.2's own 10 000-triple (seed, build, enemy) LogHash corpus USED to ride
+    them too and no longer exists: it was removed as a brittle self-generated
+    table. What still crosses architectures here is M2-17's DSL baseline, both
+    hash reference-vector tables, the snapshot and wire field-order pins and the
+    parity corpus - so this job still proves the two architectures agree, over a
+    smaller set of tables than 14 §8.2 describes. Both comparisons are made by the
     ordinary unit suites: every committed table in this repository is asserted
     against on whatever architecture the tests run on, so "the two architectures
     agree" IS "both legs are green against the same committed tables". There is no
@@ -80,14 +87,14 @@ param(
     [string]$ResultsDirectory,
 
     # PER SUITE, never a single total. The two suites are wildly different sizes -
-    # 816 cases in Core.Tests (the LogHash corpus, M2-17's DSL baseline, both hash
-    # tables and the snapshot field-order pin) against 38 in Application.Tests (the
-    # parity corpus and the wire pin) - so an aggregate floor is satisfied by the
+    # 688 cases in Core.Tests (M2-17's DSL baseline, both hash tables and the
+    # snapshot field-order pin) against 40 in Application.Tests (the parity corpus
+    # and the wire pin) - so an aggregate floor is satisfied by the
     # big suite alone. 14 §13's parity corpus could collapse to one case and a
     # total-based floor would still clear. Floors rather than equalities so a later
     # milestone may add rows.
     [hashtable]$MinimumTestsBySuite = @{
-        'SlayIdleRepeat.Core.Tests'        = 780
+        'SlayIdleRepeat.Core.Tests'        = 660
         'SlayIdleRepeat.Application.Tests' = 35
     },
 
@@ -126,8 +133,8 @@ $PSNativeCommandUseErrorActionPreference = $false
     tag. The floor on the executed count is what stops a renamed class quietly
     shrinking this set.
 
-      Determinism      - the LogHash corpus (M5-12) and the DSL baseline (M2-17),
-                         plus the 4-dp rounding primitive's own cases
+      Determinism      - the DSL baseline (M2-17), plus the 4-dp rounding
+                         primitive's own cases
       ReferenceVector  - Hash64's 75 rows and CanonicalStateWriter's 28
       KnownAnswer      - xxHash64's and FNV-1a's published vectors
       Hash64           - the canonical byte-encoding cases

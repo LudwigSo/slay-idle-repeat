@@ -46,9 +46,9 @@ internal sealed record CombatCaps(
     internal const string LegendLevelMaxPointer = Document + "#/heroBaseStats/legendLevelMax";
 
     /// <summary>
-    /// The six stats that carry a cap, and only those six. Stated here rather than derived from
+    /// The five stats that carry a cap, and only those five. Stated here rather than derived from
     /// whatever keys the file happens to hold, since a cap silently disappearing from the data would
-    /// otherwise read as "uncapped" — a legitimate state for the other eight stats.
+    /// otherwise read as "uncapped" — a legitimate state for the other stats.
     /// </summary>
     /// <remarks>
     /// A <see cref="List{T}"/> initialiser rather than a collection expression or array initialiser:
@@ -58,11 +58,24 @@ internal sealed record CombatCaps(
     /// </remarks>
     internal static IReadOnlyList<StatId> CappedStats { get; } = new List<StatId>
     {
-        StatId.CRIT, StatId.LIFESTEAL, StatId.DODGE, StatId.BLOCK, StatId.PEN, StatId.DR_PCT,
+        StatId.CRIT, StatId.LIFESTEAL, StatId.DODGE, StatId.BLOCK, StatId.PEN,
+    };
+
+    /// <summary>
+    /// The one stat that carries a floor: <c>DR_PCT</c>, the damage-taken multiplier, whose old
+    /// "at most 60% reduction" ceiling re-expresses as a lower bound of 0.4 on the multiplier.
+    /// </summary>
+    /// <remarks>See <see cref="CappedStats"/> for the initialiser shape.</remarks>
+    internal static IReadOnlyList<StatId> FlooredStats { get; } = new List<StatId>
+    {
+        StatId.DR_PCT,
     };
 
     /// <summary>The pointer holding a stat's cap.</summary>
     internal static string CapPointer(StatId stat) => $"{Document}#/caps/{stat}";
+
+    /// <summary>The pointer holding a stat's floor.</summary>
+    internal static string FloorPointer(StatId stat) => $"{Document}#/floors/{stat}";
 
     /// <summary>The pointer holding a stat's base-curve intercept.</summary>
     internal static string HeroBasePointer(StatId stat) => $"{Document}#/heroBaseStats/stats/{stat}/base";
@@ -84,6 +97,12 @@ internal sealed record CombatCaps(
             maxima[stat] = content.ReadDouble(CapPointer(stat));
         }
 
+        var minima = new Dictionary<StatId, double>(FlooredStats.Count);
+        foreach (var stat in FlooredStats)
+        {
+            minima[stat] = content.ReadDouble(FloorPointer(stat));
+        }
+
         var rows = new Dictionary<StatId, (double Base, double PerLevel)>(StatIds.Combat.Count);
         foreach (var stat in StatIds.Combat)
         {
@@ -91,7 +110,7 @@ internal sealed record CombatCaps(
         }
 
         return new CombatCaps(
-            StatCaps.From(maxima),
+            StatCaps.From(maxima, minima),
             HeroBaseCurve.From(rows, content.ReadInt32(LegendLevelMinPointer), content.ReadInt32(LegendLevelMaxPointer)),
             content.ReadDouble(WardCapPctPointer),
             content.ReadDouble(PvpMaxFightSecondsPointer),

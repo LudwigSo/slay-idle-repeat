@@ -252,11 +252,11 @@ Each `(Chapter, Tier)` pair pays a one-time First Clear bonus: a fixed Soul Shar
 On reaching 0 HP:
 
 1. Time freezes on the battle screen; a "DEFEATED" overlay slides in.
-2. If the player has not yet revived this run, offer **Revive** (see `12_MONETIZATION_ADS.md`, placement `AD_REVIVE`):
-   - Restores 50% Max HP 📐 TUNABLE
+2. If the player has not yet revived this run — the revive exists for the **first death only** — offer **Revive** (see `12_MONETIZATION_ADS.md`, placement `AD_REVIVE`):
+   - Restores **66%** Max HP 📐 TUNABLE *(re-authored by `16` D45, which overrides this section's original 50%)*
    - Grants 2 s of invulnerability on resume
-   - The battle **restarts from the beginning of that battle**, not mid-fight — this keeps the deterministic sim clean.
-   - Limit: **once per run**, hard.
+   - The battle **restarts from the beginning of that battle**, not mid-fight — this keeps the deterministic sim clean, and the hero re-enters **at the revived 66%**, not at full health, so the re-fight can genuinely end differently.
+   - Limit: **once per run**, hard — a second death in the same run cannot be revived.
    - Slay Plus subscribers get a "REVIVE" button that resolves instantly with no ad.
 3. If declined or already used, go to `RUN_RESULTS` with the Death completion multiplier.
 

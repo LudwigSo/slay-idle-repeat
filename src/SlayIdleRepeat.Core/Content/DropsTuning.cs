@@ -50,6 +50,11 @@ internal readonly record struct SlotCoefficients(
 /// <param name="Minimum">The bottom of its authored range, inclusive.</param>
 /// <param name="Maximum">The top of its authored range, inclusive.</param>
 /// <param name="Slots">The slots it may be rolled on. Never empty.</param>
+/// <param name="Condition">
+/// The context gate a roll of this affix carries onto its synthesised effect, or
+/// <see langword="null"/> for an ungated affix. Appended last so the six positional arguments
+/// every existing caller passes keep their meaning.
+/// </param>
 /// <remarks>
 /// <para>
 /// The rarity floor two of the fourteen carry is deliberately <em>not</em> a member. It is an
@@ -71,7 +76,8 @@ internal readonly record struct GearAffixDefinition(
     EffectOp? Op,
     double Minimum,
     double Maximum,
-    IReadOnlyList<GearSlot> Slots)
+    IReadOnlyList<GearSlot> Slots,
+    EffectCondition? Condition = null)
 {
     /// <summary>Whether a roll of this affix contributes anything a stat block can hold.</summary>
     /// <remarks>
@@ -637,8 +643,9 @@ internal sealed class DropsTuning
             var minimum = content.ReadDouble(pointer + "/min");
             var maximum = content.ReadDouble(pointer + "/max");
 
-            if (!double.IsFinite(minimum) || !double.IsFinite(maximum) ||
-                minimum < 0.0 || maximum < minimum)
+            // Sign-free since the damage-reduction affix re-signed: it adds flat onto DR_PCT's
+            // base 1.0, so its authored range is negative. Order and finiteness stay required.
+            if (!double.IsFinite(minimum) || !double.IsFinite(maximum) || maximum < minimum)
             {
                 throw new InvalidTunableException(
                     pointer,
@@ -655,7 +662,15 @@ internal sealed class DropsTuning
                     op,
                     minimum,
                     maximum,
-                    ReadSlots(content, pointer + "/slots")),
+                    ReadSlots(content, pointer + "/slots"),
+
+                    // The context gate the bucket rides on, carried onto the synthesised effect
+                    // untouched. The damage-vs-Elites affix is target-gated; the other twelve are
+                    // ungated.
+                    content.IsAuthorised(pointer + "/condition")
+                        ? ConditionContentReader.ReadContextGate(
+                            content, pointer + "/condition", "an affix's condition")
+                        : null),
                 ReadMinimumRarity(content, pointer + "/minRarity"));
         }
 

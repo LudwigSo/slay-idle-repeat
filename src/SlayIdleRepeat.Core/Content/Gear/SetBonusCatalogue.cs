@@ -56,14 +56,14 @@ internal sealed class SetBonusCatalogue
 
     /// <summary>The keys one authored set-bonus trigger may carry.</summary>
     /// <remarks>
-    /// 🔒 <b>The nested half of the same guard, and it is not optional.</b> A trigger carries eleven
-    /// other parameters this reader does not map — <c>once</c>, <c>chance</c>, <c>cooldown</c>,
-    /// <c>interval</c> and the rest — so without this, checking only the effect's own keys leaves the
-    /// lossiness one level down. It is reachable at the very next authoring step: a
-    /// once-per-battle save is spelled with <c>once</c> on an <c>ON_LETHAL</c> trigger, and dropping
-    /// it silently would turn one save per fight into one every time the hero would die.
+    /// 🔒 <b>The nested half of the same guard, and it is not optional.</b> A trigger carries
+    /// other parameters this reader does not map — <c>chance</c>, <c>cooldown</c>, <c>interval</c>
+    /// and the rest — so without this, checking only the effect's own keys leaves the lossiness one
+    /// level down. <c>once</c> is mapped for exactly the case this remark used to warn about:
+    /// Ironvow's six-piece is a once-per-battle save on an <c>ON_LETHAL</c> trigger, and dropping
+    /// the key silently would turn one save per fight into one every time the hero would die.
     /// </remarks>
-    private static readonly string[] KnownTriggerKeys = ["kind", "everyNth"];
+    private static readonly string[] KnownTriggerKeys = ["kind", "everyNth", "once"];
 
     private readonly IReadOnlyDictionary<GearFamilyAxis, IReadOnlyList<SetBonusRow>> _bonuses;
 
@@ -237,21 +237,6 @@ internal sealed class SetBonusCatalogue
     {
         RequireKnownKeys(content, pointer, KnownEffectKeys, "a set bonus");
 
-        // `condition` is a known key so a set bonus can write the vocabulary's canonical "ungated"
-        // null, and an authorised one is refused rather than mapped: the aggregation this feeds
-        // re-evaluates conditions against a context with no current target, where several of them
-        // throw and the rest read false — so a gated set bonus would be a bonus that never fires or a
-        // battle that ends in an exception, and neither should be reachable by editing this document.
-        if (content.IsAuthorised(pointer + "/condition"))
-        {
-            throw new InvalidTunableException(
-                pointer + "/condition",
-                "A set bonus is a standing grant and carries no condition. The build aggregation " +
-                "re-evaluates one on every pass, outside any attack, which is where the conditions " +
-                "worth gating a set bonus on are either unreadable or false — so the gate would not " +
-                "mean what the document says it means.");
-        }
-
         var statPointer = pointer + "/stat";
         var valuePointer = pointer + "/value";
         var valueModePointer = pointer + "/valueMode";
@@ -273,6 +258,15 @@ internal sealed class SetBonusCatalogue
                 ? AuthoredToken.Parse<EffectTarget>(content, targetPointer, "an effect target")
                 : null,
             Trigger = content.IsAuthorised(triggerPointer) ? ReadTrigger(content, triggerPointer) : null,
+
+            // An authored gate is read as the tree it writes — the conditional standing-effect
+            // bucket made a gated set bonus a legal authored shape (Ironvow's four-piece is an
+            // attacker-gated standing DR), and `condition: null` stays the vocabulary's canonical
+            // ungated.
+            Condition = content.IsAuthorised(pointer + "/condition")
+                ? ConditionContentReader.ReadContextGate(
+                    content, pointer + "/condition", "a set bonus's condition")
+                : null,
         };
     }
 
@@ -285,6 +279,9 @@ internal sealed class SetBonusCatalogue
             Kind = AuthoredToken.Parse<TriggerKind>(content, pointer + "/kind", "a trigger kind"),
             EveryNth = content.IsAuthorised(pointer + "/everyNth")
                 ? content.ReadInt32(pointer + "/everyNth")
+                : null,
+            Once = content.IsAuthorised(pointer + "/once")
+                ? content.ReadBoolean(pointer + "/once")
                 : null,
         };
     }

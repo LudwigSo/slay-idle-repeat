@@ -121,8 +121,17 @@ internal interface IAttackPipeline
     /// True for a self-inflicted cost (e.g. a cursed-perk drawback) — wards must not silently delete
     /// perk drawbacks. The op reads and reports this rather than the pipeline re-deriving it.
     /// </param>
+    /// <param name="source">
+    /// The casting actor, where the caller has one — it gates the receiver's DR reading (an
+    /// attacker-gated standing DR reduces a boss's percent ability exactly as it reduces its
+    /// swings) and changes nothing about the emitted <c>Hit</c>. Null where no caster exists.
+    /// </param>
     void DealMaxHpPctDamage(
-        IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId);
+        IEffectActorView target,
+        double amount,
+        bool bypassesWards,
+        string sourceEffectId,
+        IEffectActorView? source);
 
     /// <summary><c>Heal()</c>: <c>healed = min(amount × target.HEALPct, MaxHP − HP)</c>, overheal discarded unless an effect consumes it. Routes both <c>HEAL</c> and <c>HEAL_LEECH</c>.</summary>
     /// <param name="amount">The pre-HEAL% amount, rounded to 4 dp.</param>
@@ -210,6 +219,9 @@ internal interface ICombatFlowSink
 
     /// <summary><c>SURVIVE_LETHAL</c>: arms a save that leaves the actor at <paramref name="hp"/>. Does not fire <c>ON_REVIVE</c> — the actor never died.</summary>
     void ArmSurviveLethal(IEffectActorView holder, double hp, string sourceEffectId);
+
+    /// <summary><c>SURVIVE_LETHAL</c> under <c>valueMode: NEGATE</c> (16 D49): arms a save that voids the lethal hit — HP unchanged, no HP the effect names.</summary>
+    void ArmNegateLethal(IEffectActorView holder, string sourceEffectId);
 
     /// <summary><c>REVIVE</c>: arms a return from 0 HP at <paramref name="hp"/>. Unlike <see cref="ArmSurviveLethal"/> this does fire <c>ON_REVIVE</c>.</summary>
     void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId);
@@ -338,7 +350,11 @@ internal sealed class UnwiredAttackPipeline : IAttackPipeline
 
     /// <inheritdoc />
     public void DealMaxHpPctDamage(
-        IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId) =>
+        IEffectActorView target,
+        double amount,
+        bool bypassesWards,
+        string sourceEffectId,
+        IEffectActorView? source) =>
         throw Unwired(sourceEffectId, nameof(DealMaxHpPctDamage), "05 §4.2's DAMAGE_MAXHP_PCT row");
 
     /// <inheritdoc />
@@ -450,6 +466,10 @@ internal sealed class UnwiredCombatFlow : ICombatFlowSink
     /// <inheritdoc />
     public void ArmSurviveLethal(IEffectActorView holder, double hp, string sourceEffectId) =>
         throw Unwired(sourceEffectId, nameof(ArmSurviveLethal));
+
+    /// <inheritdoc />
+    public void ArmNegateLethal(IEffectActorView holder, string sourceEffectId) =>
+        throw Unwired(sourceEffectId, nameof(ArmNegateLethal));
 
     /// <inheritdoc />
     public void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId) =>

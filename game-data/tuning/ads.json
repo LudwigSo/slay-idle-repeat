@@ -54,7 +54,7 @@
   ],
   "placementRewardValues": {
     "_doc": "12 §4.1-4.2 — the numeric magnitudes embedded in the placement tables.",
-    "AD_REVIVE": { "healPctMaxHp": 0.5, "invulnerabilitySeconds": 2 },
+    "AD_REVIVE": { "healPctMaxHp": 0.66, "invulnerabilitySeconds": 2 },
     "AD_CAMPFIRE_HEAL": { "healPctMaxHp": 0.3 },
     "AD_BOSS_SECOND_WIND": { "triggerBelowHpPct": 0.3, "healPctMaxHp": 0.4 },
     "AD_ELITE_GUARANTEE": { "guaranteeRarityAtLeast": "A" },

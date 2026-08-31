@@ -81,7 +81,7 @@ steps          = min( floor( fn / per ), cap )        // cap: null ⇒ uncapped
 | Op | Meaning |
 |---|---|
 | `STAT_ADD_FLAT` | Add a flat amount to a stat, before percent aggregation |
-| `STAT_ADD_PCT` | Add to the additive percent bucket for a stat |
+| `STAT_ADD_PCT` | Add to the additive percent bucket for a stat. On `DR_PCT` — the damage-taken multiplier, base 1.00 (`16` D46) — a reduction authors a **negative** value |
 | `STAT_MULT` | Multiply the stat after all additive aggregation (Legendary-tier only) |
 | `STAT_SET` | Force a stat to a value (`CP_GLASS_HEART` only) |
 | `STAT_CONVERT` | Convert `value` × the **source** stat (`stat`) into the **destination** stat (`toStat`) — `PK_TURTLE` (20% of DEF into ATK), `PK_JUGGERNAUT` (8% of Max HP into ATK). Two signed deltas, applied at §8 step 6 |
@@ -134,7 +134,7 @@ The last two exist only inside `ON_HEAL` contexts (`05` §4.3): `HEAL_AMOUNT` is
 | `ATTACK_MULT_NEXT` | Multiply the damage of the next `charges` attacks by `value` (`PK_OPENER`'s ×3 first attack — `05` §4) |
 | `FORCE_CRIT_NEXT` | The next `charges` attacks always crit. Carries no `value` |
 | `REDUCE_COOLDOWN` | Reduce pet/boss ability cooldowns |
-| `SURVIVE_LETHAL` | Survive an otherwise-fatal hit at the HP `value`/`valueMode` name — `PK_UNBREAKABLE` is `{"value": 1, "valueMode": "FLAT"}` = **1 HP**, per `06`. `valueMode` defaults to `SELF_MAXHP_PCT` here, not `ATK_MULT` |
+| `SURVIVE_LETHAL` | Survive an otherwise-fatal hit at the HP `value`/`valueMode` name — `PK_UNBREAKABLE` is `{"value": 1, "valueMode": "FLAT"}` = **1 HP**, per `06`. `valueMode` defaults to `SELF_MAXHP_PCT` here, not `ATK_MULT`. This op alone also admits `valueMode: NEGATE` (`16` D49, §10.1 E7): the lethal hit is **voided** — HP unchanged — and the effect carries **no** `value` and no `valueScale`, because there is no HP number (Ironvow's 6-piece, `08` §3.2) |
 | `REVIVE` | Return from 0 HP at a given HP fraction |
 | `SUMMON` | Spawn N enemies of an archetype (boss use) |
 | `SET_TARGET_PRIORITY` | Adjust targeting weight (added for Sporequeen — `17` §8) |
@@ -401,13 +401,15 @@ The `Volatile` elite modifier — *"explodes on death for 15% of hero Max HP"*:
   "trigger": {"kind":"ON_DEATH"}, "target": "ALL_ENEMIES" }
 ```
 
-Ossify — Ossuary King phase 2 (`17` §4): ward plus a DR buff that dies with the ward:
+Ossify — Ossuary King phase 2 (`17` §4): ward plus a DR buff that dies with the ward. `DR%` is
+the damage-taken multiplier off base 1.00 (`16` D46), so a damage-reduction buff authors its
+percent-add **negative**: `−0.30` aggregates to a 0.70 multiplier — "30% less damage taken".
 
 ```json
 [
   { "op": "SHIELD", "value": 0.20, "valueMode": "SELF_MAXHP_PCT",
     "trigger": {"kind":"PERIODIC","interval":14.0}, "target": "SELF" },
-  { "op": "STAT_ADD_PCT", "stat": "DR_PCT", "value": 0.30,
+  { "op": "STAT_ADD_PCT", "stat": "DR_PCT", "value": -0.30,
     "trigger": {"kind":"PERIODIC","interval":14.0}, "target": "SELF",
     "duration": { "seconds": 6.0, "scope": "BATTLE", "until": "WARD_BROKEN" } }
 ]
@@ -442,6 +444,12 @@ Must be implemented exactly, or builds will produce different numbers on client 
 ```
 
 **Effect-id order** means the ascending lexicographic order of effect IDs, not draft order. This removes the last source of order-dependence between client and server.
+
+**Step 2, restated for the conditional standing-effect bucket** (`16` D47). A condition that reads the current target (`TARGET_HP_PCT`, `TARGET_IS_ELITE`, `TARGET_IS_BOSS`) or the attacker (`ATTACKER_IS_*`) is a **context gate**: the effect is active only in an evaluation context that carries that subject, and there its tree is evaluated normally. The rule is **subject-presence over the tree's vocabulary, not satisfiability** — a negated or disjoined target read still waits for a target. Consequences, in resolution terms:
+
+- **Ambient re-aggregation** — between attacks, and any composition outside a fight (a hero screen) — carries neither subject, so a context-gated standing effect contributes nothing there. It neither throws (the pre-D47 behaviour of a target read in a target-less context) nor goes silently inert forever (the pre-D47 behaviour of an attacker read, whose written-out false-when-absent default is unchanged for every other evaluation site).
+- **Within one attack resolution**, each side's stats re-aggregate against the other party: the attacker's block with the defender as current target, the defender's with the attacker in context. A gated standing effect therefore contributes against exactly the targets its gate names — `+X% Damage vs Elites` composes ×(1 + v) into step 5 only when the swing's target is an elite, and Ironvow's `−15% damage taken from Elites/Bosses` multiplies `DR%` below 1.00 only for a hit from an elite or boss attacker. A `DAMAGE_MAXHP_PCT` firing carries its caster into the same rule, so a boss's percent ability is "damage from a boss" exactly as its swings are. ⚠️ A **DoT tick is a recorded limit**: the status instance names its source *effect*, not the actor that applied it, so a tick's DR reading stays ambient and an attacker-gated DR does not reduce burns — an implementation limit noted here, not a ruling that it never should. The per-pair block lives for that one resolution and is never stored.
+- **The ungated path is unchanged**: an actor holding no context-gated standing effect aggregates byte-identically to a world without the bucket — the per-pair pass returns the ambient block itself.
 
 ---
 
@@ -505,6 +513,7 @@ Every row below adds a **key or a token, never a number** — the numbers stay i
 | E4 | `SURVIVE_LETHAL` | which unit `value` is in | `valueMode` | §2.4 says "HP fraction", §7.4 writes `"value": 1` (a *full-HP* fraction) and `06` says "at 1 HP". Reuses §2.2's existing modes rather than picking a reading |
 | E5 | `REMOVE_STATUS` | the tag group | `statusTag` | §2.3 offers "a status or a tag group" and named a key only for the first |
 | E6 | `RANDOM_OUTCOME` (new op) | a **mutually exclusive** weighted choice | `outcomes` (`[{effectId, weight}]`) | `17` §9's *Roll of Fate* is one visible d6 with three results. §4's conditions are "pure functions of current state" and a draw is **not** state, so three `chance`-gated effects are three *independent* draws — all three can fire, or none — and they spend **three** draw indices where `14` §8.0's `WeightedPick` spends **one**, desynchronising every later draw of the battle |
+| E7 | `SURVIVE_LETHAL` | a token for "the hit is voided" | `valueMode: NEGATE` | `08` §3.2's Ironvow 6-piece says *negate a lethal hit* and authors **no** HP number; the op's existing readings survive **at** an HP (`value` flat or a Max-HP fraction), which is a different sentence. NEGATE voids the hit — HP unchanged — and the effect carries no `value`/`valueScale`, so no number had to be invented for it. ⚠️ The **owner** ruled only *that* the 6-piece be implemented (`16` D49); the NEGATE **shape is the conductor's call**, recorded as such in the decision log. `SURVIVE_LETHAL` alone admits it; validation refuses it on every other op |
 
 ⚠️ **Not taken, and recorded so nobody assumes it was.** `REVIVE` has E4's problem word for word —
 §2.4 gives it "at a given HP fraction" — and is deliberately left fraction-only: no authored content

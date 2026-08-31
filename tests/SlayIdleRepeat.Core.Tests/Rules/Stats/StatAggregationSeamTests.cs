@@ -27,34 +27,113 @@ public sealed class StatAggregationSeamTests
     }
 
     /// <summary>
-    /// 🔒 A conditional effect is <b>refused</b>, not admitted and not skipped. Both quiet answers
-    /// are balance bugs: admitting gives <c>PK_EXECUTIONER</c>'s +25% against a full-health target,
-    /// skipping deletes <c>PK_BERSERK</c> from the build.
+    /// 🔒 An <b>ambient</b>-conditional effect is refused, not admitted and not skipped. Both quiet
+    /// answers are balance bugs: admitting an on-low-HP perk applies it at full health, skipping
+    /// deletes <c>PK_BERSERK</c> from the build. Only the live fight can answer an ambient condition.
     /// </summary>
     [Fact]
-    public void A_conditional_effect_is_refused_by_the_step_2_gate_until_M2_05()
+    public void An_ambient_conditional_effect_is_refused_by_the_step_2_gate_until_M2_05()
     {
-        var executioner = new EffectDefinition
+        var berserk = new EffectDefinition
         {
-            Id = "PK_EXECUTIONER_I",
+            Id = "PK_BERSERK_I",
             Op = EffectOp.STAT_ADD_PCT,
             Stat = StatSelector.Of(StatId.DMG_PCT),
             Value = 0.25,
             Condition = EffectCondition.Of(new ConditionTerm
             {
-                Fn = ConditionFunction.TARGET_HP_PCT,
-                Comparator = ConditionComparator.LT,
-                Value = 0.30,
+                Fn = ConditionFunction.SELF_MISSING_HP_PCT,
+                Comparator = ConditionComparator.GT,
+                Value = 0.50,
             }),
         };
 
         var thrown = Should.Throw<EffectContextException>(
             () => StatAggregation.Aggregate(
-                StatFixtures.Zeroed(), [executioner], StatCaps.None, StatAggregationSeams.Strict));
+                StatFixtures.Zeroed(), [berserk], StatCaps.None, StatAggregationSeams.Strict));
 
         thrown.Message.ShouldContain("18 §8 step 2", Case.Sensitive);
-        thrown.Message.ShouldContain("PK_EXECUTIONER_I", Case.Sensitive);
+        thrown.Message.ShouldContain("PK_BERSERK_I", Case.Sensitive);
         thrown.Message.ShouldContain("M2-05", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// A <b>context-gated</b> effect — one whose condition reads the current target or the attacker —
+    /// is inactive under the strict gate, never refused.
+    /// </summary>
+    /// <remarks>
+    /// Unlike an ambient condition, a context gate has an authored answer outside a fight: the
+    /// standing-effect bucket's rule is that such an effect contributes only in a context carrying
+    /// its subject, and the strict gate's context carries none. A hero screen showing a build that
+    /// wears a damage-vs-Elites affix or Ironvow's four-piece must show the off-gate block, not
+    /// throw.
+    /// </remarks>
+    [Theory]
+    [InlineData(ConditionFunction.TARGET_IS_ELITE)]
+    [InlineData(ConditionFunction.ATTACKER_IS_BOSS)]
+    public void A_context_gated_effect_is_inactive_under_the_strict_gate_rather_than_refused(
+        ConditionFunction fn)
+    {
+        var gated = new EffectDefinition
+        {
+            Id = "TEST_CONTEXT_GATED",
+            Op = EffectOp.STAT_ADD_PCT,
+            Stat = StatSelector.Of(StatId.ATK),
+            Value = 0.25,
+            Condition = EffectCondition.Of(new ConditionTerm
+            {
+                Fn = fn,
+                Comparator = ConditionComparator.EQ,
+                Flag = true,
+            }),
+        };
+
+        var result = StatAggregation.Aggregate(
+            StatFixtures.Block((StatId.ATK, 100.0)), [gated], StatCaps.None, StatAggregationSeams.Strict);
+
+        result.Final[StatId.ATK].ShouldBe(
+            100.0,
+            "the strict gate's context carries neither a target nor an attacker, so the gated " +
+            "effect contributes nothing — and the aggregation completes instead of refusing");
+    }
+
+    /// <summary>
+    /// A tree mixing a context read with an ambient one is still the bucket's, not a refusal.
+    /// </summary>
+    /// <remarks>
+    /// The rule is subject-presence over the whole tree: any target or attacker read makes the
+    /// effect wait for a context that carries the subject, and the ambient half is only ever
+    /// evaluated there.
+    /// </remarks>
+    [Fact]
+    public void A_mixed_tree_with_a_context_read_is_inactive_under_the_strict_gate()
+    {
+        var mixed = new EffectDefinition
+        {
+            Id = "TEST_MIXED_GATE",
+            Op = EffectOp.STAT_ADD_PCT,
+            Stat = StatSelector.Of(StatId.ATK),
+            Value = 0.25,
+            Condition = EffectCondition.All(
+                EffectCondition.Of(new ConditionTerm
+                {
+                    Fn = ConditionFunction.TARGET_IS_ELITE,
+                    Comparator = ConditionComparator.EQ,
+                    Flag = true,
+                }),
+                EffectCondition.Of(new ConditionTerm
+                {
+                    Fn = ConditionFunction.SELF_MISSING_HP_PCT,
+                    Comparator = ConditionComparator.GT,
+                    Value = 0.50,
+                })),
+        };
+
+        StatAggregation.Aggregate(
+                StatFixtures.Block((StatId.ATK, 100.0)), [mixed], StatCaps.None,
+                StatAggregationSeams.Strict)
+            .Final[StatId.ATK]
+            .ShouldBe(100.0);
     }
 
     /// <summary>The seam really is a seam: a double replaces the whole of step 2.</summary>

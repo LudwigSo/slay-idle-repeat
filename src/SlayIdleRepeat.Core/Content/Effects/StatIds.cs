@@ -1,6 +1,6 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>The <see cref="StatId"/> vocabulary read as a set: all 26, and the 14 combat stats.</summary>
+/// <summary>The <see cref="StatId"/> vocabulary read as a set: all 24, and the 14 combat stats.</summary>
 public static class StatIds
 {
     /// <summary>Every stat this DSL declares, in declaration order.</summary>
@@ -10,7 +10,7 @@ public static class StatIds
     public static IReadOnlyList<StatId> Combat { get; } =
         Enum.GetValues<StatId>().Where(IsCombat).ToArray();
 
-    /// <summary>The 12 non-combat stats.</summary>
+    /// <summary>The 10 non-combat stats.</summary>
     public static IReadOnlyList<StatId> NonCombat { get; } =
         Enum.GetValues<StatId>().Where(s => !IsCombat(s)).ToArray();
 

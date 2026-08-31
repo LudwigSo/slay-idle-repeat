@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rng;
 
 namespace SlayIdleRepeat.Core.Rules.Effects;
@@ -62,6 +63,15 @@ internal sealed record EffectEvaluationContext
     /// should have been skipped via <c>IS_PVP</c> but wasn't doesn't fail silently.
     /// </remarks>
     public IRunStateView? Run { get; init; }
+
+    /// <summary>
+    /// Whether this context supplies every subject the classified tree reads — the activation half
+    /// of the conditional standing-effect bucket's subject-presence rule.
+    /// </summary>
+    /// <param name="subjects">The tree's classification, from <see cref="ConditionSubjects.Of"/>.</param>
+    internal bool Carries(ConditionSubjects subjects) =>
+        (!subjects.ReadsTarget || CurrentTarget is not null) &&
+        (!subjects.ReadsAttacker || Attacker is not null);
 
     /// <summary><c>RANDOM_ENEMY</c>'s draw stream — the only target token that draws.</summary>
     /// <remarks>

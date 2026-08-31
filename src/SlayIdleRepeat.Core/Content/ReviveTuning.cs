@@ -16,7 +16,7 @@ internal sealed class ReviveTuning
 
     private const string ValuesPointer = DocumentPath + "#/placementRewardValues/" + PlacementId;
 
-    /// <summary>The share of Max HP a revive restores. 0.5 as shipped.</summary>
+    /// <summary>The share of Max HP a revive restores. 0.66 (66%) as shipped.</summary>
     internal const string HealPctMaxHpReference = ValuesPointer + "/healPctMaxHp";
 
     /// <summary>The invulnerability window a revive grants, in seconds. 2 as shipped.</summary>
@@ -28,7 +28,7 @@ internal sealed class ReviveTuning
         InvulnerabilitySeconds = invulnerabilitySeconds;
     }
 
-    /// <summary>The share of Max HP a revive restores. 0.5 (50%) as shipped.</summary>
+    /// <summary>The share of Max HP a revive restores. 0.66 (66%) as shipped.</summary>
     internal double HealPctMaxHp { get; }
 
     /// <summary>
@@ -52,7 +52,7 @@ internal sealed class ReviveTuning
         {
             throw new InvalidTunableException(
                 HealPctMaxHpReference,
-                "A revive heal is a share of Max HP in (0,1]. 02 §6 authors 0.5; this document " +
+                "A revive heal is a share of Max HP in (0,1]. 02 §6 authors 0.66; this document " +
                 "authors " + Text(healPctMaxHp) + ".");
         }
 

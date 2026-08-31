@@ -10,20 +10,22 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 public sealed class CombatCapsTests
 {
     /// <summary>
-    /// The six capped stats are named in code, not discovered from whatever keys the file holds.
+    /// The five capped stats are named in code, not discovered from whatever keys the file holds —
+    /// `16` D46 moved <c>DR_PCT</c> out of the ratio-cap set (its bound survives as the 0.4
+    /// damage-taken floor).
     /// </summary>
     /// <remarks>
-    /// Absence means "uncapped" for the other eight stats, so a cap that vanished from the data
+    /// Absence means "uncapped" for the other stats, so a cap that vanished from the data
     /// would be indistinguishable from a stat that was never capped — the reader would happily
-    /// produce an uncapped CRIT and report success. Naming the six turns that into a
+    /// produce an uncapped CRIT and report success. Naming the five turns that into a
     /// <c>MissingContentException</c>.
     /// </remarks>
     [Fact]
-    public void The_six_capped_stats_are_declared_so_a_deleted_cap_is_not_read_as_uncapped()
+    public void The_five_capped_stats_are_declared_so_a_deleted_cap_is_not_read_as_uncapped()
     {
         CombatCaps.CappedStats.ShouldBe(
         [
-            StatId.CRIT, StatId.LIFESTEAL, StatId.DODGE, StatId.BLOCK, StatId.PEN, StatId.DR_PCT,
+            StatId.CRIT, StatId.LIFESTEAL, StatId.DODGE, StatId.BLOCK, StatId.PEN,
         ]);
 
         var withoutCrit = StatFixtures.CombatCapsSnapshot(["caps", "CRIT"]);
@@ -41,7 +43,6 @@ public sealed class CombatCapsTests
         caps.Caps.Maximum(StatId.DODGE).ShouldBe(0.50);
         caps.Caps.Maximum(StatId.BLOCK).ShouldBe(0.60);
         caps.Caps.Maximum(StatId.PEN).ShouldBe(0.70);
-        caps.Caps.Maximum(StatId.DR_PCT).ShouldBe(0.60);
 
         caps.WardCapPct.ShouldBe(1.0, "05 §4.1 — wardCapPct");
         caps.PvpMaxFightSeconds.ShouldBe(60.0, "11 §4.3 — the duel duration cap");
