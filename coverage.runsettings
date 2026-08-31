@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+
+  <!--
+    Coverage collection settings for the CRAP (Change Risk Anti-Patterns) score.
+    Consumed by scripts/Measure-Crap.ps1; see docs/crap.md for what the numbers mean.
+
+    🔴 COBERTURA IS THE FORMAT THE CRAP SCORE COMES FROM. This is the opposite of
+    the usual advice, and it was MEASURED on this repository (ReportGenerator
+    5.5.11 + coverlet 6.0.4), not assumed:
+
+      - coverlet's Cobertura carries per-method `complexity`, and ReportGenerator
+        COMPUTES the Crap Score from it. It has done so since 5.2.1 ("Added 'Crap
+        Score' metric for Cobertura coverage files" in its own changelog).
+      - coverlet's OpenCover carries `cyclomaticComplexity` and `nPathComplexity`
+        but NOT the `crapScore` attribute. ReportGenerator's OpenCover parser
+        READS that attribute rather than computing anything, because the real
+        OpenCover tool emits it. Coverlet does not - so an OpenCover-only run
+        produces a Risk Hotspots table with Cyclomatic and NPath columns and NO
+        Crap Score column at all: a green run with the one number missing.
+
+    OpenCover is still collected beside it, because it is the only source of the
+    NPath complexity metric and costs one extra file per suite. Nothing reads it
+    for CRAP.
+
+    scripts/Measure-Crap.ps1 does not trust any of the above. It asserts the
+    Cobertura files carry per-method complexity BEFORE rendering, and asserts the
+    rendered report really does contain a Crap Score column AFTER - which is the
+    check that would have caught this inversion on day one.
+  -->
+
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura,opencover</Format>
+
+          <!--
+            🔴 THE SCOPE OF THE WHOLE EXERCISE, AND IT IS AN ALLOW-LIST.
+
+            CRAP is measured for SlayIdleRepeat.Core and SlayIdleRepeat.Application
+            ONLY. Those two are the domain and the use-case layer - the code whose
+            risk is worth ranking, and the code `23` keeps free of vendor SDKs so
+            that a hotspot in it is always a hotspot in OUR logic. Everything else
+            is deliberately out of scope: adapters are thin shells around vendor
+            SDKs, tools/ does not ship, and the Godot client's complexity is
+            dominated by generated dispatch nobody can refactor.
+
+            This is an INCLUDE, applied at COLLECTION time, and both halves matter:
+
+              - Include, not Exclude, so a new adapter or tool is out of scope the
+                day it is created rather than the day somebody remembers to add a
+                filter. The scope cannot drift open by omission.
+              - At collection time, not in ReportGenerator, so coverlet never
+                instruments the other fifteen assemblies at all. Filtering in the
+                report would still pay the full instrumentation cost on every run
+                and then throw the results away.
+
+            Widening this is a deliberate act. Everything below is defence in depth
+            that this allow-list already subsumes - kept, not deleted, precisely so
+            that widening this line does not silently switch the rest off too.
+          -->
+          <Include>[SlayIdleRepeat.Core]*,[SlayIdleRepeat.Application]*</Include>
+
+          <!--
+            Subsumed by the allow-list above: a test assembly cannot match
+            `[SlayIdleRepeat.Core]` or `[SlayIdleRepeat.Application]`. Kept as the
+            standing rule for whatever the Include list grows to.
+          -->
+          <Exclude>[*.Tests]*</Exclude>
+
+          <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+
+          <!--
+            Also subsumed by the allow-list today, and kept for the same reason.
+
+            `**/*.generated.cs` earned its place before the Include existed: with
+            SlayIdleRepeat.Client in scope, Godot.SourceGenerators' dispatch
+            switches - InvokeGodotClassMethod, Get/SetGodotClassPropertyValue,
+            RestoreGodotObjectData, cyclomatic complexity up to 92, written by
+            nobody and refactorable by nobody - took every slot in the ranking.
+            Note the `-*Generated*` class filter passed to ReportGenerator does
+            NOT catch those: it matches the CLASS name, and they sit on ordinary
+            classes like Game.Scenes.Board. Worth knowing before anyone widens
+            the Include list back over the client.
+
+            No `**/Migrations/*.cs` entry: there is no EF Core migration anywhere
+            in this tree (the Postgres adapter carries none), and a filter that
+            matches nothing reads as protection while providing none.
+          -->
+          <ExcludeByFile>**/*.generated.cs,**/*.g.cs,**/*.Designer.cs</ExcludeByFile>
+
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+
+          <!--
+            Auto-properties are complexity 1 and either fully covered or not
+            touched. Including them buries the methods that actually carry risk
+            under hundreds of trivial rows.
+          -->
+          <SkipAutoProps>true</SkipAutoProps>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+
+</RunSettings>

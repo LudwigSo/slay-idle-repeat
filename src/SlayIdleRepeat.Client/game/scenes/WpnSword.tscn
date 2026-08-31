@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3]
+
+; The grip: how a sword sits in a fist. The socket in the hero says only where the
+; fist is, so the pose belongs here — and only the X euler is used, because X is
+; the one axis a grip can lean about and still mirror into the other hand
+; unchanged. 16 degrees forward, which is what lifts the blade clear of the hood
+; instead of hiding it behind one. Authored in assets/source/hero_kit.py as GRIP.
+
+[ext_resource type="PackedScene" uid="uid://2yk7amlql6ps" path="res://game/art/wpn_sword.glb" id="1_model"]
+
+[node name="WpnSword" type="Node3D"]
+transform = Transform3D(1, 0, 0, 0, 0.961262, 0.275637, 0, -0.275637, 0.961262, 0, 0, 0)
+
+[node name="Model" parent="." instance=ExtResource("1_model")]

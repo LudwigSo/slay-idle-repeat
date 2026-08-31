@@ -29,6 +29,13 @@ coverage*.json
 coverage*.xml
 coverage*.info
 
+# ReportGenerator's output directory for the CRAP score (docs/crap.md,
+# scripts/Measure-Crap.ps1). Regenerated in full by every run; the patterns above
+# only cover coverage FILES, not this directory. TestResults/ - where coverlet
+# writes the raw OpenCover XML the report is built from - is already covered by
+# the [Tt]est[Rr]esults/ rule above.
+coverage/
+
 # --------------------------------------------------------------------- NuGet
 *.nupkg
 *.snupkg
@@ -89,3 +96,10 @@ spikes/**/obj/
 *.xcarchive/
 *.xcodeproj/
 *.xcworkspace/
+
+# Blender writes a .blend1 backup beside every save. The .blend is the source; the
+# backup is a local undo step and never part of the tree.
+*.blend1
+
+# The asset build scripts are imported into Blender, which caches bytecode beside them.
+assets/source/__pycache__/

@@ -27,6 +27,8 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
+    <!-- Provides the "XPlat code coverage" collector coverage.runsettings names; see docs/crap.md. -->
+    <PackageReference Include="coverlet.collector" />
     <!--
       🔒 Shouldly (BSD-3-Clause), the assertion library for all four test suites. M1-00
       swapped it in for FluentAssertions, whose v8 moved to a paid commercial licence — a

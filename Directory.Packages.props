@@ -58,6 +58,22 @@
       Do not reintroduce it; the M1-00 row in IMPLEMENTATION_TRACKER.md names it.
     -->
     <PackageVersion Include="Shouldly" Version="4.3.0" />
+
+    <!--
+      The coverage collector, in every suite under tests/ - it is what provides
+      the "XPlat code coverage" data collector that coverage.runsettings names.
+      Without a reference, a `dotnet test` run pointed at coverage.runsettings
+      accepts the file, exits green and writes no coverage at all;
+      scripts/Measure-Crap.ps1 fails loudly on that rather than reporting an
+      empty ranking. See docs/crap.md.
+
+      6.0.x rather than the 10.x head on purpose: 6.0.4 is the line built for
+      VSTest-hosted `dotnet test` on net8.0, which is what Microsoft.NET.Test.Sdk
+      17.14.1 above gives us. The 8.x and 10.x majors follow the Microsoft.Testing
+      .Platform runner this repository does not use. Revisit at whichever milestone
+      moves the suites onto that runner, not before.
+    -->
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
   </ItemGroup>
 
   <!--

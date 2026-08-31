@@ -29,6 +29,8 @@
       passes vacuously, which is exactly what test-suites.json exists to prevent.
     -->
     <PackageReference Include="xunit.runner.visualstudio" />
+    <!-- Provides the "XPlat code coverage" collector coverage.runsettings names; see docs/crap.md. -->
+    <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Shouldly" />
   </ItemGroup>
 

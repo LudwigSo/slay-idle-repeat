@@ -20,9 +20,50 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// 🔒 <b>Minimal, and the emptiness is the design.</b> A name, a Legend Level, the two Energy
 /// amounts the profile literally carries, and one primary action. There is no Energy denominator,
 /// no regeneration countdown, no Legend-XP bar and no run cost, because the presenter exposes none
-/// of them and could not without copying a formula the rules already own. The hero diorama, daily
-/// quests, ad widgets, chest pity, event and guild cards, the inbox, the account-link banner and
-/// the bottom navigation belong to later milestones and are absent rather than stubbed.
+/// of them and could not without copying a formula the rules already own. Daily quests, ad widgets,
+/// chest pity, event and guild cards, the inbox, the account-link banner and the bottom navigation
+/// belong to later milestones and are absent rather than stubbed.
+/// </para>
+/// <para>
+/// ⚠️ <b>The hero diorama is a modelled rogue, and it is still not a RULED asset.</b>
+/// <c>Hero.tscn</c> frames <c>game/art/chr_hero_rogue.glb</c> — a hooded, light-armoured rogue
+/// modelled in Blender (source at <c>assets/source/hero_rogue.blend</c>, built by
+/// <c>assets/source/hero_kit.py</c>), 22k triangles, one material over a baked
+/// base-colour/ORM/normal set, so it draws in a single call. It holds D5's chibi proportion and
+/// the warm saturated palette, and it is the first real 3D content in the build rather than a
+/// shape standing in for one.
+/// </para>
+/// <para>
+/// 🔒 <b>What it is holding is no longer part of it.</b> The rogue used to carry two daggers
+/// welded into the character mesh, so a hero holding two daggers was the only hero there could be.
+/// The model now carries two socket nodes instead, and each weapon — <c>wpn_sword.glb</c>,
+/// <c>wpn_dagger.glb</c>, roughly 1.5k triangles and one draw call each — is a scene mounted into
+/// one of them. This screen states the starting loadout in <c>Hero.tscn</c> and nothing more;
+/// <see cref="Hero"/> owns the mounting, and a screen that wants a different weapon asks it rather
+/// than exporting a second character. The kit is deliberately small: two weapons are enough to
+/// prove a socket holds more than the thing it was modelled around.
+/// </para>
+/// <para>
+/// 🔴 <b>What it is NOT is a discharge of the three §C6 rulings D61 reopened.</b> It carries no
+/// outline shell, because `15` §A3 fixes the reference height against a render height that no
+/// longer exists; it carries no per-actor light rig, because whether one exists at all is the
+/// second reopened question; and it is absent from <c>asset_manifest_art.json</c>, whose rows are
+/// 2D-era and whose every edit moves the <c>ContentSnapshot</c> hash. It was modelled to a brief,
+/// not to a ruling, and the rulings still owe themselves answers. The two weapons are absent from
+/// the manifest for the same reason and add two more rows to whatever eventually registers the
+/// first — a kit that grows makes that debt grow with it rather than discharging any of it.
+/// </para>
+/// <para>
+/// ⚠️ <b>Nothing here is metallic, and that is a lighting decision rather than an art one.</b> The
+/// brass and the blades are bright albedo at low roughness, not metal: this build lights its 3D
+/// with one directional key, one fill and flat ambient, and has no reflection probe or sky — a true
+/// metal has nothing to reflect in it and renders black. The gloss is the light, not the material.
+/// </para>
+/// <para>
+/// 🔒 <b>It carries no light and no environment of its own.</b> A viewport has one
+/// <see cref="WorldEnvironment"/> and this build's lives on <see cref="AppRoot"/> for the life of the
+/// application, with the key light beside it — the same reason <see cref="ScreenStage"/> gives for
+/// keeping it off the screens. What this screen owns of the 3D world is its content and its framing.
 /// </para>
 /// <para>
 /// ⚠️ Every type size, colour and gap in <c>Home.tscn</c> is a per-node override, because the
