@@ -97,7 +97,9 @@ Mirrors `src/` layout project-for-project (`SlayIdleRepeat.Core.Tests`,
 - `AssetManifest.Tests`, `AssetPipeline.Tests`, `AssetPlaceholders.Tests`,
   `AssetProvenance.Tests` — asset pipeline correctness.
 
-Mutation testing config is in `stryker-config.json` (`StrykerOutput/` for results).
+Mutation testing is scoped to Core and Application — one config per project,
+`stryker-config.json` and `stryker-config.application.json` (`StrykerOutput/` for
+results). Commands, including the diff-only run, are in `README.md`.
 
 ## Game data (`game-data/`)
 

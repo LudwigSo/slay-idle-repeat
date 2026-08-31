@@ -36,6 +36,9 @@ coverage*.info
 # the [Tt]est[Rr]esults/ rule above.
 coverage/
 
+# Stryker.NET mutation reports (README.md). Regenerated in full by every run.
+StrykerOutput/
+
 # --------------------------------------------------------------------- NuGet
 *.nupkg
 *.snupkg
