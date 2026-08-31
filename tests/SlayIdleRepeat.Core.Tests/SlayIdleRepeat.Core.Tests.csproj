@@ -1,6 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
+    Restated from Directory.Build.props, which already says net8.0 for every project and
+    remains the one place the version is decided. Stryker.NET 4.16 needs the property on the
+    .csproj itself: read only from Directory.Build.props, its Buildalyzer pass returns an empty
+    result and the run dies with "Analyzing 0 projects" before a single mutant is created.
+    The CLI target-framework option does not substitute. Core, Core.Tests and BalanceHarness
+    carry it for that reason alone: the mutated project, its test project, and that test
+    project's other ProjectReference. Do NOT change the value here; change Directory.Build.props.
+  -->
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+
+  <!--
     The domain test suite. It is the assembly Core grants InternalsVisibleTo (30 §11.3),
     and the only assembly it grants it to.
 
