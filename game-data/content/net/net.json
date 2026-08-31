@@ -1,0 +1,8 @@
+{
+  "$schema": "../../schema/net.schema.json",
+  "_doc": "M7-02 — the strings the connection-state overlay shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. Four members for five states: Connected draws nothing at all, which is its specification rather than a gap. Deliberately not a network dialogue: no maintenance notice, no forced-update prompt, no retry ladder and no full-screen connection error — a run is never blocked on the connection, and authoring copy for a screen nobody may show would make an unbuilt flow look shipped.",
+  "reconnecting": "loc.net.reconnecting.status",
+  "waitingForConnection": "loc.net.waiting_for_connection.status",
+  "caughtUp": "loc.net.caught_up.status",
+  "runResumed": "loc.net.run_resumed.status"
+}

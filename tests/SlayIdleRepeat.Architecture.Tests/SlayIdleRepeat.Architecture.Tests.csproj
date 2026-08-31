@@ -27,6 +27,8 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
+    <!-- Provides the "XPlat code coverage" collector coverage.runsettings names; see docs/crap.md. -->
+    <PackageReference Include="coverlet.collector" />
     <!--
       🔒 Shouldly (BSD-3-Clause), the assertion library for all four test suites. M1-00
       swapped it in for FluentAssertions, whose v8 moved to a paid commercial licence — a
@@ -91,6 +93,7 @@
     <ProjectReference Include="..\..\tools\EconomySim\SlayIdleRepeat.EconomySim.csproj" />
     <ProjectReference Include="..\..\tools\BalanceHarness\SlayIdleRepeat.BalanceHarness.csproj" />
     <ProjectReference Include="..\..\tools\ContentValidator\SlayIdleRepeat.ContentValidator.csproj" />
+    <ProjectReference Include="..\..\tools\InboxOps\SlayIdleRepeat.InboxOps.csproj" />
     <ProjectReference Include="..\..\tools\AssetManifest\SlayIdleRepeat.AssetManifest.csproj" />
     <ProjectReference Include="..\..\tools\AssetProvenance\SlayIdleRepeat.AssetProvenance.csproj" />
     <ProjectReference Include="..\..\tools\AssetPipeline\SlayIdleRepeat.AssetPipeline.csproj" />

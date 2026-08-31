@@ -487,7 +487,7 @@ public sealed class GapRegisterTests
         // summing to 55. A row REMOVED lowers the sum, a row ADDED raises it, and a row merely wired
         // moves only the split.
         owners.Length.ShouldBe(
-            23,
+            22,
             "14 §2.3's registry is 19 run + 33 meta, and 24 of the 52 rows are Deferred since " +
             "M7-00d landed the EQUIP handler on top of M4-10's " +
             "SAVE_PRESET/APPLY_PRESET and M4-04's " +
@@ -499,7 +499,8 @@ public sealed class GapRegisterTests
             "ROLL_DICE/USE_REROLL, and M1-09's BEGIN_SESSION). If this is 0 " +
             "the pattern has stopped matching the dispatch table and the comparison below holds over " +
             "nothing; if it shrinks, either a row went away or a row became Handled — in which case " +
-            "lower this by exactly that many and raise the Handled floor by the same.");
+            "lower this by exactly that many and raise the Handled floor by the same. M5-08 did " +
+            "exactly that for CLAIM_INBOX: 22 DEFERRED / 33 HANDLED, and the sum is unmoved at 55.");
 
         handled.ShouldBe(
             new[]
@@ -517,6 +518,7 @@ public sealed class GapRegisterTests
                 "UNEQUIP", "LOCK_ITEM", "SET_AUTO_SALVAGE_RULES",
                 "SHOP_LEAVE", "SHRINE_CHOOSE",
                 "USE_CONSUMABLE",
+                "CLAIM_INBOX",
             },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
@@ -578,7 +580,7 @@ public sealed class GapRegisterTests
             "CHOOSE_FIXED_DIE arrived with the fixed dice that replaced them. All four were Handled, " +
             "so the DEFERRED floor moved with none of them.");
 
-        var tracker = File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
+        var tracker = RepoLayout.TrackerText();
 
         var declared = Regex.Matches(tracker, @"^\| (?<id>M\d{1,2}-\d{2}) \|", RegexOptions.Multiline)
             .Select(m => m.Groups["id"].Value)

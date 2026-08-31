@@ -131,11 +131,18 @@ database and the login role the API is configured for.
 and sane lock timeouts, and writes one row into a `meta.bootstrap` table
 explaining why there are no other tables.
 
-> ⚠️ **There is no schema.** Tables, indexes and migrations — profiles, run
-> snapshots, idempotency outcomes, the append-only economy event log, messages,
-> ghosts, ratings, ladder, seasons, entitlements — are **M5-05**'s deliverable
-> (`14` §7). Guessing at them here would give M5 a schema to fight rather than a
-> clean database to create.
+> ✅ **The schema arrives with the API, not with this init script.** M5-05's
+> migrations — players, runs, idempotency outcomes, the append-only economy
+> event log, player messages — are numbered SQL files **embedded in
+> `SlayIdleRepeat.Adapters.Persistence.Postgres`** and applied **at API
+> startup**, under `pg_advisory_lock`, with a checksum-verified
+> `meta.migrations` history table (created by the runner itself —
+> `meta.bootstrap` stays init-script bookkeeping). Two API instances starting
+> together apply the history once; an edited already-applied file fails the
+> boot loudly. There is no `dotnet ef database update` step and no migration
+> init container: `docker compose up` alone yields a migrated database the
+> moment the API is healthy. Ghosts, ratings, ladder, seasons and entitlements
+> remain later milestones' files (M12 onward), appended as the next ordinals.
 
 **MinIO** — `infra/minio/init.sh` runs in the `minio-init` container and creates
 the two buckets `14` §7.1 calls for, `battle-logs` and `ghost-snapshots`, both
@@ -187,14 +194,16 @@ curl -X POST http://127.0.0.1:4318/v1/traces \
 Then look for the service `sir-pipeline-probe` in Jaeger. The span is stamped
 `2026-01-01T00:00:00Z`, so widen the time range.
 
-> ⚠️ **Not proven, and cannot be until M5-11:** that
-> `SlayIdleRepeat.Server` emits anything at all. There is no OpenTelemetry SDK
-> registered in the server yet — no spans, no metrics, no Serilog. Every panel
-> on the *Telemetry pipeline* dashboard that is about application data is empty
-> by construction, and the `otel-collector-app` scrape target is up with zero
-> series. **M5-11** ("Serilog structured logs, OpenTelemetry metrics/traces,
-> Sentry, PostHog server-side event sink") is what fills them. The road is built
-> and tested; nothing is driving on it.
+> **M5-11 registered the emitters.** `builder.AddObservability()`
+> (`Composition/ObservabilityComposition.cs`) wires Serilog (compact one-line
+> JSON to stdout), the OpenTelemetry SDK subscribed to the server's own
+> `ActivitySource`/`Meter` (both named `SlayIdleRepeat.Server`) with OTLP
+> exporters that read the `OTEL_*` variables below, Sentry from `Sentry__Dsn`,
+> and the PostHog `/batch` sink from `PostHog__*` with a 10-second flush loop.
+> What travels today: a `run_command`/`player_command` span per command POST, a
+> `domain_events` histogram tagged by event type, and every exception that
+> escapes the pipeline. With the local `Sentry__Dsn=''` / `PostHog__Enabled=false`
+> both vendor sinks stay silent by configuration, not by absence.
 
 ### Why no Loki
 
@@ -229,14 +238,18 @@ used.
   `docker compose up` something developers avoid — and the first thing anyone
   would do is comment them out, at which point the stack is lying about what it
   boots.
-- Neither is on the critical path for anything before M5-11, because they are
-  sinks for data the server does not yet emit.
+- Neither was on the critical path before M5-11, and neither is one now: M5-11
+  registered both adapters, and both stay switched off in this stack by
+  configuration (below), so the data they would carry has somewhere to go the
+  moment a deployment supplies a DSN and a project key.
 
-The **adapters exist in the codebase** (`Adapters.Analytics.PostHog`, and Sentry
-via the server's error reporting) and are wired to a local no-op here: the API
-gets `Sentry__Dsn=` (empty — the SDK's own documented "disabled" value) and
-`PostHog__Enabled=false`. A deployed environment sets a real DSN and host, which
-is precisely the "deployment detail" `14` §10 calls it.
+The **adapters exist and are registered** (`Adapters.Analytics.PostHog` behind
+`IAnalyticsSinkPort`, Sentry initialised unconditionally at startup) but are
+configured off here: the API gets `Sentry__Dsn=` (empty — the SDK's own
+documented "disabled" value) and `PostHog__Enabled=false`, which the server
+announces with one startup warning that analytics is being dropped. A deployed
+environment sets a real DSN and host, which is precisely the "deployment
+detail" `14` §10 calls it.
 
 **If you have come here to "complete" the observability stack: don't.** Bring it
 up at a kickoff instead.
@@ -249,46 +262,119 @@ up at a kickoff instead.
 config service."* Every deployment-varying value reaches the API as an
 environment variable, listed in the `api` service in `docker-compose.yml`.
 
-> ⚠️ **The server reads none of them yet.** They are defined now, with the names
-> M5 will bind to, so the wiring is a reviewable artefact instead of folklore.
-> `__` is ASP.NET Core's configuration separator: `ConnectionStrings__Postgres`
-> binds to the key `ConnectionStrings:Postgres`.
+> ⚠️ **Every group below is read by the server now.** M5-10 landed the
+> `RemoteConfig__*` pair, M5-05 the `ConnectionStrings__*` / `Cache__*` /
+> `ObjectStore__*` groups, M5-11 the `OTEL_*`, `Sentry__Dsn` and `PostHog__*`
+> groups, M5-06 the `Auth__*` group, and M5-09 `Content__BundleRoot`. The one
+> exception is called out in its own row: `ObjectStore__GhostSnapshotBucket`,
+> defined ahead of the code that will bind it. `__` is ASP.NET Core's
+> configuration separator: `ConnectionStrings__Postgres` binds to the key
+> `ConnectionStrings:Postgres`.
 
 | Variable | Value in this stack | Consumed by |
 |---|---|---|
-| `ConnectionStrings__Postgres` | `Host=postgres;Port=5432;Database=slayidlerepeat;Username=sir_app;…` | M5-05 |
-| `ConnectionStrings__Redis` | `redis:6379,abortConnect=false` | M5-05 |
-| `Cache__RunStateTtlHours` | `48` (`14` §7.1: "Run-state cache TTL 48 h") | M5-05 |
-| `ObjectStore__ServiceUrl` | `http://minio:9000` | M5-05 |
-| `ObjectStore__Region` / `__ForcePathStyle` | `us-east-1` / `true` | M5-05 |
-| `ObjectStore__AccessKey` / `__SecretKey` | `sir_app` / `sir_local_dev_password` | M5-05 |
-| `ObjectStore__BattleLogBucket` | `battle-logs` | M5-05 |
-| `ObjectStore__GhostSnapshotBucket` | `ghost-snapshots` | M5-05 |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | M5-11 |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | M5-11 |
-| `OTEL_SERVICE_NAME` | `slayidlerepeat-server` | M5-11 |
-| `OTEL_RESOURCE_ATTRIBUTES` | `service.namespace=slayidlerepeat,deployment.environment=local` | M5-11 |
-| `OTEL_TRACES_SAMPLER` | `always_on` (local only) | M5-11 |
-| `Sentry__Dsn` | *(empty — disabled)* | M5-11 |
-| `PostHog__Enabled` | `false` | M5-11 |
+| `RemoteConfig__Path` | `/app/remote-config/flags.json` (the committed identity document, mounted read-only) | **M5-10 — shipped, the server reads this** |
+| `RemoteConfig__ReloadSeconds` | `60` (an ops number, `14` §16.5 — not a tunable) | **M5-10 — shipped, the server reads this** |
+| `Content__BundleRoot` | `/app/content-bundles` (a writable named volume, so retained versions survive a `compose up` and a redeploy) | **M5-09 — shipped, the server reads this** |
+| `ConnectionStrings__Postgres` | `Host=postgres;Port=5432;Database=slayidlerepeat;Username=sir_app;…` | **M5-05 — shipped, the server reads this** |
+| `ConnectionStrings__Redis` | `redis:6379,abortConnect=false` | **M5-05 — shipped, the server reads this** |
+| `Cache__RunStateTtlHours` | `48` (`14` §7.1: "Run-state cache TTL 48 h") | **M5-05 — shipped, the server reads this** |
+| `ObjectStore__ServiceUrl` | `http://minio:9000` | **M5-05 — shipped, the server reads this** |
+| `ObjectStore__Region` / `__ForcePathStyle` | `us-east-1` / `true` | **M5-05 — shipped, the server reads this** |
+| `ObjectStore__AccessKey` / `__SecretKey` | `sir_app` / `sir_local_dev_password` | **M5-05 — shipped, the server reads this** |
+| `ObjectStore__BattleLogBucket` | `battle-logs` | **M5-05 — shipped, the server reads this** |
+| `ObjectStore__GhostSnapshotBucket` | `ghost-snapshots` | ⚠️ nothing yet — M12 lands the ghost-snapshot producer |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | **M5-11 — shipped, the OTel SDK reads this** |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | **M5-11 — shipped, the OTel SDK reads this** |
+| `OTEL_SERVICE_NAME` | `slayidlerepeat-server` | **M5-11 — shipped, the OTel SDK reads this** |
+| `OTEL_RESOURCE_ATTRIBUTES` | `service.namespace=slayidlerepeat,deployment.environment=local` | **M5-11 — shipped, the OTel SDK reads this** |
+| `OTEL_TRACES_SAMPLER` | `always_on` (local only) | **M5-11 — shipped, the OTel SDK reads this** |
+| `Sentry__Dsn` | *(empty — disabled)* | **M5-11 — shipped, the server reads this** |
+| `PostHog__Enabled` | `false` | **M5-11 — shipped, the server reads this** |
+| `Auth__JwtSigningKey` | `sir_local_dev_jwt_signing_key_not_a_secret` (a local dev default like every other value here; **a real secret in a deployed environment**, injected per `14` §1.1) | **M5-06 — shipped, the server reads this** |
+| `Auth__AccessTokenLifetimeMinutes` | `60` (`14` §16.5's access-token lifetime) | **M5-06 — shipped, the server reads this** |
+| `Auth__RefreshTokenLifetimeDays` | `30` (`14` §16.5's refresh-family lifetime) | **M5-06 — shipped, the server reads this** |
+| `Auth__SilentRenewalFraction` | `0.8` (`14` §16.5: the client renews at ~80 % of the access lifetime; the server hands it out as `renewAfterSeconds`) | **M5-06 — shipped, the server reads this** |
 
 The `OTEL_*` names are the OpenTelemetry specification's own, which the .NET
 OTel SDK reads with no code at all — M5-11 registers the SDK and it picks these
 up as they are.
 
+`Auth__JwtSigningKey` has **no default in code**. An absent or blank value, or
+one under 32 UTF-8 bytes, fails the first auth request with the variable's own
+spelling in the message. A generated default would invalidate every live token
+on each restart while looking like it worked, and a baked-in one would ship a
+public secret — so there is neither.
+
+> 📄 **Doc errata — `14` §16.5's 📐 markers on the three token lifetimes.**
+> §16.5 marks the access-token lifetime, the refresh lifetime and the silent-renewal
+> fraction with 📐, but `21` §3.1 ("Rule 1 — every tunable number lives in one
+> directory") says *"a 📐 TUNABLE number that is not in this directory is a bug"*
+> — while §16.5's own **Config home** row says these three are *"server-operations
+> numbers: **environment configuration** … deliberately **not** in `game-data/tuning/`
+> — they are not economy tunables and must never ride a content push."* The two
+> statements cannot both hold. The Config-home row is the ruling and is what this
+> stack implements: the numbers are `Auth__*` environment variables. **The 📐 markers
+> in §16.5 should be struck**; recorded here rather than silently ignored, because
+> the next reader of §16.5 will otherwise reach the opposite conclusion.
+>
+> ⚠️ Nothing mechanical will catch this for you. `21` §3.1 backs its rule with "a
+> build-time check [that] enumerates every `📐` marker in the documentation set
+> against the schema keys" — **that check was built and has since been removed**
+> (see the header of `build/ci/Invoke-ContentValidation.ps1`, which says so). So the
+> contradiction is unenforced in both directions today, and this note is the only
+> record of it.
+
+**M5-09 shipped the content endpoints and the bundle shelf.** `GET /content/current`
+answers `{"contentVersion","bundleUrl"}` — the stamp bare, 64 lowercase hex, no
+algorithm prefix — and `GET /content/{version}` serves that version's gzipped
+canonical bundle as `application/gzip`, immutable for a year because a bundle's
+URL is the hash of its own bytes. The shelf is the directory `Content__BundleRoot`
+names: one `<stamp>.bundle.gz` per version, published on first use and swept on
+the retention rule below.
+
+⚠️ **Leave `Content__BundleRoot` unset and retention is OFF** — only the current
+version can be served, so a client pinned to an older one has nothing to fetch
+and must re-sync. That is a degraded mode, not a default, and the server says so
+once through a `[content-bundles]` log line. A run whose pinned bundle has been
+swept falls back to current and logs `[content-pin]`.
+
+⚠️ **The retention window is 48 h, and that number is an inference, not a spec
+value.** No retention interval is authored in any design document or any
+configuration; 48 h is taken from the run TTL (`Cache__RunStateTtlHours`), on the
+reasoning that a bundle stops being needed once the last run that could still be
+pinned to it has itself expired. If somebody authors a real interval, it should
+replace this rather than be reconciled with it.
+
 ### The M5 checklist
 
-1. **M5-05** — Postgres schema and a migration runner. Decide how migrations run
-   in this stack (an init container like `minio-init`, or at API startup) and add
-   it here; do not leave `dotnet ef database update` as a README step. Then bind
-   the three `ConnectionStrings__*` / `ObjectStore__*` groups above in
-   `Composition/`.
-2. **M5-11** — register the OpenTelemetry SDK and Serilog. The `OTEL_*` variables
-   and the whole collector pipeline are already waiting; if spans do not appear
-   in Jaeger, check `docker compose logs otel-collector` before suspecting this
-   stack. Then add the real game dashboards (`14` §10.1's event set — perk pick
-   rate, run abandonment by tile index, disconnect rate, season rating drift) as
-   new files in `infra/grafana/dashboards/`.
+**M5-10 shipped `GET /config` and the flags file.** The server serves
+[`infra/remote-config/flags.json`](remote-config/flags.json) verbatim on
+`GET /config` and gates commands on it. To throw a kill switch locally, edit the
+file — the server re-reads it every 60 s (`RemoteConfig__ReloadSeconds`), no
+restart needed. A document with a typo in it is refused whole and logged with a
+`[remote-config]` marker; the last good document stays in force.
+
+1. ✅ **M5-05** — done. Migrations run **at API startup** (see "What is set up
+   automatically" above): embedded numbered SQL files, `pg_advisory_lock`,
+   checksummed `meta.migrations`. `Composition/PersistenceComposition.cs` binds
+   `ConnectionStrings__Postgres` (system of record — without it the process
+   runs on volatile placeholders), `ConnectionStrings__Redis` (hot cache,
+   optional decorator), `Cache__RunStateTtlHours`, and the `ObjectStore__*`
+   group (battle-log store + write-behind drain; `GhostSnapshotBucket` stays
+   unread until M12). The compose-boot job now also runs four probes against
+   this wiring: a command round-trip persisted in Postgres, a byte-identical
+   idempotent replay across an API restart, a Redis flush that costs latency
+   but no progress, and the battle-log drain's startup marker.
+2. ✅ **M5-11 — done for the SDK and Serilog**: `builder.AddObservability()`
+   registers both, and the `OTEL_*` variables are picked up by the SDK as they
+   are. If spans do not appear in Jaeger, check
+   `docker compose logs otel-collector` before suspecting this stack. Still
+   open here: the real game dashboards (`14` §10.1's event set — perk pick
+   rate, run abandonment by tile index, disconnect rate, season rating drift)
+   as new files in `infra/grafana/dashboards/`, which need source events the
+   domain does not emit yet (see the unemittable-event register in
+   `Architecture.Tests`).
 3. **Both** — tighten the stack assertions in the `compose-boot` job
    (`.github/workflows/ci.yml`) to cover the new signals: real server spans and
    metrics rather than only "every scrape target is up".

@@ -1,0 +1,14 @@
+# Two determinism pins live under this directory, and both are re-asserted on the cross-platform
+# job's live legs — Linux x64 and Android ARM64. (The iOS ARM64 leg is authored and gated off with
+# iOS itself, `16` D34.)
+#
+#   CombatLogReferenceVectors.json         — 05 §7's LogHash byte encoding
+#   Determinism/BattleLogHashBaseline.json — 14 §8.2's 10 000 (seed, build, enemy) triples
+#
+# ⚠️ The first of these was NOT covered by a rule until M5-12 added this file: it inherited the
+# repository root's `* text=auto`, which normalises to LF in the index but hands the working tree
+# whatever the platform prefers. That was harmless while nothing off-host read it. Pinning eol=lf
+# makes it byte-identical on every leg, and makes a one-row addition diff as one row rather than as a
+# whole-file rewrite because someone's core.autocrlf disagreed. Same rule as Rng/, Model/Snapshots/,
+# Rules/Effects/Determinism/ and game-data/.
+*.json text eol=lf

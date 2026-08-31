@@ -78,7 +78,8 @@ public sealed class InMemoryGame
         // Defaults are the absence of a thing, never a plausible-looking invented value.
         Entitlements = entitlements ?? new Entitlements(hasPlus: false, expiresAtUtc: null);
         Flags = flags ?? new FeatureFlags(
-            pvpEnabled: true, plusOfferEnabled: true, disabledAdPlacements: [], disabledChapters: []);
+            pvpEnabled: true, plusOfferEnabled: true, mailEnabled: true,
+            disabledAdPlacements: [], disabledChapters: []);
 
         _eventsView = new ReadOnlyCollection<DomainEvent>(_events);
         _createdView = new ReadOnlyCollection<PlayerId>(_created);

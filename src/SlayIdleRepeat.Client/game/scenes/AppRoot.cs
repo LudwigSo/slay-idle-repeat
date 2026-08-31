@@ -1,5 +1,6 @@
 using Godot;
 using SlayIdleRepeat.Client.Composition;
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Client.Game.Presenters;
 
 namespace SlayIdleRepeat.Client.Game.Scenes;
@@ -19,11 +20,16 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// looking in the wrong place.
 /// </para>
 /// <para>
-/// 🔒 The composition/lifecycle seam and nothing else. There is no splash here, no session
-/// handshake, no atlas load and no cold-start budget — the boot screen owns all four, and a
-/// root that grew them would be the boot screen under another name. What the root does own is
-/// the handover: once the graph is composed it puts <see cref="Boot"/> on screen and stops
-/// drawing.
+/// 🔒 The composition/lifecycle seam and nothing else. There is no splash here, no first
+/// sign-in, no atlas load and no cold-start budget — the boot screen owns all four, and a root
+/// that grew them would be the boot screen under another name. What the root does own is the
+/// handover: once the graph is composed it puts <see cref="Boot"/> on screen and stops drawing.
+/// </para>
+/// <para>
+/// 🔒 …and the two things whose lifetime is the application's rather than a screen's: the
+/// connection overlay, and the per-frame tick that advances the connection behind it. Both are
+/// asked for by factory and neither reads anything out of the graph, which is what keeps a scene
+/// that drives the network from naming any of it.
 /// </para>
 /// <para>
 /// ⚠️ The scene's SafeArea margin is a static worst-case guess, not a measurement: 128/64
@@ -53,11 +59,20 @@ public partial class AppRoot : Node3D
     /// and the root node is the only object whose lifetime is the application's — so if the root
     /// lets go, every later screen has to compose again, and a second graph means a second cache
     /// over the same directory. Holding it is what makes injection downward possible; the root
-    /// still reads nothing out of it but the host it gives its presenter.
+    /// reads nothing out of it at all, and hands it whole to the factories that do.
     /// </remarks>
     private ComposedGodotClient? _composed;
 
     private AppRootPresenter? _presenter;
+
+    /// <summary>
+    /// What advances the connection each frame on a build that has one, and null on one that does not.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Driven from here for the reason the overlay is parented here, which
+    /// <see cref="ShowConnectionOverlay"/> states.
+    /// </remarks>
+    private ConnectionPump? _pump;
 
     /// <inheritdoc/>
     public override void _Ready()
@@ -69,27 +84,62 @@ public partial class AppRoot : Node3D
 
     /// <inheritdoc/>
     /// <remarks>
+    /// Every frame, and a no-op on the arm every shipped build takes: the driver is null there, and
+    /// what it would advance was never built. On the server arm this is the only thing that turns a
+    /// composed connection into a live one — the ladder retries nothing nobody asks it to.
+    /// </remarks>
+    /// <param name="delta">Unused — the ladder measures against the injected clock, not frames.</param>
+    public override void _Process(double delta) => _pump?.Advance(_lifetime.Token);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
     /// Cancelled and deliberately not disposed. The token is still held by an open profile call
     /// at exactly this moment, and reading it from a disposed source throws — so disposing here
     /// would trade a leak of one wait handle for a crash on the way out.
+    /// </para>
+    /// <para>
+    /// The order is the point. Cancelling first stops anything new being started, stopping the
+    /// driver keeps it from starting one on the way past, and disposing last closes the transport
+    /// underneath both. A request already inside the socket at this instant faults — after
+    /// cancellation that is a shutdown rather than an error, and the driver reads it rather than
+    /// leaving it to be dropped in silence.
+    /// </para>
     /// </remarks>
-    public override void _ExitTree() => _lifetime.Cancel();
+    public override void _ExitTree()
+    {
+        _lifetime.Cancel();
+        _pump?.Stop();
+        _composed?.Dispose();
+    }
 
     /// <summary>
-    /// Runs the composition root once, hands the host to the presenter, and shows where it got to.
+    /// Runs the composition root once, asks it for the root presenter, and shows where it got to.
     /// </summary>
     /// <remarks>
-    /// The graph is composed once, here, and kept. What the root does NOT do is read it: the
-    /// presenter gets the host and the root touches nothing else in it. That is the line the
-    /// split actually draws — a scene may not use a port, and something has to own one.
+    /// The graph is composed once, here, and kept. What the root does NOT do is read it: it asks a
+    /// factory for a presenter and touches nothing inside the graph itself. That is the line the
+    /// split actually draws — a scene may not name a port, and something has to.
     /// </remarks>
     private async Task ComposeAndStartAsync()
     {
         try
         {
-            _composed = GodotClientComposition.ComposeLocalHost(GodotClientComposition.BuildCapabilities(this));
+            _composed = GodotClientComposition.ComposeClient(GodotClientComposition.BuildCapabilities(this));
 
-            _presenter = new AppRootPresenter(_composed.Client.GameHost);
+            // Before the profile opens rather than after the boot screen is up: the connection is
+            // the application's, not a screen's, and a build that only started climbing once a
+            // screen existed would spend its whole cold start reporting a connection it had never
+            // attempted.
+            _pump = AppRootComposition.CreateConnectionPump(_composed.Client);
+
+            // Up before the first screen is, for the same reason: what it draws belongs to the
+            // application. Putting it up only once the boot screen appeared left the whole cold
+            // start — the part of a launch a connection is most likely to be missing during —
+            // drawing nothing about a connection that was already being climbed.
+            ShowConnectionOverlay(_composed);
+
+            _presenter = AppRootComposition.CreateAppRootPresenter(_composed);
 
             // No ConfigureAwait(false) here, and that is deliberate rather than an omission: the
             // continuation writes to a node, and only the thread the engine runs the scene tree on
@@ -173,6 +223,69 @@ public partial class AppRoot : Node3D
         GetNode<CanvasLayer>(UiLayerPath).Visible = false;
 
         AddChild(boot);
+    }
+
+    /// <summary>Puts the connection overlay up, if this build composed a connection to draw.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 Parented to the root and to nothing else. What it draws is global — one connection, not one
+    /// per screen — and the root is the only node whose lifetime is the application's, so this is the
+    /// only parent that survives every handover. It is a sibling of the root's own <c>%Ui</c> layer
+    /// rather than a child of it, which is the whole reason it is its own <see cref="CanvasLayer"/>:
+    /// a child would have gone dark with the boot chrome on the very first handover.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The null branch is the ordinary one, and it is not an absence.</b> A build composed over
+    /// no wire seam has no connection to lose, so the factory answers null, nothing is instantiated
+    /// and nothing about the connection is ever drawn — which is the specified rendering for a
+    /// working connection. The other branch is live: the server arm composes the presenter and the
+    /// root drives its ladder from <see cref="_Process"/>.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>Raised here rather than after the boot screen, so it can draw over the splash — which
+    /// is deliberate, and which quietly enters a state nobody has specified.</b> Deliberate because
+    /// a cold start is when a connection is most likely to be missing, the pill's own threshold
+    /// already keeps a blink of failure off the screen, and nothing it draws can be tapped or
+    /// blocked. Unspecified because what a player is shown when the FIRST connection of a launch is
+    /// the one that fails is O32, still open — <see cref="Boot"/> names the same gap for the screen
+    /// underneath. What is drawn during that window today is the mid-session reconnect pill, for
+    /// want of anything authored; it is the least-wrong default rather than an answer, and the
+    /// milestone that closes O32 should read this paragraph before assuming it was one.
+    /// </para>
+    /// </remarks>
+    private void ShowConnectionOverlay(ComposedGodotClient composed)
+    {
+        if (AppRootComposition.CreateConnectionPresenter(composed) is not { } connection)
+        {
+            return;
+        }
+
+        var scene = GD.Load<PackedScene>(ConnectionOverlay.ScenePath);
+
+        if (scene is null)
+        {
+            // Load answers null rather than throwing when the resource is missing or its import
+            // cannot be read. Reported and then dropped: a missing overlay costs the player the
+            // status pill, and taking the application down over it would be the blocking connection
+            // error the overlay exists to avoid.
+            GD.PushError(
+                $"The connection overlay could not be loaded from '{ConnectionOverlay.ScenePath}', " +
+                "so this build will draw none of the connection states.");
+
+            return;
+        }
+
+        var overlay = scene.Instantiate<ConnectionOverlay>();
+
+        // 🔴 The motion setting is named at the call site rather than left to its default, the way
+        // the battle replay and the perk draft already name theirs: this is the first live caller
+        // the overlay has ever had, and a reader who found it would otherwise have no way of seeing
+        // that the pulse, the slide and the flash have a switch at all. False because there is
+        // nowhere for a preference to have come from — this client has no settings screen — and
+        // saying so here is what keeps that a stated absence rather than an oversight.
+        overlay.Drive(connection, _lifetime.Token, reducedMotion: false);
+
+        AddChild(overlay);
     }
 
     /// <summary>Writes a line of status into the scene, if the scene is still there to write it into.</summary>

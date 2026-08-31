@@ -77,6 +77,52 @@ function Exit-WithFailures {
     exit 1
 }
 
+function Read-TrxCounters {
+    <#
+        The real test counts out of a TRX, and whether they were measured at all.
+
+        `dotnet test` returns exit code 0 for an assembly containing zero tests, so
+        every script here reads the counters rather than the exit code.
+
+        THREE states, not two, because the callers word them differently:
+          Present=$false            - no TRX at all. The run did not complete.
+          Present=$true, Measured=$false - a TRX carrying no <Counters>. Also not
+                                    a measurement, but a different one: the file
+                                    exists and the reader should be told so.
+          Measured=$true            - real counts, including a genuine zero.
+
+        A Total of 0 with Measured=$false means "not measured", which must never
+        be reported as an empty suite: that sends the reader off to declare an
+        exemption for a suite whose real problem is that it did not run.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return [pscustomobject]@{ Present = $false; Measured = $false; Total = 0; Passed = 0; Failed = 0 }
+    }
+
+    $xml = [xml](Get-Content -Raw -LiteralPath $Path)
+    $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+    $ns.AddNamespace('t', 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010')
+    $counters = $xml.SelectSingleNode('//t:Counters', $ns)
+    if (-not $counters) {
+        return [pscustomobject]@{ Present = $true; Measured = $false; Total = 0; Passed = 0; Failed = 0 }
+    }
+
+    return [pscustomobject]@{
+        Present  = $true
+        Measured = $true
+        Total    = [int]$counters.total
+        Passed   = [int]$counters.passed
+
+        # Every way a test can end without passing, folded into one number: a run
+        # that timed out or aborted is as red as one that asserted wrong.
+        Failed   = [int]$counters.failed + [int]$counters.error +
+                   [int]$counters.aborted + [int]$counters.timeout
+    }
+}
+
 function Get-RelativePath {
     param([Parameter(Mandatory)][string]$Root, [Parameter(Mandatory)][string]$Path)
     $full = (Resolve-Path -LiteralPath $Path).Path

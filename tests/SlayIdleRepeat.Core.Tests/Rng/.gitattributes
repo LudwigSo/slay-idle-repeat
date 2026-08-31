@@ -1,6 +1,6 @@
-# Hash64ReferenceVectors.json is the determinism pin (14 §8.0) and is re-asserted on
-# Linux x64, Android ARM64 and iOS ARM64 by the cross-platform job (M5-12). Its line
-# endings are pinned to LF so the file is byte-identical on every one of them, and so a
-# one-row addition never diffs as a whole-file rewrite because someone's core.autocrlf
+# Hash64ReferenceVectors.json is the determinism pin (14 §8.0) and is re-asserted on the cross-platform
+# job's live legs — Linux x64 and Android ARM64. (The iOS ARM64 leg is authored and gated off with iOS
+# itself, `16` D34.) Its line endings are pinned to LF so the file is byte-identical on every one of
+# them, and so a one-row addition never diffs as a whole-file rewrite because someone's core.autocrlf
 # disagreed. It follows the same rule as game-data/.
 *.json text eol=lf

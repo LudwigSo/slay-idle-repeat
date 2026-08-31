@@ -54,9 +54,17 @@ public sealed class PortCatalogueTests
     /// 🔒 M7-01b raised it 5 → 6 for <c>IPlatformInfoPort</c>, together with
     /// <c>ContractSuiteCoverageTests.PortFloor</c> and <c>SubjectSetFloorTests.PortFloor</c>. Three
     /// floors are stated over the same set in three assemblies; one moving without the others is one
-    /// of them having gained a member the other two cannot see.
+    /// of them having gained a member the other two cannot see. M5 raised it 6 → 12 across two tasks
+    /// that each moved all three together: M5-05's four server persistence ports and M5-11's two
+    /// observability ports (<c>IAnalyticsSinkPort</c>, <c>ITelemetryPort</c>). M5-04 raised it
+    /// 12 → 13 for <c>IUnitOfWork</c>, moving all three again, and M5-08 raised it 13 → 14 for
+    /// <c>IMessageRepository</c>.
+    /// ⚠️ Both tasks were written against a 12 and each declared a 13; the integration merge is
+    /// where that reconciles, because a textual merge of two identical constants keeps ONE port's
+    /// worth of headroom and nothing goes red. Counted against the repository, not against either
+    /// branch's arithmetic.
     /// </remarks>
-    private const int DeclaredPortFloor = 6;
+    private const int DeclaredPortFloor = 16;
 
     /// <summary>
     /// Entries in the register. At zero, <see cref="No_port_deferral_outlives_the_port_it_defers"/>,
@@ -94,6 +102,12 @@ public sealed class PortCatalogueTests
             new[] { "DeviceModel", "OsVersion", "AppVersion", "Locale", "IsLowEndDevice" }),
         ("23 §4.1", "ILocalCachePort", new[] { "ReadAsync", "WriteAsync", "DeleteAsync" }),
         ("23 §4.1", "IRewardedAdPort", new[] { "IsReady", "ShowAsync", "PreloadAsync" }),
+        ("23 §4.2", "IPlayerRepository", new[] { "GetAsync", "SaveAsync", "CreateAnonymousAsync" }),
+        ("23 §4.2", "IRunStateStore", new[] { "GetAsync", "SaveAsync", "DeleteAsync" }),
+        ("23 §4.2", "IIdempotencyStore", new[] { "GetRecordedOutcomeAsync", "RecordAsync" }),
+        ("23 §4.2", "IBattleLogStore", new[] { "PutAsync", "GetAsync" }),
+        ("23 §4.2", "IAnalyticsSinkPort", new[] { "Track" }),
+        ("23 §4.2", "ITelemetryPort", new[] { "RecordException", "BeginSpan", "RecordMetric" }),
         ("23 §4.3", "IClockPort", new[] { "UtcNow" }),
         ("23 §4.3", "IIdGeneratorPort", new[] { "NewGuid", "NewCommandId" }),
     };
@@ -465,11 +479,13 @@ public sealed class PortCatalogueTests
     [Fact]
     public void The_register_directions_fire_on_a_deliberately_bad_entry_and_are_silent_on_a_good_one()
     {
+        // The crafted subject has to be a port that is still DEFERRED, or the expired direction
+        // fires on the good entry itself. It was IUnitOfWork until M5-04 declared that one.
         var group = new PortCatalogue.SpecifiedPortGroup(
-            "23 §4.2", PortCatalogue.ServerPortsNamespace, new[] { "IUnitOfWork" });
+            "23 §4.2", PortCatalogue.ServerPortsNamespace, new[] { "IGhostRepository" });
 
         var good = new PortCatalogue.PortDeferral(
-            "IUnitOfWork", "M5-04", "a reason long enough to be worth falsifying at the next kickoff.");
+            "IGhostRepository", "M12-01", "a reason long enough to be worth falsifying at the next kickoff.");
 
         PortCatalogue.Undeclared(new[] { group }, new[] { good }).ShouldBeEmpty();
         PortCatalogue.Unanchored(new[] { group }, new[] { good }).ShouldBeEmpty();
@@ -892,7 +908,7 @@ public sealed class PortCatalogueTests
             .Concat(PortCatalogue.OmittedMembers.Select(o => (Subject: o.Port + "." + o.Member, o.Owner)));
 
         ArchRule.Empty(
-            PortCatalogue.OwnersNoLongerOpen(entries, PortCatalogue.TrackerStatuses(Tracker())),
+            PortCatalogue.OwnersNoLongerOpen(entries, PortCatalogue.TrackerStatuses(RepoLayout.TrackerText())),
             "Every PortCatalogue owner is a tracker task that is still open (23 §6, steering S4).");
     }
 
@@ -917,7 +933,7 @@ public sealed class PortCatalogueTests
     [Fact]
     public void The_owner_status_rule_fires_on_a_shipped_or_missing_owner_and_is_silent_on_an_open_one()
     {
-        var tracker = Tracker();
+        var tracker = RepoLayout.TrackerText();
         var statuses = PortCatalogue.TrackerStatuses(tracker);
 
         // 🔒 The anchor, pinned by IDENTITY on the three rows that discriminate it. Each of these
@@ -980,12 +996,17 @@ public sealed class PortCatalogueTests
         PortCatalogue.LegendGlyphs("- **Statuses:** `⬜ todo` · `🆕 brand new`")
             .ShouldBe(new[] { "⬜", "🆕" });
 
-        var open = new[] { (Subject: "IUnitOfWork", Owner: "M5-04") };
+        // ⚠️ THE OPEN EXAMPLE IS A FIXTURE WITH AN EXPIRY DATE, and this is the third one M5
+        // burned: it named M5-04 until that task shipped, exactly as the analytics register named
+        // M5-05 and the gear register named M5-06. The arm cannot be dropped — without a genuinely
+        // open owner the rule could report every entry as stale and this control would still pass —
+        // so it is re-pointed instead, and the next reader should expect to move it again.
+        var open = new[] { (Subject: "IUnitOfWork", Owner: "M18-08") };
         var shipped = new[] { (Subject: "IUnitOfWork", Owner: "M7-01") };
         var absent = new[] { (Subject: "IUnitOfWork", Owner: "M9-99") };
 
         PortCatalogue.OwnersNoLongerOpen(open, statuses).ShouldBeEmpty(
-            "M5-04 is a real tracker row and has not started, which is the arrangement every "
+            "M18-08 is a real tracker row and has not started, which is the arrangement every "
             + "deferral here is supposed to be in.");
 
         PortCatalogue.OwnersNoLongerOpen(shipped, statuses)
@@ -1014,10 +1035,6 @@ public sealed class PortCatalogueTests
     /// <summary>Every type Cecil finds in the plain-C# platform adapter beside it.</summary>
     private static IEnumerable<TypeDefinition> HostTypes() =>
         Il.AllTypes(ProductionAssemblies.Module(PortCatalogue.HostAdapterAssembly));
-
-    /// <summary>The tracker's raw text.</summary>
-    private static string Tracker() =>
-        File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
 
     /// <summary>
     /// The project names <c>SlayIdleRepeat.Contract.Tests</c> references.

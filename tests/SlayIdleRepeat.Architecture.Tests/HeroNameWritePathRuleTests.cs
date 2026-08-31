@@ -42,9 +42,6 @@ public sealed class HeroNameWritePathRuleTests
     /// <summary>The one type `27` §1's filter lives in, and the only one allowed to mint a name.</summary>
     private const string SanctionedMinter = "SlayIdleRepeat.Core.Rules.Hero.HeroNameRule";
 
-    /// <summary>The rule's two entry points — the door a name must come through.</summary>
-    private static readonly string[] FilterEntryPoints = ["Validate", "Default"];
-
     /// <summary>
     /// `27` §1 — one minter, named by identity, with a floor under the subject set.
     /// </summary>
@@ -77,70 +74,6 @@ public sealed class HeroNameWritePathRuleTests
                     "second way into Player.DisplayName, and it is the one that skips the word " +
                     "lists. Call HeroNameRule.Validate and use the name it answers."),
             "Only the name rule constructs a HeroName (27 §1, 07 §1).");
-    }
-
-    /// <summary>
-    /// 🔒 `27` §1 — <b>a self-expiring witness for a deferral that has none.</b> Nothing in
-    /// production calls the name filter yet, and the day something does, this fails.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// `14` §2.3's registry is exhaustive and authors no rename command, so a hero name is set when
-    /// an account is created — and no account-creation path exists. <c>GapRegister</c> carries that
-    /// as a named-owner comment (M5-06) because the register keys on a TYPE and the gap is a missing
-    /// CALLER, and a comment on its own is what steering <b>S4</b> exists to refuse: nothing would
-    /// fail when it stopped being true.
-    /// </para>
-    /// <para>
-    /// This is that failing witness, and it expires by being <em>satisfied</em>: the commit that
-    /// wires account creation to <c>HeroNameRule</c> turns it red, and the fix is to delete both this
-    /// rule and the <c>GapRegister</c> note in that commit. It is deliberately stated in the
-    /// direction that goes red on progress rather than on regression — which is the only direction
-    /// available for "this is not wired up yet".
-    /// </para>
-    /// <para>
-    /// ⚠️ Scoped to <c>src/</c> only. <b>The M4 review closed the hole this paragraph used to
-    /// admit.</b> It read: <em>"one production path writes <c>DisplayName</c> without the filter —
-    /// <c>Player.CreateStarting</c>, which takes a plain string… 🔴 Neither scan below can see that
-    /// parameter: a caller that passed player-chosen text to it would set an unfiltered name with
-    /// both rules still green."</em> That was the honest statement of a real gap, on the one path
-    /// `27` §1 names by name ("at creation and on every edit"), and it is now shut:
-    /// <c>CreateStarting</c> takes a <c>HeroName</c>, so it cannot be handed text the filter
-    /// has not seen.
-    /// </para>
-    /// <para>
-    /// The two callers that name an account after something the player never typed went to doors of
-    /// their own: <c>CreateStartingNamedAfterItsOwnId</c>, which takes <em>no name parameter at
-    /// all</em>, and <c>CreateStartingWithUnfilteredName</c>, which says so in its name. The second
-    /// is the one that still writes an unfiltered name — but it is a named method rather than a
-    /// parameter, so its callers are enumerable, and
-    /// <see cref="Only_the_harness_uses_the_explicitly_unfiltered_starting_door"/> enumerates them
-    /// across <c>Core</c> <em>and</em> <c>Application</c>.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>What is still not closed.</b> Nothing stops a future caller of the unfiltered door
-    /// beyond that rule's own sanctioned list, and no scan here says a name set through persistence
-    /// was ever filtered — <c>Rehydrate</c> loads a stored name as written, deliberately (see
-    /// <c>HeroNameRule</c>'s remarks on content changing without a build).
-    /// </para>
-    /// </remarks>
-    [Fact]
-    public void Nothing_in_production_calls_the_name_filter_yet_and_this_fails_when_something_does()
-    {
-        var callers = FilterEntryPoints
-            .SelectMany(entry => CallersOf(SanctionedMinter, entry))
-            .Where(caller => !caller.DeclaringType.FullName.Equals(SanctionedMinter, StringComparison.Ordinal))
-            .ToArray();
-
-        ArchRule.Empty(
-            callers.Select(caller =>
-                $"{Il.Describe(caller)} calls the hero name filter. 🎉 THIS IS GOOD NEWS AND THE " +
-                "RULE IS DOING ITS JOB: it exists only to fail on the commit that finally wires " +
-                "27 §1's filter to a real caller. Delete this test AND GapRegister's named-owner " +
-                "note about the unwired filter in the same commit — the deferral has been " +
-                "discharged, and an exemption that outlives what it excused is steering S4's " +
-                "failure mode."),
-            "Nothing in production calls the hero name filter yet (27 §1; owner M5-06).");
     }
 
     /// <summary>
@@ -183,18 +116,21 @@ public sealed class HeroNameWritePathRuleTests
     /// <c>GapRegister</c> and <c>RoutingExemptions</c> use.
     /// </summary>
     /// <remarks>
-    /// Exactly one row. The in-process host is deliberately <b>not</b> on it: it names a profile
-    /// after the identity it minted, which is <c>CreateStartingNamedAfterItsOwnId</c>'s job, and a
-    /// host that reached for this door instead would be storing a name from a path that could carry
-    /// player text tomorrow.
+    /// Exactly one row. The in-process host is deliberately <b>not</b> on it: it names a profile with
+    /// the validated default the filter answers, through <c>Player.CreateStarting</c>, and a host that
+    /// reached for this door instead would be storing a name from a path that could carry player text
+    /// tomorrow.
     /// </remarks>
     private static readonly (string Type, string Why)[] SanctionedUnfilteredCallers =
     [
         ("SlayIdleRepeat.Core.Testing.InMemoryGame",
             "the 30 §6 domain harness. It labels fixture players ('Ludwig the Unhurried') and runs " +
             "on hermetic content sets that carry no word lists at all, so there is no filter for it " +
-            "to pass and nothing player-chosen for it to filter. Owner: M5-06, with the rest of the " +
-            "account-creation wiring."),
+            "to pass and nothing player-chosen for it to filter. NO OWNER, because there is nothing " +
+            "left to discharge: M5-06 landed the account-creation wiring and routed it through the " +
+            "filter, and this row did not move — a harness that carries no word lists cannot consult " +
+            "them however account creation is wired. It comes out only if the harness stops needing " +
+            "an unfiltered label at all, and the door comes out with it."),
     ];
 
     /// <summary>
@@ -259,7 +195,11 @@ public sealed class HeroNameWritePathRuleTests
     [Fact]
     public void The_two_module_scan_sees_Application_as_well_as_Core()
     {
-        CallersOf(ProductionAssemblies.ApplicationModule, PlayerType, "CreateStartingNamedAfterItsOwnId")
+        // ⚠️ The probe used to name CreateStartingNamedAfterItsOwnId, and M5-06 emptied it: the host
+        // stopped naming its profile after its own id and now builds the row with the validated
+        // default the filter answers. Repointed at the door it actually uses rather than left naming
+        // a call site that no longer exists, which would have failed as a broken scan.
+        CallersOf(ProductionAssemblies.ApplicationModule, PlayerType, "CreateStarting")
             .ShouldNotBeEmpty(
                 "InProcessGameHost.OpenProfileAsync builds its starting row through this door, so a " +
                 "scan that finds nothing in Application is not reading that module at all — and the " +

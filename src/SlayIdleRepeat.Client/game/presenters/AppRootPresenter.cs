@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;

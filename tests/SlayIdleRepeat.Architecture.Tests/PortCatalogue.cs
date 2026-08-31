@@ -156,29 +156,31 @@ internal static class PortCatalogue
             "alone would satisfy the port's shape and prove nothing about either store's purchase " +
             "flow, which is where every defect in this area lives."),
 
-        new("IGameApiPort", "M7-02",
-            "M7-09 landed the in-process game seam — Application.Hosting.IGameHost, one real " +
-            "implementation over the M5-02 use cases — and deliberately did NOT declare this port. " +
-            "IGameHost is typed on Core's GameCommand; this port carries the command envelope M5-03 " +
-            "owns (commandId, sequence, stateHash), which no assembly declares. Its second " +
-            "implementation is the HTTP adapter, which needs a running server. And 23 §5 A5 is a " +
-            "live CI gate: a declared port needs a shared contract suite under Contract.Tests, so " +
-            "declaring it without one fails the build. M7-02 writes the suite, the HTTP adapter and " +
-            "the envelope's port shape together, and implements it by wrapping IGameHost. " +
-            "🔒 AND THE CONDITION THIS ENTRY IS THE ONLY RECORD OF, because no rule can hold it: " +
-            "IGameHost is not a port while its one implementation lives inside Application and " +
-            "depends on nothing outside it. The commit that has an ADAPTER PROJECT implement it makes " +
-            "it one by 23 §2.2 — an application-owned interface a vendor conforms to — and neither " +
-            "Every_port_has_at_least_two_implementations nor X-06 quantifies over anything outside " +
-            "Ports/, so that commit goes green with no A5 gate and no suite. M7-02 either moves " +
-            "IGameHost under Ports/Client with its shared suite in the same commit, or keeps every " +
-            "HTTP implementation above the seam so the interface keeps its single in-process one."),
+        // ⚠️ IGameApiPort was here, deferred to M7-02, and this register forced its deletion on the
+        // commit that declared it. The condition the entry recorded — that IGameHost is not a port
+        // while its one implementation lives inside Application, and that an adapter implementing it
+        // there would satisfy no gate — was answered by taking the first of the two arms it named:
+        // IGameHost moved under Ports/Client with its shared suite, and IGameApiPort was declared
+        // beside it as the separate wire seam, because ApplyCommandOutcome carries the Core
+        // aggregates (run seed included) and no HTTP client can honestly produce one.
 
-        new("IRealtimeChannelPort", "M7-02",
-            "A push channel with no server to push from. Its real implementation is a WebSocket " +
-            "client against the server M5-06 authenticates and M7-09 first stands up in process; " +
-            "the connection-state vocabulary its events carry is M7-02's, and M7-09's in-process " +
-            "host answers one command at a time with no channel to push down."),
+        new("IRealtimeChannelPort", "M16-04",
+            "🔒 NOT BLOCKED ON INFRASTRUCTURE — blocked on a DESIGN THAT DOES NOT EXIST, which is " +
+            "why the owner moved off M7-02. Measured: 14 §2.3 and §3 contain no WebSocket at all. " +
+            "The command protocol is POST /run/{runId}/command and POST /player/command; the " +
+            "reconnect flow is GET /run/{runId}/state?sinceSequence=N with exponential backoff. " +
+            "M5-06 descoped the WebSocket upgrade-auth design at kickoff on the measured ground that " +
+            "no hub exists or is built in M5, and M7-02 then built all five connection states — " +
+            "Connected, Reconnecting, Offline read-only, Resynced, Run resumed — over polling plus " +
+            "backoff, needing no channel of any kind. So the client machinery this entry used to " +
+            "wait for now EXISTS and did not want the port. Nothing in the plan pushes to a client " +
+            "except M16-04's notification provider, which is the only row that builds any " +
+            "server→client push mechanism at all, and a channel port cannot be shaped before the " +
+            "thing that would push down it. ⚠️ THE HONEST CONSEQUENCE, stated so the next reader " +
+            "does not treat this as a promise: if a push channel is never designed, this entry is " +
+            "DELETED rather than satisfied. `23` §4.1 declaring the interface is not by itself a " +
+            "reason to build one, and a port whose only implementation would be a fake is the hollow " +
+            "port steering S7 refuses."),
 
         // ⚠️ IPlatformInfoPort was here, deferred to M7-01. M7-01b declared it — Adapters.Platform.Host
         // over the BCL beside the InMemory fake — and this register FORCED the deletion rather than
@@ -262,26 +264,20 @@ internal static class PortCatalogue
 
         // ── 23 §4.2, server ────────────────────────────────────────────────────────────────────
 
-        new("IPlayerRepository", "M5-05",
-            "Its only real implementation is the Postgres adapter, which needs a live database, a " +
-            "schema and migrations — infrastructure this task is forbidden to stand up. Its " +
-            "signature also names a player profile aggregate and a device fingerprint, neither of " +
-            "which exists in Core."),
+        // ⚠️ IPlayerRepository, IRunStateStore, IIdempotencyStore and IBattleLogStore were here,
+        // deferred to M5-05. M5-05 declared all four — each beside its InMemory fake and its shared
+        // contract suite — and this register FORCED the deletions in the declaring commit, exactly
+        // as it did for IPlatformInfoPort. Their real store-backed adapters carry no in-repo
+        // fixture; ContractSuiteCoverageTests' StoreBackedAdapterExemptions register is where that
+        // exception lives, owner-expiring on the CI probe that exercises each of them.
 
-        new("IRunStateStore", "M5-05",
-            "Its only real implementation is the Redis hot cache in front of the Postgres-" +
-            "authoritative row, which needs a live Redis. Its TTL semantics are only meaningful " +
-            "against a store that actually expires keys, so a fake pair would test nothing."),
-
-        new("IIdempotencyStore", "M5-05",
-            "Its only real implementation is the Redis-plus-Postgres pair that records a command " +
-            "outcome inside the accepted-command transaction. Both halves are infrastructure, and " +
-            "its signature names the command envelope M5-03 owns."),
-
-        new("IMessageRepository", "M5-08",
-            "The inbox store. Its only real implementation is Postgres, and its signature names a " +
-            "player message, a message id and the six categories the inbox milestone authors — none " +
-            "of which exists in Core, so the port cannot be typed without inventing them."),
+        // ⚠️ IMessageRepository was here, deferred to M5-08 for a reason that has expired: it read
+        // "its signature names a player message, a message id and the six categories the inbox
+        // milestone authors — none of which exists in Core". M5-08 authored MessageId,
+        // MessageCategory and MailAttachment, declared the port beside its InMemory fake and its
+        // shared contract suite, and this register FORCED the deletion in the declaring commit —
+        // exactly as it did for IPlatformInfoPort and for M5-05's four. Its real Postgres adapter
+        // carries no in-repo fixture; StoreBackedAdapterExemptions is where that exception lives.
 
         // ⚠️ M12-01, not M5-05. The tracker's M5-05 row enumerates the schema it builds — "profiles
         // JSONB/typed split, run snapshots, idempotency, economy event log, messages" — and ghosts
@@ -299,25 +295,16 @@ internal static class PortCatalogue
             "model that milestone defines. A fake alone would encode a ranking the database has " +
             "never computed."),
 
-        new("IBattleLogStore", "M5-05",
-            "Its only real implementation is the S3-compatible object store, which needs MinIO or a " +
-            "hosted bucket. 🔒 THE SHAPE RULING IS CARRIED FORWARD: when M5-05 declares this port it " +
-            "must expose NO object-store concept whatsoever — no bucket, no key, no presign, no " +
-            "content-type, no region — because the AzureBlob sibling lands at M18-06a and shares " +
-            "this exact port, and Azure Blob is not S3-wire-compatible. The port speaks a battle-log " +
-            "id and bytes. PortCatalogueTests.No_port_signature_names_an_infrastructure_or_vendor_" +
-            "concept enforces that ruling a milestone early, which is the cheap moment. ⚠️ THAT RULE " +
-            "IS A TRIPWIRE ON VENDOR SPELLING, NOT A PROOF OF SHAPE: it catches 'bucket', 'presign', " +
-            "'objectKey' and 'multipart', and it CANNOT catch the same concept spelled in ordinary " +
-            "English — a bare 'key', 'prefix', 'region' or 'endpoint' parameter, or a presigned URL " +
-            "returned as Task<Uri>. See InfrastructureVocabulary's remarks for why those terms are " +
-            "not bannable. M5-05 reads A4 and decides; the rule only stops the careless half."),
+        // 🔒 IBattleLogStore's shape ruling, now DISCHARGED rather than carried: M5-05 declared the
+        // port speaking a battle-log id and bytes and nothing else — no location, no naming scheme,
+        // no link, no Task<Uri>, no bare 'key'/'prefix'/'region'/'endpoint' parameter (23 §5 A4 was
+        // read, not just tripwired). The AzureBlob sibling at M18-06a inherits that surface as-is.
 
-        new("IUnitOfWork", "M5-04",
-            "It spans exactly one Postgres transaction — the aggregate snapshots, the idempotency " +
-            "outcome and the appended domain events, committed together. A port whose entire meaning " +
-            "is a database transaction boundary cannot have a second implementation that is not a " +
-            "database, and a fake alone would make the commit rule untestable while looking tested."),
+        // 🔒 IUnitOfWork's deferral was here, and M5-04 declared the port under Application/Ports/
+        // Server/. Its argument — "a fake alone would make the commit rule untestable while looking
+        // tested" — is answered rather than routed around: the in-memory implementation carries the
+        // both-or-neither cases against a fault it can be told to raise, and the Postgres one is
+        // exempted to the round-trip probe that watches a real transaction.
 
         new("IStoreSubscriptionPort", "M15-05",
             "Its two real implementations are the Google Play Developer API and the App Store Server " +
@@ -335,27 +322,29 @@ internal static class PortCatalogue
             "with service credentials, and the provider decision (O5) is still open — the same " +
             "blocker the registration port carries, from the other end of the same channel."),
 
-        new("IAnalyticsSinkPort", "M5-11",
-            "Its only real implementation is the PostHog server-side sink, a vendor HTTP client with " +
-            "a project key. Its signature names an analytics event vocabulary nothing in Core " +
-            "declares, and a fire-and-forget buffered sink is precisely the shape whose fake proves " +
-            "nothing about delivery."),
+        // ⚠️ IAnalyticsSinkPort and ITelemetryPort were here, deferred to M5-11. M5-11 declared both
+        // — the recording fakes beside the PostHog sink and the OpenTelemetry/Sentry pair — and this
+        // register FORCED the deletion exactly as it did for IPlatformInfoPort above: the commit that
+        // added the interfaces turned No_port_deferral_outlives_the_port_it_defers red on both
+        // entries, by name. Their old reason ("a fake proves nothing about delivery") did not vanish;
+        // it moved to the one register that can hold it now that the ports exist —
+        // Contract.Tests' StoreBackedAdapterExemptions, where each vendor adapter carries the owner
+        // that observes it instead of a fixture.
 
-        new("ITelemetryPort", "M5-11",
-            "Its two real implementations are the OpenTelemetry exporter and the Sentry client, both " +
-            "vendor SDKs needing a collector endpoint or a DSN. A span that goes nowhere and an " +
-            "exception nobody receives both look identical to a fake."),
-
-        new("IRemoteConfigPort", "M5-10",
-            "Its only real implementation fetches JSON over HTTP from the config endpoint that " +
-            "milestone builds, so it needs a running server. 🔒 THE M1 CARRY-FORWARD 7 " +
-            "RECONCILIATION, recorded rather than silently resolved: 23 §4.2 gives this port an OPEN " +
-            "string-keyed surface, T Get<T>(string key, T fallback), plus a SINGULAR FeatureFlag " +
-            "type, and neither has a counterpart in Core's FeatureFlags — which is a deliberately " +
-            "CLOSED record of exactly four members taking ad placements as plain strings. M5-01 did " +
-            "NOT widen FeatureFlags and did not declare the open surface. M5-10 owns choosing " +
-            "between the two, and choosing is the point: an open Get<T> beside a closed flag record " +
-            "gives the repository two ways to ask the same question."),
+        new("IRemoteConfigPort", "M5-17",
+            "Its only real implementation fetches JSON over HTTP from GET /config, so it needs a " +
+            "running server. 🔒 THE M1 CARRY-FORWARD 7 RECONCILIATION IS CLOSED, AT M5-10: Core's " +
+            "deliberately CLOSED FeatureFlags won. 23 §4.2's open string-keyed surface, " +
+            "T Get<T>(string key, T fallback), and its SINGULAR FeatureFlag type are REFUSED — an " +
+            "open Get<T> beside a closed flag record is two ways to ask the same question. The " +
+            "SERVER half shipped PORTLESS as ops config: a server-disk JSON document (RemoteConfig:" +
+            "Path, reloaded periodically) behind GET /config, feeding the gateway's kill switches " +
+            "with no port declared anywhere. What stays deferred is the CLIENT side — consuming " +
+            "that endpoint over HTTP with 14 §10's 6 h cache. ⚠️ RE-POINTED M5-15 -> M5-17 at " +
+            "the M5 wrap-up: M5-15 SHIPPED WITHOUT IT. Its swap composed IGameApiPort and the " +
+            "content socket, but no presenter submits through the wire, so the client has no place " +
+            "a 6 h config cache would be read from. M5-17 is the row that moves the presenters, and " +
+            "this lands with them."),
     };
 
     /// <summary>
@@ -440,6 +429,90 @@ internal static class PortCatalogue
             "IsReady",
             "ShowAsync",
             "PreloadAsync",
+        }),
+
+        // 🔒 M7-02's wire seam, transcribed in the commit that declared it — the coverage rule
+        // demands a row the moment a specified port exists. All three of the section's members are
+        // declared, differently shaped: the section takes a typed command and answers with snapshot
+        // types, while the declaration takes the command ENVELOPE and answers with projections,
+        // because the run seed never leaves the server and no transport can honestly build the
+        // aggregates. RegisterDeviceAsync is a fourth member the section does not write; extras are
+        // the declaration's business and only MISSING members are what these directions can see.
+        new("23 §4.1", "IGameApiPort", new[]
+        {
+            "AuthenticateAsync",
+            "SendCommandAsync",
+            "FetchRunStateAsync",
+        }),
+
+        // 🔒 M5-05's four persistence ports, transcribed in the commit that declared them.
+        // IIdempotencyStore declares two members beyond the section's pair (ReadLastSequenceAsync,
+        // OpenScopeAsync — the 16.3 widening); extra members are the declaration's business, and
+        // only MISSING ones are what these directions can see.
+        new("23 §4.2", "IPlayerRepository", new[]
+        {
+            "GetAsync",
+            "SaveAsync",
+            "CreateAnonymousAsync",
+        }),
+
+        new("23 §4.2", "IRunStateStore", new[]
+        {
+            "GetAsync",
+            "SaveAsync",
+            "DeleteAsync",
+        }),
+
+        new("23 §4.2", "IIdempotencyStore", new[]
+        {
+            "GetRecordedOutcomeAsync",
+            "RecordAsync",
+        }),
+
+        // 🔒 M5-04's boundary. The section sketches a no-argument commit over an ambient session;
+        // the declaration takes what it commits instead, so the member name is the section's and
+        // the shape is the kickoff's — which is exactly the departure this register exists to make
+        // visible rather than silent.
+        new("23 §4.2", "IUnitOfWork", new[]
+        {
+            "CommitAsync",
+        }),
+
+        new("23 §4.2", "IBattleLogStore", new[]
+        {
+            "PutAsync",
+            "GetAsync",
+        }),
+
+        // 🔒 M5-08's inbox port, transcribed in the commit that declared it. All four of `23` §4.2's
+        // members are present; the declaration adds a fifth, DeleteAsync, because the expiry job's
+        // own requirement is "auto-grants attachments on expiring messages AND THEN DELETES THEM"
+        // and the section's four cannot express a deletion. Extra members are the declaration's
+        // business — only MISSING ones are what these directions can see — and the reason for this
+        // one is on the port itself.
+        new("23 §4.2", "IMessageRepository", new[]
+        {
+            "GetActiveAsync",
+            "AppendAsync",
+            "MarkClaimedAsync",
+            "DequeueExpiringAsync",
+        }),
+
+        // 🔒 M5-11's two observability server ports, transcribed in the commit that declared them —
+        // the coverage rule demands a row the moment a specified port exists. NAMES only, per this
+        // register's stated limit: the declared signatures carry §4.2's richer parameter lists
+        // (RecordException's optional context, RecordMetric's tags), which the member directions
+        // cannot and do not compare.
+        new("23 §4.2", "IAnalyticsSinkPort", new[]
+        {
+            "Track",
+        }),
+
+        new("23 §4.2", "ITelemetryPort", new[]
+        {
+            "RecordException",
+            "BeginSpan",
+            "RecordMetric",
         }),
 
         new("23 §4.3", "IClockPort", new[]
@@ -1209,12 +1282,15 @@ internal static class PortCatalogue
     /// honest account of why there are still three).
     /// <list type="bullet">
     ///   <item><c>GapRegisterTests.Every_deferred_command_names_a_task_the_tracker_declares</c> is
-    ///   in this same assembly and checks EXISTENCE only. Measured on this branch, <b>four</b> of
-    ///   <c>GameRules</c>' 24 <c>Deferred</c> rows name a task that has already shipped:
-    ///   <c>REFORGE_ITEM</c>, <c>RETUNE_ITEM</c> and <c>SET_FOCUS</c> to M4-04 (✅), and
-    ///   <c>USE_CONSUMABLE</c> to M3-08 (✅). Pointing that rule at this predicate would turn the
-    ///   build red on four re-points that are milestone decisions — which task builds reforge,
-    ///   retune, focus and consumables — and inventing four owners is steering S6 with a task id
+    ///   in this same assembly and checks EXISTENCE only. Measured on this branch, <b>three</b> of
+    ///   <c>GameRules</c>' 22 <c>Deferred</c> rows name a task that has already shipped:
+    ///   <c>REFORGE_ITEM</c>, <c>RETUNE_ITEM</c> and <c>SET_FOCUS</c>, all to M4-04 (✅).
+    ///   ⚠️ M7-01c wrote "four of 24", counting <c>USE_CONSUMABLE</c>/M3-08 as a fourth; that row
+    ///   has since gained a handler and left <c>Deferred</c> altogether, so the count moved without
+    ///   anything re-reading this paragraph — which is the same rot the register mechanism exists to
+    ///   stop, arriving through prose instead. Pointing that rule at this predicate would turn the
+    ///   build red on three re-points that are milestone decisions — which task builds reforge,
+    ///   retune and focus — and inventing three owners is steering S6 with a task id
     ///   instead of a number. M7-01c reports it instead of guessing. ⚠️ Its PARSER is separable
     ///   from that decision and was deliberately left alone too: its id pattern lacks the
     ///   <c>[a-z]?</c> suffix, so lettered ids (<c>M7-01b</c>, <c>M2-16a</c>) fall out of its

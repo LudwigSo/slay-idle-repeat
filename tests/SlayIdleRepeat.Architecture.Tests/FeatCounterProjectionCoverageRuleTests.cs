@@ -128,6 +128,15 @@ public sealed class FeatCounterProjectionCoverageRuleTests
          "the key is a CONTENT-DERIVED id formed by LuckTuning, so a counter id built from it would " +
          "hard-wire the authored key set into a lifetime counter nothing may rename. 16 O29 owns it, " +
          "same M16 kickoff as GearGranted"),
+        ("MailClaimed",
+         "M16-03",
+         "28 A's claim event. 'Messages claimed' and 'compensations collected' are both derivable " +
+         "straight off this payload — the message id and its category are on it — so the counters " +
+         "are available today and only the ID VOCABULARY is undecided, exactly the two rows above. " +
+         "⚠️ And there is a reason NOT to guess one here beyond O29: a feat that counted inbox " +
+         "claims would be a feat ops could hand a player by sending them mail, which is a decision " +
+         "about what an achievement means rather than about what an event carries. 16 O29 owns it, " +
+         "same M16 kickoff as GearGranted"),
     };
 
     /// <summary>
@@ -253,6 +262,39 @@ public sealed class FeatCounterProjectionCoverageRuleTests
             offenders,
             "S4: every FeatCounterProjection exemption still names an unprojected event, with an " +
             "owner and a reason.");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §6 / steering <b>S4</b>'s other half on this register: an exemption's owner is a
+    /// tracker task that is still <b>open</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The rule above checks the owner field is not blank. Blankness is the weakest predicate this
+    /// repository has for an owner: the day M16-03 ships without deciding the vocabulary — or ships
+    /// having decided it, without anybody deleting these rows — the exemption can never expire, and
+    /// no kickoff is ever asked about the two events whose history it costs.
+    /// </para>
+    /// <para>
+    /// Reuses <see cref="PortCatalogue.TrackerStatuses"/> and
+    /// <see cref="PortCatalogue.OwnersNoLongerOpen"/>, the one owner-status mechanism this
+    /// repository has.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_projection_exemption_owner_is_a_task_the_tracker_still_has_open()
+    {
+        ProjectionExemptions.Length.ShouldBeGreaterThan(
+            0,
+            "the floor under the sweep: an emptied register reports every owner open over nothing.");
+
+        ArchRule.Empty(
+            PortCatalogue.OwnersNoLongerOpen(
+                ProjectionExemptions.Select(e => (Subject: "feat exemption '" + e.Event + "'", e.Owner)),
+                PortCatalogue.TrackerStatuses(
+                    File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md")))),
+            "Every FeatCounterProjection exemption owner is a tracker task that is still open " +
+            "(steering S4).");
     }
 
     /// <summary>

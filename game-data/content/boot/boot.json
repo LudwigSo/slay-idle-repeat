@@ -5,6 +5,8 @@
   "stageStatus": {
     "splash": "loc.boot.splash.status",
     "content": "loc.boot.content.status",
+    "contentSync": "loc.boot.content_sync.status",
+    "session": "loc.boot.session.status",
     "profile": "loc.boot.profile.status",
     "atlas": "loc.boot.atlas.status",
     "ready": "loc.boot.ready.status"

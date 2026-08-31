@@ -1,8 +1,9 @@
-using System.Buffers.Binary;
 using System.Text;
 using SlayIdleRepeat.Application.Ports.Client;
+using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Events;
+using SlayIdleRepeat.Application.Services.Inbox;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core;
@@ -10,6 +11,7 @@ using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Hero;
 
 namespace SlayIdleRepeat.Application.Hosting;
 
@@ -57,7 +59,14 @@ public sealed class InProcessGameHost : IGameHost
     /// <param name="entitlements">The subscription entitlement, resolved once at boot.</param>
     /// <param name="flags">The kill switches, resolved once at boot.</param>
     /// <param name="sinks">Where an accepted command's events go, in delivery order. May be empty.</param>
-    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <param name="messages">
+    /// The inbox store, or an explicit <c>null</c> for a process that has none — which is what the
+    /// game client passes, because mail is a server-held account fact and no local store holds one.
+    /// It is the one argument whose <c>null</c> is a value rather than an omission, so it is stated
+    /// rather than defaulted: a host that filled this in would be deciding, silently, whether the
+    /// player's rewards are reachable from here.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Any argument but <paramref name="messages"/> is null.</exception>
     /// <remarks>
     /// Nothing is defaulted. A composition root that cannot say which entitlement or which flags it is
     /// running under is one that has not decided, and a default here would decide for it silently.
@@ -69,7 +78,8 @@ public sealed class InProcessGameHost : IGameHost
         ContentSnapshot content,
         Entitlements entitlements,
         FeatureFlags flags,
-        IReadOnlyList<IDomainEventSink> sinks)
+        IReadOnlyList<IDomainEventSink> sinks,
+        IMessageRepository? messages)
     {
         ArgumentNullException.ThrowIfNull(cache);
         ArgumentNullException.ThrowIfNull(clock);
@@ -87,7 +97,10 @@ public sealed class InProcessGameHost : IGameHost
         _flags = flags;
 
         _store = new WorldSliceStore(cache);
-        _apply = new ApplyCommandUseCase(_store, new DomainEventDispatcher(sinks));
+        _apply = new ApplyCommandUseCase(
+            _store,
+            new DomainEventDispatcher(sinks),
+            messages is null ? null : new InboxCommandSupport(messages));
         _read = new ReadOwnStateUseCase(_store);
     }
 
@@ -98,8 +111,8 @@ public sealed class InProcessGameHost : IGameHost
     /// a row that does not exist, and every later command fails on the load — a bricked install.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// The starting row this host built does not rehydrate. A defect here or a content set whose
-    /// authored Legend Level range excludes its own minimum, never a caller's doing.
+    /// The starting row this host built does not rehydrate, or the content set's word lists refuse
+    /// the authored default name. A defect here or in the data, never a caller's doing.
     /// </exception>
     /// <exception cref="MissingContentException">The content set authors no Legend Level range.</exception>
     /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
@@ -115,9 +128,10 @@ public sealed class InProcessGameHost : IGameHost
 
         var id = new PlayerId(PlayerIdPrefix + _ids.NewGuid().ToString("N"));
 
-        // The name is the identity until something asks the player for one: nothing has, and a name
-        // invented here would be a value with no author.
-        var starting = Player.CreateStartingNamedAfterItsOwnId(id, _clock.UtcNow, _content);
+        // Nothing has asked this player for a name, so they carry the authored default — read through
+        // the filter rather than spelled here, so a content set whose word lists refuse it stops the
+        // launch instead of naming every such account something the game itself refuses.
+        var starting = Player.CreateStarting(id, HeroNames.Default(_content), _clock.UtcNow, _content);
 
         if (starting.IsFailure)
         {
@@ -149,7 +163,7 @@ public sealed class InProcessGameHost : IGameHost
 
         var context = new GameContext(
             _clock.UtcNow,
-            GameRules.RequiresCommandSeed(command) ? FreshCommandSeed() : null,
+            GameRules.RequiresCommandSeed(command) ? CommandSeedSource.Fresh(_ids) : null,
             _content,
             _entitlements,
             _flags);
@@ -160,29 +174,4 @@ public sealed class InProcessGameHost : IGameHost
     /// <inheritdoc/>
     public Task<OwnStateResult> ReadOwnStateAsync(PlayerId player, RunId? run, CancellationToken ct) =>
         _read.ReadAsync(new ReadOwnStateRequest(player, run), ct);
-
-    /// <summary>One meta command's seed, folded from the one sanctioned source of fresh entropy here.</summary>
-    /// <remarks>
-    /// Both halves of the guid are folded in rather than the low eight bytes taken, because a
-    /// generator is only required to make the whole identifier unique — a fake that varies its
-    /// trailing bytes and a real one that varies its leading bytes are both conforming, and reading
-    /// half of it would silently draw the same seed forever under one of them.
-    /// </remarks>
-    private ulong FreshCommandSeed()
-    {
-        Span<byte> bytes = stackalloc byte[16];
-
-        // Checked rather than discarded. A write that did not happen leaves the buffer as the stack
-        // left it, and the fold below would then draw the same seed for every command — the exact
-        // failure the fold itself exists to rule out, and the one shape of it nothing would report.
-        if (!_ids.NewGuid().TryWriteBytes(bytes))
-        {
-            throw new InvalidOperationException(
-                "A guid did not fit sixteen bytes, so this command's seed would be folded from a " +
-                "buffer nothing wrote.");
-        }
-
-        return BinaryPrimitives.ReadUInt64LittleEndian(bytes) ^
-               BinaryPrimitives.ReadUInt64LittleEndian(bytes[8..]);
-    }
 }

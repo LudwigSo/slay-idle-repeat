@@ -6,8 +6,17 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// <remarks>
 /// <c>schema/</c> holds JSON Schema and never content; <c>loc/*.json</c> is governed by
 /// <c>schema/loc.schema.json</c>; <c>tuning/experiments/*.json</c> are override patches and never
-/// part of a snapshot; each <c>content/&lt;type&gt;/</c> directory is governed by the one schema
-/// for that content type; everything else is governed by <c>schema/&lt;stem&gt;.schema.json</c>.
+/// part of a snapshot; <c>assets/*.json</c> are asset registers — validated and paired like any
+/// other document, but never part of a snapshot either; each <c>content/&lt;type&gt;/</c> directory
+/// is governed by the one schema for that content type; everything else is governed by
+/// <c>schema/&lt;stem&gt;.schema.json</c>.
+/// <para>
+/// Three categories therefore answer "is this snapshot content?" with no: a schema, which is never
+/// content at all; an experiment, which is a patch nobody ships; and an asset register, which
+/// describes the files an <em>install</em> carries rather than the numbers a run is played
+/// against — so shipping it inside the snapshot would move the content stamp on every art
+/// re-export and invalidate every pinned run for a change no rule can read.
+/// </para>
 /// <para>
 /// It is a type rather than a set of private constants because <c>tools/ContentValidator</c> needs
 /// the same convention — two copies in two projects that must agree is one copy too many.
@@ -35,6 +44,9 @@ public static class ContentLayout
 
     /// <summary>Where the content-type directories live.</summary>
     public const string ContentDirectory = "content/";
+
+    /// <summary>Where the asset registers live. Validated and paired, never snapshotted.</summary>
+    public const string AssetRegisterDirectory = "assets/";
 
     /// <summary>
     /// Content is paired by <b>directory</b>, because content is paired by <em>type</em>: many files
@@ -117,6 +129,15 @@ public static class ContentLayout
             // The Campfire / Shrine screen's string slots — one document serving two arms, and
             // splitting the shrine's half out is the tidy-up this row keeps buildable.
             [ContentDirectory + "campfire/"] = SchemaDirectory + "campfire" + SchemaSuffix,
+
+            // The authored inbox templates. Not the easy case above for long: ops copy grows by
+            // document — one per incident class — and the day the second lands the stem rule would
+            // start demanding a schema per template file.
+            [ContentDirectory + "mail/"] = SchemaDirectory + "mail" + SchemaSuffix,
+            // The connection-state strings. Not a screen's slots: they are drawn over whatever
+            // screen the player is on, which is why they are a type of their own rather than a
+            // member of one.
+            [ContentDirectory + "net/"] = SchemaDirectory + "net" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>
@@ -131,6 +152,19 @@ public static class ContentLayout
     /// <summary>True for an override patch, which never enters a snapshot.</summary>
     public static bool IsExperiment(string documentPath) =>
         documentPath.StartsWith(ExperimentDirectory, StringComparison.Ordinal);
+
+    /// <summary>
+    /// True for an asset register: the third category that is not snapshot content, and the only
+    /// one of the three that is still paired with a schema and still validated.
+    /// </summary>
+    /// <remarks>
+    /// The distinction matters in both directions. Dropping a register before pairing would leave
+    /// its <c>schema/asset_manifest_*.schema.json</c> governing nothing and failing the build as an
+    /// orphan; carrying it into the snapshot would let a re-export of the art it lists restamp the
+    /// content version.
+    /// </remarks>
+    public static bool IsAssetRegister(string documentPath) =>
+        documentPath.StartsWith(AssetRegisterDirectory, StringComparison.Ordinal);
 
     /// <summary>The schema that governs a data document.</summary>
     /// <remarks>

@@ -1,0 +1,57 @@
+{
+  "$schema": "../../schema/mail.schema.json",
+  "_doc": "The authored inbox templates (28 Part A). A message is a template id and typed parameters, never free text — a free-text message cannot be localised, cannot be reviewed before it reaches 300,000 people and cannot be tested. This document is the closed list of what ops may send, and it is a content document rather than server config for two reasons: ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names, so a template referenced only from C# would be an orphan and fatal; and a template is authored copy, which belongs with the rest of the authored copy. ⚠️ There is deliberately NO MILESTONE template. The one thing that would send one is the nightly expiry job's 'auto-grants emit a MILESTONE message only if the value is material', and no document authors what material means — so the feature is off and named rather than guessed at; the Feats and Renown milestone owns the first real MILESTONE sender. ⚠️ There is also no held-for-inventory-space string: v1 grants currencies and Energy only, so no attachment can reach inventory and that state is unreachable. Both absences are carried by the architecture suite's inbox-absence register, with owners.",
+  "templates": [
+    {
+      "body": "loc.mail.announcement.maintenance.body",
+      "category": "ANNOUNCEMENT",
+      "title": "loc.mail.announcement.maintenance.title",
+      "params": [
+        { "name": "startUtc", "type": "DATE_UTC" },
+        { "name": "minutes", "type": "INTEGER" }
+      ]
+    },
+    {
+      "body": "loc.mail.announcement.issue_resolved.body",
+      "category": "ANNOUNCEMENT",
+      "title": "loc.mail.announcement.issue_resolved.title",
+      "params": [
+        { "name": "subject", "type": "TEXT" }
+      ]
+    },
+    {
+      "body": "loc.mail.compensation.outage.body",
+      "category": "COMPENSATION",
+      "title": "loc.mail.compensation.outage.title",
+      "params": [
+        { "name": "dateUtc", "type": "DATE_UTC" },
+        { "name": "hours", "type": "INTEGER" }
+      ]
+    },
+    {
+      "body": "loc.mail.reconciliation.event_currency.body",
+      "category": "RECONCILIATION",
+      "title": "loc.mail.reconciliation.event_currency.title",
+      "params": [
+        { "name": "eventName", "type": "TEXT" }
+      ]
+    },
+    {
+      "body": "loc.mail.moderation.report_outcome.body",
+      "category": "MODERATION",
+      "title": "loc.mail.moderation.report_outcome.title",
+      "params": [
+        { "name": "outcome", "type": "TEXT" }
+      ]
+    },
+    {
+      "body": "loc.mail.account.new_device.body",
+      "category": "ACCOUNT",
+      "title": "loc.mail.account.new_device.title",
+      "params": [
+        { "name": "deviceName", "type": "TEXT" },
+        { "name": "atUtc", "type": "DATE_UTC" }
+      ]
+    }
+  ]
+}

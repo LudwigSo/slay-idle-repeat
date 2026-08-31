@@ -95,22 +95,35 @@ public sealed class WorldSliceStore
     /// <param name="slice">The state to commit, exactly as the domain produced it.</param>
     /// <param name="ct">Cancellation.</param>
     /// <exception cref="ArgumentNullException"><paramref name="slice"/> is null.</exception>
-    public async Task SaveAsync(WorldSlice slice, CancellationToken ct)
+    public Task SaveAsync(WorldSlice slice, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(slice);
 
-        var run = slice.Run?.ToSnapshot();
+        return SaveAsync(new StoredSlice(slice.Player.ToSnapshot(), slice.Run?.ToSnapshot()), ct);
+    }
 
-        if (run is { Phase: RunPhase.Ended })
+    /// <summary>The same commit, from rows a caller already holds as snapshots.</summary>
+    /// <param name="slice">The rows to commit.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="slice"/> is null.</exception>
+    /// <remarks>
+    /// The door a unit of work commits through: it is handed the snapshots a processed command
+    /// produced and has no content set to rehydrate aggregates it would only take apart again. The
+    /// archive-first ordering above is the whole reason this is an overload rather than a second
+    /// write path.
+    /// </remarks>
+    public async Task SaveAsync(StoredSlice slice, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(slice);
+
+        if (slice.Run is { Phase: RunPhase.Ended } finished)
         {
-            await _cache.WriteAsync(SliceKeys.ForRun(run.Id), SnapshotCodec.EncodeRun(run), ct)
+            await _cache.WriteAsync(SliceKeys.ForRun(finished.Id), SnapshotCodec.EncodeRun(finished), ct)
                 .ConfigureAwait(false);
         }
 
         await _cache.WriteAsync(
-                SliceKeys.ForPlayer(slice.Player.Id),
-                SnapshotCodec.EncodeSlice(new StoredSlice(slice.Player.ToSnapshot(), run)),
-                ct)
+                SliceKeys.ForPlayer(slice.Player.Id), SnapshotCodec.EncodeSlice(slice), ct)
             .ConfigureAwait(false);
     }
 

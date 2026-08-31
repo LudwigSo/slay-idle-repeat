@@ -6,9 +6,30 @@
     The only place on the server where concrete adapter types are named.
     Deliberately does NOT reference the in-memory fakes — they ship in tests only.
 
-    M0 scope: the host boots and serves GET /health so M0-03's compose stack has
-    something to wait on. No game endpoints yet.
+    M0 gave it GET /health so M0-03's compose stack has something to wait on.
+    M5-03 added the two command endpoints (14 §2.3) and Program.cs's composition
+    pattern: one file set per functional area, one extension-method line each.
   -->
+
+  <ItemGroup>
+    <!--
+      M5-11: the log pipeline. Structured JSON to stdout; the backend is whatever
+      scrapes it, so this is process plumbing, not a vendor service behind a port.
+    -->
+    <PackageReference Include="Serilog.AspNetCore" />
+  </ItemGroup>
+
+  <!--
+    M5-14: the composition root's own seams — which throttle this process installs,
+    which resolver wraps which — are internal because nothing outside the root may
+    name them, and they are the very claims worth testing. The grant names the one
+    unit-test assembly for this project and nothing else. (The Core rule that
+    InternalsVisibleTo may name only Core.Tests is about SlayIdleRepeat.Core; this
+    is a composition root, whose whole surface is wiring.)
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SlayIdleRepeat.Server.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
@@ -20,6 +41,8 @@
       *client* adapter. Same project, both hosts, because both read the same bytes (23 §4).
     -->
     <ProjectReference Include="..\adapters\shared\SlayIdleRepeat.Adapters.Content.LocalFile\SlayIdleRepeat.Adapters.Content.LocalFile.csproj" />
+    <!-- M5-03: the real clock and id generator behind the command endpoints' GameContext. -->
+    <ProjectReference Include="..\adapters\shared\SlayIdleRepeat.Adapters.Ambient.System\SlayIdleRepeat.Adapters.Ambient.System.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Persistence.Postgres\SlayIdleRepeat.Adapters.Persistence.Postgres.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Cache.Redis\SlayIdleRepeat.Adapters.Cache.Redis.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.ObjectStore.S3\SlayIdleRepeat.Adapters.ObjectStore.S3.csproj" />
@@ -29,6 +52,14 @@
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Push.FcmApns\SlayIdleRepeat.Adapters.Push.FcmApns.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Analytics.PostHog\SlayIdleRepeat.Adapters.Analytics.PostHog.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry.csproj" />
+    <!--
+      M5-11: crash reporting for the SERVER process. What this host uses from it is the SDK
+      initialisation alone — the ITelemetryPort implementation in the same project is the client's,
+      and nothing here resolves it. The project sits under adapters/client because that is where
+      M0 put the shell, before it was settled that both hosts initialise the same SDK; the api
+      service's own Sentry__Dsn in docker-compose.yml is what says the server is meant to.
+    -->
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Telemetry.Sentry\SlayIdleRepeat.Adapters.Telemetry.Sentry.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Config.HttpJson\SlayIdleRepeat.Adapters.Config.HttpJson.csproj" />
   </ItemGroup>
 

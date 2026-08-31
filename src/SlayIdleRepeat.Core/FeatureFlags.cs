@@ -5,9 +5,9 @@ namespace SlayIdleRepeat.Core;
 /// <summary>The remote-config kill switches, resolved at the composition root into a plain value.</summary>
 /// <remarks>
 /// <para>
-/// Four switches, closed on purpose rather than a string-keyed bag: PvP, the Plus offer, ad
-/// placements and chapters. A bag would let any later task introduce an ungoverned flag with no
-/// decision behind it; adding a fifth switch here requires touching <c>FeatureFlagsTests</c> too.
+/// Five switches, closed on purpose rather than a string-keyed bag: PvP, the Plus offer, mail,
+/// ad placements and chapters. A bag would let any later task introduce an ungoverned flag with no
+/// decision behind it; adding a sixth switch here requires touching <c>FeatureFlagsTests</c> too.
 /// </para>
 /// <para>
 /// Kill lists, not allow lists — an identifier no switch names is enabled. An allow list would
@@ -24,16 +24,19 @@ public sealed class FeatureFlags
     /// <summary>Creates the flag value the composition root resolved for this command.</summary>
     /// <param name="pvpEnabled">The PvP kill switch. <c>false</c> takes PvP offline.</param>
     /// <param name="plusOfferEnabled">The Plus-offer kill switch.</param>
+    /// <param name="mailEnabled">The mail kill switch. <c>false</c> refuses inbox claims.</param>
     /// <param name="disabledAdPlacements">The ad placements this config has killed. Copied.</param>
     /// <param name="disabledChapters">The chapters this config has killed. Copied.</param>
     public FeatureFlags(
         bool pvpEnabled,
         bool plusOfferEnabled,
+        bool mailEnabled,
         IEnumerable<string> disabledAdPlacements,
         IEnumerable<string> disabledChapters)
     {
         PvpEnabled = pvpEnabled;
         PlusOfferEnabled = plusOfferEnabled;
+        MailEnabled = mailEnabled;
         DisabledAdPlacements = Freeze(disabledAdPlacements, nameof(disabledAdPlacements));
         DisabledChapters = Freeze(disabledChapters, nameof(disabledChapters));
     }
@@ -43,6 +46,9 @@ public sealed class FeatureFlags
 
     /// <summary>Whether the Plus offer is presentable. <c>false</c> withdraws it.</summary>
     public bool PlusOfferEnabled { get; }
+
+    /// <summary>Whether inbox mail may be claimed. <c>false</c> is the kill switch thrown.</summary>
+    public bool MailEnabled { get; }
 
     /// <summary>The ad placements remote config has killed. Ordinal, immutable.</summary>
     public IReadOnlySet<string> DisabledAdPlacements { get; }

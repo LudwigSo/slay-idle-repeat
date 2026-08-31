@@ -1,5 +1,6 @@
-using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
@@ -15,21 +16,27 @@ public enum BootStage
     /// <summary>Checking that there is a content set to play against.</summary>
     Content = 2,
 
+    /// <summary>Asking the server whether it serves a newer content set, and taking it if so.</summary>
+    ContentSync = 3,
+
+    /// <summary>Opening the account session the wire runs on.</summary>
+    Session = 4,
+
     /// <summary>Opening the local profile.</summary>
-    Profile = 3,
+    Profile = 5,
 
     /// <summary>Reading whatever atlas metadata this installation has.</summary>
-    Atlas = 4,
+    Atlas = 6,
 
     /// <summary>Everything the boot needed is up, and the next screen can take over.</summary>
-    Ready = 5,
+    Ready = 7,
 
     /// <summary>The boot stopped. Where it stopped is carried by <see cref="BootFailure.Stage"/>.</summary>
-    Failed = 6,
+    Failed = 8,
 }
 
 /// <summary>
-/// Why a boot did not finish — one name per cause, because the four are fixed by different people.
+/// Why a boot did not finish — one name per cause, because they are fixed by different people.
 /// </summary>
 public enum BootFailureKind
 {
@@ -44,6 +51,32 @@ public enum BootFailureKind
 
     /// <summary>Something nobody anticipated. Carried rather than swallowed.</summary>
     Unexpected = 4,
+
+    /// <summary>
+    /// The server understood the sign-in and said no. Fatal, unlike a server that could not be
+    /// reached at all: a refusal repeated unchanged is refused again, so there is nothing to wait for.
+    /// </summary>
+    SessionRefused = 5,
+}
+
+/// <summary>
+/// How the session stage ended — one name per outcome, because a log line has to say which.
+/// </summary>
+/// <remarks>
+/// 🔒 Carried beside <see cref="BootPresenter.AccountPlayerId"/> rather than derived from it: the
+/// account is null both when the stage could not reach the server and when the build composed no
+/// session at all, so the account cannot tell a failed server arm from the local one.
+/// </remarks>
+public enum BootSessionOutcome
+{
+    /// <summary>The server answered and the account session is open.</summary>
+    Open = 1,
+
+    /// <summary>The stage ran and the server could not be reached. Recorded, never fatal.</summary>
+    Unreachable = 2,
+
+    /// <summary>The server understood the sign-in and said no. The one outcome that stops a boot.</summary>
+    Refused = 3,
 }
 
 /// <summary>
@@ -76,7 +109,8 @@ public sealed class BootFailure
 }
 
 /// <summary>
-/// Drives the boot screen: content, profile, atlas, then Ready — or a named failure.
+/// Drives the boot screen: content, the two server stages when there are any, profile, atlas, then
+/// Ready — or a named failure.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -90,9 +124,12 @@ public sealed class BootFailure
 /// draws, which is the one outcome worse than saying what broke.
 /// </para>
 /// <para>
-/// ⚠️ Auth, the server session and the content-hash check are deliberately absent — they arrive with
-/// the task that builds them, and a stage here that pretended to do them would make an unbuilt flow
-/// look shipped. So would a first-run beat: the tutorial belongs to the milestone that owns it.
+/// ⚠️ The content-hash check and the server session are here, and both are <b>skipped entirely</b>
+/// when the composition root hands in no collaborator for them — which is what keeps the boot of an
+/// in-process build exactly what it was before a server existed — and neither may hold the boot
+/// past the share of the cold start it is allowed. A first-run beat is still
+/// deliberately absent: the tutorial belongs to the milestone that owns it, and a stage here
+/// pretending to run one would make an unbuilt flow look shipped.
 /// </para>
 /// </remarks>
 public sealed class BootPresenter
@@ -102,10 +139,40 @@ public sealed class BootPresenter
 
     private const string SplashStatusKey = "loc.boot.splash.status";
     private const string ContentStatusKey = "loc.boot.content.status";
+    private const string ContentSyncStatusKey = "loc.boot.content_sync.status";
+    private const string SessionStatusKey = "loc.boot.session.status";
     private const string ProfileStatusKey = "loc.boot.profile.status";
     private const string AtlasStatusKey = "loc.boot.atlas.status";
     private const string ReadyStatusKey = "loc.boot.ready.status";
     private const string FailureStatusKey = "loc.boot.failure.status";
+
+    /// <summary>
+    /// The whole share of a cold start the two stages that talk to a server may spend between them.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Derived from the cold-start budget rather than picked.</b> A cold start has four
+    /// seconds to reach a playable screen, the sign-in and the profile read included, and the engine
+    /// itself plus the content read, the profile open and the atlas read already account for most of
+    /// it — so a quarter is what is genuinely spare for a server. One request's own transport
+    /// timeout is fifteen times that, and there are three requests here, so without this a network
+    /// that accepts the connection and then says nothing (which is not what a refused one does)
+    /// holds the splash screen for the better part of a minute.
+    /// </remarks>
+    private static readonly TimeSpan ServerStageBudget = TimeSpan.FromSeconds(1);
+
+    /// <summary>How long one server stage may hold the boot: the budget above, split evenly.</summary>
+    /// <remarks>
+    /// Evenly rather than weighted, because expiry costs nothing that is not recovered a moment
+    /// later — the reconnect ladder owns retry and opens the session behind the first playable
+    /// screen — so there is no stage worth giving the other's share to.
+    /// </remarks>
+    private static readonly TimeSpan ServerStageDeadline = ServerStageBudget / 2;
+
+    /// <summary>What a content check that never answered in time is recorded as.</summary>
+    private static readonly ContentSyncFailure ContentCheckRanOutOfTime = new(
+        ContentSyncFailureKind.Unreachable,
+        "the content pointer could not be read — the server had still not answered inside the share " +
+        "of the cold start this check is allowed, and the attempt was called off");
 
     /// <summary>What an empty content set means, said in terms of what a player can be told to do.</summary>
     private const string EmptyContentSetDetail =
@@ -116,6 +183,8 @@ public sealed class BootPresenter
     private readonly LocaleStringCatalogue _strings;
     private readonly IBootAtlasCatalogue _atlas;
     private readonly IClockPort _clock;
+    private readonly ContentSyncPresenter? _contentSync;
+    private readonly SessionOpener? _session;
 
     private DateTimeOffset _startedAt;
 
@@ -124,12 +193,20 @@ public sealed class BootPresenter
     /// <param name="strings">Key to display string, over the loaded content set.</param>
     /// <param name="atlas">The placeholder-atlas read.</param>
     /// <param name="clock">The only sanctioned source of time here.</param>
-    /// <exception cref="ArgumentNullException">Any collaborator is null.</exception>
+    /// <param name="contentSync">
+    /// 🔒 The content sync to run, or <c>null</c> to say this build has no server to ask — stated,
+    /// never defaulted. A null skips the stage entirely, which is how the local arm's boot stays
+    /// byte-identical to what it was before a server existed.
+    /// </param>
+    /// <param name="session">The session to open, or <c>null</c> for the same reason.</param>
+    /// <exception cref="ArgumentNullException">Any non-optional collaborator is null.</exception>
     public BootPresenter(
         IGameHost gameHost,
         LocaleStringCatalogue strings,
         IBootAtlasCatalogue atlas,
-        IClockPort clock)
+        IClockPort clock,
+        ContentSyncPresenter? contentSync,
+        SessionOpener? session)
     {
         ArgumentNullException.ThrowIfNull(gameHost);
         ArgumentNullException.ThrowIfNull(strings);
@@ -140,6 +217,8 @@ public sealed class BootPresenter
         _strings = strings;
         _atlas = atlas;
         _clock = clock;
+        _contentSync = contentSync;
+        _session = session;
     }
 
     /// <summary>Where the boot is now. The stage the screen draws.</summary>
@@ -147,6 +226,38 @@ public sealed class BootPresenter
 
     /// <summary>The profile the boot opened, or null while none is open.</summary>
     public PlayerId? PlayerId { get; private set; }
+
+    /// <summary>
+    /// The account the server's session belongs to, or null on an arm that opens none.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Held BESIDE <see cref="PlayerId"/> rather than instead of it, because on the server arm
+    /// the client genuinely holds two identities and nothing reconciles them — reconciling them is
+    /// the presenter migration. Exposing both is what keeps the divergence visible.
+    /// </remarks>
+    public PlayerId? AccountPlayerId { get; private set; }
+
+    /// <summary>How the session stage ended, or null when it did not end in one of those ways.</summary>
+    /// <remarks>
+    /// 🔴 <b>Null carries three different facts and this is the one property that cannot tell them
+    /// apart:</b> this build composed no session, the window closed inside the stage, or the stage
+    /// broke on something no outcome here names — there is no value for "it broke", because a boot
+    /// that broke reports through <see cref="Failure"/>, which carries the stage and the cause. Read
+    /// the two together: a null beside a null failure is an arm that opened no session.
+    /// </remarks>
+    public BootSessionOutcome? SessionOutcome { get; private set; }
+
+    /// <summary>How far the content sync got, or null when this build ran none.</summary>
+    public SyncState? ContentSync { get; private set; }
+
+    /// <summary>Why the content sync stopped, or null when it did not.</summary>
+    /// <remarks>
+    /// Nothing in production reads this yet: a sync failure never stops a boot, and the cold-start
+    /// line carries the state without the reason. It is the detail whichever screen first tells a
+    /// player their content is a revision behind will read, and it is recorded now rather than
+    /// re-derived then.
+    /// </remarks>
+    public ContentSyncFailure? ContentSyncFailure { get; private set; }
 
     /// <summary>What the atlas stage found, or null before it has run.</summary>
     public BootAtlasResult? Atlas { get; private set; }
@@ -170,7 +281,8 @@ public sealed class BootPresenter
     public string StatusText => _strings.Resolve(KeyFor(Stage));
 
     /// <summary>
-    /// Walks the boot: content, profile, atlas. Ends at <see cref="BootStage.Ready"/>, or at
+    /// Walks the boot: content, content sync, session, profile, atlas — the middle two only when
+    /// this build composed them. Ends at <see cref="BootStage.Ready"/>, or at
     /// <see cref="BootStage.Failed"/> with a <see cref="Failure"/> that names where and why.
     /// </summary>
     /// <param name="ct">Cancellation — the app saying the window is closing.</param>
@@ -190,6 +302,43 @@ public sealed class BootPresenter
             }
 
             Mark();
+
+            if (_contentSync is { } sync)
+            {
+                reached = BootStage.ContentSync;
+                Stage = BootStage.ContentSync;
+
+                // 🔒 Never fatal. The installed content is playable — the build shipped with it —
+                // so a server that could not be reached leaves the game one revision behind, not
+                // unstartable. The sync turns every fault into state and never throws.
+                var answered = await WithinTheDeadlineAsync(sync.RunAsync, ct).ConfigureAwait(false);
+
+                ContentSync = answered ? sync.State : SyncState.Failed;
+                ContentSyncFailure = answered ? sync.Failure : ContentCheckRanOutOfTime;
+
+                ContentSnapshotIsNotAdoptedYet(sync);
+
+                Mark();
+            }
+
+            if (_session is { } session)
+            {
+                reached = BootStage.Session;
+                Stage = BootStage.Session;
+
+                // An unreachable server is swallowed in here and recorded on the ladder; a refusal
+                // escapes and stops the boot, which is what makes the two tellable apart. A server
+                // that answers neither way is ended by the deadline and reads as unreachable.
+                await WithinTheDeadlineAsync(session.OpenAsync, ct).ConfigureAwait(false);
+
+                AccountPlayerId = session.Account;
+                SessionOutcome = session.IsOpen
+                    ? BootSessionOutcome.Open
+                    : BootSessionOutcome.Unreachable;
+
+                Mark();
+            }
+
             reached = BootStage.Profile;
             Stage = BootStage.Profile;
 
@@ -214,7 +363,7 @@ public sealed class BootPresenter
         }
         catch (Exception failure)
         {
-            Fail(reached, KindFor(reached), Describe(failure));
+            Fail(reached, KindFor(reached, failure), Describe(failure));
         }
         finally
         {
@@ -227,6 +376,8 @@ public sealed class BootPresenter
     {
         BootStage.Splash => SplashStatusKey,
         BootStage.Content => ContentStatusKey,
+        BootStage.ContentSync => ContentSyncStatusKey,
+        BootStage.Session => SessionStatusKey,
         BootStage.Profile => ProfileStatusKey,
         BootStage.Atlas => AtlasStatusKey,
         BootStage.Ready => ReadyStatusKey,
@@ -234,17 +385,83 @@ public sealed class BootPresenter
     };
 
     /// <summary>Which cause a thrown failure in a given stage is.</summary>
-    private static BootFailureKind KindFor(BootStage stage) => stage switch
+    /// <remarks>
+    /// 🔒 The session arm asks what escaped rather than only where it escaped from. A refusal is the
+    /// server having understood and said no; a body its own reader could not make sense of is
+    /// somebody's serialiser, and reporting it under the same name sends whoever reads it to the
+    /// account service to look for a rejection nobody issued.
+    /// </remarks>
+    private static BootFailureKind KindFor(BootStage stage, Exception failure) => stage switch
     {
         BootStage.Content => BootFailureKind.ContentUnavailable,
+        BootStage.Session when failure is GameApiRefusedException => BootFailureKind.SessionRefused,
         BootStage.Profile => BootFailureKind.ProfileUnavailable,
         _ => BootFailureKind.Unexpected,
     };
+
+    /// <summary>
+    /// Runs one server stage under <see cref="ServerStageDeadline"/>, answering whether it finished.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 An expired attempt is <b>cancelled</b>, not merely walked away from, and nothing here
+    /// retries it: the reconnect ladder owns retry, and a second schedule inside the boot would be
+    /// two answers to "may I try again yet". The caller's own token is linked in, so a shutdown
+    /// still cancels at once — and it is what tells a closing window apart from a slow server,
+    /// since both arrive here as the same exception.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The bound is cooperative, and an expiry is not reported to the ladder.</b> A stage that
+    /// ignored its token would hold the boot anyway — both stages here reach the network through a
+    /// client that honours it, which is why this holds at all. And an expiry arrives as a
+    /// cancellation rather than as the unreachable-server failure the ladder takes as input, so the
+    /// ladder is not told: it is told a frame later, by the driver's own attempt, which runs under
+    /// no deadline. Until that one settles the connection still reads as up.
+    /// </para>
+    /// </remarks>
+    /// <param name="stage">The work to run.</param>
+    /// <param name="ct">The caller's token.</param>
+    private static async Task<bool> WithinTheDeadlineAsync(
+        Func<CancellationToken, Task> stage, CancellationToken ct)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        deadline.CancelAfter(ServerStageDeadline);
+
+        try
+        {
+            await stage(deadline.Token).ConfigureAwait(false);
+
+            return true;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 🔴 <b>The verified snapshot the sync downloaded is dropped, and this names the drop.</b>
+    /// </summary>
+    /// <remarks>
+    /// There is no route from a snapshot produced by the bundle verifier to the one the graph was
+    /// composed over: the content provider only ever re-reads its own source, and swapping mid-boot
+    /// would invalidate every presenter already built over the installed set. So the whole check →
+    /// download → verify flow runs and is reported, and the bytes are discarded until something owns
+    /// adopting them.
+    /// </remarks>
+    /// <param name="sync">The sync whose download is being discarded.</param>
+    private static void ContentSnapshotIsNotAdoptedYet(ContentSyncPresenter sync) => _ = sync.Downloaded;
 
     private static string Describe(Exception failure) => $"{failure.GetType().Name}: {failure.Message}";
 
     private void Fail(BootStage stage, BootFailureKind kind, string detail)
     {
+        if (kind == BootFailureKind.SessionRefused)
+        {
+            SessionOutcome = BootSessionOutcome.Refused;
+        }
+
         Failure = new BootFailure(stage, kind, detail);
         Stage = BootStage.Failed;
     }

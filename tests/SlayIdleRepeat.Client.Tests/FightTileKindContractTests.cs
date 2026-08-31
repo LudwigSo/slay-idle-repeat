@@ -148,6 +148,7 @@ public sealed class FightTileKindContractTests
             new FeatureFlags(
                 pvpEnabled: true,
                 plusOfferEnabled: true,
+                mailEnabled: true,
                 disabledAdPlacements: [],
                 disabledChapters: []));
 

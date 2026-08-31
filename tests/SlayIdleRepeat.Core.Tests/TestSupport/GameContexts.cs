@@ -12,9 +12,11 @@ internal static class GameContexts
     internal static ContentSnapshot EmptyContent { get; } =
         new(ContentVersion.FromHex(new string('0', ContentVersion.HexLength)), []);
 
-    /// <summary>No kill switch thrown: PvP and the Plus offer live, no placement or chapter disabled.</summary>
+    /// <summary>No kill switch thrown: PvP, the Plus offer and mail live, no placement or chapter disabled.</summary>
     internal static FeatureFlags NoKillSwitchThrown { get; } =
-        new(pvpEnabled: true, plusOfferEnabled: true, disabledAdPlacements: [], disabledChapters: []);
+        new(
+            pvpEnabled: true, plusOfferEnabled: true, mailEnabled: true,
+            disabledAdPlacements: [], disabledChapters: []);
 
     /// <summary>A player without Plus.</summary>
     internal static Entitlements WithoutPlus { get; } = new(hasPlus: false, expiresAtUtc: null);

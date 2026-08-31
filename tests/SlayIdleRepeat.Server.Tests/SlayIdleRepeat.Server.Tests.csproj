@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Unit tests for the Server composition root's own code: the endpoint handler
+    functions, the principal seam, and the placeholder adapters M5-05/M5-06
+    replace. NO test here constructs an ASP.NET host, a TestServer or a
+    WebApplicationFactory — that tier was removed deliberately (see
+    build/ci/test-suites.json, $noIntegrationTier); the handlers are plain
+    functions precisely so this suite can exist without one.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Server\SlayIdleRepeat.Server.csproj" />
+    <!-- The port fakes, for the composition classes that take ports (RepositoryWorldRows). -->
+    <ProjectReference Include="..\..\src\adapters\fakes\SlayIdleRepeat.Adapters.InMemory\SlayIdleRepeat.Adapters.InMemory.csproj" />
+  </ItemGroup>
+
+</Project>

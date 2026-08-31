@@ -1383,8 +1383,13 @@ public sealed class SubjectSetFloorTests
     // Adapters.Platform.Host, the real non-engine IPlatformInfoPort that `23` §5 A5 needs beside the
     // fake. Same pairing rule as M5-01's above, and ContractSuiteCoverageTests.AdapterAssemblyFloor
     // — which is stated over the same adapters from the other test assembly — moved with them.
-    private const int ProductionProjectFloor = 32;   // src/ + tools/, floored below the 36 the tree holds
-    private const int AdapterFloor = 24;
+    // 🔒 M5 cross-task review: AdapterFloor stood at 24 against a tree of 25. Adapters.Content.Packed
+    // (M7-10y) landed while this pair was being moved for the ports, and neither floor followed — the
+    // same silence as M5-04/M5-08's two identical port-floor 13s, from the adapter side, and this one
+    // nothing caught. At 24 one ProjectReference could be dropped with both floors still green, which
+    // is exactly the narrowing "tight against the tree" exists to refuse.
+    private const int ProductionProjectFloor = 32;   // src/ + tools/, floored below the 38 the tree holds
+    private const int AdapterFloor = 25;
     // 🔒 M1-02 raised this from 26 to 110 (measured: 120 today). It is the one floor in this file
     // that had gone quiet by standing still: the file's own preamble says these numbers are
     // "derived from the tree as it stands on this commit", and 26 was M0-08's tree. At 26 the ENTIRE
@@ -1403,8 +1408,14 @@ public sealed class SubjectSetFloorTests
     // port `23` §4 declares is carried by PortCatalogue.Deferred with the task that builds it.
     // 🔒 M7-01b raised this from 5 to 6 for IPlatformInfoPort, the first of `23` §4.1's three
     // platform ports to become declarable — with PortCatalogueTests.DeclaredPortFloor and
-    // ContractSuiteCoverageTests.PortFloor, the two other floors over this same set.
-    private const int PortFloor = 6;                 // IContentSourcePort (M0-09) + M5-01's four + M7-01b's one
+    // ContractSuiteCoverageTests.PortFloor, the two other floors over this same set. M5-05 raised
+    // it 6 → 10 for its four server persistence ports and M5-11 raised it 10 → 12 for
+    // IAnalyticsSinkPort and ITelemetryPort, each moving all three floors together. M5-04 raised it
+    // 12 → 13 for IUnitOfWork (M5-04, the commit boundary), 13 → 14 for IMessageRepository (M5-08,
+    // the inbox store), and 14 → 16 for M7-02's two client seams. ⚠️ M5-04 and M5-08 each raised it
+    // to 13 independently and git merged two identical 13s in silence — a floor is only ever right
+    // if it was COUNTED against the repo, never carried over from a sibling's edit.
+    private const int PortFloor = 16;                // IContentSourcePort (M0-09) + M5-01's four + M7-01b's one + M5-05's four + M5-11's two + M5-04's one + M5-08's one + M7-02's two
     private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 
     // 🔒 M1-12. The constants whose register row carries a citation THIS assembly can resolve, and

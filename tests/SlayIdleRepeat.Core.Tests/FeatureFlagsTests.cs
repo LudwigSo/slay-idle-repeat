@@ -16,16 +16,32 @@ public sealed class FeatureFlagsTests
     [Fact]
     public void An_identifier_no_kill_switch_names_is_enabled()
     {
-        var flags = new FeatureFlags(true, true, [], []);
+        var flags = new FeatureFlags(true, true, true, [], []);
 
         flags.IsAdPlacementEnabled(ElitePlacement).ShouldBeTrue();
         flags.IsChapterEnabled(FirstChapter).ShouldBeTrue();
     }
 
+    /// <summary>The fifth switch of 14 §14's set (M5 kickoff ruling 2): mail claims.</summary>
+    /// <remarks>One-cold rows: every pair of switches differs in some row, so any two wired crosswise fail one.</remarks>
+    [Theory]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    public void MailEnabled_round_trips_independently_of_the_other_switches(bool pvp, bool plusOffer, bool mail)
+    {
+        var flags = new FeatureFlags(pvp, plusOffer, mail, [], []);
+
+        flags.MailEnabled.ShouldBe(
+            mail, "a switch reading back through a neighbour means the members are wired crosswise");
+        flags.PvpEnabled.ShouldBe(pvp);
+        flags.PlusOfferEnabled.ShouldBe(plusOffer);
+    }
+
     [Fact]
     public void A_named_identifier_is_disabled_and_its_neighbours_are_not()
     {
-        var flags = new FeatureFlags(true, true, [ElitePlacement], [FirstChapter]);
+        var flags = new FeatureFlags(true, true, true, [ElitePlacement], [FirstChapter]);
 
         flags.IsAdPlacementEnabled(ElitePlacement).ShouldBeFalse();
         flags.IsAdPlacementEnabled(LuckPlacement).ShouldBeTrue();
@@ -37,7 +53,7 @@ public sealed class FeatureFlagsTests
     [Fact]
     public void Membership_is_ordinal_so_a_respelling_is_not_a_silent_hit()
     {
-        var flags = new FeatureFlags(true, true, [ElitePlacement], [FirstChapter]);
+        var flags = new FeatureFlags(true, true, true, [ElitePlacement], [FirstChapter]);
 
         flags.IsAdPlacementEnabled("ad_elite_guarantee").ShouldBeTrue();
         flags.IsChapterEnabled("ch_01_emberfall").ShouldBeTrue();
@@ -49,7 +65,7 @@ public sealed class FeatureFlagsTests
         var placements = new List<string> { ElitePlacement };
         var chapters = new List<string> { FirstChapter };
 
-        var flags = new FeatureFlags(true, true, placements, chapters);
+        var flags = new FeatureFlags(true, true, true, placements, chapters);
 
         placements.Add(LuckPlacement);
         chapters.Add(UnnamedChapter);
@@ -63,7 +79,7 @@ public sealed class FeatureFlagsTests
     [Fact]
     public void A_kill_list_cannot_be_written_through_a_cast()
     {
-        var flags = new FeatureFlags(true, true, [ElitePlacement], [FirstChapter]);
+        var flags = new FeatureFlags(true, true, true, [ElitePlacement], [FirstChapter]);
 
         Should.Throw<NotSupportedException>(() => ((ICollection<string>)flags.DisabledAdPlacements).Add("x"));
         Should.Throw<NotSupportedException>(() => ((ICollection<string>)flags.DisabledChapters).Clear());
@@ -73,7 +89,7 @@ public sealed class FeatureFlagsTests
     [Fact]
     public void A_repeated_identifier_is_the_same_kill_switch_named_twice()
     {
-        var flags = new FeatureFlags(true, true, [ElitePlacement, ElitePlacement], []);
+        var flags = new FeatureFlags(true, true, true, [ElitePlacement, ElitePlacement], []);
 
         flags.DisabledAdPlacements.ShouldBe(new[] { ElitePlacement }, Case.Sensitive);
         flags.IsAdPlacementEnabled(ElitePlacement).ShouldBeFalse();
@@ -83,7 +99,7 @@ public sealed class FeatureFlagsTests
     [Fact]
     public void A_null_identifier_throws_rather_than_reading_as_enabled()
     {
-        var flags = new FeatureFlags(true, true, [], []);
+        var flags = new FeatureFlags(true, true, true, [], []);
 
         Should.Throw<ArgumentNullException>(() => flags.IsAdPlacementEnabled(null!))
             .ParamName.ShouldBe("adPlacementId");
@@ -95,10 +111,10 @@ public sealed class FeatureFlagsTests
     [Fact]
     public void FeatureFlags_refuses_a_null_kill_list()
     {
-        Should.Throw<ArgumentNullException>(() => new FeatureFlags(true, true, null!, []))
+        Should.Throw<ArgumentNullException>(() => new FeatureFlags(true, true, true, null!, []))
             .ParamName.ShouldBe("disabledAdPlacements");
 
-        Should.Throw<ArgumentNullException>(() => new FeatureFlags(true, true, [], null!))
+        Should.Throw<ArgumentNullException>(() => new FeatureFlags(true, true, true, [], null!))
             .ParamName.ShouldBe("disabledChapters");
     }
 
@@ -109,10 +125,10 @@ public sealed class FeatureFlagsTests
     [InlineData("   ")]
     public void FeatureFlags_refuses_a_blank_identifier_inside_a_kill_list(string? blank)
     {
-        Should.Throw<ArgumentException>(() => new FeatureFlags(true, true, [ElitePlacement, blank!], []))
+        Should.Throw<ArgumentException>(() => new FeatureFlags(true, true, true, [ElitePlacement, blank!], []))
             .ParamName.ShouldBe("disabledAdPlacements");
 
-        Should.Throw<ArgumentException>(() => new FeatureFlags(true, true, [], [blank!]))
+        Should.Throw<ArgumentException>(() => new FeatureFlags(true, true, true, [], [blank!]))
             .ParamName.ShouldBe("disabledChapters");
     }
 }

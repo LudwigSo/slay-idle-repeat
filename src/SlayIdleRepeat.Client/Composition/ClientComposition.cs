@@ -1,5 +1,6 @@
 using SlayIdleRepeat.Adapters.Ads.AutoGrant;
 using SlayIdleRepeat.Adapters.Ambient.System;
+using SlayIdleRepeat.Adapters.Api.Http;
 using SlayIdleRepeat.Adapters.Cache.LocalFile;
 using SlayIdleRepeat.Adapters.Content.LocalFile;
 using SlayIdleRepeat.Adapters.Content.Packed;
@@ -7,8 +8,10 @@ using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Content;
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core;
+using SlayIdleRepeat.Core.Content;
 
 namespace SlayIdleRepeat.Client.Composition;
 
@@ -59,33 +62,176 @@ public sealed class RewardedAdSelection
 }
 
 /// <summary>
+/// Which host arm the composition root picked, named rather than inferred.
+/// </summary>
+/// <remarks>
+/// 🔒 Both arms resolve to the same host type today, so "which host did you get" cannot tell them
+/// apart — the arm is carried as a value for the reason <see cref="RewardedAdArm"/> already states
+/// about its own: the arm is the decision, and the decision is what is worth pinning.
+/// </remarks>
+public enum ClientArm
+{
+    /// <summary>The whole game runs in this process. No connection to lose, nothing to sync.</summary>
+    InProcessLocalHost = 1,
+
+    /// <summary>
+    /// 🔴 The wire seam is live — session, content stamp, reconnect ladder and overlay all run
+    /// against a server — and the presenters still drive the IN-PROCESS host, because no transport
+    /// can answer with the aggregates the host's contract returns.
+    /// </summary>
+    ServerSessionWithLocalPresenterSurface = 2,
+}
+
+/// <summary>
+/// The wire half of the graph: the two seams a server arm speaks through, and what they were built
+/// over.
+/// </summary>
+/// <remarks>
+/// 🔒 The adapters and the transport they share are disposed in that order — adapters first, then
+/// the handler underneath them — because a handler torn down first turns an in-flight request into
+/// a fault nobody asked for.
+/// </remarks>
+public sealed class ClientWireSeams : IDisposable
+{
+    private readonly IReadOnlyList<IDisposable> _owned;
+
+    /// <summary>Pairs the two seams with the disposables they were built over.</summary>
+    /// <param name="api">The wire seam.</param>
+    /// <param name="content">The content-distribution seam.</param>
+    /// <param name="owned">What both were built over, disposed after them.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    public ClientWireSeams(
+        IGameApiPort api, IContentDistributionClient content, IReadOnlyList<IDisposable> owned)
+    {
+        ArgumentNullException.ThrowIfNull(api);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(owned);
+
+        Api = api;
+        Content = content;
+        _owned = owned;
+    }
+
+    /// <summary>The wire seam the session and the reconnect ladder speak through.</summary>
+    /// <remarks>
+    /// 🔴 <b>No player command goes through it, and that is the whole shape of this arm.</b> The
+    /// presenters drive the in-process host, so what reaches a server here is the sign-in and
+    /// whatever the ladder asks for on a reconnect — never a move a player made. It carries commands
+    /// the day the presenters submit through it, which is the migration <see cref="ClientArm"/>
+    /// names.
+    /// </remarks>
+    public IGameApiPort Api { get; }
+
+    /// <summary>The content-distribution seam the boot's sync stage speaks through.</summary>
+    public IContentDistributionClient Content { get; }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        (Api as IDisposable)?.Dispose();
+        (Content as IDisposable)?.Dispose();
+
+        foreach (var owned in _owned)
+        {
+            owned.Dispose();
+        }
+    }
+}
+
+/// <summary>
 /// The object graph the client runs on, as the composition root hands it over.
 /// </summary>
-public sealed class ComposedClient
+public sealed class ComposedClient : IDisposable
 {
     /// <summary>Carries the composed graph. Built only by <see cref="ClientComposition"/>.</summary>
-    /// <exception cref="ArgumentNullException">Any part of the graph is null.</exception>
+    /// <param name="gameHost">The in-process seam every presenter drives the game through.</param>
+    /// <param name="rewardedAds">The rewarded-ad port with the arm that chose it.</param>
+    /// <param name="revive">How a player reaches a revive.</param>
+    /// <param name="content">The provider the host's snapshot was loaded from.</param>
+    /// <param name="clock">The one clock the whole graph runs on.</param>
+    /// <param name="arm">Which host arm this graph was composed on.</param>
+    /// <param name="wire">The wire half, or null when this client was composed over no server.</param>
+    /// <param name="connection">
+    /// The connection presenter built over <paramref name="wire"/>, or null when there is none.
+    /// The two are null together, by construction.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Any non-optional part of the graph is null.</exception>
     public ComposedClient(
+        ClientArm arm,
         IGameHost gameHost,
         RewardedAdSelection rewardedAds,
         ReviveArm revive,
         ContentProvider content,
-        IClockPort clock)
+        IClockPort clock,
+        ClientWireSeams? wire,
+        ConnectionPresenter? connection)
     {
         ArgumentNullException.ThrowIfNull(gameHost);
         ArgumentNullException.ThrowIfNull(rewardedAds);
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(clock);
 
+        Arm = arm;
         GameHost = gameHost;
         RewardedAds = rewardedAds;
         Revive = revive;
         Content = content;
         Clock = clock;
+        Wire = wire;
+        Connection = connection;
     }
+
+    /// <summary>Which host arm this graph was composed on.</summary>
+    public ClientArm Arm { get; }
 
     /// <summary>The single entry point the presenters drive the game through.</summary>
     public IGameHost GameHost { get; }
+
+    /// <summary>The wire half, or <c>null</c> when this client was composed over no server.</summary>
+    public ClientWireSeams? Wire { get; }
+
+    /// <summary>
+    /// The wire seam this client was composed over, or <c>null</c> when it was composed over none.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Null is a decision, not an omission. A client composed over an in-process host has no
+    /// connection to lose, so there is nothing for the reconnect ladder to climb and nothing for the
+    /// overlay to draw — which is the specification's own rendering for a working connection: nothing
+    /// at all. Held rather than dropped for the reason the whole graph is held: hand-rolled
+    /// composition has no container, so a port nobody references is a port nobody can reach.
+    /// </remarks>
+    public IGameApiPort? GameApi => Wire?.Api;
+
+    /// <summary>
+    /// The one connection presenter the whole build shares, or <c>null</c> when no wire seam was
+    /// composed.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Null on the arm an exported build takes. <c>GodotClientComposition.ComposeClient</c> is the
+    /// only production call into <see cref="ClientComposition.Compose"/> and it composes a wire seam
+    /// only when the environment named a server, so a build without one instantiates no overlay and
+    /// dims no control — the correct rendering for <em>Connected</em>. Where there is one, the root
+    /// scene advances <see cref="ReconnectManager.PollAsync"/> through
+    /// <see cref="ConnectionPump.Advance"/> every frame, which is what makes this state move.
+    /// </remarks>
+    public ConnectionPresenter? Connection { get; }
+
+    /// <summary>
+    /// The driver that advances the ladder each frame, or <c>null</c> on an arm with none.
+    /// </summary>
+    /// <remarks>
+    /// Internal, and reached through <see cref="AppRootComposition.CreateConnectionPump"/>: the
+    /// root scene asks a factory and is handed a driver or a null, the same shape the presenter
+    /// factories have, so no scene ever reads machinery off the graph.
+    /// </remarks>
+    internal ConnectionPump? Pump { get; init; }
+
+    /// <summary>The content sync the boot runs, or <c>null</c> on an arm with no server to ask.</summary>
+    /// <remarks>Reached through <c>BootComposition</c>, for the reason <see cref="Pump"/> gives.</remarks>
+    internal ContentSyncPresenter? ContentSync { get; init; }
+
+    /// <summary>The session the boot opens, or <c>null</c> for the same reason.</summary>
+    internal SessionOpener? Session { get; init; }
 
     /// <summary>The rewarded-ad port, with the arm that chose it.</summary>
     public RewardedAdSelection RewardedAds { get; }
@@ -114,6 +260,9 @@ public sealed class ComposedClient
     /// board a player experiences as a deadline.
     /// </remarks>
     public IClockPort Clock { get; }
+
+    /// <summary>Tears the wire half down with the graph that owns it.</summary>
+    public void Dispose() => Wire?.Dispose();
 }
 
 /// <summary>
@@ -144,13 +293,28 @@ public static class ClientComposition
     /// </param>
     /// <param name="entitlements">The resolved entitlement. Never inferred from a local receipt.</param>
     /// <param name="featureFlags">The resolved feature flags.</param>
+    /// <param name="localeTag">
+    /// The locale the device reported, as a BCP-47 tag. Needed here rather than at the screen because
+    /// the connection presenter is built here and every word it shows is a catalogue lookup.
+    /// </param>
+    /// <param name="arm">
+    /// 🔒 Which host arm this build resolves — <b>stated, never defaulted</b>. A root that cannot
+    /// say which game it composed has not decided.
+    /// </param>
+    /// <param name="wire">
+    /// 🔒 The wire half this client runs over, or <c>null</c> to say there is none — stated for the
+    /// same reason <paramref name="arm"/> is.
+    /// </param>
     /// <exception cref="ArgumentException">A path is null, empty or whitespace.</exception>
     /// <exception cref="ArgumentNullException">An ambience value is null.</exception>
     public static ComposedClient Compose(
         string cacheDirectoryPath,
         IContentSourcePort contentSource,
         Entitlements entitlements,
-        FeatureFlags featureFlags)
+        FeatureFlags featureFlags,
+        string localeTag,
+        ClientArm arm,
+        ClientWireSeams? wire)
     {
         // Every guard before anything touches a disk: a cache adapter creates its directory on
         // construction, so a root that validated as it went would leave a directory behind for a
@@ -159,6 +323,7 @@ public static class ClientComposition
         ArgumentNullException.ThrowIfNull(contentSource);
         ArgumentNullException.ThrowIfNull(entitlements);
         ArgumentNullException.ThrowIfNull(featureFlags);
+        ArgumentNullException.ThrowIfNull(localeTag);
 
         // ⚠️ Canonical, not Shipping. The shipping gate fails while any translation sentinel
         // remains, and every DE value is one today — a shipping load here would refuse to start
@@ -175,18 +340,249 @@ public static class ClientComposition
         // answers to "what time is it" in one process.
         var clock = new SystemClock();
 
-        var gameHost = new InProcessGameHost(
-            new LocalFileCache(cacheDirectoryPath),
-            clock,
-            new SystemIdGenerator(),
-            content.Current,
-            entitlements,
-            featureFlags,
-            sinks: []);
+        var gameHost = SelectGameHost(
+            arm, new LocalFileCache(cacheDirectoryPath), clock, content.Current, entitlements, featureFlags);
+
+        var connection = SelectConnectionHalf(wire, cacheDirectoryPath, content, localeTag, clock);
 
         return new ComposedClient(
-            gameHost, rewardedAds, SelectReviveArm(entitlements), content, clock);
+            arm,
+            gameHost,
+            rewardedAds,
+            SelectReviveArm(entitlements),
+            content,
+            clock,
+            wire,
+            connection.Presenter)
+        {
+            Pump = connection.Pump,
+            Session = connection.Session,
+
+            // Built here rather than at the boot screen because the sync is compared against the
+            // snapshot this graph was composed over, and this is the only place that holds both.
+            ContentSync = wire is null ? null : new ContentSyncPresenter(wire.Content, content.Current),
+        };
     }
+
+    /// <summary>The subdirectory of the writable cache root the server arm's mirror lives in.</summary>
+    /// <remarks>
+    /// 🔒 A directory of its own, so the mirror can be deleted wholesale — which is what "a caller
+    /// may discard the whole of it at any moment" means — without touching the local profile the
+    /// in-process host writes beside it.
+    /// </remarks>
+    public const string MirrorCacheDirectoryName = "cache";
+
+    /// <summary>
+    /// Chooses the host arm from the server address the engine half resolved, and from nothing else.
+    /// </summary>
+    /// <param name="serverBaseAddress">The address a developer switch named, or null/blank for none.</param>
+    public static ClientArm SelectArm(string? serverBaseAddress) =>
+        string.IsNullOrWhiteSpace(serverBaseAddress)
+            ? ClientArm.InProcessLocalHost
+            : ClientArm.ServerSessionWithLocalPresenterSurface;
+
+    /// <summary>
+    /// Chooses the host the presenters drive, from the arm and from nothing else.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Both arms resolve an in-process host, and the server arm's is a NAMED STAND-IN.</b>
+    /// <see cref="IGameHost"/> answers with the domain's own aggregates, which no transport can
+    /// honestly produce, so there is nowhere legal for a remote implementation of it to live. What
+    /// the server arm actually resolves over HTTP is the wire seam beside this one; the presenter
+    /// surface still plays locally, and <see cref="NoRemotePresenterSurfaceResolved"/> is where that
+    /// gap is written down.
+    /// </remarks>
+    /// <param name="arm">The arm this build resolved.</param>
+    /// <param name="cache">Where the local profile is written.</param>
+    /// <param name="clock">The one clock the graph runs on.</param>
+    /// <param name="content">The loaded content set the rules read their numbers from.</param>
+    /// <param name="entitlements">The resolved entitlement.</param>
+    /// <param name="featureFlags">The resolved feature flags.</param>
+    /// <exception cref="ArgumentNullException">A collaborator is null.</exception>
+    public static IGameHost SelectGameHost(
+        ClientArm arm,
+        ILocalCachePort cache,
+        IClockPort clock,
+        ContentSnapshot content,
+        Entitlements entitlements,
+        FeatureFlags featureFlags) =>
+        arm == ClientArm.InProcessLocalHost
+            ? InProcessHost(cache, clock, content, entitlements, featureFlags)
+            : NoRemotePresenterSurfaceResolved(cache, clock, content, entitlements, featureFlags);
+
+    /// <summary>
+    /// The server arm's host, spelling out that no remote presenter surface is built rather than
+    /// hiding it.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Returns the in-process host today, which is the same type the local arm returns. That is
+    /// stated, not concealed, for the reason <see cref="NoAdNetworkResolved"/> gives about its own:
+    /// the day the presenters submit through the wire and read projections back, this is the single
+    /// site that changes, and it is findable by name rather than by reading a ternary.
+    /// </remarks>
+    /// <param name="cache">Where the local profile is written.</param>
+    /// <param name="clock">The one clock the graph runs on.</param>
+    /// <param name="content">The loaded content set the rules read their numbers from.</param>
+    /// <param name="entitlements">The resolved entitlement.</param>
+    /// <param name="featureFlags">The resolved feature flags.</param>
+    /// <exception cref="ArgumentNullException">A collaborator is null.</exception>
+    public static IGameHost NoRemotePresenterSurfaceResolved(
+        ILocalCachePort cache,
+        IClockPort clock,
+        ContentSnapshot content,
+        Entitlements entitlements,
+        FeatureFlags featureFlags) =>
+        InProcessHost(cache, clock, content, entitlements, featureFlags);
+
+    /// <summary>
+    /// Builds the wire half for the server arm, or answers that there is none to build.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>One transport under both seams, handed in as a handler and never as an
+    /// <c>HttpClient</c>.</b> Each adapter builds its own client over it and leaves it open, so the
+    /// connection pool, the DNS cache and the socket limits are one process-wide fact rather than
+    /// two that disagree.
+    /// </para>
+    /// <para>
+    /// ⚠️ <c>PooledConnectionLifetime</c> is deliberately not chosen. The BCL default never recycles
+    /// a pooled connection, which is the known DNS-staleness hazard for a handler that lives as long
+    /// as the process — but any interval named here would be invented rather than measured, so the
+    /// default ships with the hazard written down instead.
+    /// </para>
+    /// </remarks>
+    /// <param name="arm">The arm this build resolved.</param>
+    /// <param name="serverBaseAddress">The address both seams are pointed at.</param>
+    /// <exception cref="UriFormatException"><paramref name="serverBaseAddress"/> is not an absolute URI.</exception>
+    public static ClientWireSeams? SelectWireSeams(ClientArm arm, string? serverBaseAddress)
+    {
+        if (arm != ClientArm.ServerSessionWithLocalPresenterSurface ||
+            string.IsNullOrWhiteSpace(serverBaseAddress))
+        {
+            return null;
+        }
+
+        var options = new HttpGameApiOptions { BaseAddress = BaseAddressOf(serverBaseAddress) };
+
+        // Bounded rather than left at the default. A pooled connection that never retires is the
+        // classic stale-DNS trap for a process-lifetime handler, and this one outlives every screen.
+        var transport = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(2) };
+
+        try
+        {
+            // Nothing owns the handler until the seams do, so a throw between here and that
+            // constructor leaks it and any adapter already built over it — on the one path that
+            // exists because the composition can fail.
+            var api = new HttpGameApi(options, transport);
+            var content = new HttpContentDistribution(options.BaseAddress, options.RequestTimeout, transport);
+
+            return new ClientWireSeams(api, content, [transport]);
+        }
+        catch
+        {
+            transport.Dispose();
+
+            throw;
+        }
+    }
+
+    /// <summary>The developer switch's address as a base every relative route resolves under.</summary>
+    /// <remarks>
+    /// 🔒 Both seams resolve RELATIVE routes ("auth/device", "content/current") against this, and
+    /// <see cref="Uri"/> drops a base's last path segment unless it ends in a slash — so a switch
+    /// naming a prefixed host silently loses the prefix and every route lands at the root. The
+    /// contract is written on <see cref="HttpGameApiOptions.BaseAddress"/>; this is the one
+    /// production site that has to honour it, so it is enforced here rather than trusted.
+    /// </remarks>
+    /// <param name="serverBaseAddress">The address a developer switch named.</param>
+    /// <exception cref="UriFormatException"><paramref name="serverBaseAddress"/> is not an absolute URI.</exception>
+    public static Uri BaseAddressOf(string serverBaseAddress)
+    {
+        var address = new Uri(serverBaseAddress, UriKind.Absolute);
+
+        return address.AbsolutePath.EndsWith('/')
+            ? address
+            : new UriBuilder(address) { Path = address.AbsolutePath + "/" }.Uri;
+    }
+
+    /// <summary>
+    /// The credential holder, spelling out that no secure store is built rather than hiding it.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Named as its own method for the reason <see cref="NoAdNetworkResolved"/> is: the day a
+    /// platform keystore port exists this is the single site that changes, and it is findable by
+    /// name rather than by reading a constructor call.
+    /// </remarks>
+    public static EphemeralDeviceCredentials NoDeviceCredentialStoreResolved() => new();
+
+    /// <summary>
+    /// Builds the connection half over the wire seam, or answers that there is none to build one over.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The port and the presenter are null together.</b> Anything else is a build claiming to
+    /// draw a connection it has no way of losing, or holding a seam nothing can report on. Making it
+    /// one branch rather than two arguments is what keeps the two from disagreeing.
+    /// </para>
+    /// <para>
+    /// The mirror, the queue and the ladder are built here and shared by the presenter and the pump,
+    /// which is the shape they want: one ladder, drawn by one and driven by the other. Two would be
+    /// two answers to "is the connection up", and only one of them would ever have been attempted.
+    /// </para>
+    /// </remarks>
+    /// <param name="wire">The wire half, or null when there is none.</param>
+    /// <param name="cacheDirectoryPath">The writable root the mirror's own directory sits under.</param>
+    /// <param name="content">The loaded content set the connection's four sentences are read out of.</param>
+    /// <param name="localeTag">The locale the device reported.</param>
+    /// <param name="clock">The one clock the ladder and the two timed announcements are measured on.</param>
+    private static (ConnectionPresenter? Presenter, ConnectionPump? Pump, SessionOpener? Session)
+        SelectConnectionHalf(
+            ClientWireSeams? wire,
+            string cacheDirectoryPath,
+            ContentProvider content,
+            string localeTag,
+            IClockPort clock)
+    {
+        if (wire is null)
+        {
+            return (null, null, null);
+        }
+
+        var mirror = new StateMirror();
+        var connection = new ReconnectManager(
+            wire.Api, mirror, new CommandQueue(new SystemIdGenerator()), clock);
+        var session = new SessionOpener(wire.Api, NoDeviceCredentialStoreResolved(), connection);
+
+        // 🔒 A store of its own beside the local profile, never the same one: the mirror may be
+        // deleted wholesale and the profile is the only copy of a player's game.
+        var mirrorCache = new MirrorCache(
+            new LocalFileCache(Path.Combine(cacheDirectoryPath, MirrorCacheDirectoryName)));
+
+        return (
+            new ConnectionPresenter(
+                connection, mirror, new LocaleStringCatalogue(content.Current, localeTag), clock),
+            new ConnectionPump(connection, session, mirror, mirrorCache, clock),
+            session);
+    }
+
+    /// <summary>The in-process host both arms resolve, built once so the two branches cannot drift.</summary>
+    private static InProcessGameHost InProcessHost(
+        ILocalCachePort cache,
+        IClockPort clock,
+        ContentSnapshot content,
+        Entitlements entitlements,
+        FeatureFlags featureFlags) =>
+        new(
+            cache,
+            clock,
+            new SystemIdGenerator(),
+            content,
+            entitlements,
+            featureFlags,
+            sinks: [],
+            // No local message store, said rather than defaulted: an inbox is a server-held account
+            // fact, so CLAIM_INBOX arriving here is a miswired caller and the rules say so.
+            messages: null);
 
     /// <summary>
     /// Chooses the rewarded-ad arm from the resolved entitlement, and from nothing else.

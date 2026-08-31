@@ -2,7 +2,7 @@ using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Primitives;
 
-namespace SlayIdleRepeat.Application.Hosting;
+namespace SlayIdleRepeat.Application.Ports.Client;
 
 /// <summary>The whole client-facing surface of the game: one profile, one write, one read.</summary>
 /// <remarks>
@@ -10,11 +10,17 @@ namespace SlayIdleRepeat.Application.Hosting;
 /// Typed on <see cref="GameCommand"/> rather than on a wire envelope, which is what makes this a
 /// seam and not a transport: an implementation over HTTPS wraps the envelope and parses it into the
 /// typed command before it reaches here, and everything above this interface stays unchanged when
-/// that swap happens.
+/// that swap happens. It is also why this is a DIFFERENT port from <see cref="IGameApiPort"/>: that
+/// one carries the envelope over the wire and returns projections, and no transport can honestly
+/// answer here, because <see cref="ApplyCommandOutcome.State"/> is the Core aggregates — run seed
+/// included — and the seed never leaves the server.
 /// </para>
 /// <para>
-/// Deliberately not under <c>Ports/</c>: the same category as <c>IDomainEventSink</c> — an
-/// Application-layer interface a composition root satisfies, not an outbound dependency on the world.
+/// A port, under <c>Ports/</c>: an application-owned interface an adapter conforms to, which is
+/// what makes an implementation outside this assembly legal at all. The alternative was an
+/// interface no gate watches — no two-implementation rule, no shared contract suite, no fixture per
+/// implementation — and a seam nothing checks is a seam whose meaning is whatever its first
+/// implementation happened to do.
 /// </para>
 /// <para>
 /// It returns the use-case results unchanged rather than a shape of its own. A second description of
@@ -40,6 +46,6 @@ public interface IGameHost
     /// <param name="player">Whose state to read.</param>
     /// <param name="run">A run of theirs — current or finished — or <c>null</c> for the player alone.</param>
     /// <param name="ct">Cancellation.</param>
-    /// <returns>What was found, and the view when something was.</returns>
+    /// <returns>What was found, and the view when there is one.</returns>
     Task<OwnStateResult> ReadOwnStateAsync(PlayerId player, RunId? run, CancellationToken ct);
 }

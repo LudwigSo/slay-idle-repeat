@@ -55,6 +55,15 @@ M4's Critical: `MERGE` and `SALVAGE` destroyed items through `Inventory.Remove` 
 **S27 · A tuning key that feeds an ordinal predicate must be named for the ordinal. [M4]**
 `consecutiveMissesBeforeForce: 6` and `guaranteeAfterConsecutiveMisses: 4` were both handed straight to `HardPity.Fires`, whose contract is `misses >= everyNth - 1` — so both named the opposite of what they meant, and the two readings differ by exactly one drop on a **fairness guarantee**. A balance author editing the JSON is off by one; a reviewer reading the JSON "fixes" the code. M4's code review did propose exactly that `+1`, which would have moved a live guarantee by a draw — the design text (`24` §4.3 D1, *"On the **6th**, force"*) is the authority, not the key name. Name it `forceOnNthKill` / `guaranteeOnNthPick`. The same milestone got it right one file over: `DraftGuarantees` passes `+1` for its two *count*-named keys and none for its ordinal-named one.
 
+**S30 · A fixture that names a task id has an expiry date, and nothing warns before it expires. [M5]**
+The mirror image of S4: S4 guards a *register* against a stale owner; nothing guarded the *fixtures that test those registers*. **Three broke in M5** — the analytics register's open example named M5-05, the gear register's negative control named M5-06, the port-catalogue self-test named M5-04 — each discovered only because a **different** task shipped and flipped the tracker. **Do not drop the arm**: without a genuinely open example the rule could report every entry as stale and the control would still pass. Re-point it, and say at the site that the next reader should expect to move it again. ⚠️ Deriving the example from the tracker is **not** the fix — any derivation selects on the same status vocabulary the predicate under test uses, so the assertion agrees *by construction*, which is S3's own failure mode.
+
+**S31 · A probe whose BUILD failed is not a probe. [M5]**
+S1 assumes a probe ran. `if (true)` on an unread field is **CS0414 under `TreatWarningsAsErrors`** — the build fails and the test runner reports a **stale green from the previous binary**. An M5 agent hit this and caught it only by reading the build output. **Check the build result, not just the test result**, before believing either a red or a green.
+
+**S32 · A differential comparison needs a floor on its own subject set. [M5]**
+Two identically-empty collections agree. M5-13's chaos oracle 3 stayed **green with a row dropped from every commit**, and the review found the same shape **five more times** — oracle 2 and its shared helper (which only one of five callers floored), MailSender's check/send pair, gateway sequencing, the `IGameApiPort` contract, BootPresenter's elapsed budget. Whenever a test compares a disturbed run against an undisturbed one, floor the undisturbed side first: the comparison is only evidence if there was something to compare.
+
 ## Dispatch
 
 **S8 · Block on your review subagents in the foreground. A backgrounded review is not a result. [M0, rewritten M1, amended M2]**
@@ -108,6 +117,9 @@ Record the lane map at kickoff — lane → tasks in order → what each waits o
 **S14 · Never key a tracker edit on a spec reference. [M0]**
 Spec refs are not unique — `14 §1.1` and `14 §14` each appear in two rows, and both times a status landed on an unrelated row. Address rows by task id or line, and re-read the result.
 
+🔒 **S29 · Two agents making the SAME edit is as dangerous as two making conflicting ones. [M5]**
+S13 says textual merging succeeds where semantic merging does not. This is its quieter half: git merges **identical** values in silence, with no conflict, no compile error and nothing red. M5-04 and M5-08 each raised the port floor 12 → 13 for **different** ports; the merge took one `13` and left the floor a port short. The adapter floor did the same and **reached the milestone head** at 24 against a real 25, in a register whose own words forbid headroom. **A floor, a count or a version is only correct if it was COUNTED against the repo in the commit that moved it** — never inherited from a sibling's edit, and never taken from a conductor's brief.
+
 ## Kickoff
 
 **S15 · Ask which *platforms and surfaces are in scope*, not just how far to verify them. [M0]**
@@ -123,3 +135,9 @@ M3's kickoff decision #2 ruled the tile vocabulary "fully live from Chapter 1, n
 A conductor ruling is pasted into dispatches as *authority*, so a wrong one propagates faster than any agent's mistake and is harder to challenge. S4 makes you re-read declared **exemptions** at each kickoff; nothing makes you re-read committed **classifications**, and that is the gap.
 In M2 I ruled that effects should be referenced by id — taking a real finding and jumping to a solution **without checking that M2-01's committed `ContentLoader.VocabularySchemas` said the opposite in as many words** (*"an effect is never a file"*). It reached two dispatches before an agent challenged it with quotations. It cost nothing **only because the wave order happened to put the engine before the data**.
 Corollary, same root: **your claims about repo state are as unreliable as a number quoted from a report.** Eight of M2's ten S9 catches were against the conductor's own prompts, and **every one was a claim about the repo** — a file's namespace, which task owns a baseline entry, how many sources exist — never a design number, of which ~100 were transcribed correctly. Say *"verify this against the repo; if it disagrees, the repo wins"* and mean it.
+
+**S28 · Never pre-assign a value from a shared, order-dependent sequence. [M5]**
+S23 already ruled that a bumping task takes `current + 1` and numbers settle at **merge order**. M5's conductor pre-assigned migration ordinals `0005`/`0006`/`0007` to three concurrent lanes anyway, and **all three were wrong**: `MigrationPlan.Ordered` refuses a *gap* and the runner applies the history at boot, so a reserved-but-higher number is not a reservation — it is a server that throws before it starts. Tell each lane the counter exists, that a sibling may be moving it, and to take `current + 1`; renumber at merge, and ask each agent to **list every place its file's name appears** so the renumber is mechanical rather than a hunt.
+
+**S33 · Ask what an exit criterion is WITNESSED BY, not merely whether it is built. [M5]**
+M5's three exit clauses were all *implemented* and only one was *witnessed*. *"Over HTTPS"* — no presenter crossed the wire, the only base address in the client was `http://localhost:8080/`, and nothing stated whether a shipping client may use a plaintext scheme. *"Against the compose stack"* — the server image shipped without `game-data/`, so every endpoint below `/health` would have faulted; a **second, independent blocker the tracker had never recorded**. *"Determinism CI live"* — the job is real and correct and **has never executed on a runner**. All three were found at review, months after the kickoff that could have asked. At kickoff, for each clause, name the artefact that will prove it and who runs it; if the answer is *"a CI job nobody has observed"* or *"a human, later"*, say so in the criterion itself.

@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+; The grip: turned over into a reverse grip, blade down along the forearm, which
+; is the hold the rogue was modelled around. Same rule as the sword — the pose is
+; the weapon's, not the socket's, and it is an X rotation so it mirrors into
+; either hand unchanged. Authored in assets/source/hero_kit.py as GRIP.
+
+[ext_resource type="PackedScene" uid="uid://b6xgb3w78n2xd" path="res://game/art/wpn_dagger.glb" id="1_model"]
+
+[node name="WpnDagger" type="Node3D"]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="Model" parent="." instance=ExtResource("1_model")]

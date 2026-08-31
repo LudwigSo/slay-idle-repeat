@@ -39,9 +39,13 @@ public sealed class SliceKeysTests
     [InlineData("hät_an_accent")]
     public void ForPlayer_refuses_a_player_id_that_would_leave_the_caches_key_space(string id)
     {
+        // The identity, not the symptom: every ArgumentException has a message, so ShouldNotBeEmpty
+        // pinned nothing while the message it carried claimed the offending id is NAMED.
         Should.Throw<ArgumentException>(() => SliceKeys.ForPlayer(new PlayerId(id)))
-            .Message.ShouldNotBeEmpty(
-                "an id outside the cache's key space must be refused here and named, not escaped or " +
+            .Message.ShouldContain(
+                id,
+                Case.Sensitive,
+                "an id outside the cache's key space must be refused here and NAMED, not escaped or " +
                 "trimmed into something that happens to fit: two ids that mangle to one key read each " +
                 "other's state.");
     }
@@ -55,8 +59,11 @@ public sealed class SliceKeysTests
     public void ForRun_refuses_a_run_id_that_would_leave_the_caches_key_space(string id)
     {
         Should.Throw<ArgumentException>(() => SliceKeys.ForRun(new RunId(id)))
-            .Message.ShouldNotBeEmpty(
-                "the archive key is subject to the same closed key space as the committed one.");
+            .Message.ShouldContain(
+                id,
+                Case.Sensitive,
+                "the archive key is subject to the same closed key space as the committed one, and " +
+                "its refusal must name the id it refused.");
     }
 
     [Fact]

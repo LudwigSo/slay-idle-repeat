@@ -6,12 +6,23 @@ namespace SlayIdleRepeat.Application.Ports.Client;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>What this port is not.</b> It is a cache, and the client may discard the whole of it at any
+/// 🔒 <b>What this port is not.</b> It is a cache, and a caller may discard the whole of it at any
 /// moment — on an eviction, a reinstall, a schema change, or because a read came back malformed.
-/// It is <b>never</b> a second source of truth. Nothing may treat a hit as authoritative, decide a
-/// game outcome from one, or reconcile a server answer against one; the server's answer wins
-/// unconditionally, and a cached value that disagrees is simply stale. Anything that would break if
-/// this store were empty on the next launch is in the wrong place.
+/// A hit is <b>never authoritative</b>. Nothing may decide a game outcome from one or reconcile a
+/// server answer against one: where there is a server, its answer wins unconditionally and a cached
+/// value that disagrees is simply stale.
+/// </para>
+/// <para>
+/// ⚠️ <b>Two clients use this port and only one of them has a server, so the cost of an empty store
+/// differs — it is stated per client rather than as one absolute only one of them obeys.</b> For
+/// the server-authoritative client this store holds the read-only mirror of the last profile and
+/// run state the server issued: emptying it costs a cold start its instant display and nothing
+/// else, because the next answer refills it, so anything kept there that would break on an empty
+/// store is in the wrong place. For the in-process client — which is what a shipped build still
+/// composes — this store is the only place the local profile is written, and emptying it starts a
+/// new local game. That is not a second source of truth: there is no other source for it to be
+/// second to, and no server answer is ever reconciled against it. It does mean the sentence above
+/// about an empty store is a claim about the mirror and not about the local profile.
 /// </para>
 /// <para>
 /// It is byte-oriented rather than generic on purpose. A <c>ReadAsync&lt;T&gt;</c> would put a

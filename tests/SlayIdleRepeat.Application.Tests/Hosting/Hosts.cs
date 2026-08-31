@@ -1,6 +1,7 @@
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Client;
+using SlayIdleRepeat.Application.Ports.Server;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Events;
 using SlayIdleRepeat.Application.Tests.UseCases;
@@ -32,6 +33,10 @@ internal static class Hosts
     /// all, which is not answerable while every host in the suite is composed the same way.
     /// </param>
     /// <param name="flags">The kill switches. Defaults to the absence factory.</param>
+    /// <param name="messages">
+    /// The inbox store. Defaults to none, which is what the shipped client composes — a case about a
+    /// command that reads the inbox passes one, and gets the same load the server's use case does.
+    /// </param>
     internal static InProcessGameHost Over(
         ILocalCachePort cache,
         IClockPort? clock = null,
@@ -39,7 +44,8 @@ internal static class Hosts
         ContentSnapshot? content = null,
         IReadOnlyList<IDomainEventSink>? sinks = null,
         Entitlements? entitlements = null,
-        FeatureFlags? flags = null) =>
+        FeatureFlags? flags = null,
+        IMessageRepository? messages = null) =>
         new(
             cache,
             clock ?? new AdjustableClock(),
@@ -47,5 +53,6 @@ internal static class Hosts
             content ?? Worlds.Content,
             entitlements ?? LocalHostAmbience.NoSubscriptionResolved(),
             flags ?? LocalHostAmbience.NoRemoteConfigResolved(),
-            sinks ?? []);
+            sinks ?? [],
+            messages);
 }

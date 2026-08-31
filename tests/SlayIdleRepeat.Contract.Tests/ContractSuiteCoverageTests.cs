@@ -40,20 +40,28 @@ public sealed class ContractSuiteCoverageTests
     /// <see cref="SuiteFloor"/> and <c>PortCatalogueTests.DeclaredPortFloor</c> with it. Left at 5,
     /// the port declared on that commit could have been deleted again with every rule in this file
     /// still reporting success over the five that remained — which is the drift the paragraph under
-    /// <see cref="AdapterAssemblyFloor"/> says these numbers exist to notice.
+    /// <see cref="AdapterAssemblyFloor"/> says these numbers exist to notice. M5 then raised it
+    /// 6 → 12 across two tasks that both moved the same three floors together: M5-05's four server
+    /// persistence ports (<c>IPlayerRepository</c>, <c>IRunStateStore</c>, <c>IIdempotencyStore</c>,
+    /// <c>IBattleLogStore</c>) and M5-11's two observability ports (<c>IAnalyticsSinkPort</c>,
+    /// <c>ITelemetryPort</c>). M5-04 raised it 12 → 13 for <c>IUnitOfWork</c>, moving the same
+    /// three floors in the commit that declares the port; M5-08 raised it 13 → 14 for
+    /// <c>IMessageRepository</c>, and M7-02 14 → 16 for the two client seams — <c>IGameHost</c>
+    /// moved under <c>Ports/Client</c> so an adapter could implement it under a gate that watches,
+    /// and <c>IGameApiPort</c>, the wire seam, was declared beside it.
     /// </remarks>
-    private const int PortFloor = 6;
+    private const int PortFloor = 16;
 
     /// <summary>Attributed suites in this assembly. At zero, rule 3's suite arm has nothing to check.</summary>
     /// <remarks>Moves with <see cref="PortFloor"/>: rule 1 is one suite per port, exactly.</remarks>
-    private const int SuiteFloor = 6;
+    private const int SuiteFloor = 16;
 
     /// <summary>
     /// Adapter assemblies the scan finds. At zero, rule 2 finds no implementations and reports
     /// success over every port at once — the single most expensive silence available here.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>Exact against the scan, which finds 24 adapter assemblies today</b> — every
+    /// 🔒 <b>Exact against the scan, which finds 25 adapter assemblies today</b> — every
     /// <c>SlayIdleRepeat.Adapters.*</c> project this suite references, and adapters reference no
     /// other adapter, so the output directory holds exactly the direct references. A floor set below
     /// the real count is a floor only against total collapse: at 8, fifteen adapter
@@ -73,11 +81,18 @@ public sealed class ContractSuiteCoverageTests
     /// <para>
     /// 🔒 M7-01b raised it 23 → 24 for <c>Adapters.Platform.Host</c>, the real (non-engine)
     /// implementation <c>IPlatformInfoPort</c> needed to be declarable under <c>23</c> §5 A5 at all,
-    /// and raised <c>SubjectSetFloorTests.AdapterFloor</c> in the same commit. The scan finds 24
-    /// today and this is still exact against it.
+    /// and raised <c>SubjectSetFloorTests.AdapterFloor</c> in the same commit.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>M5 cross-task review raised it 24 → 25, and it had gone quiet the way the ⚠️ paragraph
+    /// above describes rather than the way that one did.</b> <c>Adapters.Content.Packed</c> (M7-10y)
+    /// was added to this project's references without either floor moving, so the scan found 25
+    /// against a 24 that called itself exact — one reference of headroom, which is the whole
+    /// quantity this floor is allowed to have none of. Neither sibling caught it: they are moved
+    /// together by convention, and the convention is what failed.
     /// </para>
     /// </remarks>
-    private const int AdapterAssemblyFloor = 24;
+    private const int AdapterAssemblyFloor = 25;
 
     /// <summary>
     /// Fixtures per suite. At one, <c>23</c> §5 A5's "the real adapter AND the in-memory fake"
@@ -104,8 +119,8 @@ public sealed class ContractSuiteCoverageTests
     /// reads identically to full coverage. <see cref="AdapterAssemblyFloor"/> notices the assemblies
     /// leaving, and it is the right shape for that; what neither it nor
     /// <see cref="PortFloor"/> can say is <b>which</b> implementation stopped being seen. A count
-    /// falling from twelve to eleven is a number; four of these names disappearing while two new
-    /// ones arrive is a count that never moved.
+    /// falling by one is a number; four of these names disappearing while four new ones arrive is a
+    /// count that never moved.
     /// </para>
     /// <para>
     /// 🔒 <b>What this floor watches is the DISCOVERY MECHANISM, not the reference graph</b>, and
@@ -144,6 +159,47 @@ public sealed class ContractSuiteCoverageTests
         "SlayIdleRepeat.Adapters.InMemory.InMemoryRewardedAd",
         "SlayIdleRepeat.Adapters.Platform.Host.HostPlatformInfo",
         "SlayIdleRepeat.Adapters.InMemory.InMemoryPlatformInfo",
+
+        // M5-05's four server persistence ports. The store-backed reals are here too: they carry no
+        // fixture (see StoreBackedAdapterExemptions), but the SCAN must still see them — a real
+        // adapter the scan lost is a real adapter whose exemption anchors to nothing.
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryPlayerRepository",
+        "SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresPlayerRepository",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryRunStateStore",
+        "SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresRunStateStore",
+        "SlayIdleRepeat.Adapters.Cache.Redis.RedisRunStateCache",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryIdempotencyStore",
+        "SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresIdempotencyStore",
+        "SlayIdleRepeat.Adapters.Cache.Redis.RedisIdempotencyCache",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryBattleLogStore",
+        "SlayIdleRepeat.Adapters.ObjectStore.S3.S3BattleLogStore",
+        "SlayIdleRepeat.Adapters.ObjectStore.S3.QueuedBattleLogStore",
+
+        // M5-04's commit boundary. Two of the three are store-backed and carry exemptions rather
+        // than fixtures, and the scan is what those exemptions anchor to.
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryUnitOfWork",
+        "SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresUnitOfWork",
+        "SlayIdleRepeat.Adapters.Cache.Redis.RedisCommitCache",
+
+        // M5-11's two observability ports. Same reason the vendor reals are named: PostHog, OTel and
+        // Sentry carry no fixture either, and the scan is what their exemptions anchor to.
+        "SlayIdleRepeat.Adapters.Analytics.PostHog.PostHogAnalyticsSink",
+        "SlayIdleRepeat.Adapters.InMemory.RecordingAnalyticsSink",
+        "SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry.OpenTelemetryTelemetry",
+        "SlayIdleRepeat.Adapters.Telemetry.Sentry.SentryTelemetry",
+        "SlayIdleRepeat.Adapters.InMemory.RecordingTelemetry",
+
+        // M5-08's inbox port. The Postgres real is named for the reason the other store-backed reals
+        // are: it carries no fixture, and the scan is what its exemption anchors to.
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryMessageRepository",
+        "SlayIdleRepeat.Adapters.Persistence.Postgres.PostgresMessageRepository",
+        // M7-02's two client seams. IGameHost's real implementation is InProcessGameHost, which
+        // lives in Application rather than in an adapter — the scan appends that assembly for
+        // exactly this case, and naming it here is what notices if that append is ever dropped.
+        "SlayIdleRepeat.Application.Hosting.InProcessGameHost",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryGameHost",
+        "SlayIdleRepeat.Adapters.Api.Http.HttpGameApi",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryGameApi",
     };
 
     private const string PortsNamespace = "SlayIdleRepeat.Application.Ports";
@@ -169,10 +225,20 @@ public sealed class ContractSuiteCoverageTests
     /// from that port's suite (<c>23</c> §5 A8).
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The derivation half is the one this rule exists for. An attribute naming the right
     /// implementation on a class deriving from the wrong suite compiles, runs and reports success —
     /// it just runs some other port's cases. That is the drift a name convention cannot see and the
     /// reason the two attributes are separate.
+    /// </para>
+    /// <para>
+    /// 🔒 The rule consults <see cref="StoreBackedAdapterExemptions"/> — an implementation carried by
+    /// that register needs no fixture, because a register entry names the CI owner that observes it
+    /// instead. That is not this rule going soft: an exemption is held by its own five directions
+    /// (malformed, unanchored, expired, owners-not-open and the identity floor) in
+    /// <c>StoreBackedAdapterExemptionTests</c>, so a fixture arriving or the type leaving or the
+    /// owner going quiet turns the BUILD red rather than widening this rule's silence.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_implementation_of_a_port_has_a_contract_fixture()
@@ -181,8 +247,11 @@ public sealed class ContractSuiteCoverageTests
 
         Empty(
             ImplementationsWithoutACoveringFixture(
-                ports, SuiteDeclarations(), FixtureDeclarations(), PortImplementations(ports)),
-            "Every implementation of a port has a contract fixture deriving from that port's suite (23 §5 A8).");
+                ports, SuiteDeclarations(), FixtureDeclarations(), PortImplementations(ports),
+                StoreBackedAdapterExemptions.ExemptedImplementations(StoreBackedAdapterExemptions.Entries)),
+            "Every implementation of a port has a contract fixture deriving from that port's suite, "
+            + "or a StoreBackedAdapterExemptions entry naming the CI owner that observes it instead "
+            + "(23 §5 A8).");
     }
 
     /// <summary>
@@ -242,15 +311,43 @@ public sealed class ContractSuiteCoverageTests
             + "and rule 1 compares them against the ports.");
 
         var fixtures = Fixtures().ToArray();
+        var declarations = SuiteDeclarations().ToArray();
+        var implementations = PortImplementations(ports).ToArray();
+        var excused = StoreBackedAdapterExemptions
+            .ExemptedImplementations(StoreBackedAdapterExemptions.Entries)
+            .ToHashSet(StringComparer.Ordinal);
 
+        // 🔒 The per-suite fixture floor is exemption-aware, HONESTLY. 23 §5 A5's demand is still two
+        // fixtures — the real adapter and the fake — but an implementation carried by
+        // StoreBackedAdapterExemptions has its coverage somewhere a fixture cannot be, so demanding
+        // its fixture HERE would make the register a rule this floor contradicts. Each suite
+        // therefore requires max(1, 2 − its port's exempted implementations): a suite whose real
+        // adapters are all exempt still needs its fake fixture (a suite executing zero cases is
+        // never acceptable), and the moment an exemption expires — StoreBackedAdapterExemptionTests
+        // forces its deletion — the requirement snaps back toward 2 in the same commit. Every suite
+        // whose port has no exemption keeps the unchanged demand of 2.
         foreach (var suite in suites)
         {
             var derived = fixtures.Count(f => suite.IsAssignableFrom(f) && f != suite);
 
-            Floor(offenders, $"fixtures deriving from '{suite.Name}'", derived, FixturesPerSuiteFloor,
+            var port = declarations.FirstOrDefault(d => d.Suite == suite)?.Port;
+            var exemptedHere = port is null
+                ? 0
+                : implementations.Count(t =>
+                    port.IsAssignableFrom(t) && t.FullName is { } name && excused.Contains(name));
+
+            Floor(offenders, $"fixtures deriving from '{suite.Name}'", derived,
+                Math.Max(1, FixturesPerSuiteFloor - exemptedHere),
                 "23 §5 A5 is the real adapter AND the in-memory fake. One fixture is not a "
                 + "comparison, and an abstract suite with none executes zero cases while still "
-                + "counting as coverage.");
+                + "counting as coverage. A vendor or store-backed real adapter may stand behind a "
+                + "StoreBackedAdapterExemptions entry instead of a fixture; the fake's fixture is "
+                + "never excusable."
+                + (exemptedHere > 0
+                    ? $" ({exemptedHere} implementation(s) of this suite's port are carried by "
+                      + "StoreBackedAdapterExemptions, which is what lowered the requirement — it "
+                      + "snaps back when an exemption expires.)"
+                    : string.Empty));
 
             var cases = suite
                 .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
@@ -278,11 +375,11 @@ public sealed class ContractSuiteCoverageTests
     /// Three failing shapes, because one would not distinguish an identity floor from a count. The
     /// <b>partial loss</b> is the realistic narrowing — one adapter dropping out of the scan while
     /// the rest stay. The <b>same-count swap</b> is the one no count floor above can see at all, and
-    /// the reason this floor exists: twelve subjects in, twelve subjects out, two of them different.
+    /// the reason this floor exists: as many subjects out as in, two of them different.
     /// The <b>empty scan</b> is M5-01's observed failure verbatim, the state in which
     /// <see cref="Every_implementation_of_a_port_has_a_contract_fixture"/> reports success over
-    /// every port at once — and it is asserted by naming all twelve rather than by counting them,
-    /// since a count is what this floor is here to be better than.
+    /// every port at once — and it is asserted by naming every required implementation rather than
+    /// by counting them, since a count is what this floor is here to be better than.
     /// </para>
     /// <para>
     /// Every arm mutates the <em>scan</em>, which is this floor's subject. Mutating the required
@@ -300,7 +397,7 @@ public sealed class ContractSuiteCoverageTests
             "the real scan finds every named implementation, which is the arrangement this floor "
             + "exists to permit. A floor that flagged this would be failing the build today.");
 
-        // Partial loss: one adapter stops being discovered and eleven others cover for it.
+        // Partial loss: one adapter stops being discovered and every other one covers for it.
         ImplementationsMissingFromTheScan(
                 scanned.Where(t => t.FullName != lost).ToArray(), CoveredImplementations)
             .ShouldHaveSingleItem()
@@ -403,13 +500,15 @@ public sealed class ContractSuiteCoverageTests
             typeof(SystemClockContractTests), typeof(Adapters.Ambient.System.SystemClock));
         var implementations = new[] { typeof(Adapters.Ambient.System.SystemClock) };
 
-        ImplementationsWithoutACoveringFixture(ports, new[] { suite }, new[] { fixture }, implementations)
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { suite }, new[] { fixture }, implementations, Array.Empty<string>())
             .ShouldBeEmpty(
                 "SystemClockContractTests is attributed to SystemClock and derives from "
                 + "IClockPortContractTests, which is the arrangement the rule demands.");
 
         ImplementationsWithoutACoveringFixture(
-                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), implementations)
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), implementations,
+                Array.Empty<string>())
             .ShouldHaveSingleItem()
             .ShouldContain("carries [ContractFixtureFor(typeof(SystemClock))]", Case.Sensitive);
 
@@ -418,17 +517,54 @@ public sealed class ContractSuiteCoverageTests
         // cases. Only the IsAssignableFrom half can see it.
         var wrongSuite = new SuiteDeclaration(typeof(IIdGeneratorPortContractTests), typeof(IClockPort));
 
-        ImplementationsWithoutACoveringFixture(ports, new[] { wrongSuite }, new[] { fixture }, implementations)
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { wrongSuite }, new[] { fixture }, implementations, Array.Empty<string>())
             .ShouldHaveSingleItem()
             .ShouldContain("does not derive from 'IIdGeneratorPortContractTests'", Case.Sensitive);
 
         // The negative control on the quantifier itself: a type that implements no port is not this
         // rule's business, or it would demand a fixture for every class in every scanned assembly.
         ImplementationsWithoutACoveringFixture(
-                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), new[] { typeof(string) })
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), new[] { typeof(string) },
+                Array.Empty<string>())
             .ShouldBeEmpty(
                 "string implements no port. A rule that asked for a fixture here would be asking for "
                 + "one for every type the assembly scan returns.");
+
+        // 🔒 The exemption arm: an entry's full name excuses exactly that implementation and no
+        // other, and it skips BOTH arms — the fixture demand and the wrong-suite arm. Driven with a
+        // fixtureless SystemClock (the arrangement rule 2 flags) excused by its own name, then
+        // "excused" by a different full name and by a bare simple name as negative controls.
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), implementations,
+                new[] { typeof(Adapters.Ambient.System.SystemClock).FullName! })
+            .ShouldBeEmpty(
+                "SystemClock has no fixture here and its full name is exempted, which is exactly the "
+                + "arrangement StoreBackedAdapterExemptions buys for a store-backed adapter.");
+
+        // The wrong-suite arm is skipped too: a fixture over an exempted implementation is the
+        // register's own expiry finding, and reporting it here would name two repairs for one edit.
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { wrongSuite }, new[] { fixture }, implementations,
+                new[] { typeof(Adapters.Ambient.System.SystemClock).FullName! })
+            .ShouldBeEmpty(
+                "the exempted implementation is skipped entirely, derivation check included — "
+                + "unexempted, the same arrangement fires the wrong-suite offender above.");
+
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), implementations,
+                new[] { "SlayIdleRepeat.Adapters.Ambient.System.SomeOtherType" })
+            .ShouldHaveSingleItem(
+                "the exempted name is a different type, so SystemClock is still uncovered. An "
+                + "exemption that matched loosely — simple name, prefix — would excuse types the "
+                + "register never named.");
+
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), implementations,
+                new[] { "SystemClock" })
+            .ShouldHaveSingleItem(
+                "a bare simple name exempts nothing — a decoy of the same simple name in another "
+                + "adapter must not be able to excuse the type it shadows.");
     }
 
     /// <summary>
@@ -516,21 +652,35 @@ public sealed class ContractSuiteCoverageTests
     /// Rule 2's body: every implementation with no fixture, and every fixture that names the right
     /// implementation while deriving from the wrong suite. Empty means the rule holds.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ The exemption skips an implementation ENTIRELY, wrong-suite arm included — a fixture over
+    /// an exempted implementation is <c>StoreBackedAdapterExemptions.Expired</c>'s finding (delete
+    /// the entry), and reporting it here too would name two repairs for one edit.
+    /// </remarks>
     internal static IReadOnlyList<string> ImplementationsWithoutACoveringFixture(
         IEnumerable<Type> ports,
         IEnumerable<SuiteDeclaration> suites,
         IEnumerable<FixtureDeclaration> fixtures,
-        IEnumerable<Type> implementations)
+        IEnumerable<Type> implementations,
+        IEnumerable<string> exempted)
     {
         var declared = fixtures.ToArray();
         var suiteOf = suites.ToLookup(s => s.Port, s => s.Suite);
         var candidates = implementations.ToArray();
+        // Full names, matched ordinally: the register's own rules police that each name anchors to
+        // a scanned type and that no exempted type has quietly gained a fixture.
+        var excused = exempted.ToHashSet(StringComparer.Ordinal);
         var offenders = new List<string>();
 
         foreach (var port in ports)
         {
             foreach (var implementation in candidates.Where(port.IsAssignableFrom))
             {
+                if (implementation.FullName is { } fullName && excused.Contains(fullName))
+                {
+                    continue;
+                }
+
                 var covering = declared.Where(f => f.Implementation == implementation).ToArray();
 
                 if (covering.Length == 0)
@@ -539,7 +689,10 @@ public sealed class ContractSuiteCoverageTests
                         $"'{implementation.FullName}' implements the port '{port.Name}' and no class in "
                         + "SlayIdleRepeat.Contract.Tests carries [ContractFixtureFor(typeof("
                         + $"{implementation.Name}))]. An implementation nothing runs the shared suite "
-                        + "against is an implementation the port does not actually constrain.");
+                        + "against is an implementation the port does not actually constrain. If a "
+                        + "fixture is genuinely impossible — a live store, a vendor backend, a key, "
+                        + "a DSN — add a StoreBackedAdapterExemptions entry naming the CI owner that "
+                        + "observes it instead.");
                     continue;
                 }
 
@@ -593,7 +746,11 @@ public sealed class ContractSuiteCoverageTests
     // ------------------------------------------------------------------------------- discovery
 
     /// <summary>Every port: an interface under <c>Application.Ports</c> in the Application assembly.</summary>
-    private static IEnumerable<Type> Ports() =>
+    /// <remarks>Internal, with <see cref="FixtureDeclarations"/> and <see cref="PortImplementations"/>:
+    /// <c>StoreBackedAdapterExemptionTests</c> states its directions over the SAME discovery this
+    /// file uses, so the two files cannot disagree about what a port implementation or a fixture
+    /// is.</remarks>
+    internal static IEnumerable<Type> Ports() =>
         TypesOf(Load(ApplicationAssemblyName))
             .Where(t => t.IsInterface && IsUnder(t.Namespace, PortsNamespace))
             .OrderBy(t => t.FullName, StringComparer.Ordinal);
@@ -617,12 +774,12 @@ public sealed class ContractSuiteCoverageTests
         Suites().Select(s => new SuiteDeclaration(s, s.GetCustomAttribute<ContractSuiteForAttribute>()!.Port));
 
     /// <summary>Each fixture paired with the implementation its attribute names.</summary>
-    private static IEnumerable<FixtureDeclaration> FixtureDeclarations() =>
+    internal static IEnumerable<FixtureDeclaration> FixtureDeclarations() =>
         Fixtures().Select(f => new FixtureDeclaration(
             f, f.GetCustomAttribute<ContractFixtureForAttribute>()!.Implementation));
 
     /// <summary>Every concrete, non-abstract implementation of any port across the scanned assemblies.</summary>
-    private static IEnumerable<Type> PortImplementations(IReadOnlyCollection<Type> ports) =>
+    internal static IEnumerable<Type> PortImplementations(IReadOnlyCollection<Type> ports) =>
         ScannedAssemblies()
             .SelectMany(TypesOf)
             .Where(t => t is { IsInterface: false, IsAbstract: false } && ports.Any(p => p.IsAssignableFrom(t)))

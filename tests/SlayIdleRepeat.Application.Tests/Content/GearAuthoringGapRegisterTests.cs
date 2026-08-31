@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using SlayIdleRepeat.Application.Services.Content;
 using Shouldly;
 using Xunit;
@@ -195,8 +194,11 @@ public sealed partial class GearAuthoringGapRegisterTests
             "M4-05 merged and is marked done, and it owns nothing in this register; a predicate that " +
             "cannot see a shipped task is not watching anything");
 
-        HasShipped(rows["M5-06"]).ShouldBeFalse(
-            "M5-06 has not started, and it owns nothing here either — so neither half of this control " +
+        // ⚠️ A hardcoded example of an UNSTARTED task expires when that task ships, which is what
+        // happened to M5-06 at its own merge. Re-point it rather than deleting the arm: without a
+        // false case the predicate could return true for everything and this control would pass.
+        HasShipped(rows["M18-08"]).ShouldBeFalse(
+            "M18-08 has not started, and it owns nothing here either — so neither half of this control " +
             "restates the rule it is controlling");
     }
 
@@ -223,95 +225,14 @@ public sealed partial class GearAuthoringGapRegisterTests
     }
 
     /// <summary>
-    /// Whether a task's status cell says the work landed.
+    /// Whether a task's status cell says the work landed. See <see cref="TrackerStatus.HasShipped"/>
+    /// for the glyph rule and why position cannot be used.
     /// </summary>
-    /// <remarks>
-    /// Read off the <b>first glyph of the status cell</b>, never the line: a row that is open often
-    /// discusses a completed decision in its notes, and a tick anywhere in that prose would read as a
-    /// finished task. ✅ is merged and verified, 🔍 is merged and awaiting its milestone review —
-    /// both mean the task shipped. Everything else (⬜ unstarted, ⏳ queued, 🔄 in flight, ⛔ blocked,
-    /// 🔴 open defect) means it has not.
-    /// </remarks>
-    private static bool HasShipped(string statusCell)
-    {
-        var trimmed = statusCell.TrimStart();
-
-        return trimmed.StartsWith(Merged, StringComparison.Ordinal) ||
-               trimmed.StartsWith(MergedAwaitingReview, StringComparison.Ordinal);
-    }
-
-    /// <summary>The status glyph for a task that merged and was verified.</summary>
-    private const string Merged = "✅";
-
-    /// <summary>The status glyph for a task that merged and awaits its milestone review.</summary>
-    private const string MergedAwaitingReview = "🔍";
-
-    /// <summary>The glyphs a status cell opens with. The first three mean shipped or not; all seven mark the cell.</summary>
-    /// <remarks>
-    /// A status cell is recognised BY ITS GLYPH, never by its position, and that is not tidiness.
-    /// 🔴 Position was the first implementation and it is wrong on real rows: two of the tracker's
-    /// task rows carry an unescaped pipe inside their notes, so the last <c>|</c>-delimited cell is a
-    /// fragment of prose. <c>HasShipped</c> then answers "still open" unconditionally for those two —
-    /// a second arm that cannot fire, inside the register written to end exactly that.
-    /// </remarks>
-    private static readonly string[] StatusGlyphs =
-        ["✅", "🔍", "⬜", "⏳", "🔄", "⛔", "🔴"];
+    private static bool HasShipped(string statusCell) => TrackerStatus.HasShipped(statusCell);
 
     /// <summary>Every task row in the tracker, task id to status cell.</summary>
-    /// <remarks>
-    /// Read from the tracker rather than transcribed here, because a hard-coded copy would go stale
-    /// in exactly the silence this register exists to end. A duplicated id keeps the first row, which
-    /// is the one the tables are ordered by.
-    /// </remarks>
-    private static IReadOnlyDictionary<string, string> TrackerRows()
-    {
-        var rows = new Dictionary<string, string>(StringComparer.Ordinal);
-
-        foreach (var line in File.ReadAllLines(Path.Combine(RepoData.RepositoryRoot, TrackerRelativePath)))
-        {
-            var match = TrackerRow().Match(line);
-
-            if (!match.Success)
-            {
-                continue;
-            }
-
-            var status = line.Trim().Trim('|').Split('|')
-                .Select(cell => cell.Trim())
-                .LastOrDefault(cell => StatusGlyphs.Any(g => cell.StartsWith(g, StringComparison.Ordinal)));
-
-            if (status is not null)
-            {
-                rows.TryAdd(match.Groups[1].Value, status);
-            }
-        }
-
-        return rows;
-    }
+    private static IReadOnlyDictionary<string, string> TrackerRows() => TrackerStatus.Rows();
 
     /// <summary>Every task id the tracker declares, read with the same regex the lookup uses.</summary>
-    /// <remarks>
-    /// Deliberately derived rather than pinned. The literal it replaced was a proxy for "every row
-    /// yields a status", and an equality on a number that legitimately grows can only ever be
-    /// repaired by raising it -- which is how a guard stops guarding.
-    /// </remarks>
-    private static IReadOnlyCollection<string> TrackerRowIds()
-    {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var line in File.ReadAllLines(Path.Combine(RepoData.RepositoryRoot, TrackerRelativePath)))
-        {
-            var match = TrackerRow().Match(line);
-
-            if (match.Success)
-            {
-                ids.Add(match.Groups[1].Value);
-            }
-        }
-
-        return ids;
-    }
-
-    [GeneratedRegex(@"^\|\s*(M\d+-\d+[a-z]?)\s*\|")]
-    private static partial Regex TrackerRow();
+    private static IReadOnlyCollection<string> TrackerRowIds() => TrackerStatus.Ids();
 }

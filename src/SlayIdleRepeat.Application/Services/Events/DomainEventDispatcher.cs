@@ -1,5 +1,3 @@
-using SlayIdleRepeat.Core.Events;
-
 namespace SlayIdleRepeat.Application.Services.Events;
 
 /// <summary>One sink's failure to receive a command's events, carried out on the command's result.</summary>
@@ -37,15 +35,15 @@ public sealed class DomainEventDispatcher
         }
     }
 
-    /// <summary>Delivers <paramref name="events"/> to every sink and collects whatever failed.</summary>
-    /// <param name="events">One command's events, in order. Never null; may be empty.</param>
+    /// <summary>Delivers <paramref name="batch"/> to every sink and collects whatever failed.</summary>
+    /// <param name="batch">One accepted command's delivery. Never null; its events may be empty.</param>
     /// <param name="ct">Cancellation.</param>
     /// <returns>One entry per sink that threw, in registration order. Empty when every sink took the batch.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="events"/> is null.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="batch"/> is null.</exception>
     public async Task<IReadOnlyList<EventDispatchFailure>> DispatchAsync(
-        IReadOnlyList<DomainEvent> events, CancellationToken ct)
+        DispatchedEvents batch, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(batch);
 
         List<EventDispatchFailure>? failures = null;
 
@@ -55,12 +53,16 @@ public sealed class DomainEventDispatcher
             {
                 // Awaited one at a time so a sink that throws before returning its task is caught by
                 // the same arm as one that returns a faulted task, and so the next sink still runs.
-                await sink.ReceiveAsync(events, ct).ConfigureAwait(false);
+                await sink.ReceiveAsync(batch, ct).ConfigureAwait(false);
             }
             catch (Exception error)
             {
                 failures ??= [];
-                failures.Add(new EventDispatchFailure(sink.GetType().Name, error.Message));
+                // The type with the message: the record's own contract is that the text is enough to
+                // diagnose without re-running the command, and a NullReferenceException's message
+                // alone is "Object reference not set to an instance of an object."
+                failures.Add(new EventDispatchFailure(
+                    sink.GetType().Name, error.GetType().Name + ": " + error.Message));
             }
         }
 

@@ -21,6 +21,9 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// <item><c>loc/*.json</c> — governed by <c>schema/loc.schema.json</c>.</item>
 /// <item><c>tuning/experiments/*.json</c> — override patches. Never part of a snapshot; they load
 /// only when named in <see cref="ContentLoadOptions.OverrideDocuments"/>.</item>
+/// <item><c>assets/*.json</c> — asset registers. Paired and schema-validated like any data file,
+/// then dropped at the last step: they describe what an install carries, not what a run is played
+/// against, so they are never part of a snapshot and never move its stamp.</item>
 /// <item><c>content/&lt;type&gt;/*.json</c> — many files of one type, all governed by that type's
 /// one schema, declared in <see cref="ContentLayout.ContentTypeSchemas"/>.</item>
 /// <item>everything else — governed by <c>schema/&lt;stem&gt;.schema.json</c>.</item>
@@ -148,7 +151,10 @@ public static class ContentLoader
             return new ContentLoadResult(null, ordered);
         }
 
+        // The one place an asset register leaves: it stayed in `data` all the way through pairing
+        // and validation, so its schema is not an orphan and its contents are still checked.
         var documents = data
+            .Where(d => !ContentLayout.IsAssetRegister(d.Key))
             .Select(d => new ContentDocument(d.Key, d.Value))
             .OrderBy(d => d.Path, StringComparer.Ordinal)
             .ToArray();

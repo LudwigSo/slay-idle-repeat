@@ -1,12 +1,11 @@
 using SlayIdleRepeat.Application.Services.Events;
-using SlayIdleRepeat.Core.Events;
 
 namespace SlayIdleRepeat.Application.Tests.Events;
 
 /// <summary>A sink that keeps every batch it was handed, in the order it was handed them.</summary>
 internal sealed class RecordingSink : IDomainEventSink
 {
-    private readonly List<IReadOnlyList<DomainEvent>> _batches = [];
+    private readonly List<DispatchedEvents> _batches = [];
     private readonly List<string>? _order;
 
     /// <summary>Builds a sink.</summary>
@@ -22,12 +21,12 @@ internal sealed class RecordingSink : IDomainEventSink
     internal string Name { get; }
 
     /// <summary>Every batch delivered here, in delivery order.</summary>
-    internal IReadOnlyList<IReadOnlyList<DomainEvent>> Batches => _batches;
+    internal IReadOnlyList<DispatchedEvents> Batches => _batches;
 
     /// <inheritdoc/>
-    public Task ReceiveAsync(IReadOnlyList<DomainEvent> events, CancellationToken ct)
+    public Task ReceiveAsync(DispatchedEvents batch, CancellationToken ct)
     {
-        _batches.Add(events);
+        _batches.Add(batch);
         _order?.Add(Name);
 
         return Task.CompletedTask;
@@ -44,7 +43,7 @@ internal sealed class ThrowingSink : IDomainEventSink
     internal int Calls { get; private set; }
 
     /// <inheritdoc/>
-    public Task ReceiveAsync(IReadOnlyList<DomainEvent> events, CancellationToken ct)
+    public Task ReceiveAsync(DispatchedEvents batch, CancellationToken ct)
     {
         Calls++;
 
@@ -64,6 +63,6 @@ internal sealed class FaultingSink : IDomainEventSink
     internal const string Message = "this sink faulted its task";
 
     /// <inheritdoc/>
-    public Task ReceiveAsync(IReadOnlyList<DomainEvent> events, CancellationToken ct) =>
+    public Task ReceiveAsync(DispatchedEvents batch, CancellationToken ct) =>
         Task.FromException(new InvalidOperationException(Message));
 }
