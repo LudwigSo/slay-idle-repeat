@@ -138,13 +138,17 @@
               "id": { "type": "string", "pattern": "^AFX_[A-Z0-9_]+$" },
               "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
               "stat": {
-                "description": "The stat this affix writes, spelled as one StatId name. null where the design authors an affix the 14-stat block has no slot for, which is AFX_DAMAGE_VS_ELITES alone: conditional damage has no stat, and a target-conditional standing effect cannot be re-aggregated outside an attack. Required rather than optional, so an affix cannot lose its stat and quietly stop contributing.",
+                "description": "The stat this affix writes, spelled as one StatId name. null remains the legal shape for an affix the design describes and nothing can express — no shipped row uses it since 16 D47's conditional standing-effect bucket made the damage-vs-Elites affix authorable. Required rather than optional, so an affix cannot lose its stat and quietly stop contributing.",
                 "type": ["string", "null"],
                 "pattern": "^[A-Z][A-Z0-9_]*$"
               },
               "op": {
                 "description": "How the affix writes it. Two ops rather than the whole effect vocabulary, deliberately: an affix is a standing stat modifier and nothing else, so an authoring slip cannot turn one into a summon. STAT_ADD_FLAT adds X percentage points and is what a stat that is itself a fraction or an accumulator takes; STAT_ADD_PCT multiplies and is only correct for a stat whose base is a magnitude the percentage is taken of, because aggregation multiplies the running value and a percent of a zero base is zero. null exactly where stat is null.",
                 "enum": ["STAT_ADD_FLAT", "STAT_ADD_PCT", null]
+              },
+              "condition": {
+                "description": "16 D47 — the context gate a roll of this affix carries onto its synthesised standing effect, as an 18 §4 condition tree; omitted on an ungated affix. Structural here, deliberately: this schema may not $ref schema/effect.schema.json (the validator resolves same-document pointers only), so the strict tree shape is DropsTuning's ConditionContentReader, which refuses an unmapped key, an unknown function and an unknown comparator by name. AFX_DAMAGE_VS_ELITES is the one gated row: TARGET_IS_ELITE, so the roll composes to x(1+v) against elites under D46's multiplier reading and contributes nothing against anyone else.",
+                "type": "object"
               },
               "min": { "description": "Signed since 16 D46: AFX_DAMAGE_REDUCTION adds flat onto DR_PCT's base 1.0 (a damage-taken multiplier), so its range is negative. DropsTuning still refuses max < min and non-finite bounds.", "type": "number" },
               "max": { "type": "number" },

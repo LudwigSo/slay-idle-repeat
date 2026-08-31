@@ -321,6 +321,33 @@ public sealed class GearDocumentsMatchesTuningDataTests
             "rolls one.");
     }
 
+    /// <summary>
+    /// The damage-vs-Elites affix ships as the target-gated percent-add the fixture transcribes.
+    /// </summary>
+    /// <remarks>
+    /// The one affix whose <c>stat</c>/<c>op</c> pair and gate are load-bearing enough to pin here:
+    /// it was the pool's single null pair until the conditional standing-effect bucket made it
+    /// authorable, and <c>GearDocuments</c> now transcribes the authored shape — so the real file
+    /// must author the same one, or fifteen hundred lines of Core gear assertions are resting on a
+    /// row the game does not ship.
+    /// </remarks>
+    [Fact]
+    public void The_shipped_damage_vs_elites_affix_is_the_target_gated_shape_the_fixture_transcribes()
+    {
+        var row = Affixes()[12];
+
+        row.GetProperty("id").GetString().ShouldBe("AFX_DAMAGE_VS_ELITES");
+        row.GetProperty("stat").GetString().ShouldBe(
+            "DMG_PCT", "the roll composes onto the damage multiplier, ×(1 + v) against elites");
+        row.GetProperty("op").GetString().ShouldBe(
+            "STAT_ADD_PCT", "the multiplier stat takes the percent bucket off its base 1.0");
+
+        var condition = row.GetProperty("condition");
+        condition.GetProperty("fn").GetString().ShouldBe("TARGET_IS_ELITE");
+        condition.GetProperty("op").GetString().ShouldBe("eq");
+        condition.GetProperty("value").GetBoolean().ShouldBeTrue();
+    }
+
     /// <summary>The pool is thirteen — the number an SS roll of four draws against.</summary>
     /// <remarks>
     /// ⚠️ Thirteen, not the document's fourteen: <c>AFX_REROLL_CHARGE</c> is gone with the reroll

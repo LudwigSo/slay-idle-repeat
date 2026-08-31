@@ -85,6 +85,13 @@ public sealed class ConditionPurityRuleTests
     private static readonly string[] ReachedByAConditionByName =
     {
         "SlayIdleRepeat.Core.Rules.Effects.BattleRoster",
+
+        // The subject-presence classification behind the conditional standing-effect bucket. It
+        // lives in Content.Effects (vocabulary — the gear readers need it below Rules), but the
+        // battle gate consults it on every aggregation pass beside the evaluator, so it must meet
+        // a condition's standard of purity — a memoised reading here would be exactly the cache
+        // these rules exist to catch.
+        "SlayIdleRepeat.Core.Content.Effects.ConditionSubjects",
     };
 
     /// <summary>

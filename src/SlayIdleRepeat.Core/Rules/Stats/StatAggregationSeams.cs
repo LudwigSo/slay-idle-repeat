@@ -116,13 +116,22 @@ internal sealed record StatAggregationSeams(
 }
 
 /// <summary>
-/// The default step-2 filter: an effect with no condition is active, and an effect with one is
-/// refused.
+/// The default step-2 filter: an ungated effect is active, a context-gated one is inactive, and an
+/// ambient-conditional one is refused.
 /// </summary>
 /// <remarks>
-/// Refused, not skipped and not admitted — both quiet answers are wrong in a way that shows up as a
-/// balance bug rather than an error: admitting every conditional effect would apply an on-full-HP
-/// perk unconditionally, and skipping every one would delete a conditional perk from the build.
+/// <para>
+/// The refusal is deliberate, not a gap: admitting every ambient-conditional effect would apply an
+/// on-low-HP perk at full health, and skipping every one would delete a conditional perk from the
+/// build — both silent balance bugs only the live fight can avoid.
+/// </para>
+/// <para>
+/// A <b>context-gated</b> effect — one whose condition reads the current target or the attacker
+/// (<see cref="ConditionSubjects"/>) — is different: the conditional
+/// standing-effect bucket's rule gives it an authored answer outside a fight. It contributes only
+/// in a context carrying its subject, and this gate has none — so it is inactive here, which is
+/// what lets a hero screen compose a build wearing a damage-vs-Elites affix instead of throwing.
+/// </para>
 /// </remarks>
 internal sealed class UnconditionalEffectsOnly : IEffectConditionGate
 {
@@ -138,16 +147,27 @@ internal sealed class UnconditionalEffectsOnly : IEffectConditionGate
     {
         ArgumentNullException.ThrowIfNull(effect);
 
-        return effect.Condition is null
-            ? true
-            : throw new EffectContextException(
-                effect.Id,
-                "18 §8 step 2 filters by condition, evaluated against current state, and it carries one",
-                "Evaluating 18 §4's condition functions needs the live fight and is M2-05's; " +
-                "M2-07 ships the aggregation order with this seam open. Admitting the effect anyway would " +
-                "apply PK_EXECUTIONER against a full-health target, and skipping it would delete " +
-                "PK_BERSERK — both are silent balance bugs, so the aggregation refuses instead. Pass a " +
-                "StatAggregationSeams with a real IEffectConditionGate.");
+        if (effect.Condition is null)
+        {
+            return true;
+        }
+
+        var subjects = ConditionSubjects.Of(effect.Condition);
+        if (subjects.ReadsTarget || subjects.ReadsAttacker)
+        {
+            // The bucket's rule, not a guess: with neither subject in hand the gate cannot hold,
+            // so the effect contributes nothing here and waits for an attack resolution.
+            return false;
+        }
+
+        throw new EffectContextException(
+            effect.Id,
+            "18 §8 step 2 filters by condition, evaluated against current state, and it carries one",
+            "Evaluating 18 §4's condition functions needs the live fight and is M2-05's; " +
+            "M2-07 ships the aggregation order with this seam open. Admitting the effect anyway would " +
+            "apply PK_EXECUTIONER against a full-health target, and skipping it would delete " +
+            "PK_BERSERK — both are silent balance bugs, so the aggregation refuses instead. Pass a " +
+            "StatAggregationSeams with a real IEffectConditionGate.");
     }
 }
 

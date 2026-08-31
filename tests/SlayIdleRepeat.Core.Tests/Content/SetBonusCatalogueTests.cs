@@ -40,7 +40,7 @@ public sealed class SetBonusCatalogueTests
 
     /// <summary>An unauthored breakpoint grants nothing rather than refusing the whole set.</summary>
     /// <remarks>
-    /// Seven of the twelve ship unauthored and a full set is reachable, so a reader that refused a
+    /// Six of the twelve ship unauthored and a full set is reachable, so a reader that refused a
     /// null would make the strongest loadout in the game unloadable.
     /// </remarks>
     [Fact]
@@ -77,6 +77,66 @@ public sealed class SetBonusCatalogueTests
         var trigger = effect.Trigger.ShouldNotBeNull();
         trigger.Kind.ShouldBe(TriggerKind.ON_LETHAL);
         trigger.Once.ShouldBe(true, "08 §3.2: ONCE per battle — an unbounded negate never dies");
+    }
+
+    /// <summary>
+    /// Ironvow's four-piece is the attacker-gated standing DR the conditional bucket exists for.
+    /// </summary>
+    /// <remarks>
+    /// The magnitude is the authored −15%, written as a negative percent-add on the damage-taken
+    /// multiplier's base 1.00, and the gate is any(elite, boss) over the attacker — the two facts a
+    /// re-tune or a re-shape would silently change.
+    /// </remarks>
+    [Fact]
+    public void Ironvows_four_piece_is_an_attacker_gated_standing_damage_reduction()
+    {
+        var effect = Shipped()
+            .Granted(GearFamilyAxis.HEAVY, 4)
+            .SingleOrDefault(e => e.Id == "SET_BONUS_HEAVY_4")
+            .ShouldNotBeNull("the four-piece row is authored, under the id its siblings' convention gives it");
+
+        effect.Op.ShouldBe(EffectOp.STAT_ADD_PCT);
+        effect.Stat.ShouldBe(StatSelector.Of(StatId.DR_PCT));
+        effect.Value.ShouldBe(-0.15, "−15% damage taken authors a NEGATIVE percent-add on DR%");
+        effect.Trigger.ShouldNotBeNull().Kind.ShouldBe(TriggerKind.ALWAYS);
+        effect.Target.ShouldBe(EffectTarget.SELF);
+
+        var condition = effect.Condition.ShouldNotBeNull("the gate is the whole point of the row");
+        condition.Kind.ShouldBe(ConditionKind.ANY);
+        condition.Operands.Count.ShouldBe(2);
+
+        var elite = condition.Operands[0].Term.ShouldNotBeNull();
+        elite.Fn.ShouldBe(ConditionFunction.ATTACKER_IS_ELITE);
+        elite.Comparator.ShouldBe(ConditionComparator.EQ);
+        elite.Flag.ShouldBe(true);
+
+        var boss = condition.Operands[1].Term.ShouldNotBeNull();
+        boss.Fn.ShouldBe(ConditionFunction.ATTACKER_IS_BOSS);
+        boss.Comparator.ShouldBe(ConditionComparator.EQ);
+        boss.Flag.ShouldBe(true);
+    }
+
+    /// <summary>The ungated control: a set bonus authoring <c>condition: null</c> reads none.</summary>
+    [Fact]
+    public void An_unauthored_condition_reads_as_no_condition_at_all()
+    {
+        Shipped()
+            .Granted(GearFamilyAxis.HEAVY, 2)
+            .ShouldHaveSingleItem()
+            .Condition.ShouldBeNull("Ironvow's two-piece is the vocabulary's canonical ungated");
+    }
+
+    /// <summary>
+    /// Stormcall's four-piece stays unauthored: the chained hit's multiplier is a number the design
+    /// set never wrote, and the bucket removed only the shape blocker.
+    /// </summary>
+    [Fact]
+    public void Stormcalls_four_piece_is_still_deliberately_unauthored()
+    {
+        Shipped().Bonuses(GearFamilyAxis.AGILE)[1].Effects.ShouldBeNull(
+            "'every 5th attack chains to all enemies' authors the 5 and no chain-hit multiplier — " +
+            "authoring one here would be a fabricated magnitude, not a transcription; see the gear " +
+            "gap register");
     }
 
     /// <summary>A set the document does not author is refused, never answered as empty.</summary>
@@ -220,15 +280,76 @@ public sealed class SetBonusCatalogueTests
             .Message.ShouldContain("different facts", Case.Sensitive);
     }
 
-    /// <summary>An authorised condition on a set bonus is refused.</summary>
+    /// <summary>An authored condition tree is read as the tree the document writes.</summary>
     /// <remarks>
-    /// <c>condition</c> is a mapped key so a bonus can write the vocabulary's canonical "ungated"
-    /// null — which is exactly why an authorised one would otherwise be accepted and then dropped.
-    /// The build aggregation re-evaluates conditions outside any attack, where the conditions worth
-    /// gating a set bonus on either throw or read false.
+    /// The conditional standing-effect bucket made a gated set bonus a legal authored shape, so the
+    /// reader maps the tree instead of refusing it. The fixture nests a combinator to prove the
+    /// mapping is recursive, not one level deep.
     /// </remarks>
     [Fact]
-    public void An_authorised_condition_on_a_set_bonus_is_refused()
+    public void An_authored_condition_on_a_set_bonus_is_read_as_the_tree_it_writes()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_PCT"),
+            ["stat"] = ContentValue.Text("DR_PCT"),
+            ["value"] = ContentValue.Number(-0.15m),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["any"] = ContentValue.Array(new[]
+                {
+                    ConditionTermValue("ATTACKER_IS_ELITE"),
+                    ConditionTermValue("ATTACKER_IS_BOSS"),
+                }),
+            }),
+        });
+
+        var read = SetBonusCatalogue.Read(Snapshot(CoveringSet("BALANCED", effect)), Breakpoints)
+            .Granted(GearFamilyAxis.BALANCED, Breakpoints[0])
+            .ShouldHaveSingleItem();
+
+        var condition = read.Condition.ShouldNotBeNull();
+        condition.Kind.ShouldBe(ConditionKind.ANY);
+        condition.Operands.Count.ShouldBe(2);
+        condition.Operands[0].Term!.Fn.ShouldBe(ConditionFunction.ATTACKER_IS_ELITE);
+        condition.Operands[1].Term!.Fn.ShouldBe(ConditionFunction.ATTACKER_IS_BOSS);
+        condition.Operands[1].Term!.Flag.ShouldBe(true);
+    }
+
+    /// <summary>A numeric comparison maps its comparator and value — not only the boolean form.</summary>
+    [Fact]
+    public void A_numeric_condition_term_maps_its_comparator_and_value()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_PCT"),
+            ["stat"] = ContentValue.Text("DMG_PCT"),
+            ["value"] = ContentValue.Number(0.25m),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["fn"] = ContentValue.Text("TARGET_HP_PCT"),
+                ["op"] = ContentValue.Text("lt"),
+                ["value"] = ContentValue.Number(0.30m),
+            }),
+        });
+
+        var term = SetBonusCatalogue.Read(Snapshot(CoveringSet("BALANCED", effect)), Breakpoints)
+            .Granted(GearFamilyAxis.BALANCED, Breakpoints[0])
+            .ShouldHaveSingleItem()
+            .Condition.ShouldNotBeNull()
+            .Term.ShouldNotBeNull();
+
+        term.Fn.ShouldBe(ConditionFunction.TARGET_HP_PCT);
+        term.Comparator.ShouldBe(ConditionComparator.LT);
+        term.Value.ShouldBe(0.30);
+        term.Flag.ShouldBeNull("a numeric comparison carries no boolean");
+    }
+
+    /// <summary>A function the vocabulary does not declare is refused, with the term named.</summary>
+    [Fact]
+    public void A_condition_function_the_vocabulary_does_not_declare_is_refused()
     {
         var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
@@ -236,14 +357,202 @@ public sealed class SetBonusCatalogueTests
             ["op"] = ContentValue.Text("STAT_ADD_FLAT"),
             ["stat"] = ContentValue.Text("LIFESTEAL"),
             ["value"] = ContentValue.Number(0.1m),
-            ["condition"] = ContentValue.Text("TARGET_IS_ELITE"),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["fn"] = ContentValue.Text("TARGET_IS_SHINY"),
+                ["op"] = ContentValue.Text("eq"),
+                ["value"] = ContentValue.True,
+            }),
+        });
+
+        var message = Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
+            .Message;
+
+        message.ShouldContain("TARGET_IS_SHINY", Case.Sensitive);
+        message.ShouldContain("condition function", Case.Sensitive);
+    }
+
+    /// <summary>A combinator node carrying a sibling key is refused, not silently truncated.</summary>
+    /// <remarks>
+    /// Without this, <c>{"any": […], "weight": 1}</c> reads as its combinator and the sibling is
+    /// ignored — and the drops schema deliberately leaves the condition's shape to the reader, so
+    /// the reader is the only line of defence there.
+    /// </remarks>
+    [Fact]
+    public void A_combinator_node_carrying_a_sibling_key_is_refused()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_PCT"),
+            ["stat"] = ContentValue.Text("DR_PCT"),
+            ["value"] = ContentValue.Number(-0.15m),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["any"] = ContentValue.Array(new[] { ConditionTermValue("ATTACKER_IS_ELITE") }),
+                ["weight"] = ContentValue.Number(1m),
+            }),
         });
 
         Should.Throw<InvalidTunableException>(
                 () => SetBonusCatalogue.Read(
                     Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
-            .Message.ShouldContain("carries no condition", Case.Sensitive);
+            .Message.ShouldContain("'weight'", Case.Sensitive);
     }
+
+    /// <summary>A tree reading both subjects is refused: no standing context ever carries both.</summary>
+    /// <remarks>
+    /// The per-pair re-aggregation hands each side exactly one subject — the source a target, the
+    /// defender an attacker — so a both-subject gate could never hold and the effect it gates could
+    /// never fire: the inverted-range shape, wearing a gate's clothes.
+    /// </remarks>
+    [Fact]
+    public void A_tree_reading_both_subjects_is_refused()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_PCT"),
+            ["stat"] = ContentValue.Text("DR_PCT"),
+            ["value"] = ContentValue.Number(-0.15m),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["all"] = ContentValue.Array(new[]
+                {
+                    ConditionTermValue("TARGET_IS_ELITE"),
+                    ConditionTermValue("ATTACKER_IS_BOSS"),
+                }),
+            }),
+        });
+
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
+            .Message.ShouldContain("both the current target and the attacker", Case.Sensitive);
+    }
+
+    /// <summary>An ambient-only gate on a set bonus is refused at load, not at the hero screen.</summary>
+    /// <remarks>
+    /// An ambient condition on a standing gear grant would evaluate in battle and then throw out of
+    /// the strict aggregation the first time a hero screen composes the build — the deferred
+    /// version of exactly the failure the old blanket refusal prevented. The bucket's gates read a
+    /// contextual subject; anything else on gear waits for a consumer that does not exist.
+    /// </remarks>
+    [Fact]
+    public void An_ambient_only_gate_on_a_set_bonus_is_refused()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_PCT"),
+            ["stat"] = ContentValue.Text("ATK"),
+            ["value"] = ContentValue.Number(0.1m),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["fn"] = ContentValue.Text("IS_PVP"),
+                ["op"] = ContentValue.Text("eq"),
+                ["value"] = ContentValue.True,
+            }),
+        });
+
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
+            .Message.ShouldContain("reads neither the current target nor the attacker", Case.Sensitive);
+    }
+
+    /// <summary>The comparator's spelling is exactly lower-case — the rule the vocabulary states.</summary>
+    [Fact]
+    public void An_upper_case_comparator_spelling_is_refused()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_PCT"),
+            ["stat"] = ContentValue.Text("DR_PCT"),
+            ["value"] = ContentValue.Number(-0.15m),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["fn"] = ContentValue.Text("ATTACKER_IS_ELITE"),
+                ["op"] = ContentValue.Text("EQ"),
+                ["value"] = ContentValue.True,
+            }),
+        });
+
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
+            .Message.ShouldContain("not a comparator", Case.Sensitive);
+    }
+
+    /// <summary>A term value outside the three authored shapes is refused at load, not mid-battle.</summary>
+    /// <remarks>
+    /// The bucket moved a gated tree's first evaluation from the hero screen to the first pair
+    /// context mid-fight, so a malformed value that used to fail at composition would now fail out
+    /// of an attack resolution — the read is where it must be caught.
+    /// </remarks>
+    [Fact]
+    public void A_term_value_outside_the_three_authored_shapes_is_refused()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_PCT"),
+            ["stat"] = ContentValue.Text("DR_PCT"),
+            ["value"] = ContentValue.Number(-0.15m),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["fn"] = ContentValue.Text("ATTACKER_IS_ELITE"),
+                ["op"] = ContentValue.Text("eq"),
+                ["value"] = ContentValue.Text("yes"),
+            }),
+        });
+
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
+            .Message.ShouldContain("a number, a boolean, or a two-element array", Case.Sensitive);
+    }
+
+    /// <summary>A key the reader does not map INSIDE a condition term is refused too.</summary>
+    /// <remarks>
+    /// The same narrow-reader rule as the effect's own keys and the trigger's: a misspelled or
+    /// borrowed key must fail loudly, or the document and the gate it describes silently diverge.
+    /// </remarks>
+    [Fact]
+    public void A_condition_key_the_reader_does_not_map_is_refused()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_FLAT"),
+            ["stat"] = ContentValue.Text("LIFESTEAL"),
+            ["value"] = ContentValue.Number(0.1m),
+            ["condition"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["fn"] = ContentValue.Text("ATTACKER_IS_ELITE"),
+                ["op"] = ContentValue.Text("eq"),
+                ["value"] = ContentValue.True,
+                ["weight"] = ContentValue.Number(1m),
+            }),
+        });
+
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
+            .Message.ShouldContain("'weight' is a key this reader does not map", Case.Sensitive);
+    }
+
+    /// <summary>One <c>{"fn", "op", "value": true}</c> comparison, as authored JSON.</summary>
+    private static ContentValue ConditionTermValue(string fn) =>
+        ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["fn"] = ContentValue.Text(fn),
+            ["op"] = ContentValue.Text("eq"),
+            ["value"] = ContentValue.True,
+        });
 
     /// <summary>Bonuses authored out of ascending piece order are refused.</summary>
     [Fact]

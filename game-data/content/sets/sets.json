@@ -56,7 +56,25 @@
             }
           ]
         },
-        { "pieces": 4, "effects": null },
+        {
+          "pieces": 4,
+          "effects": [
+            {
+              "id": "SET_BONUS_HEAVY_4",
+              "op": "STAT_ADD_PCT",
+              "stat": "DR_PCT",
+              "trigger": { "kind": "ALWAYS" },
+              "condition": {
+                "any": [
+                  { "fn": "ATTACKER_IS_ELITE", "op": "eq", "value": true },
+                  { "fn": "ATTACKER_IS_BOSS", "op": "eq", "value": true }
+                ]
+              },
+              "target": "SELF",
+              "value": -0.15
+            }
+          ]
+        },
         {
           "pieces": 6,
           "effects": [

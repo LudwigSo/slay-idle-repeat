@@ -241,6 +241,9 @@ internal sealed class GearAffixEffectSource : IEffectSource
                     Stat = StatSelector.Of(definition.Stat!.Value),
                     Trigger = EffectDefaults.Always,
                     Target = EffectDefaults.AbsentTarget,
+
+                    // D47: the pool's authored gate rides the synthesised effect untouched.
+                    Condition = definition.Condition,
                     Value = roll.Value,
                 };
 

@@ -237,21 +237,6 @@ internal sealed class SetBonusCatalogue
     {
         RequireKnownKeys(content, pointer, KnownEffectKeys, "a set bonus");
 
-        // `condition` is a known key so a set bonus can write the vocabulary's canonical "ungated"
-        // null, and an authorised one is refused rather than mapped: the aggregation this feeds
-        // re-evaluates conditions against a context with no current target, where several of them
-        // throw and the rest read false — so a gated set bonus would be a bonus that never fires or a
-        // battle that ends in an exception, and neither should be reachable by editing this document.
-        if (content.IsAuthorised(pointer + "/condition"))
-        {
-            throw new InvalidTunableException(
-                pointer + "/condition",
-                "A set bonus is a standing grant and carries no condition. The build aggregation " +
-                "re-evaluates one on every pass, outside any attack, which is where the conditions " +
-                "worth gating a set bonus on are either unreadable or false — so the gate would not " +
-                "mean what the document says it means.");
-        }
-
         var statPointer = pointer + "/stat";
         var valuePointer = pointer + "/value";
         var valueModePointer = pointer + "/valueMode";
@@ -273,6 +258,15 @@ internal sealed class SetBonusCatalogue
                 ? AuthoredToken.Parse<EffectTarget>(content, targetPointer, "an effect target")
                 : null,
             Trigger = content.IsAuthorised(triggerPointer) ? ReadTrigger(content, triggerPointer) : null,
+
+            // An authored gate is read as the tree it writes — the conditional standing-effect
+            // bucket made a gated set bonus a legal authored shape (Ironvow's four-piece is an
+            // attacker-gated standing DR), and `condition: null` stays the vocabulary's canonical
+            // ungated.
+            Condition = content.IsAuthorised(pointer + "/condition")
+                ? ConditionContentReader.ReadContextGate(
+                    content, pointer + "/condition", "a set bonus's condition")
+                : null,
         };
     }
 

@@ -1226,8 +1226,50 @@ internal sealed class BattleSimulation
             return;
         }
 
-        var context = ContextFor(actor);
+        var aggregated = AggregateFor(actor, ContextFor(actor));
 
+        // The phase check runs after EVERY HP decrease, and a shrinking MAX_HP is one: a stat effect
+        // can re-base Max HP mid-fight, and a boss clipped below a threshold must enter the next
+        // phase there rather than on whatever unrelated swing lands next. ON_LOW_HP is a crossing for
+        // the same reason.
+        // The WHOLE record is kept, not just the final block: a consumer that discarded the wrapper
+        // would cap every ward at whatever Max HP the aggregation last produced. And this runs on
+        // every re-aggregation, so an enrage moves the ward cap with the boss's Max HP.
+        if (actor.SetStats(aggregated))
+        {
+            AfterHpDecrease(actor);
+        }
+    }
+
+    /// <summary>
+    /// One actor's stat block as it stands against one attack's other party — the conditional
+    /// standing-effect bucket's per-pair re-aggregation.
+    /// </summary>
+    /// <remarks>
+    /// The ambient block is returned UNCHANGED — the same instance, not a recomputation — for every
+    /// actor holding no context-gated standing effect, which keeps the ungated path byte-identical
+    /// to a world without the bucket. Only an actor whose standing stat ops read the current target
+    /// or the attacker pays for a fresh pass, over the same collected effect list, with the pair in
+    /// context — where a target-gated effect is finally carried and evaluated. The result is a
+    /// local reading for one resolution: it is never stored on the actor, so the ambient block, the
+    /// phase check and the start-of-tick snapshot are untouched by it.
+    /// </remarks>
+    /// <param name="actor">Whose stats are being read.</param>
+    /// <param name="target">The actor's current target, when it is the swing's source.</param>
+    /// <param name="attacker">The actor hitting it, when it is the swing's defender.</param>
+    internal AggregatedStats StatsAgainst(BattleActor actor, BattleActor? target, BattleActor? attacker)
+    {
+        if (!actor.HoldsContextGatedStanding || (target is null && attacker is null))
+        {
+            return actor.Aggregated;
+        }
+
+        return AggregateFor(actor, ContextFor(actor, target, attacker));
+    }
+
+    /// <summary>One aggregation pass over the actor's collected effects, against one context.</summary>
+    private AggregatedStats AggregateFor(BattleActor actor, EffectEvaluationContext context)
+    {
         // UNTRIGGERED effects, PLUS every live FIRED stat op — the full "collect all active
         // effects", not the untriggered half alone. An untriggered effect is a standing modifier
         // re-evaluated at every resolution pass, while a triggered one applies at fire time and then
@@ -1297,7 +1339,7 @@ internal sealed class BattleSimulation
             effects = withBuckets;
         }
 
-        var aggregated = StatAggregation.Aggregate(
+        return StatAggregation.Aggregate(
             actor.Plan.BaseStats,
             effects,
             _plan.Caps,
@@ -1305,18 +1347,6 @@ internal sealed class BattleSimulation
                 new BattleConditionGate(context),
                 new ScaledEffectValue(context),
                 StatOpBehaviour.Instance));
-
-        // The phase check runs after EVERY HP decrease, and a shrinking MAX_HP is one: a stat effect
-        // can re-base Max HP mid-fight, and a boss clipped below a threshold must enter the next
-        // phase there rather than on whatever unrelated swing lands next. ON_LOW_HP is a crossing for
-        // the same reason.
-        // The WHOLE record is kept, not just the final block: a consumer that discarded the wrapper
-        // would cap every ward at whatever Max HP the aggregation last produced. And this runs on
-        // every re-aggregation, so an enrage moves the ward cap with the boss's Max HP.
-        if (actor.SetStats(aggregated))
-        {
-            AfterHpDecrease(actor);
-        }
     }
 
     /// <summary>The evaluation context for one holder — this fight's roster, this fight's clock, this fight's draw stream.</summary>
@@ -1392,6 +1422,15 @@ internal sealed class BattleSimulation
     // ══════════════════════════════════════════════════════════════════ the seams this class implements
 
     /// <summary>Stat aggregation's condition gate, over the condition evaluator bound to one pass's context.</summary>
+    /// <remarks>
+    /// The subject-presence check comes first, and it is the conditional standing-effect bucket's
+    /// whole activation rule: a condition reading the current target or the attacker is evaluated
+    /// only in a context that carries that subject, and is simply inactive elsewhere. Ambient
+    /// re-aggregation carries neither, so a target-gated standing effect no longer throws out of
+    /// every fight that holds one — it waits for the attack resolution whose pair context carries
+    /// its subject. Every ambient condition passes the check in every context and evaluates exactly
+    /// as before.
+    /// </remarks>
     private sealed class BattleConditionGate : IEffectConditionGate
     {
         private readonly EffectEvaluationContext _context;
@@ -1399,6 +1438,7 @@ internal sealed class BattleSimulation
         internal BattleConditionGate(EffectEvaluationContext context) => _context = context;
 
         public bool IsActive(EffectDefinition effect) =>
+            _context.Carries(ConditionSubjects.Of(effect.Condition)) &&
             ConditionEvaluator.IsSatisfied(effect.Condition, _context);
     }
 

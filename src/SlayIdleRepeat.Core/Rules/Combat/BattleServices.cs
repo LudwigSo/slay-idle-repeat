@@ -72,6 +72,13 @@ internal sealed class BattleServices
         BattleActor holder, BattleActor? target = null, BattleActor? attacker = null) =>
         _simulation.ContextFor(holder, target, attacker);
 
+    /// <summary>One actor's stat block against one attack's other party — the conditional standing-effect bucket's per-pair re-aggregation, and the ambient block unchanged for every actor without a context-gated standing effect.</summary>
+    /// <param name="actor">Whose stats are being read.</param>
+    /// <param name="target">Its current target, when it is the swing's source.</param>
+    /// <param name="attacker">The actor hitting it, when it is the swing's defender.</param>
+    internal AggregatedStats StatsAgainst(BattleActor actor, BattleActor? target, BattleActor? attacker) =>
+        _simulation.StatsAgainst(actor, target, attacker);
+
     /// <summary>The <c>ON_PHASE_ENTER</c> sweep a phase entry owes, over the boss's own instances in ascending effect-id order.</summary>
     /// <param name="boss">The boss that just entered a phase.</param>
     /// <param name="phase">The phase entered, <c>1..3</c>.</param>

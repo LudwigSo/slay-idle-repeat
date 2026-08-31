@@ -86,17 +86,32 @@ internal sealed class BattleActor : IEffectActorView
             // default says so — and reading only the absent half is not a narrower rule but a silent
             // one: every gear stat, affix and set bonus is synthesised with an explicit ALWAYS, so
             // that half of the loadout reached the aggregation pass and none of it reached a fight.
+            var subjects = ConditionSubjects.Of(held.Effect.Condition);
+            var contextGated = subjects.ReadsTarget || subjects.ReadsAttacker;
+
             if (EffectDefaults.IsAlwaysActive(held.Effect))
             {
                 standing.Add(held.Effect);
+
+                // The conditional standing-effect bucket's early-out: only a STANDING stat op with
+                // a target- or attacker-reading gate can make an attack's per-pair re-aggregation
+                // differ from the ambient one, so the pair pass is skipped for every actor without
+                // one. Stat family only, because aggregation reads nothing else.
+                HoldsContextGatedStanding |=
+                    held.Effect.Family == EffectOpFamily.STAT && contextGated;
             }
             else if (held.Effect.Trigger!.Kind == TriggerKind.PERIODIC)
             {
                 HoldsAPeriodic = true;
             }
 
+            // A context-gated condition is constant-inactive in every ambient context (its subject
+            // is never present there), so it cannot make the per-tick answer change — only an
+            // ambient condition or a value scale can, and re-aggregating nine actors 1800 times
+            // for a constant answer was the whole of the fight's time budget.
             StatsDependOnLiveState |=
-                held.Effect.Condition is not null || held.Effect.ValueScale is not null;
+                (held.Effect.Condition is not null && !contextGated) ||
+                held.Effect.ValueScale is not null;
         }
 
         StandingEffects = standing;
@@ -296,6 +311,13 @@ internal sealed class BattleActor : IEffectActorView
 
     /// <summary>Whether this actor's aggregation reads live state and must be re-run every tick rather than only when marked stale.</summary>
     internal bool StatsDependOnLiveState { get; set; }
+
+    /// <summary>
+    /// Whether any standing stat op carries a context gate — the flag behind the per-pair
+    /// re-aggregation an attack resolution asks for. False for every actor whose swings must stay
+    /// byte-identical to the ambient block's.
+    /// </summary>
+    internal bool HoldsContextGatedStanding { get; private set; }
 
     /// <summary>The actor's untriggered effects — the standing modifiers aggregation reads. Fixed for the fight.</summary>
     /// <remarks>

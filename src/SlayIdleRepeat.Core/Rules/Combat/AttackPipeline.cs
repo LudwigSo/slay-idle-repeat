@@ -67,8 +67,18 @@ internal sealed class AttackPipeline : IAttackPipeline
 
         RequireFinite(attackMultiplier, sourceEffectId, "AttackMultiplier");
 
+        // The conditional standing-effect bucket: each side's block is re-aggregated against the
+        // OTHER party — the source with the defender as its current target, the defender with the
+        // attacker in context — so a gated standing effect applies to exactly this pair. Both
+        // calls return the ambient block unchanged (the same instance) for an actor holding no
+        // context-gated standing effect. Every direct stat read of steps 1-10 goes through these
+        // two locals; the lifesteal's Heal() deliberately stays ambient (its HEAL_PCT, heal
+        // ceiling and Max HP are the recipient's pool-level facts, not this pair's).
+        var sourceStats = _services.StatsAgainst(source, target, attacker: null).Final;
+        var targetStats = _services.StatsAgainst(target, target: null, attacker: source).Final;
+
         // ── 1 · Dodge — the first draw of the three, always taken.
-        if (_services.Rng.NextDouble() < target.Stats[StatId.DODGE])
+        if (_services.Rng.NextDouble() < targetStats[StatId.DODGE])
         {
             _services.Log.Append(
                 _services.Tick, CombatEventType.Miss, source.LogId, target.LogId);
@@ -80,31 +90,31 @@ internal sealed class AttackPipeline : IAttackPipeline
         // op layer would square the attacker's power. DMG% is a multiplier stat consumed bare
         // (base 1.0 is its identity), never inside a (1 + x) term.
         var raw = StatRounding.Round(
-            source.Stats[StatId.ATK] * attackMultiplier * source.Stats[StatId.DMG_PCT]);
+            sourceStats[StatId.ATK] * attackMultiplier * sourceStats[StatId.DMG_PCT]);
 
         // ── 3 · Mitigation ──────────────────────────────────────────────────────────────────
-        var dmg = StatRounding.Round(raw * (1.0 - Mitigation(source, target)));
+        var dmg = StatRounding.Round(raw * (1.0 - Mitigation(source, sourceStats, target, targetStats)));
 
         // ── 4 · Crit — the second draw, taken before the FORCE_CRIT_NEXT charge is consulted;
         // see the class remarks for why the charge may not skip it.
-        var rolled = _services.Rng.NextDouble() < source.Stats[StatId.CRIT];
+        var rolled = _services.Rng.NextDouble() < sourceStats[StatId.CRIT];
         var forced = source.Flow.ConsumeForcedCrit();
         var isCrit = rolled || forced;
 
         if (isCrit)
         {
-            dmg = StatRounding.Round(dmg * (1.0 + source.Stats[StatId.CDMG]));
+            dmg = StatRounding.Round(dmg * (1.0 + sourceStats[StatId.CDMG]));
         }
 
         // ── 5 · Block — the third draw, always taken.
-        var blocked = _services.Rng.NextDouble() < target.Stats[StatId.BLOCK];
+        var blocked = _services.Rng.NextDouble() < targetStats[StatId.BLOCK];
         if (blocked)
         {
             dmg = StatRounding.Round(dmg * BlockMultiplier);
         }
 
         // ── 6 · Incoming-damage modifiers ────────────────────────────────────────────────────
-        dmg = IncomingDamage(dmg, target);
+        dmg = IncomingDamage(dmg, target, targetStats);
 
         // ── 7 · Floor, before ward absorption — a fully absorbed hit deals 0 HP damage; the
         // floor exists to defeat mitigation stacking, not shields.
@@ -130,12 +140,12 @@ internal sealed class AttackPipeline : IAttackPipeline
         var hpLost = ApplyToHp(target, basis, absorbedByWards: true, source.LogId);
 
         // ── 10 · On-damage effects — both read `basis`, never `hpLost`.
-        if (source.Stats[StatId.LIFESTEAL] > 0.0)
+        if (sourceStats[StatId.LIFESTEAL] > 0.0)
         {
-            Heal(source, StatRounding.Round(basis * source.Stats[StatId.LIFESTEAL]), sourceEffectId);
+            Heal(source, StatRounding.Round(basis * sourceStats[StatId.LIFESTEAL]), sourceEffectId);
         }
 
-        var thorns = Thorns(target);
+        var thorns = Thorns(target, targetStats);
         if (thorns > 0.0)
         {
             ReflectDamage(source, target, StatRounding.Round(basis * thorns), sourceEffectId);
@@ -171,13 +181,25 @@ internal sealed class AttackPipeline : IAttackPipeline
     /// caller and never re-derived here.
     /// </remarks>
     public void DealMaxHpPctDamage(
-        IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId)
+        IEffectActorView target,
+        double amount,
+        bool bypassesWards,
+        string sourceEffectId,
+        IEffectActorView? source)
     {
         var actor = Actor(target);
 
         RequireFinite(amount, sourceEffectId, "max-HP-percent damage");
 
-        var dmg = IncomingDamage(StatRounding.Round(Math.Max(0.0, amount)), actor);
+        // The receiver's block is read against the caster where one is named — a boss's percent
+        // ability is damage "from Elites/Bosses" exactly as its swings are — and stays ambient for
+        // the callers that have none (a DoT tick). The Hit still carries no source: the caster
+        // gates the DR reading, it does not change the log encoding.
+        var defenderStats = source is null
+            ? actor.Stats
+            : _services.StatsAgainst(actor, target: null, attacker: Actor(source)).Final;
+
+        var dmg = IncomingDamage(StatRounding.Round(Math.Max(0.0, amount)), actor, defenderStats);
 
         ApplyToHp(actor, dmg, absorbedByWards: !bypassesWards, CombatActor.None);
     }
@@ -285,7 +307,12 @@ internal sealed class AttackPipeline : IAttackPipeline
     {
         RequireFinite(amount, sourceEffectId, "reflected damage");
 
-        var dmg = IncomingDamage(StatRounding.Round(Math.Max(0.0, amount)), receiver);
+        // The reflect is a hit from the thorned actor, so the receiver's block is read against it —
+        // the same per-pair rule the forward swing used, pointed the other way.
+        var dmg = IncomingDamage(
+            StatRounding.Round(Math.Max(0.0, amount)),
+            receiver,
+            _services.StatsAgainst(receiver, target: null, attacker: thorned).Final);
 
         ApplyToHp(receiver, dmg, absorbedByWards: true, thorned.LogId);
     }
@@ -297,12 +324,13 @@ internal sealed class AttackPipeline : IAttackPipeline
     /// <remarks>
     /// The constants arrive from content and are never written here as literals.
     /// </remarks>
-    private double Mitigation(BattleActor attacker, BattleActor defender)
+    private double Mitigation(
+        BattleActor attacker, ActorStats attackerStats, BattleActor defender, ActorStats defenderStats)
     {
         var dials = _services.Mitigation;
 
         var effDef = StatRounding.Round(
-            defender.Stats[StatId.DEF] * (1.0 - attacker.Stats[StatId.PEN]));
+            defenderStats[StatId.DEF] * (1.0 - attackerStats[StatId.PEN]));
 
         var denominator = StatRounding.Round(
             effDef + dials.Flat + (dials.PerLevel * attacker.Plan.Level));
@@ -329,9 +357,9 @@ internal sealed class AttackPipeline : IAttackPipeline
     /// multiplier consumed bare (base 1.0 is its identity, and it stays a stat — the
     /// <c>DAMAGE_TAKEN_MULT</c> op is a separate factor, not a spelling of it).
     /// </summary>
-    private static double IncomingDamage(double damage, BattleActor defender)
+    private static double IncomingDamage(double damage, BattleActor defender, ActorStats defenderStats)
     {
-        var afterDr = StatRounding.Round(damage * defender.Stats[StatId.DR_PCT]);
+        var afterDr = StatRounding.Round(damage * defenderStats[StatId.DR_PCT]);
 
         return StatRounding.Round(afterDr * defender.Flow.DamageTakenMultiplier());
     }
@@ -402,8 +430,8 @@ internal sealed class AttackPipeline : IAttackPipeline
     }
 
     /// <summary>One actor's <c>THORN</c> — the aggregated stat plus every live <c>REFLECT</c> addition.</summary>
-    private static double Thorns(BattleActor actor) =>
-        StatRounding.Round(actor.Stats[StatId.THORNS] + actor.Flow.ThornsBonus());
+    private static double Thorns(BattleActor actor, ActorStats stats) =>
+        StatRounding.Round(stats[StatId.THORNS] + actor.Flow.ThornsBonus());
 
     /// <summary>Forwards the finite-value refusal to <see cref="OpRounding.RequireFinite"/>.</summary>
     /// <remarks>

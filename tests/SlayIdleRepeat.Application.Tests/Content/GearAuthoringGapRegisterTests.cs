@@ -30,13 +30,14 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// only in a comment.
 /// </para>
 /// <para>
-/// ⚠️ <b>An entry may name no owner, and that is a finding rather than an omission.</b> Three of these
-/// need a mechanism no open tracker row describes — an attacker- or target-conditional damage bucket
-/// (twice over), and a set bonus whose one magnitude the design set never wrote down. (Ironvow's
-/// six-piece left this register with 16 D49: NEGATE voids the hit, so the missing number stopped
-/// being missing by ceasing to exist — M4-16g.) Naming a plausible task for one of those would be steering S6's fabricated value
-/// with a task id in place of a number, so they carry <c>null</c> and say what is missing. The data
-/// arm still fires on every one of them.
+/// ⚠️ <b>An entry may name no owner, and that is a finding rather than an omission.</b> One of these
+/// names no open tracker row — Stormcall's four-piece, whose chain-hit multiplier the design set
+/// never wrote down. Naming a plausible task for it would be steering S6's fabricated value with a
+/// task id in place of a number, so it carries <c>null</c> and says what is missing. The data arm
+/// still fires on every entry. (The register held eight entries until M4-16e closed the affix and
+/// Ironvow's four-piece against 16 D47's conditional bucket, and Ironvow's six-piece left with
+/// 16 D49: NEGATE voids the hit, so the missing number stopped being missing by ceasing to exist —
+/// M4-16g.)
 /// </para>
 /// </remarks>
 public sealed partial class GearAuthoringGapRegisterTests
@@ -53,28 +54,16 @@ public sealed partial class GearAuthoringGapRegisterTests
 
     private const string TrackerRelativePath = "IMPLEMENTATION_TRACKER.md";
 
-    private const string Drops = "tuning/drops.json";
-
     private const string Sets = "content/sets/sets.json";
 
     /// <summary>🔒 Every gear bonus the design set describes and this data set does not author.</summary>
     private static readonly GearGap[] Gaps =
     {
-        // ── the affix pool ────────────────────────────────────────────────────────────────────
-        //
-        // Thirteen of the fourteen affixes name a stat and a bucket. This is the one that cannot.
-        new(Drops + "#/affixPool/affixes/12/stat",
-            "the +X% damage-vs-Elites affix",
-            null,
-            "Conditional damage. The stat block is fourteen unconditional combat stats and has no " +
-            "conditional bucket, and the obvious workaround does not work: a standing STAT_ADD_PCT on " +
-            "DMG_PCT gated on TARGET_IS_ELITE is re-evaluated on every re-aggregation, where the " +
-            "context carries no current target — the condition evaluator THROWS there rather than " +
-            "reading false, so authoring it would end every battle in an exception. No open tracker " +
-            "row describes an attacker- or target-conditional bucket, and naming one would be " +
-            "inventing an owner."),
-
         // ── the set bonuses ───────────────────────────────────────────────────────────────────
+        //
+        // The affix pool no longer holds an entry: M4-16e (16 D47) authored the damage-vs-Elites
+        // affix against the conditional standing-effect bucket, together with Ironvow's four-piece
+        // below.
         new(Sets + "#/sets/0/bonuses/2/effects",
             "Bloodmoon's six-piece bonus, 'lifesteal also applies to pet damage'",
             "M4-07",
@@ -82,14 +71,6 @@ public sealed partial class GearAuthoringGapRegisterTests
             "a pet aura, and the effect vocabulary has no op meaning 'extend a stat's reach to another " +
             "actor's damage' either — so this is two mechanisms away, not one."),
 
-        new(Sets + "#/sets/1/bonuses/1/effects",
-            "Ironvow's four-piece bonus, '-15% damage taken from Elites and Bosses'",
-            null,
-            "The magnitude is authored; the bucket is not. Damage reduction is one unconditional stat, " +
-            "and the ATTACKER_IS_ELITE / ATTACKER_IS_BOSS conditions read false outside a " +
-            "hit-reaction context — which is every re-aggregation — so a standing gated DR would be " +
-            "silently inert rather than loud. This needs the same conditional bucket the " +
-            "damage-vs-Elites affix needs, and the same absence of an owner applies."),
 
         new(Sets + "#/sets/2/bonuses/1/effects",
             "Fateweave's four-piece bonus, 'Star faces grant a free perk draft'",
@@ -107,10 +88,11 @@ public sealed partial class GearAuthoringGapRegisterTests
         new(Sets + "#/sets/3/bonuses/1/effects",
             "Stormcall's four-piece bonus, 'every 5th attack chains to all enemies'",
             null,
-            "The trigger exists — ON_ATTACK carries `everyNth`, and the design set writes the 5 — and " +
-            "the target exists. What is missing is the damage: 08 §3.2 says the attack 'chains' and " +
-            "authors no multiplier for the chained hit, so the one number the effect needs is the one " +
-            "nobody wrote. No open row owns authoring it."),
+            "The trigger exists — ON_ATTACK carries `everyNth`, and the design set writes the 5 — the " +
+            "target exists, and since 16 D47 the shape does too. What is still missing is the damage: " +
+            "08 §3.2 says the attack 'chains' and authors no multiplier for the chained hit, so the " +
+            "one number the effect needs is the one nobody wrote — filling it with 1.0 would be a " +
+            "plausible value, not a transcription. No open row owns authoring it."),
 
         new(Sets + "#/sets/3/bonuses/2/effects",
             "Stormcall's six-piece bonus, 'attack speed also scales pet ability cooldowns'",
@@ -225,13 +207,14 @@ public sealed partial class GearAuthoringGapRegisterTests
     /// first.
     /// </remarks>
     [Fact]
-    public void The_register_holds_the_seven_gaps_still_open()
+    public void The_register_holds_the_five_gaps_still_open()
     {
         Gaps.Length.ShouldBe(
-            7,
-            "seven gear bonuses are deliberately unauthored: one affix and six set-bonus " +
-            "breakpoints (M4-16g closed Ironvow's six-piece against 16 D49's NEGATE). A register " +
-            "that quietly emptied would report success over nothing.");
+            5,
+            "five set-bonus breakpoints are deliberately unauthored — eight entries until M4-16e " +
+            "closed the affix and Ironvow's four-piece against 16 D47's conditional bucket, and " +
+            "M4-16g closed Ironvow's six-piece against 16 D49's NEGATE. A " +
+            "register that quietly emptied would report success over nothing.");
 
         Gaps.ShouldAllBe(g => g.Why.Length > 0, "a gap without a reason is a gap nobody can falsify");
 

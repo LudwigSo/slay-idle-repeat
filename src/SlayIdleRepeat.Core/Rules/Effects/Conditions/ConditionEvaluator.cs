@@ -181,8 +181,10 @@ internal static class ConditionEvaluator
             ConditionFunction.IS_PVP => Flag(context.IsPvp),
 
             // These three default to false rather than throwing when there's no attacker in
-            // context (e.g. an ALWAYS effect evaluated during stat aggregation), since a throw
-            // there would make an otherwise-valid perk unusable outside combat.
+            // context, since a throw there would make an otherwise-valid effect unusable outside a
+            // hit reaction. (Both aggregation gates now intercept attacker-reading STANDING trees
+            // via the subject-presence rule before this evaluator is asked, so the default's
+            // remaining consumers are trigger-time and value-scale contexts.)
             ConditionFunction.ATTACKER_IS_ELITE => Flag(context.Attacker?.IsElite ?? false),
             ConditionFunction.ATTACKER_IS_BOSS => Flag(context.Attacker?.IsBoss ?? false),
             ConditionFunction.ATTACKER_IS_SUMMON => Flag(context.Attacker?.IsSummon ?? false),

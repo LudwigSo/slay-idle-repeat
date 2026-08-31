@@ -445,6 +445,12 @@ Must be implemented exactly, or builds will produce different numbers on client 
 
 **Effect-id order** means the ascending lexicographic order of effect IDs, not draft order. This removes the last source of order-dependence between client and server.
 
+**Step 2, restated for the conditional standing-effect bucket** (`16` D47). A condition that reads the current target (`TARGET_HP_PCT`, `TARGET_IS_ELITE`, `TARGET_IS_BOSS`) or the attacker (`ATTACKER_IS_*`) is a **context gate**: the effect is active only in an evaluation context that carries that subject, and there its tree is evaluated normally. The rule is **subject-presence over the tree's vocabulary, not satisfiability** — a negated or disjoined target read still waits for a target. Consequences, in resolution terms:
+
+- **Ambient re-aggregation** — between attacks, and any composition outside a fight (a hero screen) — carries neither subject, so a context-gated standing effect contributes nothing there. It neither throws (the pre-D47 behaviour of a target read in a target-less context) nor goes silently inert forever (the pre-D47 behaviour of an attacker read, whose written-out false-when-absent default is unchanged for every other evaluation site).
+- **Within one attack resolution**, each side's stats re-aggregate against the other party: the attacker's block with the defender as current target, the defender's with the attacker in context. A gated standing effect therefore contributes against exactly the targets its gate names — `+X% Damage vs Elites` composes ×(1 + v) into step 5 only when the swing's target is an elite, and Ironvow's `−15% damage taken from Elites/Bosses` multiplies `DR%` below 1.00 only for a hit from an elite or boss attacker. A `DAMAGE_MAXHP_PCT` firing carries its caster into the same rule, so a boss's percent ability is "damage from a boss" exactly as its swings are. ⚠️ A **DoT tick is a recorded limit**: the status instance names its source *effect*, not the actor that applied it, so a tick's DR reading stays ambient and an attacker-gated DR does not reduce burns — an implementation limit noted here, not a ruling that it never should. The per-pair block lives for that one resolution and is never stored.
+- **The ungated path is unchanged**: an actor holding no context-gated standing effect aggregates byte-identically to a world without the bucket — the per-pair pass returns the ambient block itself.
+
 ---
 
 ## 9. Rulings on ambiguous designs

@@ -35,7 +35,7 @@ public sealed class DeathSaveTests
             new[] { SurviveLethal("PK_UNBREAKABLE", value, mode) },
             p =>
             {
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL", source: null);
 
                 p.Hero.CurrentHp.ShouldBe(expectedHp);
                 p.Hero.IsAlive.ShouldBeTrue();
@@ -60,7 +60,7 @@ public sealed class DeathSaveTests
             holding: null,
             p =>
             {
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL", source: null);
 
                 p.Hero.CurrentHp.ShouldBe(0.0);
                 p.Hero.IsAlive.ShouldBeFalse();
@@ -83,7 +83,7 @@ public sealed class DeathSaveTests
             },
             p =>
             {
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL", source: null);
             },
             maxTicks: 1);
 
@@ -104,7 +104,8 @@ public sealed class DeathSaveTests
                 SurviveLethal("PK_UNBREAKABLE", 1.0, ValueMode.FLAT),
                 Holding("PK_Z_ON_REVIVE_PROBE", EffectOp.SHIELD, 7.0, TriggerKind.ON_REVIVE),
             },
-            p => p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL"),
+            p => p.Pipeline.DealMaxHpPctDamage(
+                p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL", source: null),
             maxTicks: 1);
 
         probe.EventsOf(CombatEventType.Shield).ShouldBeEmpty();
@@ -124,7 +125,7 @@ public sealed class DeathSaveTests
             new[] { SurviveLethalOnLethal("PK_UNBREAKABLE", value, mode, once: true) },
             p =>
             {
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL", source: null);
 
                 p.Hero.CurrentHp.ShouldBe(expectedHp);
                 p.Hero.IsAlive.ShouldBeTrue();
@@ -141,12 +142,12 @@ public sealed class DeathSaveTests
             new[] { SurviveLethalOnLethal("PK_UNBREAKABLE", 1.0, ValueMode.FLAT, once: true) },
             p =>
             {
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_1");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_1", source: null);
 
                 p.Hero.CurrentHp.ShouldBe(1.0, "the first lethal hit is the one authored once-save");
                 p.Hero.IsAlive.ShouldBeTrue();
 
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_2");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_2", source: null);
 
                 p.Hero.CurrentHp.ShouldBe(0.0, "once is spent — nothing saves the second lethal hit");
                 p.Hero.IsAlive.ShouldBeFalse();
@@ -167,11 +168,11 @@ public sealed class DeathSaveTests
             new[] { NegateLethal("SET_BONUS_HEAVY_6") },
             p =>
             {
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, 100.0, bypassesWards: true, "EFF_CHIP");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, 100.0, bypassesWards: true, "EFF_CHIP", source: null);
 
                 p.Hero.CurrentHp.ShouldBe(900.0, "a survivable hit lands in full — NEGATE guards only a lethal one");
 
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL", source: null);
 
                 p.Hero.CurrentHp.ShouldBe(900.0, "the lethal hit is voided outright — the chip did not spend the save");
                 p.Hero.IsAlive.ShouldBeTrue();
@@ -192,13 +193,13 @@ public sealed class DeathSaveTests
             new[] { NegateLethal("SET_BONUS_HEAVY_6") },
             p =>
             {
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, 100.0, bypassesWards: true, "EFF_CHIP");
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_1");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, 100.0, bypassesWards: true, "EFF_CHIP", source: null);
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_1", source: null);
 
                 p.Hero.CurrentHp.ShouldBe(900.0, "the first lethal hit is the once-per-battle negate");
                 p.Hero.IsAlive.ShouldBeTrue();
 
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_2");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_2", source: null);
 
                 p.Hero.CurrentHp.ShouldBe(0.0, "once is spent — nothing negates the second lethal hit");
                 p.Hero.IsAlive.ShouldBeFalse();
@@ -223,13 +224,13 @@ public sealed class DeathSaveTests
             },
             p =>
             {
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_1");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_1", source: null);
 
                 p.Hero.CurrentHp.ShouldBe(MaxHp, "the negate fires before death, so the REVIVE has nothing to answer");
                 p.Services.Log.Events.Count(e => e.Type == CombatEventType.Shield).ShouldBe(
                     0, "no death, no return, no ON_REVIVE");
 
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_2");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL_2", source: null);
             },
             maxTicks: 1);
 
@@ -300,13 +301,13 @@ public sealed class DeathSaveTests
             {
                 // A hit that leaves the actor standing never crosses the "would take fatal damage"
                 // check — no occurrence, no Shield.
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, 10.0, bypassesWards: true, "EFF_SURVIVABLE");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, 10.0, bypassesWards: true, "EFF_SURVIVABLE", source: null);
 
                 p.Hero.IsAlive.ShouldBeTrue();
                 p.Services.Log.Events.Count(e => e.Type == CombatEventType.Shield).ShouldBe(0);
 
                 // One lethal hit — one occurrence, one Shield, not two.
-                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL");
+                p.Pipeline.DealMaxHpPctDamage(p.Hero, MaxHp * 10.0, bypassesWards: true, "EFF_LETHAL", source: null);
 
                 p.Hero.IsAlive.ShouldBeFalse();
                 p.Services.Log.Events.Count(e => e.Type == CombatEventType.Shield).ShouldBe(1);
