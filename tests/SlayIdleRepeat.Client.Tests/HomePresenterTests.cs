@@ -308,6 +308,55 @@ public sealed class HomePresenterTests
             "reads as lost progress rather than as the two-day window the rules authored.");
     }
 
+    /// <summary>
+    /// 🔴 <b>Every decision that has a profile behind it says so — and this exists because the
+    /// screen kept its own copy of this list and the copy went stale.</b>
+    /// </summary>
+    /// <remarks>
+    /// <c>Home.cs</c> enumerated <c>StartNewRun or ContinueRun</c> to decide both the header's
+    /// visibility and the primary action's disabled state. <see cref="HomeContinueDecision.RunLapsed"/>
+    /// matched neither, so the screen hid a profile it had and disabled the one action that settles
+    /// a lapsed run — leaving the player stranded on Home rather than on the perk draft, which is
+    /// the same defect `16` D70 fixed one screen further down. Stated over EVERY declared member so
+    /// a seventh cannot be added without answering for it here.
+    /// </remarks>
+    [Theory]
+    [InlineData(HomeContinueDecision.StartNewRun, true)]
+    [InlineData(HomeContinueDecision.ContinueRun, true)]
+    [InlineData(HomeContinueDecision.RunLapsed, true)]
+    [InlineData(HomeContinueDecision.NotYetRead, false)]
+    [InlineData(HomeContinueDecision.ProfileMissing, false)]
+    [InlineData(HomeContinueDecision.ReadUnavailable, false)]
+    public async Task Every_decision_says_whether_a_profile_is_carried(
+        HomeContinueDecision decision, bool carried)
+    {
+        var presenter = await PresenterDeciding(decision);
+
+        presenter.Decision.ShouldBe(
+            decision, "the fixture must actually reach the decision this case is about.");
+
+        presenter.ProfileCarried.ShouldBe(
+            carried,
+            carried
+                ? $"{decision} has a profile behind it and an action to take, so the header must draw " +
+                  "its numbers and the primary action must be pressable."
+                : $"{decision} has no profile, so drawing a Legend Level and an Energy of zero would " +
+                  "be plausible values in a hole.");
+    }
+
+    /// <summary>
+    /// The floor under the case above: it is stated over every member the enum declares, so a
+    /// seventh cannot slip past by simply not being listed.
+    /// </summary>
+    [Fact]
+    public void The_profile_case_covers_every_decision_the_enum_declares() =>
+        Enum.GetValues<HomeContinueDecision>().Length.ShouldBe(
+            6,
+            "HomeContinueDecision has gained or lost a member. Add it to " +
+            $"{nameof(Every_decision_says_whether_a_profile_is_carried)}'s rows and answer whether it " +
+            "carries a profile — a member absent from those rows is a member nothing asks about, " +
+            "which is exactly how RunLapsed shipped hiding the header and disabling the button.");
+
     [Fact]
     public async Task StartAsync_carries_the_id_of_the_run_it_decided_to_continue()
     {
@@ -659,6 +708,41 @@ public sealed class HomePresenterTests
 
         return new HomePresenter(
             host, ScreenContent.Catalogue(content), content, new ManualClock(nowUtc), Profile);
+    }
+
+    /// <summary>A started presenter that has settled on one particular decision.</summary>
+    /// <remarks>
+    /// Each arm reaches the decision the way the screen really reaches it, rather than setting it —
+    /// so a case over these is a case over states the read can actually produce. <c>NotYetRead</c>
+    /// is the one that is not started at all, because that is precisely what it means.
+    /// </remarks>
+    private static async Task<HomePresenter> PresenterDeciding(HomeContinueDecision decision)
+    {
+        if (decision == HomeContinueDecision.NotYetRead)
+        {
+            return Home(RecordingGameHost.Finding(PlayerRow()));
+        }
+
+        var (host, nowUtc) = decision switch
+        {
+            HomeContinueDecision.StartNewRun =>
+                (RecordingGameHost.Finding(PlayerRow()), Now),
+            HomeContinueDecision.ContinueRun =>
+                (RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.InProgress)), Now),
+            HomeContinueDecision.RunLapsed =>
+                (RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.InProgress)),
+                 PlayerState.FixtureInstant.AddHours(ScreenContent.FixtureRunExpiryHours)),
+            HomeContinueDecision.ProfileMissing =>
+                (RecordingGameHost.FindingNoSuchPlayer(), Now),
+            _ =>
+                (RecordingGameHost.FaultingItsRead(ReadFailure()), Now),
+        };
+
+        var presenter = Home(host, nowUtc);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        return presenter;
     }
 
     private static async Task<HomeContinueDecision> DecisionFrom(RecordingGameHost host)

@@ -345,8 +345,13 @@ public partial class Home : Node3D
 
         // The one predicate the whole screen turns on: whether the read has produced a profile
         // there is anything to say about.
-        var carried = presenter.Decision is HomeContinueDecision.StartNewRun or
-                                             HomeContinueDecision.ContinueRun;
+        //
+        // 🔴 ASKED of the presenter rather than enumerated here, and that is the fix rather than a
+        // tidy-up. This line used to list the decisions itself — and when a sixth arrived it matched
+        // none of them, so the screen hid a profile it had and disabled the one action that would
+        // have settled a lapsed run. A scene has no behavioural test to catch that; the presenter
+        // does.
+        var carried = presenter.ProfileCarried;
 
         // 🔒 The profile's numbers are drawn only when there ARE numbers. Before the read answers,
         // and in the two states where it never will, the name is empty and the Legend Level, the
@@ -419,7 +424,10 @@ public partial class Home : Node3D
             return;
         }
 
-        if (presenter.Decision == HomeContinueDecision.StartNewRun)
+        // Both decisions that have no run to resume go the same way, and a lapsed one is not a
+        // special case of starting: START_RUN is the command that settles it, so the picker is
+        // exactly where it belongs.
+        if (presenter.Decision is HomeContinueDecision.StartNewRun or HomeContinueDecision.RunLapsed)
         {
             ShowChapterSelect();
 

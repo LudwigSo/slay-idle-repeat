@@ -171,6 +171,42 @@ public sealed class HomePresenter
     public string ActionText => _strings.Resolve(
         Decision == HomeContinueDecision.ContinueRun ? ContinueRunActionKey : StartRunActionKey);
 
+    /// <summary>
+    /// Whether the read produced a profile — so the header has numbers to draw and the primary
+    /// action has something to do.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Here rather than in the scene, because the scene had its own copy of this list and the
+    /// copy went stale the moment a sixth decision existed.</b> <c>Home.cs</c> enumerated
+    /// <c>StartNewRun or ContinueRun</c> to decide both the header's visibility and the button's
+    /// disabled state; <see cref="HomeContinueDecision.RunLapsed"/> arrived and matched neither, so
+    /// the screen hid a profile it had and disabled the one action that would have settled the
+    /// lapsed run — stranding the player on Home instead of on the perk draft. Stated once, where
+    /// the decisions are, a seventh member throws below and is caught by the suite, rather than
+    /// being a silent omission in a scene nothing tests.
+    /// </remarks>
+    public bool ProfileCarried => Decision switch
+    {
+        HomeContinueDecision.StartNewRun or
+        HomeContinueDecision.ContinueRun or
+        HomeContinueDecision.RunLapsed => true,
+
+        HomeContinueDecision.NotYetRead or
+        HomeContinueDecision.ProfileMissing or
+        HomeContinueDecision.ReadUnavailable => false,
+
+        // 🔒 Throws rather than answering false, and the difference is the whole point of the
+        // member being here. A silent default is what let RunLapsed read as "no profile" in the
+        // scene: a decision nobody had thought about got an answer anyway, and the answer disabled
+        // the only control on the screen. A seventh member arrives here as a loud failure in the
+        // suite instead. Same shape, for the same reason, as BoardPresenter.LabelKeyFor.
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(Decision), Decision,
+            "this screen has a decision it was never told whether to draw a profile for. Answer it " +
+            "here — a default would decide by accident, and the accident hides the header and " +
+            "disables the primary action."),
+    };
+
     /// <summary>The line shown while there is no decision to offer, resolved.</summary>
     public string StatusText => Decision switch
     {
