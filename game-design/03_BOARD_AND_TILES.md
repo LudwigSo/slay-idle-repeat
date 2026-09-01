@@ -17,14 +17,14 @@ Stage 1 (12 nodes)          Stage 2 (14 nodes)              Stage 3 (16 nodes)  
 ```
 
 ### Rules
-- Each stage is a linear spine with **1–2 forks**. A fork branch is 2–4 nodes long and rejoins the spine.
+- Each stage is a linear spine with an **authored number of forks** — one inclusive range per stage in the chapter document (`16` D69), which the shipped chapters author as **1–2**. A fork branch is 2–4 nodes long and rejoins the spine. The count is content rather than a generator constant because a fixed one does not scale with stage length, and on a long stage that reduces the board's one real navigation decision to noise. No ceiling is authored: the stage geometry is the real one, and a count larger than a stage can hold saturates rather than overflowing.
 - Forks are the board's main *decision*: each branch is labelled with a preview icon set (e.g. "⚔⚔💰" vs "🎲🛡❓") so the player chooses a risk profile, not a coin flip.
 - Movement is always forward. There is no backtracking.
 - Movement resolution — the virtual start, junction pauses, Portal jumps and the linear node index — is specified in §1.1, which is the single authority; `02` §3 and `04` defer to it.
 - If a die roll would move the player past the last node of a stage, the player stops on the last node and the Stage Gate fires. (No overshoot waste — overshoot punishment feels bad on a die-driven board.)
 - The boss node is always reached exactly; the final roll before it is clamped.
 
-📐 TUNABLE: nodes per stage, fork count, fork length.
+📐 TUNABLE: nodes per stage, fork count, fork length — all three per chapter, in its own document. 🔴 **Stage COUNT is not tunable and is fixed at three**, in `ChapterBoardConfig`, `ChapterBoardTuning`, the chapter schema's three per-stage arrays and `miniBossIds`' fixed two. Lifting it is a ruling of its own and drags in the Stage Gates and `02` §4.3's enemy-power curve.
 
 ### 1.1 Movement resolution 🔒 (ruled in `16` A7)
 
@@ -415,10 +415,11 @@ A shrine offers **2 distinct options** drawn seeded (stream `"shrine"`, equal we
 
 ## 8. Board presentation notes
 
-- 🔒 **The whole track is drawn at all times** — every tile of every stage, from run start, with no fog, no preview range and nothing clipped (`16` D42). The hero token sits at roughly 40% screen height. A track too long for one column **wraps**; a board the player has to drag to see is not a board that is completely visible.
+- 🔒 **The whole track is drawn at all times** — every tile of every stage, from run start, with no fog, no preview range and nothing clipped (`16` D42). The hero token sits at roughly 40% screen height.
+- ⚠️ **`16` D67 amends where the CAMERA is, and nothing about what is drawn.** The board is a 3D scene the camera rides through with the hero, so the whole board is **reachable** at all times rather than framed at all times, and the sentence this bullet used to end with — *"a track too long for one column wraps; a board the player has to drag to see is not a board that is completely visible"* — is superseded. The reason is the bullet below it: a chapter authors its own stage lengths, and a whole-board framing of a long one draws every tile far under the 48 dp floor. Everything else on this list is unchanged and binding on the 3D board.
 - Tiles are drawn as flat, chunky, high-contrast pucks with a large icon. Readability at 48 dp is mandatory.
 - Already-resolved tiles dim to 55% opacity and lose their icon glow.
-- A "recenter" button returns to the token after the player pans away to read a distant stage.
+- 🔒 **A recenter control is the compliance mechanism for D67, not a convenience.** It steps three ways: the hero's current stage framed with its tiles readable, then the whole board as shape, then back to the hero. Three rather than two because the middle state is the one that keeps D42's promise legible at any board length. It is live in every state the board is up in — a visibility rule conditional on the game being idle is not one. 🔴 The *"after the player pans away"* premise stays unbuilt: no pan or pinch gesture is designed in `13`, and none was invented.
 - Fork branches are drawn side by side with a clear join, never as ambiguous crossing lines.
 
 See `15_ART_DIRECTION_AND_ASSET_MANIFEST.md` §E8 (tile icons) and §E9 (board paths and decor) for the tile art specification.

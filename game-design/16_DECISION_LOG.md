@@ -278,7 +278,7 @@ D60 re-authors `15` and nothing else. Each of the following is real work, is nam
 
 | Hole | Status |
 |---|---|
-| **E9's dimensionality** — are the 112 board paths and decor real-time 3D (**M**) or rendered 2D (**R**)? | 🔴 **Unruled, and not this document's to rule.** It depends on whether the board screen becomes a 3D scene or stays a 2D track (`TrackNode.tscn` is 2D today) — a `03`/`13` question. The two readings differ by ~45,000 triangles per board. Per **S6** the hole is left absent and greppable rather than filled with a plausible answer. **E9 production does not start until it is ruled** |
+| **E9's dimensionality** — are the 112 board paths and decor real-time 3D (**M**) or rendered 2D (**R**)? | ✅ **CLOSED by D68 (A16): `M`.** The condition this row named — *whether the board screen becomes a 3D scene* — was met: D67 made the board a 3D scene the camera rides through, and `TrackNode.tscn` is deleted. ⚠️ Closed does not mean produced: the board ships from engine primitives and the 112 assets are unblocked and unbuilt |
 | **Every ⚠️ PROVISIONAL number in `15` Part C** — triangle budgets, texture budgets, bone caps, MSAA, render size | 🔴 **Unmeasured estimates, explicitly not authorised.** Written down so a real device measurement has something to contradict. `15` §H makes the **device performance spike step 1** of production, before any art, because it decides whether the document is viable as written. The per-frame budget — on-screen triangles, draw calls, skinned meshes, texture memory — is **unwritten**, and the inverted-hull outline **doubles the draw call of every mesh it touches**. This is the largest single risk in `15` (§G risk 1). ⚠️ A ⚠️ PROVISIONAL value may be built against and must **not** be hardcoded as a named constant or copied into `thresholds.json` |
 
 ### One amendment to a content document
@@ -311,6 +311,36 @@ refresh-family shapes, and the rate-limit numbers. They live in the kickoff reco
 them were overruled from the repo by the agents that implemented them** (Redis rate-limit counters,
 pre-assigned migration ordinals, and the `plusActive` segment predicate). A reader reconciling this
 section with the code should read that record, not assume the rulings survived contact.
+
+---
+
+## A16. Rulings from the 3D board (2026-09-01)
+
+The owner asked for the board to become a place the hero moves through: *"The hero is 3d now. Next I
+want to add a 3d gameplay board."* — and, on the shape of it: *"It should be possible to render a
+level with more than 3 stages and especially with a lot more nodes and forks. I would imagine a
+regular level rather has roughly 150 nodes compared to the starting level with 43 nodes."*
+
+Three things are ruled below. The first **amends** a 🔒 ruling and says so rather than editing it, as
+A12 established and D53 followed. The second closes a hole `15` deliberately left open. The third
+moves a number out of code and into content.
+
+| ID | Decision | Rationale | Consequences |
+|---|---|---|---|
+| **D67** | 🔓 **AMENDS D42's fourth sub-ruling. The board is a 3D scene the camera RIDES THROUGH: the whole board is REACHABLE at all times rather than FRAMED at all times.** The compliance mechanism is a three-state overview control — the hero's current stage, then the whole board, then back to the hero — live in every state the board is up in. D42's other three sub-rulings are untouched. | D42's own argument survives the amendment, and that is why it is an amendment rather than a reversal: it ruled visibility because *"a die that only answers a number is only interesting if the player can see what the numbers reach"*, and the stage overview shows exactly that, at a size it can be read at. What D42 could not have anticipated is the owner's board length. `03` §8 makes **48 dp legibility mandatory**; a whole-board framing of a 150-node board draws every tile a few pixels across, so the literal reading of "completely visible" delivers a board that is on screen and unreadable — a promise kept only on the shortest board in the game. The wrapping 40x40 pip row it replaces did not meet the 48 dp floor either. | 🔴 **The accepted cost, stated plainly: the player must press something to read the far board.** `03` §8's *"recenter" button* is promoted from a nicety to the mechanism, and gains a third state. `03` §8 and `13` §3's *"a board the player has to drag to see is not a board that is completely visible"* is amended by this row; every other clause of both — the 48 dp floor, the 55% dimming of resolved tiles, branches drawn side by side with a clear join, the hero at roughly 40% screen height — is **unchanged and now binding on the 3D layout**. 🔴 §8's *"after the player pans away"* premise stays an open hole: no pan or pinch gesture is designed anywhere in `13`, and none was invented (S6). |
+| **D68** | 🔓 **`15` §E9's dimensionality is `M` — the 112 board paths and decor are real-time 3D.** | `15` §E9 said the answer *"depends on whether the board screen becomes a 3D scene or stays a 2D track"* and that the question belonged to `03`/`13` rather than to `15`. D67 answers it: the board screen is a 3D scene. | Closes the E9 row of A14's *"Two open holes, left open on purpose"* table, and the matching row in `15` §E1's risk table. `15` §E0's four-way split moves — **re-count it against the repo in the commit that moves it (S29), do not inherit a figure from here.** ⚠️ **The 112 assets are UNBLOCKED, not produced.** The board ships built from engine primitives in the palette `Board.cs` already owned, and E9's art arrives later through `BoardTile.tscn` and `BoardPathSegment.tscn`, which exist as that seam and nothing else. A14 consequence 5 — the nine `IQaCheck` implementations that are 2D image measurements and *"answer nothing for M"* — gains 112 more subjects it answers nothing for. |
+| **D69** | 🔓 **How many forks a stage carries is AUTHORED PER STAGE by the chapter, not a generator constant. `03` §1's "1–2 forks" becomes the shipped chapters' authored value.** | `BoardGenerator` drew its fork count from a literal `1..2`, so a stage of fifty nodes carried the same one or two forks a stage of twelve did — at most six on a board of any length. `03` §3.1 makes the fork *"the board's main decision"*, and one decision per twenty-five tiles is a straight line with a formality in it. The owner asked for *"a lot more forks"* and the generator had no way to be given any. | `chapter.schema.json` gains `forksPerStage`, one `{min, max}` per stage, and both shipped chapters author `{1, 2}` — so **today's boards are unchanged in shape and only the number's home moved**, and the parity corpus did not move with it. **No upper bound is imposed** (S6): `03` authorises none, the stage geometry is the real ceiling, and the generator's existing empty-candidate break makes an over-authored count saturate rather than corrupt. The draw stays **one `rng` call in the same stream position**, so what changed is what is drawn and never when. ⚠️ Adding the field moves the content version stamp: an older local save refuses every command until its rows are moved aside. 🔴 **Stage COUNT is still fixed at three** and was left so deliberately — `ChapterBoardConfig.From`, `ChapterBoardTuning`, three schema arrays and `miniBossIds`' fixed two all cite `03` §1, and lifting it drags in the stage gates and the enemy-power curve. The renderer built alongside this ruling needs no change on the day it is lifted: it derives its stage set from the board it is handed, and a test pins that. |
+
+⚠️ **What A16 does NOT rule.** The three rulings D61 reopened in `15` §C6 — the inverted-hull
+outline's screen-space reference height, scene light versus the fixed per-actor rig, and whether
+backdrops stay 2D parallax — are all still open, and the 3D board ran straight into the third of
+them: it **deleted** the board's own 24x42 backdrop plane rather than answering the question, because
+a plane pinned in front of a camera that travels is left behind on the first move. What is behind the
+board now is AppRoot's one environment background. Nothing here rules what a biome backdrop becomes.
+
+⚠️ Every ⚠️ PROVISIONAL number in `15` Part C is still unmeasured, and the board did not measure them:
+it batches its tiles and its track into multimeshes so the whole board is roughly ten draw calls at
+any length, but no budget authorises that figure either. The on-device pass is still **M9-08**.
 
 ---
 # PART B — Remaining Open Items (30, was 33 — O5/O33/O34 closed by A15; O6 confirmed open)
