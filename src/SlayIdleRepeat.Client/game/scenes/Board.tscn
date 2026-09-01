@@ -52,8 +52,11 @@ script = ExtResource("2_world")
 unique_name_in_owner = true
 script = ExtResource("3_rig")
 
+; The rig overwrites this on Snap, so it governs only the first frame — but the first frame is what
+; a screenshot of a scene file shows, and a rig that failed to wire would leave the board drawn from
+; here forever. Kept in step with BoardCameraRig's own follow pitch.
 [node name="Pitch" type="Node3D" parent="World/CameraRig"]
-transform = Transform3D(1, 0, 0, 0, 0.829, 0.559, 0, -0.559, 0.829, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 0.4695, -0.8829, 0, 0.8829, 0.4695, 0, 0, 0)
 
 ; 🔒 Still a bare Camera3D named Camera, still unique_in_owner, and still fov 60 — only its PARENT
 ; moved. ScreenStage.Show resolves "%Camera" and calls MakeCurrent on it, which is the whole
@@ -62,7 +65,7 @@ transform = Transform3D(1, 0, 0, 0, 0.829, 0.559, 0, -0.559, 0.829, 0, 0, 0)
 ; silently, looking like a z-order bug rather than a camera one.
 [node name="Camera" type="Camera3D" parent="World/CameraRig/Pitch"]
 unique_name_in_owner = true
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 19)
 fov = 60.0
 
 [node name="Track" type="Node3D" parent="World"]

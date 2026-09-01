@@ -165,6 +165,12 @@ public partial class BoardWorld : Node3D
     }
 
     /// <summary>Puts the hero on a node with no motion at all.</summary>
+    /// <param name="nodeId">
+    /// The node to stand on, or <c>null</c> for the trailhead — which is not a node (`03` §1.1 keeps
+    /// the run at position −1 there) but IS somewhere the hero visibly stands, at the head of the
+    /// track. Drawn rather than hidden: a board that comes up with no hero on it shows a new player
+    /// a board they are not standing on.
+    /// </param>
     public void PlaceHero(int? nodeId)
     {
         if (_heroRig is not { } rig)
@@ -172,7 +178,7 @@ public partial class BoardWorld : Node3D
             return;
         }
 
-        rig.Visible = nodeId is not null && _layout is not null;
+        rig.Visible = _layout is not null;
 
         if (Placement(nodeId) is not { } placement)
         {
@@ -224,8 +230,18 @@ public partial class BoardWorld : Node3D
     /// <summary>The stage the node the hero is drawn on belongs to, or null when it is on none.</summary>
     public int? StageOf(int? nodeId) => Placement(nodeId)?.Stage;
 
-    private BoardNodePlacement? Placement(int? nodeId) =>
-        _layout is { } layout && nodeId is { } id ? layout.Placement(id) : null;
+    /// <summary>
+    /// Where a node stands — or where the trailhead is, for the run that has not rolled yet.
+    /// </summary>
+    private BoardNodePlacement? Placement(int? nodeId)
+    {
+        if (_layout is not { } layout)
+        {
+            return null;
+        }
+
+        return nodeId is { } id ? layout.Placement(id) : layout.Trailhead;
+    }
 
     /// <summary>Where a hero standing on a puck's centre actually stands: on its top face.</summary>
     private Vector3 StandingPosition(BoardPoint centre) =>

@@ -189,7 +189,24 @@ public partial class PerkDraft : Node3D
     private const string CardPressButtonPath = "PressButton";
 
     private const string SafeAreaPath = "%SafeArea";
-    private const string GroundPath = "%Ground";
+    /// <summary>
+    /// The full-rect surface a tap outside the cards lands on, which is how the intro is skipped.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>This read <c>%Ground</c> as a <c>ColorRect</c> and threw on every open.</b> The D61
+    /// conversion replaced each screen's full-rect background ColorRect with an unshaded backdrop
+    /// plane in the screen's own 3D world — the node kept the NAME <c>Ground</c>, so the lookup went
+    /// on resolving and started casting a <c>MeshInstance3D</c> to a <c>Control</c>. <c>_Ready</c>
+    /// threw before it had wired a single control, and the whole perk draft came up blank with every
+    /// post-battle reward behind it.
+    /// <para>
+    /// Re-pointed at the overlay's own full-rect <c>Control</c> rather than re-typed at the plane: a
+    /// <c>MeshInstance3D</c> has no <c>GuiInput</c> signal at all, so the tap this exists to catch
+    /// could not have been caught there whatever the field was declared as. The Control was already
+    /// in the scene and already covered the screen; it only needed a name.
+    /// </para>
+    /// </remarks>
+    private const string GroundPath = "%Screen";
     private const string TitleLabelPath = "%TitleLabel";
     private const string CardColumnPath = "%CardColumn";
     private const string AdFourthOptionCardPath = "%AdFourthOptionCard";
@@ -318,7 +335,7 @@ public partial class PerkDraft : Node3D
     private Board? _board;
     private CancellationToken _lifetime;
 
-    private ColorRect? _ground;
+    private Control? _ground;
     private Label? _titleLabel;
     private VBoxContainer? _cardColumn;
     private Control? _adFourthOptionCard;
@@ -403,7 +420,7 @@ public partial class PerkDraft : Node3D
     {
         // Resolved once. A scene-unique lookup is a string search of the owner's table each time it
         // is asked, and this screen redraws on every press.
-        _ground = GetNode<ColorRect>(GroundPath);
+        _ground = GetNode<Control>(GroundPath);
         _titleLabel = GetNode<Label>(TitleLabelPath);
         _cardColumn = GetNode<VBoxContainer>(CardColumnPath);
         _adFourthOptionCard = GetNode<Control>(AdFourthOptionCardPath);

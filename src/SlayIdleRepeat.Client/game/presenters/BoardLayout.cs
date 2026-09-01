@@ -80,6 +80,12 @@ public readonly record struct BoardExtent(BoardPoint Minimum, BoardPoint Maximum
 /// </remarks>
 public sealed class BoardLayout
 {
+    /// <summary>
+    /// The id <see cref="Trailhead"/> reports. Never a node of any board: <c>BoardGenerator</c>
+    /// numbers from zero, so a negative id cannot collide with one.
+    /// </summary>
+    public const int TrailheadNodeId = -1;
+
     private readonly IReadOnlyDictionary<int, BoardNodePlacement> _byNodeId;
 
     private BoardLayout(
@@ -107,6 +113,21 @@ public sealed class BoardLayout
 
     /// <summary>The box each stage's own placements sit inside, keyed by stage.</summary>
     public IReadOnlyDictionary<int, BoardExtent> ExtentByStage { get; }
+
+    /// <summary>
+    /// Where the hero stands before its first roll: one step short of the board's first node.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 `03` §1.1's trailhead is not a tile — nothing resolves there and the run holds it as
+    /// position −1 — but it is somewhere the hero visibly IS, and `03` §1.1 says the token is drawn
+    /// at the head of the track. Without a point for it the board comes up with no hero on it at
+    /// all, and the first thing a new player sees is a board they are not on.
+    /// <para>
+    /// Extrapolated along the same centre line rather than placed at the origin, so the first roll
+    /// hops onto the board from the direction the board runs.
+    /// </para>
+    /// </remarks>
+    public BoardNodePlacement Trailhead { get; private set; } = null!;
 
     /// <summary>Lays a board out.</summary>
     /// <param name="board">The projected board. Every node it holds gets exactly one placement.</param>
@@ -144,7 +165,16 @@ public sealed class BoardLayout
             segments,
             byNodeId,
             ExtentOf(placements),
-            ExtentsByStage(placements));
+            ExtentsByStage(placements))
+        {
+            // Node index −1: the same arithmetic every other placement uses, one step back.
+            Trailhead = new BoardNodePlacement(
+                TrailheadNodeId,
+                CentreLine(-1, metrics),
+                HeadingAlongCentreLine(-1, board.Spine.Count, metrics),
+                OnSpine: true,
+                board.Spine[0].Stage),
+        };
     }
 
     /// <summary>Where a node stands, or <c>null</c> when this layout holds no such node.</summary>

@@ -152,6 +152,46 @@ public sealed class BoardLayoutTests
             expected.OrderBy(s => s.FromNodeId).ThenBy(s => s.ToNodeId));
     }
 
+    /// <summary>
+    /// The trailhead stands one step short of the board's first node, on the same line.
+    /// </summary>
+    /// <remarks>
+    /// The defect: no trailhead at all, so a run that has not rolled yet draws no hero — and the
+    /// first thing a new player sees is a board they are not standing on. `03` §1.1 keeps the run at
+    /// position −1 there and resolves nothing, but the token is drawn at the head of the track.
+    /// </remarks>
+    [Fact]
+    public void The_trailhead_stands_one_step_short_of_the_boards_first_node()
+    {
+        var board = Project(12, 14, 16);
+        var layout = BoardLayout.Of(board, Metrics);
+        var first = layout.Placement(board.Spine[0].NodeId).ShouldNotBeNull();
+
+        layout.Trailhead.NodeId.ShouldBe(
+            BoardLayout.TrailheadNodeId,
+            "the trailhead is not a node of any board, so it may not answer with an id one could hold.");
+
+        layout.Placement(BoardLayout.TrailheadNodeId).ShouldBeNull(
+            "and it is reachable only as the trailhead, never as a node lookup — a board that " +
+            "answered it by id would have a fifty-fourth tile nothing generated.");
+
+        var second = layout.Placement(board.Spine[1].NodeId).ShouldNotBeNull();
+
+        (layout.Trailhead.Centre.Z - first.Centre.Z).ShouldBe(
+            Metrics.NodeSpacing,
+            tolerance: 0.001f,
+            "exactly one node's step back along the track — and positive, because the board runs " +
+            "away along negative Z, so the trailhead is BEHIND its first node rather than past it.");
+
+        // Chord, not step: the track wanders, so consecutive nodes stand slightly further apart than
+        // the spacing. Matching the first real step's chord is what says the trailhead is on the
+        // same curve rather than merely the right distance away in some direction.
+        Distance(layout.Trailhead.Centre, first.Centre).ShouldBe(
+            Distance(first.Centre, second.Centre),
+            tolerance: 0.05f,
+            "the first roll must hop the same shape of step as every roll after it.");
+    }
+
     /// <summary>The whole board's box encloses every placement, and no more than it needs to.</summary>
     [Fact]
     public void The_extent_encloses_every_placement()

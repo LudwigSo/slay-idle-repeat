@@ -53,16 +53,16 @@ public partial class BoardCameraRig : Node3D
     private const string CameraPath = "%Camera";
 
     /// <summary>How far behind the hero the camera rides.</summary>
-    [Export] public float FollowDistance { get; set; } = 9f;
+    [Export] public float FollowDistance { get; set; } = 19f;
 
     /// <summary>How far the camera looks down while following, in degrees below the horizon.</summary>
-    [Export] public float FollowPitchDegrees { get; set; } = 34f;
+    [Export] public float FollowPitchDegrees { get; set; } = 62f;
 
     /// <summary>How far it looks down while framing one stage.</summary>
-    [Export] public float StagePitchDegrees { get; set; } = 58f;
+    [Export] public float StagePitchDegrees { get; set; } = 68f;
 
     /// <summary>How far it looks down while framing the whole board.</summary>
-    [Export] public float WholePitchDegrees { get; set; } = 72f;
+    [Export] public float WholePitchDegrees { get; set; } = 76f;
 
     /// <summary>How long the follow takes to close half the gap to the hero.</summary>
     [Export] public float FollowHalfLife { get; set; } = 0.14f;
