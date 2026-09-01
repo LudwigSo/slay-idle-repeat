@@ -112,6 +112,14 @@ public sealed record PendingTile(int Kind, string? NameKey, int LinearIndex, int
 /// <param name="Icons">
 /// The branch's own first tiles in walk order, at most three, or empty for the spine edge.
 /// </param>
+/// <param name="ToNodeId">
+/// The node this edge leads to, or null when the paused junction is not one this board knows.
+/// Read straight off the projected fork rather than re-derived from
+/// <paramref name="BranchIndex"/>, so the node the hero is animated onto cannot disagree with the
+/// node <c>CHOOSE_FORK</c> moved the run to — the exact confusion <c>BoardView.ForksOf</c>'s
+/// refusal message exists to prevent. A null degrades the animation to a snap, which is right:
+/// the fork the screen drew was not this board's.
+/// </param>
 /// <remarks>
 /// 🔒 The label and the icons are two INDEPENDENT reads of the same branch, and neither is derived
 /// from the other: the label is the bias the draw ran under and the icons are what the draw actually
@@ -122,7 +130,8 @@ public sealed record ForkBranch(
     int BranchIndex,
     string CaptionKey,
     ForkLabel? Label = null,
-    IReadOnlyList<TileKind>? Icons = null);
+    IReadOnlyList<TileKind>? Icons = null,
+    int? ToNodeId = null);
 
 /// <summary>A movement paused at a junction, waiting for the player to pick an edge.</summary>
 /// <param name="JunctionPosition">The junction the run is paused on.</param>
@@ -338,6 +347,33 @@ public sealed class BoardPresenter
 
     /// <summary>The node the run is standing on, or null while it is at the trailhead.</summary>
     public BoardTrackNode? StandingOn => _board?.StandingOn;
+
+    /// <summary>
+    /// Every node a movement from <paramref name="fromNodeId"/> to the run's present position walked
+    /// through, in order, excluding the one it started on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is how the board screen learns what to animate. <c>Core</c> reports where a movement
+    /// ENDED and never how it got there — no domain event carries a position — so the walk is
+    /// reconstructed from the graph. <see cref="BoardPath"/> carries the argument for why that
+    /// re-implements no rule.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Pass where the HERO is, not <see cref="Position"/>.</b> The two differ for exactly as
+    /// long as an animation is in flight, and passing the run's position would walk from the
+    /// destination to itself — correct-looking on every path today, and silently wrong the first
+    /// time a walk is interrupted.
+    /// </para>
+    /// </remarks>
+    /// <param name="fromNodeId">Where the hero is drawn. Null at the trailhead, which is not a node.</param>
+    /// <param name="viaNodeId">
+    /// The edge a <c>CHOOSE_FORK</c> took, as <see cref="ForkBranch.ToNodeId"/> gave it. Null for
+    /// every other command; a junction departure without one cannot be walked and returns empty.
+    /// </param>
+    /// <returns>The nodes walked, or empty when there is no single forward walk that explains the move.</returns>
+    public IReadOnlyList<int> WalkFrom(int? fromNodeId, int? viaNodeId) =>
+        _board is { } board ? BoardPath.Between(board, fromNodeId, Position, viaNodeId) : [];
 
     /// <summary>
     /// How far along the track the run stands, or null while it stands on no node of this board.
@@ -1068,12 +1104,16 @@ public sealed class BoardPresenter
 
         return
         [
-            new ForkBranch(ContinueBranchIndex, ForkContinueActionKey),
+            new ForkBranch(
+                ContinueBranchIndex,
+                ForkContinueActionKey,
+                ToNodeId: preview?.ContinueNodeId),
             new ForkBranch(
                 ContinueBranchIndex + 1,
                 ForkBranchActionKey,
                 preview?.BranchLabel,
-                preview?.BranchIcons ?? []),
+                preview?.BranchIcons ?? [],
+                preview?.BranchNodeIds.Count > 0 ? preview.BranchNodeIds[0] : null),
         ];
     }
 

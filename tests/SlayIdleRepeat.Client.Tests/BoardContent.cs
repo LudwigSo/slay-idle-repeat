@@ -137,6 +137,29 @@ internal static class BoardContent
     }
 
     /// <summary>
+    /// A content set whose chapter authors no fork at all, so its board is one unbroken spine.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Only expressible since `16` D69 moved fork density into the chapter. It matters for the
+    /// cases that reason about DISTANCE along the board: a junction stops a walk (movement pauses
+    /// rather than choosing for the player), so on a forked board a case that picked two node
+    /// indices apart could be refused for the junction between them and pass for a reason it never
+    /// meant to state.
+    /// </remarks>
+    /// <param name="chapterId">The chapter the run names.</param>
+    /// <param name="stageLengths">How long each stage is, in nodes.</param>
+    internal static ContentSnapshot AuthoringWithoutForks(int chapterId, params int[] stageLengths)
+    {
+        var documents = new List<ContentDocument>(Locales())
+        {
+            Chapter(chapterId, stageLengths, forkMinimum: 0, forkMaximum: 0),
+            BoardGeneration(),
+        };
+
+        return new ContentSnapshot(FixtureStamp, documents);
+    }
+
+    /// <summary>
     /// A content set carrying the strings, one chapter, and one authored event card.
     /// </summary>
     /// <remarks>
@@ -216,7 +239,8 @@ internal static class BoardContent
         return ContentValue.Object(members);
     }
 
-    private static ContentDocument Chapter(int chapterId, IReadOnlyList<int> stageLengths) =>
+    private static ContentDocument Chapter(
+        int chapterId, IReadOnlyList<int> stageLengths, int forkMinimum = 1, int forkMaximum = 2) =>
         new($"{ChaptersDirectory}CH_{chapterId:00}_FIXTURE.json", ContentValue.Object(
         [
             new KeyValuePair<string, ContentValue>("id", ContentValue.Number(chapterId)),
@@ -238,8 +262,8 @@ internal static class BoardContent
                 [
                     // `03` §1's authored one-or-two, which `16` D69 moved out of BoardGenerator and
                     // into the chapter. Stated per stage, as the shipped chapters state it.
-                    new KeyValuePair<string, ContentValue>("min", ContentValue.Number(1)),
-                    new KeyValuePair<string, ContentValue>("max", ContentValue.Number(2)),
+                    new KeyValuePair<string, ContentValue>("min", ContentValue.Number(forkMinimum)),
+                    new KeyValuePair<string, ContentValue>("max", ContentValue.Number(forkMaximum)),
                 ])))),
             new KeyValuePair<string, ContentValue>("bossId", ContentValue.Text(FixtureBossId)),
         ]));

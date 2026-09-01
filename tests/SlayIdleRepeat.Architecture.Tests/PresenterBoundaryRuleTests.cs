@@ -113,6 +113,41 @@ public sealed class PresenterBoundaryRuleTests
     /// </remarks>
     private const string PlayerNumberName = "PlayerNumber";
 
+    /// <summary>
+    /// The four types the 3D board put in the presenters namespace, none of whose names ends in
+    /// <see cref="PresenterTypeSuffix"/> — so the stray arm below cannot see any of them leave.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Each is engine-free by necessity rather than by habit, and each is one edit from not
+    /// being. <see cref="BoardLayoutName"/> decides where every tile of the board stands and would
+    /// be far shorter written in the engine's own vector type. <see cref="BoardPathName"/>
+    /// reconstructs the nodes a movement walked and is the only thing standing between the hero and
+    /// an animation across tiles the run never visited. <see cref="BoardWalkName"/> is the playhead
+    /// whose frame-rate independence nothing under a test runner could check if it asked the engine
+    /// for the time. <see cref="BoardFramingName"/> is the camera arithmetic, including the
+    /// portrait field-of-view correction that no rendered picture announces getting wrong. All four
+    /// are exactly the shape a later tidy-up files under <c>game/util/</c> or <c>game/board/</c>,
+    /// where neither this rule nor the scene rule looks.
+    /// </remarks>
+    private const string BoardLayoutName = "BoardLayout";
+
+    /// <summary>See <see cref="BoardLayoutName"/>.</summary>
+    private const string BoardPathName = "BoardPath";
+
+    /// <summary>See <see cref="BoardLayoutName"/>.</summary>
+    private const string BoardWalkName = "BoardWalk";
+
+    /// <summary>See <see cref="BoardLayoutName"/>.</summary>
+    private const string BoardFramingName = "BoardFraming";
+
+    /// <summary>
+    /// The 3D board's four engine-free types, each pinned by name in both arms. A loop rather than
+    /// eight transcribed assertions: they are the same subject for the same reason, and the reason
+    /// is stated once on <see cref="BoardLayoutName"/>.
+    /// </summary>
+    private static string[] BoardTypeNames =>
+        [BoardLayoutName, BoardPathName, BoardWalkName, BoardFramingName];
+
     /// <summary>The scene script the negative control is stated over by name.</summary>
     internal const string AppRootSceneName = "AppRoot";
 
@@ -301,6 +336,17 @@ public sealed class PresenterBoundaryRuleTests
             "how a number a player reads is written, shortened past ten thousand and exact on a hold; " +
             "filed anywhere else it keeps that job with nothing governing what it may reference.");
 
+        foreach (var boardTypeName in BoardTypeNames)
+        {
+            presenterTypeNames.ShouldContain(
+                boardTypeName,
+                $"'{boardTypeName}' is not among the types under {PresentersNamespace}, and the stray arm " +
+                "cannot see it leave either — its name is not spelled as a presenter. It is one of the four " +
+                "engine-free halves of the 3D board; filed anywhere else it keeps doing its job with nothing " +
+                "governing what it may reference, and the first thing each of them wants is the engine's " +
+                $"own vector, tween or clock. See {nameof(BoardLayoutName)} for what each one decides.");
+        }
+
         var presenterFileNames = RepoLayout.SourceFiles(PresenterSourceDirectory)
                                            .Select(Path.GetFileNameWithoutExtension)
                                            .ToArray();
@@ -342,6 +388,16 @@ public sealed class PresenterBoundaryRuleTests
             $"no '{PlayerNumberName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, for the same " +
             "reason once more: the namespace and the directory are pinned separately because a move can " +
             "break either one alone, and the source arm greps the directory.");
+
+        foreach (var boardTypeName in BoardTypeNames)
+        {
+            presenterFileNames.ShouldContain(
+                boardTypeName,
+                $"no '{boardTypeName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, for the same " +
+                "reason as every file assertion above: the type may still be in the presenters namespace " +
+                "while its FILE has left the directory the source arm greps, and that arm is the only one " +
+                "that can see the engine named in a comment or an inlined const.");
+        }
 
         var strays =
             from type in Il.AllTypes(ProductionAssemblies.Module(ProductionAssemblies.ClientName))
