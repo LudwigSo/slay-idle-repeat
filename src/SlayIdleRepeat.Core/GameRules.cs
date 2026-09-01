@@ -321,13 +321,25 @@ public static class GameRules
 
             // Ahead of the phase and draft arms below, so a run whose window has passed answers what
             // actually happened rather than naming whichever of its open states was noticed first.
-            // START_RUN is exempted with the run-less guard's argument: it is the command that
-            // settles the lapsed run and opens the next one, so refusing it here is what would leave
-            // the player with no legal move at all.
-            else if (!registration.OpensRun &&
-                     RunExpiry.HasLapsed(state.Run, context.NowUtc, context.Content))
+            //
+            // 🔒 Matched on the LAPSE and exempted INSIDE, exactly as the ended arm above is — never
+            // by folding OpensRun into the condition. That is not a style choice: this is an
+            // if/else chain, so a condition that excludes START_RUN does not exempt it, it lets it
+            // FALL THROUGH to the two arms below. And it did. A run that lapsed with a draft open
+            // was refused by the draft arm with ILLEGAL_STATE, so the one command that settles a
+            // lapsed run could not be submitted — the player was left holding a run they could
+            // neither play (every run command answers RUN_EXPIRED) nor replace, which is precisely
+            // what the exemption was written to prevent. Observed on a real save; `16` D71.
+            //
+            // Short-circuiting the rest of the chain is the point. BattlePending and DraftPending
+            // are both statements about a run that can still be played, and neither is true of one
+            // whose window has passed.
+            else if (RunExpiry.HasLapsed(state.Run, context.NowUtc, context.Content))
             {
-                return CommandResult.Reject(RejectionReason.RUN_EXPIRED, state);
+                if (!registration.OpensRun)
+                {
+                    return CommandResult.Reject(RejectionReason.RUN_EXPIRED, state);
+                }
             }
             else if (state.Run.Phase == RunPhase.BattlePending &&
                      command is not ConfirmBattleResultCommand &&

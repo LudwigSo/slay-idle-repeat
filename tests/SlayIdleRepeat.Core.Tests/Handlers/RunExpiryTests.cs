@@ -183,6 +183,88 @@ public sealed class RunExpiryTests
             + "discarded unpaid by the clear that makes room for the new one.");
     }
 
+    /// <summary>
+    /// 🔴 <b>A run that lapsed with a draft open is still settled and replaced by START_RUN.</b>
+    /// </summary>
+    /// <remarks>
+    /// The exemption above used to read <c>!registration.OpensRun &amp;&amp; HasLapsed(...)</c>, and
+    /// these are if/else arms — so excluding START_RUN from the CONDITION did not exempt it, it let
+    /// it fall through to the draft arm below, which refused it with <c>ILLEGAL_STATE</c>. The run
+    /// was then unplayable (every run command answers <c>RUN_EXPIRED</c>) and unreplaceable, which
+    /// is exactly what the exemption exists to prevent. Found on a real save: a run left mid-draft
+    /// for three days, and a Home screen that could offer nothing that worked.
+    /// <para>
+    /// DraftPending rather than BattlePending because that is the state observed, and because a
+    /// draft is the likeliest thing to be left open — it is the one screen that opens itself after
+    /// a fight and waits for a choice.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void START_RUN_settles_a_run_that_lapsed_with_a_draft_open()
+    {
+        var state = Live(bankedLegendXp: 100, pendingStage: null, draftPending: true);
+        var before = state.Player.LegendXp;
+
+        state.Run!.DraftPending.ShouldBeTrue("the fixture must actually carry the open draft.");
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state,
+            new StartRunCommand(1, DifficultyTier.NORMAL),
+            MetaContextAt(GearGrantWorlds.NowUtc.AddHours(WindowHours)) with { AllocatedRunId = NextRun });
+
+        result.Accepted.ShouldBeTrue(
+            "a draft open on a run whose window has passed is a statement about a run that can no " +
+            "longer be played, and it may not refuse the one command that clears it.");
+        result.NewState.Run!.Id.ShouldBe(
+            NextRun, "the run that came back is the new one, not the lapsed one with its draft still open.");
+        result.NewState.Run.Phase.ShouldBe(RunPhase.InProgress);
+
+        // ⚠️ Deliberately NOT asserted as false: a run opens WITH a draft — that is where a run's
+        // first perk comes from — so a fresh DraftPending here is the new run's own, and asserting
+        // it away would have pinned the opposite of the design.
+        (result.NewState.Player.LegendXp - before).ShouldBeGreaterThan(
+            0, "the lapsed run was settled on the way rather than discarded unpaid.");
+    }
+
+    /// <summary>
+    /// 🔒 The negative control: an open draft on a run that is still LIVE goes on refusing every
+    /// command but the three that answer it. Without this, the case above is satisfied by deleting
+    /// the draft guard outright.
+    /// </summary>
+    [Fact]
+    public void A_draft_open_on_a_live_run_still_refuses_a_roll()
+    {
+        var state = Live(pendingStage: null, draftPending: true);
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, new RollDiceCommand(), RunContextAt(GearGrantWorlds.NowUtc.AddHours(1)));
+
+        result.Accepted.ShouldBeFalse();
+        result.Rejection.ShouldBe(
+            RejectionReason.ILLEGAL_STATE,
+            "inside its window a run with an open draft has three legal moves and rolling is not " +
+            "one of them — the lapse is what makes the draft moot, not the draft itself.");
+    }
+
+    /// <summary>
+    /// And a lapsed draft-open run still refuses everything that is NOT the command that clears it,
+    /// with the reason that actually applies.
+    /// </summary>
+    [Fact]
+    public void A_lapsed_run_with_a_draft_open_answers_expired_rather_than_illegal_state()
+    {
+        var state = Live(pendingStage: null, draftPending: true);
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, new PickPerkCommand(0), RunContextAt(GearGrantWorlds.NowUtc.AddHours(WindowHours)));
+
+        result.Accepted.ShouldBeFalse();
+        result.Rejection.ShouldBe(
+            RejectionReason.RUN_EXPIRED,
+            "the draft is open and PICK_PERK answers it, but the run's window has passed — and the " +
+            "player is owed the reason that is actually true of their run.");
+    }
+
     /// <summary>The identity a host allocates for the run <c>START_RUN</c> opens.</summary>
     private static readonly RunId NextRun = new("RUN_4b71e0000000000000000000000000c3");
 
@@ -259,7 +341,8 @@ public sealed class RunExpiryTests
         int? pendingStage = 1,
         bool holdingGear = false,
         DateTimeOffset? playerLastAppliedAtUtc = null,
-        RunPhase phase = RunPhase.InProgress) =>
+        RunPhase phase = RunPhase.InProgress,
+        bool draftPending = false) =>
         new(
             Worlds.Rehydrated(PlayerSnapshots.With(
                 lastAppliedAtUtc: playerLastAppliedAtUtc,
@@ -273,6 +356,12 @@ public sealed class RunExpiryTests
                 pendingTileLinearIndex: pendingStage is null ? 0 : 7,
                 pendingTileStage: pendingStage ?? 0,
                 phase: phase,
+                draftPending: draftPending,
+
+                // A pending draft names the fight it came from, and the domain refuses a snapshot
+                // where it does not — so the two travel together rather than being set apart.
+                draftBattleKind: draftPending ? (int)TileKind.Enemy : RunSnapshots.NoPendingTile,
+                draftBattleStage: draftPending ? 1 : 0,
                 bankedLegendXp: bankedLegendXp)));
 
     // The whole shipped set, because the settlement reads the completion multipliers and the meta
