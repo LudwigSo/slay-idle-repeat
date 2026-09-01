@@ -1,30 +1,81 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/Board.cs" id="1_board"]
+[ext_resource type="Script" path="res://game/scenes/BoardWorld.cs" id="2_world"]
+[ext_resource type="Script" path="res://game/scenes/BoardCameraRig.cs" id="3_rig"]
+[ext_resource type="PackedScene" path="res://game/scenes/Hero.tscn" id="4_hero"]
 
-[sub_resource type="QuadMesh" id="QuadMesh_ground"]
-size = Vector2(24, 42)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
-shading_mode = 0
-albedo_color = Color(0.07, 0.07, 0.09, 1)
+; ============================================================================================
+; The board, drawn as a place the hero walks through.
+;
+; 🔴 Every distance on this screen's exports is a CHOICE OF THIS TASK and not one of them is
+; authored by a design document. `03`, `13` and `15` state how a board must READ — every tile
+; legible at 48 dp, branches beside the spine with a clear join, the hero at roughly 40% of screen
+; height — and state no distance at all. Per steering rule S6 they live here, in one greppable
+; place, marked as debt owed to a ruling, rather than as constants scattered through the code
+; where they would read as decided. The same arrangement, for the same reason, as the font sizes
+; below.
+;
+; What IS authored is derived rather than picked: the hero is framed into the band the interface
+; leaves free (BoardCameraRig.UsableBandTop/Bottom), and a pull-back solves its own distance from
+; the viewport's real aspect rather than carrying a tuned number.
+;
+; ⚠️ THERE IS NO ART HERE, placeholder or otherwise. The pucks, the runs of track and the gate
+; marks are engine primitives in the palette Board.cs already owns — the same rule the 2D track
+; kept, moved into three dimensions. `15` §E9's board art is unblocked (`16` D68) and unbuilt, and
+; arrives through BoardTile.tscn and BoardPathSegment.tscn.
+;
+; ⚠️ There is no WorldEnvironment and no light here, and there must not be: a viewport has exactly
+; one environment, and AppRoot owns it along with the app-wide key and fill. ScreenStage's remarks
+; carry the rule.
+;
+; ⚠️ The 24x42 Ground quad this scene used to carry is GONE. A backdrop plane pinned six units in
+; front of a camera that now travels is left behind on the first hop, and a board a hundred units
+; long is not something a quad that size could cover anyway. AppRoot's environment background is
+; the identical colour byte for byte, cannot be outrun and cannot be outgrown.
+; ============================================================================================
 
 [node name="Board" type="Node3D"]
 script = ExtResource("1_board")
+NodeSpacing = 2.6
+WindAmplitude = 2.2
+WindWavelength = 34.0
+BranchOffset = 2.4
+HeroScale = 0.42
+HopArcHeight = 0.55
 
 [node name="World" type="Node3D" parent="."]
 unique_name_in_owner = true
+script = ExtResource("2_world")
 
-[node name="Camera" type="Camera3D" parent="World"]
+[node name="CameraRig" type="Node3D" parent="World"]
 unique_name_in_owner = true
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
+script = ExtResource("3_rig")
+
+[node name="Pitch" type="Node3D" parent="World/CameraRig"]
+transform = Transform3D(1, 0, 0, 0, 0.829, 0.559, 0, -0.559, 0.829, 0, 0, 0)
+
+; 🔒 Still a bare Camera3D named Camera, still unique_in_owner, and still fov 60 — only its PARENT
+; moved. ScreenStage.Show resolves "%Camera" and calls MakeCurrent on it, which is the whole
+; handover contract and is orthogonal to every transform the rig writes. Put the rig's script on
+; this node instead and every handover in the build draws through the previous screen's camera,
+; silently, looking like a z-order bug rather than a camera one.
+[node name="Camera" type="Camera3D" parent="World/CameraRig/Pitch"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 9)
 fov = 60.0
 
-[node name="Ground" type="MeshInstance3D" parent="World"]
-unique_name_in_owner = true
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
-mesh = SubResource("QuadMesh_ground")
-material_override = SubResource("StandardMaterial3D_ground")
+[node name="Track" type="Node3D" parent="World"]
+
+[node name="HeroRig" type="Node3D" parent="World"]
+visible = false
+
+; Carries the board's own scale and cancels the yaw and the drop Hero.tscn bakes in for Home —
+; see BoardWorld.HeroOriginAboveFeet. Written at build time, not authored here, because the
+; correction depends on the scale.
+[node name="HeroPivot" type="Node3D" parent="World/HeroRig"]
+
+[node name="Hero" parent="World/HeroRig/HeroPivot" instance=ExtResource("4_hero")]
 
 [node name="Ui" type="CanvasLayer" parent="."]
 unique_name_in_owner = true
@@ -128,11 +179,15 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Track" type="HFlowContainer" parent="Ui/Screen/SafeArea/Column/TrackFrame"]
+; The overview control: `16` D67's compliance mechanism, and `03` §8 already asked for it as a
+; recenter button. It takes the slot the pip strip vacated, so the column's structure is unchanged.
+; Its height is transcribed from AbandonButton below rather than chosen afresh.
+[node name="OverviewButton" type="Button" parent="Ui/Screen/SafeArea/Column/TrackFrame"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 132)
 layout_mode = 2
-theme_override_constants/h_separation = 8
-theme_override_constants/v_separation = 8
+theme_override_font_sizes/font_size = 36
+autowrap_mode = 3
 
 [node name="GateLabel" type="Label" parent="Ui/Screen/SafeArea/Column/TrackFrame"]
 unique_name_in_owner = true

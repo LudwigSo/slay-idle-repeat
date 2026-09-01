@@ -133,6 +133,28 @@ public sealed record ForkBranch(
     IReadOnlyList<TileKind>? Icons = null,
     int? ToNodeId = null);
 
+/// <summary>What pressing the board's overview control does next.</summary>
+/// <remarks>
+/// 🔒 Three states rather than two, and the middle one is the reason. `16` D67 amended D42's "the
+/// board is completely visible at all times" to "reachable at all times", on the strength of an
+/// overview that shows the player what the numbers reach — and a single pull-back framing the WHOLE
+/// board cannot do that on a long one. A chapter authors its own stage lengths, and at the length a
+/// regular chapter is expected to run, every tile of a whole-board framing is a few pixels across:
+/// far under `03` §8's mandatory 48 dp. Framing the current STAGE keeps the promise legible at any
+/// board length; the whole board is then a shape, offered second and honestly.
+/// </remarks>
+public enum BoardOverviewStep
+{
+    /// <summary>Step back to frame the stage the hero is in, with its tiles still readable.</summary>
+    ToTheStage,
+
+    /// <summary>Step back again to frame the whole board, as shape.</summary>
+    ToTheWholeBoard,
+
+    /// <summary>Return to riding with the hero.</summary>
+    BackToTheHero,
+}
+
 /// <summary>A movement paused at a junction, waiting for the player to pick an edge.</summary>
 /// <param name="JunctionPosition">The junction the run is paused on.</param>
 /// <param name="RemainingSteps">Steps left to spend once the edge is taken.</param>
@@ -201,6 +223,9 @@ public sealed class BoardPresenter
     private const string RolledLabelKey = "loc.board.rolled.label";
     private const string StandingOnLabelKey = "loc.board.standing_on.label";
     private const string GateRuleLabelKey = "loc.board.gate.label";
+    private const string OverviewStageActionKey = "loc.board.overview_stage.action";
+    private const string OverviewBoardActionKey = "loc.board.overview_board.action";
+    private const string OverviewHeroActionKey = "loc.board.overview_hero.action";
     private const string RollActionKey = "loc.board.roll.action";
     private const string ResolveActionKey = "loc.board.resolve.action";
     private const string AbandonActionKey = "loc.board.abandon.action";
@@ -347,6 +372,19 @@ public sealed class BoardPresenter
 
     /// <summary>The node the run is standing on, or null while it is at the trailhead.</summary>
     public BoardTrackNode? StandingOn => _board?.StandingOn;
+
+    /// <summary>
+    /// The run's whole projected board, or null for a chapter this build does not ship.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Handed over whole rather than re-published a member at a time, because the screen draws
+    /// the board as a PLACE: it needs every node, every fork's branch chain and every rejoin to put
+    /// geometry somewhere, and a presenter that re-exposed each of those would be a second copy of
+    /// <c>BoardView</c> with nothing extra in it. The type is a read-only projection with no
+    /// behaviour — `30` §11.6 is the reason it is public at all — so nothing the screen can do with
+    /// it reaches the rules.
+    /// </remarks>
+    public BoardView? Board => _board;
 
     /// <summary>
     /// Every node a movement from <paramref name="fromNodeId"/> to the run's present position walked
@@ -501,6 +539,20 @@ public sealed class BoardPresenter
         Stage == BoardStage.Ready && Track.Any(IsAMarkedNodeNotYetPassed)
             ? _strings.Resolve(GateRuleLabelKey)
             : NothingLeftToSay;
+
+    /// <summary>The overview control's caption, naming what pressing it does next.</summary>
+    /// <remarks>
+    /// The caption states the NEXT step rather than the current framing, because a control is named
+    /// for what it does. It is also the only thing on the screen that says the third state exists —
+    /// there is one control, so a player learns the cycle by reading it.
+    /// </remarks>
+    /// <param name="step">What the press will do.</param>
+    public string OverviewText(BoardOverviewStep step) => _strings.Resolve(step switch
+    {
+        BoardOverviewStep.ToTheStage => OverviewStageActionKey,
+        BoardOverviewStep.ToTheWholeBoard => OverviewBoardActionKey,
+        _ => OverviewHeroActionKey,
+    });
 
     /// <summary>The roll control's caption, resolved.</summary>
     public string RollText => _strings.Resolve(RollActionKey);

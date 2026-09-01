@@ -19,9 +19,19 @@ namespace SlayIdleRepeat.Client.Tests;
 /// </para>
 /// <para>
 /// 🔒 <b>The scene is read as the text file it is</b>, so this needs no engine and stays inside a
-/// suite whose whole premise is that nothing here is a Node. Its scope is the mark this branch
-/// added, not the board's palette: a contrast FLOOR, so retuning the mark stays allowed and retuning
-/// it until one of its channels disappears does not.
+/// suite whose whole premise is that nothing here is a Node. Its scope is the mark, not the board's
+/// palette: a contrast FLOOR, so retuning the mark stays allowed and retuning it until one of its
+/// channels disappears does not.
+/// </para>
+/// <para>
+/// 🔴 <b>Re-pointed, never deleted, when the board became three-dimensional.</b> The mark moved from
+/// a StyleBox collar and two ColorRects on <c>TrackNode.tscn</c> to a ring and two boxes on
+/// <c>BoardTile.tscn</c>, and the surface the collar is read against moved from the board scene's
+/// own backdrop plane — deleted, because a plane pinned in front of a camera that now travels is
+/// left behind on the first hop — to <c>AppRoot.tscn</c>'s environment background, which is the
+/// board's actual backdrop and cannot be outrun. The CLAIM is unchanged and so is the defect it
+/// records. The extraction arm below is what made the move safe: it throws rather than passing, so
+/// forgetting any part of this re-point failed loudly instead of quietly measuring nothing.
 /// </para>
 /// <para>
 /// ⚠️ <b>Each channel is measured against the surface it is actually drawn on</b>, which is the
@@ -32,7 +42,7 @@ namespace SlayIdleRepeat.Client.Tests;
 /// moment the player is looking at it.
 /// </para>
 /// </remarks>
-public sealed class TrackNodeGateContrastTests
+public sealed class BoardTileGateContrastTests
 {
     /// <summary>
     /// What every channel of the mark has to clear against its own backdrop.
@@ -43,36 +53,40 @@ public sealed class TrackNodeGateContrastTests
     /// </remarks>
     private const double ContrastFloor = 4.5;
 
-    private const string TrackNodeScene = "src/SlayIdleRepeat.Client/game/scenes/TrackNode.tscn";
-    private const string BoardScene = "src/SlayIdleRepeat.Client/game/scenes/Board.tscn";
+    private const string TileScene = "src/SlayIdleRepeat.Client/game/scenes/BoardTile.tscn";
+    private const string AppRootScene = "src/SlayIdleRepeat.Client/game/scenes/AppRoot.tscn";
     private const string BoardScript = "src/SlayIdleRepeat.Client/game/scenes/Board.cs";
 
-    private const string CollarStyleBox = "id=\"StyleBoxFlat_gate_collar\"";
+    private const string CollarMaterial = "id=\"StandardMaterial3D_collar\"";
 
     /// <summary>
-    /// Where the board's ground colour is authored, now that the ground is a 3D plane.
+    /// Where the board's backdrop colour is authored, now that the board has no backdrop of its own.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>This used to read <c>name="Ground"</c> and a <c>color</c> off a ColorRect.</b> The 3D
-    /// conversion replaced every screen's full-rect ColorRect with an unshaded backdrop plane in the
-    /// screen's own 3D world, because an opaque ColorRect in the UI overlay would have hidden the 3D
-    /// world it was put there to sit in front of. The colour is the same value it always was; what
-    /// moved is which block of the scene file states it. The <c>Ground</c> NODE is still there and
-    /// still named that, so a lookup by node name would have kept passing while reading nothing —
-    /// which is exactly why the extraction arm below is not optional.
+    /// 🔴 <b>This has moved twice, and each move could have gone unnoticed.</b> It began as
+    /// <c>name="Ground"</c> and a <c>color</c> on a full-rect ColorRect. The 3D conversion made it an
+    /// unshaded backdrop plane in the board's own world — the node kept the name <c>Ground</c>, so a
+    /// lookup by node name would have kept passing while reading nothing. The 3D BOARD deleted that
+    /// plane outright: it was pinned six units in front of a camera that now travels, so it is left
+    /// behind on the first hop, and a board a hundred units long is not something a 24-by-42 quad
+    /// could have covered anyway. What is behind the board now is the one environment the app has,
+    /// on AppRoot — the same colour byte for byte, and the one thing on the screen that cannot be
+    /// outrun or outgrown. The extraction arm is why none of this was silent.
     /// </remarks>
-    private const string GroundMaterial = "id=\"StandardMaterial3D_ground\"";
+    private const string BackdropEnvironment = "id=\"Environment_world\"";
 
-    private const string BorderColourKey = "border_color";
-    private const string ColourKey = "color";
+    private const string BackgroundColourKey = "background_color";
+    private const string MaterialOverrideKey = "material_override";
+    private const string ShadingModeKey = "shading_mode";
 
-    /// <summary>The albedo of an unshaded 3D material — the ground's colour, as authored.</summary>
+    /// <summary>The albedo of an unshaded 3D material — a mark's colour, as authored.</summary>
     /// <remarks>
-    /// ⚠️ Read as authored rather than as rendered, and that is a real limit of this case. The plane
-    /// is unshaded, so no light touches it, and the app-wide environment does not tonemap — under
-    /// those two conditions the authored albedo IS what reaches the framebuffer. Give the ground a
-    /// lit material or the environment a tonemap and this stops being true, silently, with every
-    /// case here still green.
+    /// ⚠️ Read as AUTHORED rather than as rendered, which is a real limit of every case here: the
+    /// two are the same number only while the material is unshaded and the environment does not
+    /// tonemap. That used to be a warning written in prose and nothing else — so
+    /// <see cref="Every_material_these_cases_measure_is_unshaded"/> now asserts the first half of it,
+    /// and a lit material fails loudly instead of leaving every floor here green over a colour the
+    /// screen no longer produces.
     /// </remarks>
     private const string AlbedoColourKey = "albedo_color";
 
@@ -97,7 +111,16 @@ public sealed class TrackNodeGateContrastTests
 
     private static readonly Rgb Token = new(0.93, 0.93, 0.96);
 
-    private static readonly string[] BarRects = ["name=\"LeftBar\"", "name=\"RightBar\""];
+    /// <summary>
+    /// The two bar nodes, each read through the material it names rather than measured once.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Both bars share one material today, so one measurement would cover both — and that is
+    /// exactly why each is resolved through its OWN <c>material_override</c> instead. Giving one bar
+    /// a material of its own is a one-line edit, and under a single shared measurement it would be
+    /// an unmeasured channel of a mark whose symmetry is what left-handed mirroring rests on.
+    /// </remarks>
+    private static readonly string[] BarNodes = ["name=\"LeftBar\"", "name=\"RightBar\""];
 
     private static readonly Regex ColourCall = new(
         @"^Color\(\s*(?<r>[-+0-9.eE]+)\s*,\s*(?<g>[-+0-9.eE]+)\s*,\s*(?<b>[-+0-9.eE]+)",
@@ -114,12 +137,32 @@ public sealed class TrackNodeGateContrastTests
         Should.NotThrow(() => Collar(), "the collar's own colour could not be read from the scene");
         Should.NotThrow(() => Ground(), "the screen's ground colour could not be read from the board scene");
 
-        foreach (var bar in BarRects)
+        foreach (var bar in BarNodes)
         {
             Should.NotThrow(
                 () => Bar(bar),
                 $"the bar '{bar}' could not be read from the scene, so nothing measured it");
         }
+    }
+
+    /// <summary>
+    /// 🔒 <b>The premise every floor here rests on, asserted rather than described.</b> These cases
+    /// measure authored albedo, and authored albedo is what reaches the screen only while the
+    /// material is unshaded. Light one of them and the mark's real contrast becomes whatever the key
+    /// light happens to do to it — with every case in this file still green.
+    /// </summary>
+    [Theory]
+    [InlineData(CollarMaterial)]
+    [InlineData(BarMaterial)]
+    public void Every_material_these_cases_measure_is_unshaded(string material)
+    {
+        Property(TileScene, material, ShadingModeKey).ShouldBe(
+            UnshadedMode,
+            $"the material '{material}' in {TileScene} is no longer unshaded, so the albedo this " +
+            "suite measures is no longer the colour the mark is drawn in. Either restore " +
+            $"{ShadingModeKey} = {UnshadedMode}, or replace these floors with something that can " +
+            "measure a lit surface — do not leave them measuring a number the screen has stopped " +
+            "producing.");
     }
 
     /// <summary>
@@ -153,12 +196,12 @@ public sealed class TrackNodeGateContrastTests
     [InlineData(1)]
     public void Each_bar_clears_the_floor_against_the_fill_a_marked_pip_is_drawn_in(int bar)
     {
-        var colour = Bar(BarRects[bar]);
+        var colour = Bar(BarNodes[bar]);
         var ratio = Contrast(colour, MiniBossFill);
 
         ratio.ShouldBeGreaterThanOrEqualTo(
             ContrastFloor,
-            $"the gate bar '{BarRects[bar]}' is drawn at {Ratio(ratio)} against the fill of the pip " +
+            $"the gate bar '{BarNodes[bar]}' is drawn at {Ratio(ratio)} against the fill of the tile " +
             $"it crosses (bar {Describe(colour)}, fill {Describe(MiniBossFill)}). The bars are the " +
             "mark's second channel and the only one drawn over the fill, so below the floor the " +
             "mark is a frame alone and a mini-boss differs from the boss by hue plus an outline.");
@@ -173,12 +216,12 @@ public sealed class TrackNodeGateContrastTests
     [InlineData(1)]
     public void Each_bar_clears_the_floor_against_the_token_the_pip_is_repainted_in(int bar)
     {
-        var colour = Bar(BarRects[bar]);
+        var colour = Bar(BarNodes[bar]);
         var ratio = Contrast(colour, Token);
 
         ratio.ShouldBeGreaterThanOrEqualTo(
             ContrastFloor,
-            $"the gate bar '{BarRects[bar]}' is drawn at {Ratio(ratio)} against the token colour " +
+            $"the gate bar '{BarNodes[bar]}' is drawn at {Ratio(ratio)} against the token colour " +
             $"(bar {Describe(colour)}, token {Describe(Token)}). A pip is repainted in the token " +
             "while the run stands on it, so this is the fill the bars are seen against at the one " +
             "moment the player is certainly looking at that node.");
@@ -205,11 +248,40 @@ public sealed class TrackNodeGateContrastTests
             "copy honest.");
     }
 
-    private static Rgb Collar() => Colour(TrackNodeScene, CollarStyleBox, BorderColourKey);
+    /// <summary>The one material both bars name today, and the subject of the unshaded case.</summary>
+    private const string BarMaterial = "id=\"StandardMaterial3D_bar\"";
 
-    private static Rgb Bar(string node) => Colour(TrackNodeScene, node, ColourKey);
+    /// <summary>Godot's <c>shading_mode</c> for an unshaded material.</summary>
+    private const string UnshadedMode = "0";
 
-    private static Rgb Ground() => Colour(BoardScene, GroundMaterial, AlbedoColourKey);
+    private static Rgb Collar() => Colour(TileScene, CollarMaterial, AlbedoColourKey);
+
+    /// <summary>One bar's colour, resolved through the material that bar's own node names.</summary>
+    private static Rgb Bar(string node) =>
+        Colour(TileScene, MaterialNamedBy(TileScene, node), AlbedoColourKey);
+
+    private static Rgb Ground() => Colour(AppRootScene, BackdropEnvironment, BackgroundColourKey);
+
+    /// <summary>The sub-resource header a node's <c>material_override</c> points at.</summary>
+    /// <remarks>
+    /// A scene writes it as <c>material_override = SubResource("id")</c>, so the id is lifted out of
+    /// the quotes and turned back into the header form the block reader matches on.
+    /// </remarks>
+    private static string MaterialNamedBy(string relativePath, string node)
+    {
+        var value = Property(relativePath, node, MaterialOverrideKey);
+        var opening = value.IndexOf('"');
+        var closing = value.LastIndexOf('"');
+
+        if (opening < 0 || closing <= opening)
+        {
+            throw new InvalidOperationException(
+                $"'{MaterialOverrideKey} = {value}' on the block carrying '{node}' of " +
+                $"'{relativePath}' names no sub-resource, so nothing measured that node's colour.");
+        }
+
+        return $"id={value[opening..(closing + 1)]}";
+    }
 
     /// <summary>
     /// One colour property of one block of a scene file.
@@ -223,29 +295,7 @@ public sealed class TrackNodeGateContrastTests
     /// </remarks>
     private static Rgb Colour(string relativePath, string header, string key)
     {
-        var block = Blocks(relativePath)
-            .SingleOrDefault(candidate => candidate.Header.Contains(header, StringComparison.Ordinal));
-
-        if (block is null)
-        {
-            throw new InvalidOperationException(
-                $"No single block carrying '{header}' in '{relativePath}'. Either it was renamed, or " +
-                "the scene now holds more than one — and nothing measured its colour either way.");
-        }
-
-        var value = block.Body
-            .Select(line => line.Split('=', 2))
-            .Where(parts => parts.Length == 2 && string.Equals(parts[0].Trim(), key, StringComparison.Ordinal))
-            .Select(parts => parts[1].Trim())
-            .SingleOrDefault();
-
-        if (value is null)
-        {
-            throw new InvalidOperationException(
-                $"The block carrying '{header}' in '{relativePath}' has no single '{key}' property, " +
-                "so there was no colour to measure.");
-        }
-
+        var value = Property(relativePath, header, key);
         var match = ColourCall.Match(value);
 
         if (!match.Success)
@@ -259,6 +309,30 @@ public sealed class TrackNodeGateContrastTests
             Channel(match, "r", relativePath, key),
             Channel(match, "g", relativePath, key),
             Channel(match, "b", relativePath, key));
+    }
+
+    /// <summary>One property of one block of a scene file, as the text it is written as.</summary>
+    private static string Property(string relativePath, string header, string key)
+    {
+        var block = Blocks(relativePath)
+            .SingleOrDefault(candidate => candidate.Header.Contains(header, StringComparison.Ordinal));
+
+        if (block is null)
+        {
+            throw new InvalidOperationException(
+                $"No single block carrying '{header}' in '{relativePath}'. Either it was renamed, or " +
+                "the scene now holds more than one — and nothing read it either way.");
+        }
+
+        var value = block.Body
+            .Select(line => line.Split('=', 2))
+            .Where(parts => parts.Length == 2 && string.Equals(parts[0].Trim(), key, StringComparison.Ordinal))
+            .Select(parts => parts[1].Trim())
+            .SingleOrDefault();
+
+        return value ?? throw new InvalidOperationException(
+            $"The block carrying '{header}' in '{relativePath}' has no single '{key}' property, " +
+            "so there was nothing to read.");
     }
 
     /// <summary>

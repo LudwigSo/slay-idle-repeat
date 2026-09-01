@@ -1,0 +1,26 @@
+[gd_scene load_steps=3 format=3]
+
+; One run of track between two tiles, and the ONE place its drawn form is authored — the second half
+; of `15` §E9's seam, beside BoardTile.tscn.
+;
+; The ribbon is authored as a unit box along -Z and stretched at build time to span two placements,
+; so one mesh draws every segment of the board whatever length it is. §E9's authored path pieces are
+; six shapes (straight, two curves, fork, join, boss approach); when they arrive they replace this
+; one, and the stretch becomes a choice of piece.
+;
+; Unshaded for the reasons BoardTile.tscn states at length.
+
+[sub_resource type="BoxMesh" id="BoxMesh_ribbon"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ribbon"]
+; Overridden per run of track at build time — the spine and a fork's branch are tinted apart, which
+; with the sideways offset is how `03` §8's "side by side with a clear join" is met.
+shading_mode = 0
+albedo_color = Color(1, 1, 1, 1)
+
+[node name="BoardPathSegment" type="Node3D"]
+
+[node name="Ribbon" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_ribbon")
+material_override = SubResource("StandardMaterial3D_ribbon")
