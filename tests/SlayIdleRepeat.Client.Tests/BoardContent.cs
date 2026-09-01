@@ -232,6 +232,15 @@ internal static class BoardContent
                 [
                     new KeyValuePair<string, ContentValue>(tile, ContentValue.Number(1)),
                 ])))),
+            new KeyValuePair<string, ContentValue>(
+                "forksPerStage",
+                ContentValue.Array(stageLengths.Select(_ => ContentValue.Object(
+                [
+                    // `03` §1's authored one-or-two, which `16` D69 moved out of BoardGenerator and
+                    // into the chapter. Stated per stage, as the shipped chapters state it.
+                    new KeyValuePair<string, ContentValue>("min", ContentValue.Number(1)),
+                    new KeyValuePair<string, ContentValue>("max", ContentValue.Number(2)),
+                ])))),
             new KeyValuePair<string, ContentValue>("bossId", ContentValue.Text(FixtureBossId)),
         ]));
 

@@ -60,6 +60,7 @@ internal static class ChapterDocuments
             ["tileWeights"] = ContentValue.Array(Enumerable.Repeat(
                 Weights(enemy: 34, empty: 12, shrine: 9, treasure: 8, evt: 8, minigame: 7, curse: 6, shop: 5, elite: 4, cache: 3, portal: 2, diceForge: 2),
                 3)),
+            ["forksPerStage"] = ForksPerStage(),
             ["bossId"] = ContentValue.Text("BOSS_TEST"),
         }));
 
@@ -76,8 +77,22 @@ internal static class ChapterDocuments
                 Weights(enemy: 34, empty: 10, shrine: 9, treasure: 8, evt: 8, minigame: 7, curse: 7, shop: 5, elite: 5, cache: 3, portal: 2, diceForge: 2),
                 Weights(enemy: 34, empty: 8, shrine: 9, treasure: 8, evt: 8, minigame: 7, curse: 8, shop: 5, elite: 6, cache: 3, portal: 2, diceForge: 2),
             }),
+            ["forksPerStage"] = ForksPerStage(),
             ["bossId"] = ContentValue.Text("BOSS_THORNMAW"),
         }));
+
+    /// <summary>
+    /// The shipped chapters' authored fork density: `03` §1's one-or-two per stage, stated as
+    /// content since `16` D69 moved it out of <c>BoardGenerator</c>.
+    /// </summary>
+    internal static ContentValue ForksPerStage(int minimum = 1, int maximum = 2) =>
+        ContentValue.Array(Enumerable.Repeat(
+            ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["min"] = ContentValue.Number(minimum),
+                ["max"] = ContentValue.Number(maximum),
+            }),
+            3));
 
     private static ContentValue Weights(
         double enemy, double empty, double shrine, double treasure, double evt, double minigame,

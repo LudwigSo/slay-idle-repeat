@@ -260,7 +260,7 @@ public sealed class BoardViewTests
         view.PendingFork.ShouldNotBeNull();
         view.PendingFork!.JunctionNodeId.ShouldBe(junction.Value);
         view.PendingFork.ContinueNodeId.ShouldBe(edges[0].To.Value, "edge 0 is 03 §1.1's spine continuation.");
-        view.PendingFork.BranchNodeId.ShouldBe(edges[1].To.Value, "edge 1 is the fork's branch entry.");
+        view.PendingFork.BranchNodeIds[0].ShouldBe(edges[1].To.Value, "edge 1 is the fork's branch entry.");
         view.PendingFork.BranchLabel.ShouldBe(preview.Label);
         view.PendingFork.BranchIcons.ShouldBe(
             preview.Icons, "the preview must be the branch's own drawn tiles, in walk order.");
@@ -270,7 +270,7 @@ public sealed class BoardViewTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.Position.ShouldBe(
-            view.PendingFork.BranchNodeId,
+            view.PendingFork.BranchNodeIds[0],
             "CHOOSE_FORK took the branch onto a node the view did not call the branch, so the fork " +
             "the player is shown is not the fork the command resolves.");
     }
@@ -406,6 +406,58 @@ public sealed class BoardViewTests
             view.Spine.Count, "every spine entry appears in Nodes, and nothing else claims to be on the spine.");
     }
 
+    /// <summary>
+    /// `03` §3 step 4 — a fork names its whole branch in walk order and the spine node the branch
+    /// rejoins on, so a client can place every branch node and draw the join.
+    /// </summary>
+    /// <remarks>
+    /// Asserted against <see cref="BranchNodes"/>, which walks the branch and recognises the rejoin
+    /// by the linear-index coincidence of `03` §1.1. The projection recognises it by asking whether
+    /// the next node is on the spine. Two independent derivations that must agree — a single
+    /// derivation asserted against itself would be a restatement of the implementation.
+    /// </remarks>
+    [Fact]
+    public void Every_fork_names_its_whole_branch_in_walk_order_and_the_node_it_rejoins_on()
+    {
+        var checkedForks = 0;
+
+        foreach (var seed in Seeds)
+        {
+            var board = Oracle(seed);
+            var view = BoardView.Project(RunSnapshots.With(chapterId: Chapter, runSeed: seed), ShippedHarness.Content);
+
+            foreach (var fork in view.Forks)
+            {
+                var junction = new NodeId(fork.JunctionNodeId);
+                var branch = BranchNodes(board, junction);
+
+                fork.BranchNodeIds.ShouldBe(
+                    branch.Select(id => id.Value).ToArray(),
+                    "seed " + Text(seed) + ": the fork at node " + Text(fork.JunctionNodeId) +
+                    " names a branch the board does not lay out that way. A client places branch " +
+                    "nodes off this list, so a wrong one puts a tile somewhere the run never goes.");
+
+                var lastBranchNode = branch[^1];
+                var rejoin = board.OutgoingEdges(lastBranchNode).Single(e => e.Kind == EdgeKind.Continue).To;
+
+                fork.RejoinNodeId.ShouldBe(
+                    rejoin.Value,
+                    "seed " + Text(seed) + ": the rejoin is the node the branch's LAST node leads " +
+                    "onto — the place the two ways out of the junction meet again.");
+
+                fork.RejoinNodeId.ShouldNotBe(
+                    fork.JunctionNodeId,
+                    "seed " + Text(seed) + ": a branch that rejoined at its own junction would be a " +
+                    "cycle, not a fork.");
+
+                checkedForks++;
+            }
+        }
+
+        checkedForks.ShouldBeGreaterThan(
+            0, "no seed produced a fork, so the branch-naming rule asserted nothing.");
+    }
+
     // ------------------------------------------------------------------------------------------
     // D — the fork preview and its authored labels.
     // ------------------------------------------------------------------------------------------
@@ -437,6 +489,11 @@ public sealed class BoardViewTests
                 fork.BranchIcons.Count.ShouldBe(
                     Math.Min(3, branch.Count),
                     "seed " + Text(seed) + ": a preview shows min(3, branch length) icons.");
+
+                fork.BranchIcons.Count.ShouldBe(
+                    Math.Min(3, fork.BranchNodeIds.Count),
+                    "seed " + Text(seed) + ": the icon count is min(3, branch length) read off the " +
+                    "fork's OWN branch too, so a preview cannot outlive the branch it describes.");
 
                 for (var k = 0; k < fork.BranchIcons.Count; k++)
                 {
@@ -476,8 +533,10 @@ public sealed class BoardViewTests
         {
             view.Node(fork.JunctionNodeId).ShouldNotBeNull().OnSpine.ShouldBeTrue(
                 "a junction is a spine node — 03 §1.1's forks leave the spine and rejoin it.");
-            view.Node(fork.BranchNodeId).ShouldNotBeNull().OnSpine.ShouldBeFalse(
+            view.Node(fork.BranchNodeIds[0]).ShouldNotBeNull().OnSpine.ShouldBeFalse(
                 "the branch entry is the first node off the spine.");
+            view.Node(fork.RejoinNodeId).ShouldNotBeNull().OnSpine.ShouldBeTrue(
+                "a branch rejoins the spine, so the node it rejoins on is a spine node.");
         }
     }
 
@@ -744,8 +803,14 @@ public sealed class BoardViewTests
         foreach (var fork in view.Forks)
         {
             text.Append(Text(fork.JunctionNodeId)).Append('>')
-                .Append(Text(fork.ContinueNodeId)).Append('/')
-                .Append(Text(fork.BranchNodeId)).Append(':')
+                .Append(Text(fork.ContinueNodeId)).Append('/');
+
+            foreach (var branchNodeId in fork.BranchNodeIds)
+            {
+                text.Append(Text(branchNodeId)).Append(',');
+            }
+
+            text.Append('^').Append(Text(fork.RejoinNodeId)).Append(':')
                 .Append(fork.BranchLabel).Append('[');
 
             foreach (var icon in fork.BranchIcons)

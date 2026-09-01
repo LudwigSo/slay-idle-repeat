@@ -10,7 +10,8 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 /// <summary>
 /// 🔒 <b><c>BoardView</c>'s fork-projection guard</b>: a junction that is not laid out
 /// <c>Continue</c>-then-<c>Branch</c>-carrying-a-preview is refused by name, rather than published
-/// with <c>ContinueNodeId</c> and <c>BranchNodeId</c> the wrong way round.
+/// with <c>ContinueNodeId</c> and the branch chain the wrong way round, and a branch that cannot be
+/// walked to a rejoin is refused rather than published half-named.
 /// </summary>
 /// <remarks>
 /// Internal seam by necessity: <c>BoardView.Project</c> replays the board from the run seed, so it
@@ -36,6 +37,7 @@ public sealed class BoardViewForkGuardTests
     private static readonly NodeId Rejoin = new(2);
     private static readonly NodeId Boss = new(3);
     private static readonly NodeId BranchEntry = new(4);
+    private static readonly NodeId BranchSecond = new(5);
 
     /// <summary>The preview a well-formed branch edge carries — the branch's own single tile.</summary>
     private static ForkPreview Preview() =>
@@ -52,15 +54,20 @@ public sealed class BoardViewForkGuardTests
             new BoardEdge(Junction, Rejoin, EdgeKind.Continue),
             new BoardEdge(Junction, BranchEntry, EdgeKind.Branch, Preview()));
 
-        var forks = BoardView.ForksOf(board, NodeIdOrder());
+        var forks = BoardView.ForksOf(board, NodeIdOrder(), OnSpine());
 
         var fork = forks.ShouldHaveSingleItem();
 
         fork.JunctionNodeId.ShouldBe(Junction.Value);
         fork.ContinueNodeId.ShouldBe(
             Rejoin.Value, "the Continue edge is the way that stays on the spine.");
-        fork.BranchNodeId.ShouldBe(
-            BranchEntry.Value, "the Branch edge is the first node off the spine.");
+        fork.BranchNodeIds.ShouldBe(
+            new[] { BranchEntry.Value },
+            "the branch is named whole and in walk order; the Branch edge reaches its first node.");
+        fork.RejoinNodeId.ShouldBe(
+            Rejoin.Value,
+            "the branch is walked to the first node on the spine it reaches, which is where the two " +
+            "ways out meet again.");
         fork.BranchLabel.ShouldBe(ForkLabel.Perilous);
         fork.BranchIcons.ShouldBe(new[] { TileKind.Elite });
     }
@@ -81,7 +88,7 @@ public sealed class BoardViewForkGuardTests
             new BoardEdge(Junction, Rejoin, EdgeKind.Continue, Preview()));
 
         var ex = Should.Throw<InvalidOperationException>(
-            () => BoardView.ForksOf(board, NodeIdOrder()));
+            () => BoardView.ForksOf(board, NodeIdOrder(), OnSpine()));
 
         ex.Message.ShouldContain(
             Junction.ToString(),
@@ -109,7 +116,7 @@ public sealed class BoardViewForkGuardTests
             new BoardEdge(Junction, BranchEntry, EdgeKind.Continue, Preview()));
 
         var ex = Should.Throw<InvalidOperationException>(
-            () => BoardView.ForksOf(board, NodeIdOrder()));
+            () => BoardView.ForksOf(board, NodeIdOrder(), OnSpine()));
 
         ex.Message.ShouldContain(Junction.ToString(), Case.Sensitive);
         ex.Message.ShouldContain(
@@ -131,7 +138,7 @@ public sealed class BoardViewForkGuardTests
             new BoardEdge(Junction, BranchEntry, EdgeKind.Branch));
 
         var ex = Should.Throw<InvalidOperationException>(
-            () => BoardView.ForksOf(board, NodeIdOrder()));
+            () => BoardView.ForksOf(board, NodeIdOrder(), OnSpine()));
 
         ex.Message.ShouldContain(Junction.ToString(), Case.Sensitive);
         ex.Message.ShouldContain(
@@ -144,6 +151,56 @@ public sealed class BoardViewForkGuardTests
             Case.Sensitive,
             "the refusal states the alternative it forecloses, which is the whole reason it is a " +
             "throw rather than a fallback.");
+    }
+
+    /// <summary>
+    /// `03` §3 step 4 — a branch node that is itself a junction is refused by name, rather than
+    /// projected as a branch whose second choice no fork entry describes.
+    /// </summary>
+    /// <remarks>
+    /// Unreachable from a generated board: <c>BoardGenerator</c> reserves a span per fork so no
+    /// junction can land inside another fork's branch. <c>FromLayout</c> does not check it, and a
+    /// fork inside a fork would pause a run at a junction this projection publishes no way out of.
+    /// </remarks>
+    [Fact]
+    public void A_branch_node_that_is_itself_a_junction_is_refused_by_name()
+    {
+        var board = NestedForkLayout();
+
+        var ex = Should.Throw<InvalidOperationException>(
+            () => BoardView.ForksOf(board, NestedNodeIdOrder(), OnSpine()));
+
+        ex.Message.ShouldContain(BranchEntry.ToString(), Case.Sensitive);
+        ex.Message.ShouldContain(
+            "is itself a junction",
+            Case.Sensitive,
+            "this substring is what tells the nested-fork refusal apart from the never-rejoins one " +
+            "below - both are branch-walk failures, and an assertion on the type alone passes on either.");
+    }
+
+    /// <summary>
+    /// `03` §3 step 4 — a branch that never reaches the spine again is refused by name. Every
+    /// branch rejoins; one that does not would have this view publish a fork whose two ways out
+    /// never meet.
+    /// </summary>
+    /// <remarks>
+    /// The shape is a loop rather than a dangling chain, because <c>FromLayout</c> already refuses a
+    /// node with no outgoing edge - a chain that simply stopped would never reach this walk.
+    /// </remarks>
+    [Fact]
+    public void A_branch_that_never_returns_to_the_spine_is_refused_by_name()
+    {
+        var board = LoopingBranchLayout();
+
+        var ex = Should.Throw<InvalidOperationException>(
+            () => BoardView.ForksOf(board, NestedNodeIdOrder(), OnSpine()));
+
+        ex.Message.ShouldContain(Junction.ToString(), Case.Sensitive);
+        ex.Message.ShouldContain(
+            "never returns to the spine",
+            Case.Sensitive,
+            "the rejoin rule is what fired, and the substring is what separates this from the " +
+            "nested-fork refusal above.");
     }
 
     /// <summary>
@@ -162,7 +219,7 @@ public sealed class BoardViewForkGuardTests
             .Project(RunSnapshots.With(chapterId: Chapter, runSeed: FixedSeed), ShippedHarness.Content)
             .Forks;
 
-        var direct = BoardView.ForksOf(board, Reachable(board));
+        var direct = BoardView.ForksOf(board, Reachable(board), Spine(board));
 
         published.Count.ShouldBeGreaterThan(0, "a board with no fork would make this case vacuous.");
         direct.Length.ShouldBe(published.Count);
@@ -171,7 +228,8 @@ public sealed class BoardViewForkGuardTests
         {
             direct[i].JunctionNodeId.ShouldBe(published[i].JunctionNodeId);
             direct[i].ContinueNodeId.ShouldBe(published[i].ContinueNodeId);
-            direct[i].BranchNodeId.ShouldBe(published[i].BranchNodeId);
+            direct[i].BranchNodeIds.ShouldBe(published[i].BranchNodeIds);
+            direct[i].RejoinNodeId.ShouldBe(published[i].RejoinNodeId);
             direct[i].BranchLabel.ShouldBe(published[i].BranchLabel);
             direct[i].BranchIcons.ShouldBe(published[i].BranchIcons);
         }
@@ -209,8 +267,74 @@ public sealed class BoardViewForkGuardTests
         new[] { Start, Junction, Rejoin, Boss },
         new[] { Junction });
 
+    /// <summary>
+    /// The same spine, with the branch entry turned into a junction of its own: it continues onto
+    /// the rejoin and branches again onto a second off-spine node.
+    /// </summary>
+    private static BoardGraph NestedForkLayout() => BoardGraph.FromLayout(
+        NestedNodes(),
+        new[]
+        {
+            new BoardEdge(Start, Junction, EdgeKind.Continue),
+            new BoardEdge(Junction, Rejoin, EdgeKind.Continue),
+            new BoardEdge(Junction, BranchEntry, EdgeKind.Branch, Preview()),
+            new BoardEdge(BranchEntry, Rejoin, EdgeKind.Continue),
+            new BoardEdge(BranchEntry, BranchSecond, EdgeKind.Branch, Preview()),
+            new BoardEdge(BranchSecond, Rejoin, EdgeKind.Continue),
+            new BoardEdge(Rejoin, Boss, EdgeKind.Continue),
+        },
+        new[] { Start, Junction, Rejoin, Boss },
+        new[] { Junction, BranchEntry });
+
+    /// <summary>The same spine, with a two-node branch that loops back on itself instead of rejoining.</summary>
+    private static BoardGraph LoopingBranchLayout() => BoardGraph.FromLayout(
+        NestedNodes(),
+        new[]
+        {
+            new BoardEdge(Start, Junction, EdgeKind.Continue),
+            new BoardEdge(Junction, Rejoin, EdgeKind.Continue),
+            new BoardEdge(Junction, BranchEntry, EdgeKind.Branch, Preview()),
+            new BoardEdge(BranchEntry, BranchSecond, EdgeKind.Continue),
+            new BoardEdge(BranchSecond, BranchEntry, EdgeKind.Continue),
+            new BoardEdge(Rejoin, Boss, EdgeKind.Continue),
+        },
+        new[] { Start, Junction, Rejoin, Boss },
+        new[] { Junction });
+
+    /// <summary>The refusal layouts' nodes: the four-node spine plus two off-spine branch nodes.</summary>
+    private static BoardNode[] NestedNodes() => new[]
+    {
+        new BoardNode(Start, TileKind.Enemy, 0, Stage1),
+        new BoardNode(Junction, TileKind.Empty, 1, Stage1),
+        new BoardNode(Rejoin, TileKind.Enemy, 2, Stage1),
+        new BoardNode(Boss, TileKind.Boss, 3, BoardGraph.BossStage),
+        new BoardNode(BranchEntry, TileKind.Elite, 2, Stage1),
+        new BoardNode(BranchSecond, TileKind.Curse, 2, Stage1),
+    };
+
     /// <summary>The hand-built board's nodes in node-id order, as the projection walks them.</summary>
     private static NodeId[] NodeIdOrder() => new[] { Start, Junction, Rejoin, Boss, BranchEntry };
+
+    /// <summary>The refusal layouts' nodes in node-id order.</summary>
+    private static NodeId[] NestedNodeIdOrder() =>
+        new[] { Start, Junction, Rejoin, Boss, BranchEntry, BranchSecond };
+
+    /// <summary>The hand-built board's spine, which is what tells the branch walk where to stop.</summary>
+    private static IReadOnlySet<NodeId> OnSpine() =>
+        new HashSet<NodeId> { Start, Junction, Rejoin, Boss };
+
+    /// <summary>A generated board's spine, by linear index.</summary>
+    private static IReadOnlySet<NodeId> Spine(BoardGraph board)
+    {
+        var spine = new HashSet<NodeId>();
+
+        for (var linearIndex = 0; linearIndex < board.SpineLength; linearIndex++)
+        {
+            spine.Add(board.SpineNode(linearIndex));
+        }
+
+        return spine;
+    }
 
     /// <summary>Every node reachable from a board's first node, in node-id order.</summary>
     private static NodeId[] Reachable(BoardGraph board)

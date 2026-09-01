@@ -15,6 +15,7 @@ internal sealed class ChapterBoardConfig
         IReadOnlyList<int> stageLengths,
         IReadOnlyList<int> eliteCount,
         IReadOnlyList<IReadOnlyDictionary<TileKind, double>> tileWeights,
+        IReadOnlyList<ForkCountRange> forksPerStage,
         string bossId,
         double forkBiasPlusMultiplier,
         double forkBiasMinusMultiplier)
@@ -23,6 +24,7 @@ internal sealed class ChapterBoardConfig
         StageLengths = stageLengths;
         EliteCount = eliteCount;
         TileWeights = tileWeights;
+        ForksPerStage = forksPerStage;
         BossId = bossId;
         ForkBiasPlusMultiplier = forkBiasPlusMultiplier;
         ForkBiasMinusMultiplier = forkBiasMinusMultiplier;
@@ -45,6 +47,15 @@ internal sealed class ChapterBoardConfig
     /// </summary>
     public IReadOnlyList<IReadOnlyDictionary<TileKind, double>> TileWeights { get; }
 
+    /// <summary>
+    /// How many forks each stage may carry, matching <see cref="StageLengths"/>. Authored rather
+    /// than a generator constant because a fork count that does not scale with stage length turns a
+    /// long stage into a straight line, and `03` §3.1 makes the fork the board's one real navigation
+    /// decision. The shipped chapters author `03` §1's 1-2, so today's boards are unchanged in
+    /// shape by the move — only in where the number lives.
+    /// </summary>
+    public IReadOnlyList<ForkCountRange> ForksPerStage { get; }
+
     /// <summary>The chapter's boss identity — carried through onto the boss <see cref="BoardNode"/> but not otherwise interpreted here.</summary>
     public string BossId { get; }
 
@@ -62,12 +73,19 @@ internal sealed class ChapterBoardConfig
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="stageLengths"/> or <paramref name="eliteCount"/> or <paramref name="tileWeights"/>
-    /// does not have exactly 3 entries; a stage length is not positive; an elite count is negative
+    /// or a supplied <paramref name="forksPerStage"/> does not have exactly 3 entries; a stage length is not positive; an elite count is negative
     /// or exceeds its stage length; a stage's weight table is empty, states
     /// <see cref="TileKind.Boss"/> (never drawable — placed once, structurally), or has no positive
     /// weight; <paramref name="bossId"/> is empty; <paramref name="forkBiasPlusMultiplier"/> is not
     /// greater than 1; or <paramref name="forkBiasMinusMultiplier"/> is not in (0, 1).
     /// </exception>
+    /// <param name="forksPerStage">
+    /// One inclusive fork-count range per stage. Defaults to `03` §1's authored 1-2 per stage
+    /// (<see cref="ForkCountRange.Authored"/>) so callers that do not care about fork density — most
+    /// fixture and negative-path tests — need not restate it; the one production caller,
+    /// <see cref="ChapterBoardTuning.Read"/>, always passes an explicit, content-read value. This is
+    /// the same arrangement, for the same reason, as the two multipliers below.
+    /// </param>
     /// <param name="forkBiasPlusMultiplier">
     /// Defaults to the shipped 2.5x so callers that do not care about fork bias (most
     /// fixture/negative-path tests) need not restate it; the one production caller,
@@ -80,6 +98,7 @@ internal sealed class ChapterBoardConfig
         IReadOnlyList<int> eliteCount,
         IReadOnlyList<IReadOnlyDictionary<TileKind, double>> tileWeights,
         string bossId,
+        IReadOnlyList<ForkCountRange>? forksPerStage = null,
         double forkBiasPlusMultiplier = 2.5,
         double forkBiasMinusMultiplier = 0.2)
     {
@@ -117,6 +136,11 @@ internal sealed class ChapterBoardConfig
             throw new ArgumentException("03 §1 fixes exactly 3 stages; tileWeights must have 3 entries.", nameof(tileWeights));
         }
 
+        if (forksPerStage is not null && forksPerStage.Count != 3)
+        {
+            throw new ArgumentException("03 §1 fixes exactly 3 stages; forksPerStage must have 3 entries.", nameof(forksPerStage));
+        }
+
         if (string.IsNullOrWhiteSpace(bossId))
         {
             throw new ArgumentException("bossId must not be empty.", nameof(bossId));
@@ -134,6 +158,19 @@ internal sealed class ChapterBoardConfig
             if (eliteCount[i] < 0)
             {
                 throw new ArgumentException($"stage {stageNumber}'s elite count must not be negative.", nameof(eliteCount));
+            }
+
+            // Re-checked here rather than trusted from ForkCountRange.Of: the type is a record
+            // struct, so `default` and its primary constructor both reach this factory without ever
+            // passing through Of. This is the gate; Of is the convenience.
+            if (forksPerStage is not null && forksPerStage[i].Minimum < 0)
+            {
+                throw new ArgumentException($"stage {stageNumber}'s fork count minimum must not be negative.", nameof(forksPerStage));
+            }
+
+            if (forksPerStage is not null && forksPerStage[i].Maximum < forksPerStage[i].Minimum)
+            {
+                throw new ArgumentException($"stage {stageNumber}'s fork count maximum must not be below its minimum.", nameof(forksPerStage));
             }
 
             if (eliteCount[i] > stageLengths[i])
@@ -177,8 +214,11 @@ internal sealed class ChapterBoardConfig
             .Select(w => (IReadOnlyDictionary<TileKind, double>)new Dictionary<TileKind, double>(w))
             .ToArray();
 
+        var forkCounts = forksPerStage?.ToArray() ??
+            Enumerable.Repeat(ForkCountRange.Authored, 3).ToArray();
+
         return new ChapterBoardConfig(
-            chapterId, stageLengths.ToArray(), eliteCount.ToArray(), frozenWeights, bossId,
+            chapterId, stageLengths.ToArray(), eliteCount.ToArray(), frozenWeights, forkCounts, bossId,
             forkBiasPlusMultiplier, forkBiasMinusMultiplier);
     }
 }
