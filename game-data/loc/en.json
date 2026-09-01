@@ -140,6 +140,7 @@
     "loc.home.legend_level.label": "Legend Level",
     "loc.home.energy.label": "Energy",
     "loc.home.energy_reserve.label": "Reserve",
+    "loc.home.run_lapsed.status": "That run timed out and has been settled. Runs left alone too long end where they stood — start a new one.",
     "loc.home.start_run.action": "Start Run",
     "loc.home.continue_run.action": "Continue Run",
     "loc.home.gear.action": "Gear",

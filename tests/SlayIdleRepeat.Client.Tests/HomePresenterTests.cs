@@ -184,6 +184,130 @@ public sealed class HomePresenterTests
             "as 'not resumable' strands the player on the one phase they cannot leave by playing.");
     }
 
+    /// <summary>
+    /// 🔴 <b>A run left alone past its authored window is not continuable, and this case exists
+    /// because the screen offered to continue one and stranded a real save.</b>
+    /// </summary>
+    /// <remarks>
+    /// <c>GameRules</c> refuses every run command on a lapsed run with <c>RUN_EXPIRED</c>, and
+    /// settles it only on the next command the player is ALLOWED to make — every meta command and
+    /// <c>START_RUN</c>, deliberately not anything the board or its decision screens submit. So a
+    /// Home that read the phase alone sent the player into a run where nothing worked: the observed
+    /// failure was the perk draft, whose Pick, Reroll and Skip are all run commands, with no back
+    /// control and the same offer waiting after a restart. `16` D70.
+    /// </remarks>
+    [Fact]
+    public async Task StartAsync_refuses_to_continue_a_run_whose_window_has_passed()
+    {
+        var presenter = Home(
+            RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.InProgress)),
+            PlayerState.FixtureInstant.AddHours(ScreenContent.FixtureRunExpiryHours));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(
+            HomeContinueDecision.RunLapsed,
+            "the run's window has passed, so every command it would accept is refused. Offering to " +
+            "resume it is offering a door that opens onto a wall.");
+
+        presenter.ContinuableRun.ShouldBeNull(
+            "and nothing may carry its id forward — an id here is what the next screen resumes on, " +
+            "and there is nothing left to resume.");
+    }
+
+    /// <summary>
+    /// 🔒 The negative control for the case above, and the reason it is one hour rather than a
+    /// different fixture: a presenter that simply stopped offering CONTINUE would satisfy the
+    /// expiry case perfectly.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_still_continues_a_run_an_hour_short_of_its_window()
+    {
+        var presenter = Home(
+            RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.InProgress)),
+            PlayerState.FixtureInstant.AddHours(ScreenContent.FixtureRunExpiryHours - 1));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(
+            HomeContinueDecision.ContinueRun,
+            "inside the window the run is playable, and a screen that gave up on it early would " +
+            "throw away a run the rules would still have accepted commands for.");
+    }
+
+    /// <summary>
+    /// A battle left open lapses on the same clock. Stated separately because <c>BattlePending</c>
+    /// is the phase a player is most likely to background the app in, so it is the one most likely
+    /// to be found expired — and a phase check written for one of the two would miss it.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_refuses_to_continue_a_lapsed_run_with_a_battle_open()
+    {
+        var presenter = Home(
+            RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.BattlePending)),
+            PlayerState.FixtureInstant.AddHours(ScreenContent.FixtureRunExpiryHours));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(HomeContinueDecision.RunLapsed);
+    }
+
+    /// <summary>
+    /// The window comes from CONTENT, not from a number in the presenter.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The fixture authors five hours where the shipped chapters author forty-eight, so a
+    /// presenter carrying its own copy of the shipped figure reads this run as live and fails here.
+    /// Without this case, every expiry case above passes against a hardcoded 48.
+    /// </remarks>
+    [Fact]
+    public async Task StartAsync_reads_the_window_from_content_rather_than_carrying_one()
+    {
+        ScreenContent.FixtureRunExpiryHours.ShouldBeLessThan(
+            48, "the fixture's window has to differ from the shipped one or this case proves nothing.");
+
+        var presenter = Home(
+            RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.InProgress)),
+            PlayerState.FixtureInstant.AddHours(ScreenContent.FixtureRunExpiryHours + 1));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(
+            HomeContinueDecision.RunLapsed,
+            "this run is older than the window THIS content authors. A presenter reading the shipped " +
+            "48 hours would still be offering to continue it.");
+    }
+
+    /// <summary>
+    /// A lapsed run offers the same button a fresh start does, and says why.
+    /// </summary>
+    /// <remarks>
+    /// Both halves matter. The BUTTON must start a run, because `03`'s expiry rule makes
+    /// <c>START_RUN</c> the one command a lapsed run accepts — a screen offering anything else
+    /// offers a refusal. The SENTENCE must be there, because a player who left a run going and
+    /// returns to a fresh-start button has had something taken away, and silence about it reads as
+    /// lost progress rather than as an authored window.
+    /// </remarks>
+    [Fact]
+    public async Task A_lapsed_run_offers_the_start_action_and_says_what_happened()
+    {
+        var presenter = Home(
+            RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.InProgress)),
+            PlayerState.FixtureInstant.AddHours(ScreenContent.FixtureRunExpiryHours));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.ActionText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.StartRunActionKey),
+            "START_RUN is the one command a lapsed run accepts, and it is what settles it. A button " +
+            "saying anything else offers the player a command that will be refused.");
+
+        presenter.StatusText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.RunLapsedStatusKey),
+            "the run the player left is gone; a screen that changed its button and said nothing " +
+            "reads as lost progress rather than as the two-day window the rules authored.");
+    }
+
     [Fact]
     public async Task StartAsync_carries_the_id_of_the_run_it_decided_to_continue()
     {
@@ -474,7 +598,12 @@ public sealed class HomePresenterTests
     public void Constructor_rejects_a_null_game_host()
     {
         Should.Throw<ArgumentNullException>(
-                  () => new HomePresenter(gameHost: null!, ScreenContent.Catalogue(), Profile))
+                  () => new HomePresenter(
+                      gameHost: null!,
+                      ScreenContent.Catalogue(),
+                      ScreenContent.Strings(),
+                      new ManualClock(Now),
+                      Profile))
               .ParamName.ShouldBe(
                   "gameHost",
                   "a null collaborator turns into a NullReferenceException at whichever line touches " +
@@ -486,7 +615,12 @@ public sealed class HomePresenterTests
     public void Constructor_rejects_a_null_string_catalogue()
     {
         Should.Throw<ArgumentNullException>(
-                  () => new HomePresenter(RecordingGameHost.Finding(PlayerRow()), strings: null!, Profile))
+                  () => new HomePresenter(
+                      RecordingGameHost.Finding(PlayerRow()),
+                      strings: null!,
+                      ScreenContent.Strings(),
+                      new ManualClock(Now),
+                      Profile))
               .ParamName.ShouldBe(
                   "strings",
                   "without the catalogue there are no captions at all, and the first thing that would " +
@@ -506,8 +640,26 @@ public sealed class HomePresenterTests
             CarriedEnergy,
             CarriedReserve);
 
+    /// <summary>The instant every case here reads "now" as, unless it says otherwise.</summary>
+    /// <remarks>
+    /// 🔒 Anchored to the instant the fixture stamps a run at, one hour on — so every case that is
+    /// not ABOUT expiry has a run comfortably inside its window and keeps meaning what it meant.
+    /// Fixed rather than <c>UtcNow</c> for the obvious reason: Home decides against the clock now,
+    /// and a case built on the real one measures a run's age against whenever the suite happened to
+    /// run, which is a case that passes today and fails on a slow morning.
+    /// </remarks>
+    private static readonly DateTimeOffset Now = PlayerState.FixtureInstant.AddHours(1);
+
     private static HomePresenter Home(RecordingGameHost host) =>
-        new(host, ScreenContent.Catalogue(), Profile);
+        Home(host, Now);
+
+    private static HomePresenter Home(RecordingGameHost host, DateTimeOffset nowUtc)
+    {
+        var content = ScreenContent.Strings();
+
+        return new HomePresenter(
+            host, ScreenContent.Catalogue(content), content, new ManualClock(nowUtc), Profile);
+    }
 
     private static async Task<HomeContinueDecision> DecisionFrom(RecordingGameHost host)
     {

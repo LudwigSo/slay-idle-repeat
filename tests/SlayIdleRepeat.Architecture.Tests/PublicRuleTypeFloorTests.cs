@@ -136,7 +136,7 @@ public sealed class PublicRuleTypeFloorTests
     /// callers to naming an account after whatever text reached them.
     /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 31;
+    private const int ResolvedPublicRuleTypeFloor = 32;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -394,7 +394,14 @@ public sealed class PublicRuleTypeFloorTests
         // members name, HeroNameDecision. Raised by exactly those two, so HeroNameRule,
         // HeroNameVerdict and NameNormalisation stay internal: what leaves is the decision, and
         // deliberately not the term it matched.
-        if (Domain.PublicRuleTypes.Count > 31)
+        // 🔒 THIRTY-TWO since `16` D70. ONE entry point — RunExpiry, whose consumer is the Home
+        // screen's HomePresenter — and NO new type with it: its public overload names RunSnapshot
+        // and ContentSnapshot, both already public and neither in Rules, so the closure grew by the
+        // entry point alone. It is here because a client that cannot ask whether a run has lapsed
+        // offers to resume one whose every command GameRules refuses, opening a screen with no
+        // working control and no way back — which shipped, and stranded a real save. RunLifetimeTuning
+        // stays internal: what leaves is the verdict, never the window it was measured against.
+        if (Domain.PublicRuleTypes.Count > 32)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +

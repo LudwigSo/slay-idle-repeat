@@ -42,9 +42,10 @@
       "description": "The line shown while the screen has no decision to offer. Two: the read has not answered yet, and the read said there is no such profile. The CAUSE beyond that is carried in code as a named state so it can be logged and told apart, while what a player is shown stays one honest sentence.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["loading", "unavailable"],
+      "required": ["loading", "unavailable", "runLapsed"],
       "properties": {
         "loading": { "$ref": "#/$defs/locKey" },
+        "runLapsed": { "$ref": "#/$defs/locKey" },
         "unavailable": { "$ref": "#/$defs/locKey" }
       }
     }

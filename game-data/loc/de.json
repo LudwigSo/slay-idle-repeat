@@ -140,6 +140,7 @@
     "loc.home.legend_level.label": "##TODO_DE## Legend Level",
     "loc.home.energy.label": "##TODO_DE## Energy",
     "loc.home.energy_reserve.label": "##TODO_DE## Reserve",
+    "loc.home.run_lapsed.status": "##TODO_DE## That run timed out and has been settled. Runs left alone too long end where they stood — start a new one.",
     "loc.home.start_run.action": "##TODO_DE## Start Run",
     "loc.home.continue_run.action": "##TODO_DE## Continue Run",
     "loc.home.gear.action": "##TODO_DE## Gear",

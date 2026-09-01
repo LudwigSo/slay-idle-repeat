@@ -24,7 +24,12 @@ namespace SlayIdleRepeat.Client.Tests;
 internal static class PlayerState
 {
     /// <summary>Anchors every timestamp a row needs but no case cares about.</summary>
-    private static readonly DateTimeOffset FixtureInstant = new(2026, 5, 2, 9, 0, 0, TimeSpan.Zero);
+    /// <remarks>
+    /// 🔒 Internal since Home began deciding against the clock. A case that cares how OLD a run is
+    /// has to anchor its "now" to the instant the row was stamped at, and transcribing this date
+    /// into that case would be a second copy of it — one that agrees until somebody moves this one.
+    /// </remarks>
+    internal static readonly DateTimeOffset FixtureInstant = new(2026, 5, 2, 9, 0, 0, TimeSpan.Zero);
 
     /// <summary>
     /// A run started wearing nothing — an EMPTY loadout, which is not the same as an absent one.
