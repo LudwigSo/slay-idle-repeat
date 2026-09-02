@@ -1,0 +1,224 @@
+# Slay Idle Repeat — SonarQube Community Build, on a laptop.
+#
+#   docker compose -f docker-compose.sonarqube.yml up -d --wait
+#   docker compose -f docker-compose.sonarqube.yml down        # keep the data
+#   docker compose -f docker-compose.sonarqube.yml down -v     # cold next boot
+#
+# Then http://127.0.0.1:9000 — first login admin/admin, which SonarQube forces
+# you to change on the spot. See infra/sonarqube/README.md for the walk-through
+# and build/ci/Invoke-SonarAnalysis.ps1 for the analysis run itself.
+#
+# ============================================================================
+# WHY THIS IS A SEPARATE FILE AND NOT A SERVICE IN docker-compose.yml
+#
+# docker-compose.yml is the STACK — the thing 14 §1.1 says must boot on a laptop
+# and which the compose-boot CI job boots on every commit. SonarQube is not part
+# of the product; it is a tool that reads the repository. Folding it in would:
+#
+#   * add ~3 GB of RAM and an Elasticsearch bootstrap to every `docker compose
+#     up` a developer runs to work on the game;
+#   * put a second Postgres next to 🔒 the system of record, where a stray
+#     `down -v` at the wrong moment is a genuinely bad afternoon;
+#   * make compose-boot — a job about the PRODUCT's portability — wait on a code
+#     analysis server it has no opinion about.
+#
+# Compose does not auto-load a file named like this one (only docker-compose.yml
+# and docker-compose.override.yml), so `-f` above is mandatory and nothing in the
+# main stack changes. `name:` below puts it in its own project, so the two
+# stacks' `down -v` can never reach each other's volumes.
+#
+# It still lives at the repository root rather than under infra/, on purpose:
+# build/ci/Test-NoCloudCredentials.ps1 scans `docker-compose.*.yml` THERE. A file
+# tucked into infra/sonarqube/ would be unscanned — and this one is held to the
+# same three rules as the main stack:
+#
+#   1. NO CREDENTIALS. The database password below is an obviously-local dev
+#      value, spelled out for the same reason the main stack's is.
+#   2. EVERY IMAGE PINNED BY TAG AND DIGEST. Never `:latest`, never `:community`.
+#   3. EVERY SERVICE HEALTHCHECKED, so `up --wait` blocks until SonarQube is
+#      genuinely ready to accept an analysis rather than merely listening.
+#   4. LOOPBACK ONLY. SonarQube starts life as admin/admin and holds a token that
+#      can read every line of this repository. A 0.0.0.0 bind hands that to the
+#      café network — and Docker's published ports land in the DOCKER iptables
+#      chain, below where a host firewall rule reaches.
+#
+# ============================================================================
+# ⚠️ COMMUNITY BUILD IS A ROLLING RELEASE — there is no LTA for it.
+#
+# `26.8.0.126808-community` is a point in a monthly train. Upgrading is a
+# deliberate act: bump the tag AND the digest together, boot once, and let it
+# migrate its own database. Do not skip more than one major at a time, and never
+# downgrade onto a migrated volume — SonarQube will refuse and, more to the
+# point, the analysis history is the only thing here worth keeping.
+# ============================================================================
+
+name: slayidlerepeat-sonarqube
+
+x-logging: &json-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+x-restart: &no-restart
+  # Same reasoning as the main stack: a service that crash-loops quietly is the
+  # failure mode `up --wait` exists to catch.
+  restart: 'no'
+
+services:
+
+  # =========================================================================
+  # sonarqube-sysctl — one-shot, privileged, exits in milliseconds.
+  #
+  # 🔴 MEASURED, NOT ASSUMED. SonarQube embeds Elasticsearch, whose bootstrap
+  # check demands vm.max_map_count >= 524288. On this machine's Docker Desktop
+  # (28.4.0, WSL2 backend, 2026-09-02) the VM ships 262144 — exactly half — and
+  # the container dies during startup with "max virtual memory areas
+  # vm.max_map_count [262144] is too low". `docker run --rm busybox sysctl
+  # vm.max_map_count` is how to re-check that on any other machine.
+  #
+  # The sysctl belongs to the Docker VM's kernel, NOT to your Windows/macOS host,
+  # and it is reset when that VM restarts — which is why this is a service that
+  # runs on every `up` rather than a line in a README nobody re-reads.
+  #
+  # The alternative is SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true, which is worse: it
+  # does not raise the limit, it silences the check, and the search index then
+  # fails later under real load instead of immediately at boot.
+  #
+  # `privileged` is confined to this five-word container and to the Linux VM
+  # Docker already runs everything else in. If your Docker VM is already at
+  # 524288 or more, delete this service — sysctl -w is a no-op there anyway.
+  # =========================================================================
+  sonarqube-sysctl:
+    image: busybox:1.37.0-uclibc@sha256:8d7b1636e974e0adfd8d945955fca609304f0a56c18799dfd032d6e661382d84
+    <<: *no-restart
+    logging: *json-logging
+    privileged: true
+    # `-w` writes; the read-back is what shows up in the log so a failure here is
+    # visible rather than inferred from SonarQube dying two minutes later.
+    command: ['sh', '-c', 'sysctl -w vm.max_map_count=524288 && sysctl vm.max_map_count']
+    mem_limit: 32m
+
+  # =========================================================================
+  # sonarqube-db — SonarQube's OWN Postgres. Not the game's.
+  #
+  # Same image, tag and digest as the main stack's `postgres`, so a laptop pulls
+  # one Postgres layer set and not two. Everything else is deliberately
+  # different: its own project, its own volume, its own database name, its own
+  # port default. Nothing in the game ever connects here and nothing here ever
+  # connects to the game's database.
+  #
+  # SonarQube will not start against H2 for anything but a throwaway, and it
+  # refuses to run its database migrations without a real one — so this service
+  # is not optional.
+  # =========================================================================
+  sonarqube-db:
+    image: postgres:16.9-alpine@sha256:7c688148e5e156d0e86df7ba8ae5a05a2386aaec1e2ad8e6d11bdf10504b1fb7
+    <<: *no-restart
+    logging: *json-logging
+    ports:
+      # Loopback only, and NOT 5432: the main stack owns that default, and two
+      # stacks fighting over a host port is a confusing five minutes.
+      - '127.0.0.1:${SIR_SONARQUBE_DB_PORT:-5433}:5432'
+    environment:
+      # Local dev values. Not secrets — spelled out on purpose so nobody mistakes
+      # one for a secret, and so it cannot be quietly promoted to a real
+      # environment. A deployed SonarQube injects its own.
+      POSTGRES_DB: sonarqube
+      POSTGRES_USER: sonarqube
+      POSTGRES_PASSWORD: sonarqube_local_dev_password
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - sonarqube-db-data:/var/lib/postgresql/data
+    healthcheck:
+      # Names the real database and role, not just the bootstrap socket — same
+      # reasoning as the main stack's postgres healthcheck.
+      test: ['CMD-SHELL', 'pg_isready -U sonarqube -d sonarqube -h 127.0.0.1']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    mem_limit: 512m
+
+  # =========================================================================
+  # sonarqube — the server and its UI.
+  #
+  # Community Build analyses C# out of the box; nothing needs installing through
+  # the Marketplace for this repository. The scanner is a separate .NET tool,
+  # pinned in .config/dotnet-tools.json — see build/ci/Invoke-SonarAnalysis.ps1.
+  #
+  # ⚠️ First boot takes a while (database migration + Elasticsearch index) and
+  # `up --wait` will sit on the healthcheck for a minute or two. That is the
+  # healthcheck doing its job, not a hang.
+  # =========================================================================
+  sonarqube:
+    image: sonarqube:26.8.0.126808-community@sha256:9026624a61cd25542a402a9e7213dd7dbb39724ac9597e331e6b85362558c079
+    <<: *no-restart
+    logging: *json-logging
+    depends_on:
+      sonarqube-db:
+        condition: service_healthy
+      sonarqube-sysctl:
+        # Not service_healthy: it is a one-shot with no healthcheck. It must have
+        # EXITED cleanly, because the sysctl it writes is what makes the next
+        # container's Elasticsearch start at all.
+        condition: service_completed_successfully
+    ports:
+      # Loopback only — see the header. This one is load-bearing: a fresh
+      # SonarQube is admin/admin, and its tokens read the whole repository.
+      - '127.0.0.1:${SIR_SONARQUBE_PORT:-9000}:9000'
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonarqube
+      SONAR_JDBC_USERNAME: sonarqube
+      SONAR_JDBC_PASSWORD: sonarqube_local_dev_password
+      # Laptop-sized heaps, stated rather than defaulted. Left alone, the web and
+      # compute-engine JVMs size themselves from the VM's total RAM, so the same
+      # compose file behaves differently on two machines and an out-of-memory
+      # analysis looks like a code problem.
+      SONAR_WEB_JAVAOPTS: '-Xmx768m -Xms128m'
+      SONAR_CE_JAVAOPTS: '-Xmx1g -Xms128m'
+      SONAR_SEARCH_JAVAOPTS: '-Xmx768m -Xms768m'
+      # Telemetry off. This server sees private source; it phones nobody.
+      SONAR_TELEMETRY_ENABLE: 'false'
+    volumes:
+      # data/ holds the Elasticsearch index and the built-in-rule state;
+      # extensions/ holds plugins; logs/ is where you look when a boot fails.
+      # bin/ and conf/ are deliberately NOT mounted — configuration is by
+      # environment variable above, never by an edited sonar.properties nobody
+      # can diff.
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube-extensions:/opt/sonarqube/extensions
+      - sonarqube-logs:/opt/sonarqube/logs
+    healthcheck:
+      # /api/system/status is unauthenticated and returns UP only once the
+      # database migration AND the search index are ready — which is precisely
+      # "can I now run an analysis against it", and is not the same thing as the
+      # port being open. wget is present in the image; curl is not.
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:9000/api/system/status | grep -q ''"status":"UP"''']
+      interval: 10s
+      timeout: 10s
+      # 5 minutes. A first boot migrates the schema and builds the index on a
+      # laptop that is probably also compiling something.
+      retries: 30
+      start_period: 60s
+    # SonarQube's own hard requirement, not a guess: the container will not start
+    # if it cannot open enough file descriptors for Elasticsearch.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    # 🔴 MEASURED. The three heaps above already reserve ~2.5 GB between them
+    # (Elasticsearch takes its -Xms768m up front), and `docker stats` showed this
+    # container sitting at 2.60 GiB while IDLE, before a single analysis had been
+    # submitted. A 3 GB ceiling therefore looks fine right up to the moment the
+    # compute engine processes a report, and then the OOM killer takes the whole
+    # server mid-analysis. 4 GB is SonarQube's own documented figure and leaves
+    # the ~1.4 GB of headroom that number is for.
+    mem_limit: 4g
+
+volumes:
+  sonarqube-db-data:
+  sonarqube-data:
+  sonarqube-extensions:
+  sonarqube-logs:

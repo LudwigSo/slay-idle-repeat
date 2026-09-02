@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Slay Idle Repeat — the SonarQube analysis settings.
+
+  This file is the ONE place the analysis is configured. It is handed to the
+  scanner with `/s:<absolute path to this file>` by
+  build/ci/Invoke-SonarAnalysis.ps1, which is the only supported way to give the
+  .NET scanner a settings FILE.
+
+  🔴 THERE IS NO sonar-project.properties IN THIS REPOSITORY, AND ADDING ONE
+  WOULD DO NOTHING. SonarScanner for .NET ignores sonar-project.properties
+  entirely — it reads MSBuild's view of the solution instead. Somebody will
+  eventually copy one in from a tutorial, watch the analysis run green, and
+  conclude the exclusions below are active. They will not be. If you are here to
+  add project-wide settings, add them HERE.
+
+  ============================================================================
+  🔴 NEVER PUT A COMMENT INSIDE A <Property> ELEMENT. EXPLANATIONS GO BETWEEN
+  THEM. THIS IS NOT STYLE — IT SILENTLY TRUNCATES THE VALUE.
+
+  MEASURED against scanner 11.2.1 on 2026-09-02, and then reproduced from a
+  clean four-line file to be sure it was the comments and not something else.
+
+  An earlier draft annotated each pattern inside a pretty multi-line list, which
+  is valid XML and reads beautifully. The scanner deserialises a <Property> as a
+  plain string, so mixed content does not concatenate the way
+  XmlElement.InnerText would: ONLY THE TEXT AFTER THE LAST CHILD NODE SURVIVES.
+
+  So this, in the draft that ran:
+
+      <Property Name="sonar.coverage.exclusions">
+        (an XML comment: "adapters are thin shells around vendor SDKs")
+        src/adapters/**,
+        ... six more entries ...
+        (an XML comment: "test code is not production code")
+        tests/**
+      </Property>
+
+  reached the analysis as exactly `tests/**`. The other five directories were
+  gone, and SonarQube spent the run expecting coverage for sixteen uninstrumented
+  assemblies. The engine log said so in one line nobody reads:
+
+      INFO:   Excluded sources for coverage: tests/**
+
+  Line breaks and indentation alone are harmless — the sibling property that had
+  no comments in it came through complete, whitespace and all. It is the comment
+  nodes that truncate. Values are kept on one line here anyway, because the rule
+  "nothing but the value inside the element" is one somebody can actually follow.
+
+  `begin` prints no warning about any of this and exits 0. So
+  build/ci/Invoke-SonarAnalysis.ps1 rejects this file BEFORE it runs anything if
+  a <Property> contains a comment or a line break, and re-reads the engine's own
+  "Excluded sources" lines afterwards to confirm what actually reached it.
+
+  ⚠️ And do not verify this by reading .sonarqube/conf/SonarQubeAnalysisConfig.xml
+  — its <LocalSettings> holds only a SUBSET (sonar.exclusions is there;
+  sonar.sourceEncoding and sonar.coverage.exclusions are not) and the rest still
+  reach the engine by another route. It also shows sonar.exclusions with the
+  coverage report path appended, which the scanner adds itself so the OpenCover
+  XML is not analysed as source. Neither is a fault; both look like one.
+  ============================================================================
+
+  WHAT MAY NOT LIVE IN THIS FILE
+
+  The scanner REFUSES a settings file containing sonar.projectKey,
+  sonar.projectName, sonar.projectVersion or sonar.working.directory — they are
+  per-invocation and belong on the command line (/k: /n: /v:).
+  Invoke-SonarAnalysis.ps1 passes them. Likewise sonar.host.url and sonar.token:
+  a URL and a credential are environment, not repository content, and committing
+  either is how a token ends up in git history.
+
+  ============================================================================
+  THE COVERAGE COUPLING — READ BEFORE EDITING coverage.runsettings
+
+  coverage.runsettings instruments SlayIdleRepeat.Core and
+  SlayIdleRepeat.Application ONLY, by allow-list, at collection time. Every other
+  assembly therefore produces no coverage data at all — not 0%, but *nothing*.
+  Fed to SonarQube unqualified, that reads as "0% covered" across sixteen
+  assemblies and drags the project's coverage figure to a number that measures
+  the allow-list rather than the tests.
+
+  sonar.coverage.exclusions below is the exact mirror of that allow-list: the
+  files SonarQube must not expect coverage for, because nothing was ever
+  instrumented to produce it. Those files are still ANALYSED — bugs, code smells
+  and duplication are all still reported in them. Only the coverage metric skips
+  them.
+
+  Two files, one decision, so Invoke-SonarAnalysis.ps1 asserts they still agree
+  before it runs: widen the allow-list in coverage.runsettings without widening
+  this list and the run stops with an explanation rather than quietly reporting a
+  coverage number nobody can interpret.
+-->
+<SonarQubeAnalysisProperties xmlns="http://www.sonarsource.com/msbuild/integration/2015/1">
+
+  <!-- Directory.Build.props says nothing about encoding; the repository is UTF-8
+       and .gitattributes enforces it. Stating it stops the scanner falling back
+       to the platform default, which differs between a developer's Windows box
+       and the Linux runner and silently changes how non-ASCII source is read. -->
+  <Property Name="sonar.sourceEncoding">UTF-8</Property>
+
+  <!-- Lets SonarQube attribute every issue to a commit and an author, and — more
+       usefully — makes "new code" mean "changed since the reference point"
+       rather than "appeared since the last analysis". Without it the whole
+       clean-as-you-code model degrades to a whole-repository verdict.
+       ⚠️ Needs the full history: a shallow clone makes blame data wrong. -->
+  <Property Name="sonar.scm.provider">git</Property>
+
+  <!-- ======================================================================
+       ANALYSIS SCOPE
+
+       An exclusion here removes a file from analysis COMPLETELY: no issues, no
+       duplication, no metrics. Reserved for code nobody in this repository can
+       change the shape of. Entry by entry:
+
+         **/*.generated.cs, **/*.g.cs, **/*.Designer.cs
+             Godot.SourceGenerators' dispatch switches — InvokeGodotClassMethod
+             and friends, cyclomatic complexity up to 92, written by nobody and
+             refactorable by nobody. The same files coverage.runsettings
+             excludes by file, for the same reason.
+         **/bin/**, **/obj/**
+             Build output. Both also carry a copy of every generated file, so
+             leaving them in doubles every finding in them.
+         .godot/**
+             Godot's import cache: regenerable, ~1260 MB, never committed.
+         spikes/**
+             Throwaway export spikes (O23). Not in SlayIdleRepeat.sln, so their
+             C# is not analysed anyway — this covers the scripts and project
+             files beside it, and says out loud that a spike is not held to the
+             project's quality gate.
+         artifacts/**, coverage/**, TestResults/**, .sonarqube/**
+             Our own outputs. They exist on a developer's machine mid-run and
+             would otherwise be analysed as if they were source.
+       ====================================================================== -->
+  <Property Name="sonar.exclusions">**/*.generated.cs,**/*.g.cs,**/*.Designer.cs,**/bin/**,**/obj/**,.godot/**,spikes/**,artifacts/**,coverage/**,TestResults/**,.sonarqube/**</Property>
+
+  <!-- ======================================================================
+       COVERAGE SCOPE — the mirror of coverage.runsettings' allow-list.
+       See the 🔴 block at the top of this file before touching either.
+
+         src/adapters/**
+             Thin shells around vendor SDKs (23 keeps the domain free of them
+             precisely so a hotspot in the domain is a hotspot in OUR logic).
+             Not instrumented, so not measured.
+         src/SlayIdleRepeat.Client/**
+             Complexity dominated by generated dispatch.
+         src/SlayIdleRepeat.Server/**, src/SlayIdleRepeat.Contracts/**
+             The composition root and the wire contracts. Exercised end-to-end
+             by the Server and Contract suites, not instrumented by
+             coverage.runsettings.
+         tests/**
+             Test code is not production code. SonarQube's test-project
+             detection already knows, but it is heuristic and this costs nothing.
+       ====================================================================== -->
+  <Property Name="sonar.coverage.exclusions">src/adapters/**,src/SlayIdleRepeat.Client/**,src/SlayIdleRepeat.Server/**,src/SlayIdleRepeat.Contracts/**,tests/**</Property>
+
+  <!-- Duplication is a real signal in hand-written domain code and noise in
+       generated dispatch. Test fixtures are deliberately repetitive — an arrange
+       block that reads the same in twenty tests is a feature, and
+       "de-duplicating" it is how a test suite becomes unreadable. -->
+  <Property Name="sonar.cpd.exclusions">**/*.generated.cs,**/*.g.cs,tests/**</Property>
+
+  <!-- ======================================================================
+       COVERAGE AND TEST REPORT IMPORT
+
+       Relative to sonar.projectBaseDir (the repository root). Wildcards are
+       expanded by the scanner.
+
+       🔴 OpenCover, not Cobertura — the exact inverse of the choice
+       coverage.runsettings documents for the CRAP score, and for an equally
+       specific reason: SonarQube's C# plugin has no Cobertura importer.
+       sonar.cs.opencover.reportsPaths is the supported path for coverlet output,
+       and pointing it at coverage.cobertura.xml produces a parse warning and 0%
+       coverage — a green analysis with the one number missing.
+
+       This is why coverage.runsettings emits BOTH formats. Its header says of
+       OpenCover "Nothing reads it for CRAP"; this is the thing that reads it.
+       Removing `opencover` from <Format> there breaks coverage here, and
+       Invoke-SonarAnalysis.ps1 refuses to run if anyone does.
+       ====================================================================== -->
+  <Property Name="sonar.cs.opencover.reportsPaths">TestResults/**/coverage.opencover.xml</Property>
+
+  <!-- The TRX files the run already writes. Gives SonarQube the pass/fail/skip
+       counts and execution time per suite — the "Unit Tests" measures on the
+       project page. Costs nothing; the files exist either way. -->
+  <Property Name="sonar.cs.vstest.reportsPaths">TestResults/**/*.trx,artifacts/testresults/*.trx</Property>
+
+</SonarQubeAnalysisProperties>
