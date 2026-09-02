@@ -1,8 +1,8 @@
 # Game Design
 
-The brief for what the game *is*: pillars, loops, systems and the constraints that shape
-them. The full specification lives in `game-design/`; code layout, tech stack and dev process
-are in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+What the game *is*: pillars, loops, systems and the constraints that shape them. The full
+specification lives in `game-design/`; code layout and tech stack are in
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 **Slay. Idle. Repeat.** — a portrait, one-handed, always-online mobile roguelike RPG. Roll a
 die to move a chibi hero along a procedurally generated fantasy board; landing on a tile
@@ -28,19 +28,17 @@ cosmetics of any kind, free-text chat, real-time multiplayer, prestige/ascension
 post-launch update), active skill buttons in combat, banner ads, offline play.
 
 The pillars above are **locked**, along with run-based-only sessions, full auto-battle, a
-single hero with companions, server authority over PvE included, and the absence of any paid
-power. Every number the design states is **tunable data** — in a data file, changeable
-server-side, never hardcoded.
+single hero with companions, server authority over PvE, and the absence of paid power. Every
+number stated is **tunable data** — in a data file, changeable server-side, never hardcoded.
 
 ## The run
 
 Three time scales: **roll → move → resolve tile → watch the auto-battle → draft a perk**
-(20–60 s) · **one run** costs 20 Energy and covers 3 stages of 12/14/16 tiles plus a boss
-tile, 18–22 battles, 8–12 minutes, ending in victory, death or abandon (5–14 runs/day) ·
-**meta**: merge gear, spend talent points, level pets, unlock the next chapter and difficulty
-tier, update the PvP ghost, climb the season ladder. Run state is server-owned and resumable
-for 48 hours on any device. Stage gates heal the hero, step enemy power up and shift draft
-rarity upward.
+(20–60 s) · **one run** costs 20 Energy: 3 stages of 12/14/16 tiles plus a boss tile, 18–22
+battles, 8–12 minutes, ending in victory, death or abandon (5–14 runs/day) · **meta**: merge
+gear, spend talent points, level pets, unlock the next chapter and tier, update the PvP
+ghost, climb the season ladder. Run state is server-owned and resumable for 48 hours on any
+device; stage gates heal, step enemy power up and lift draft rarity.
 
 **Board.** A directed acyclic graph that reads as a mostly-linear track with authored forks
 that rejoin. Forks are the board's real decision — each branch previews its risk profile, and
@@ -70,21 +68,20 @@ wide. Skipping pays gold and a reroll.
 
 ## Meta progression
 
-- **Gear and the Forge.** 6 slots × 4 families = 24 base items × 5 rarities (Common, Rare,
-  Epic, Legendary, Mythic) = 120 entries, plus 4 Mythic sets. Families bias a build rather
-  than reskin it. Five operations, all free of real money: merge (3 identical → next rarity),
-  enhance (+0…+15), salvage, reforge (quality) and retune (affixes).
+- **Gear and the Forge.** 6 slots × 4 families = 24 base items × 5 rarities = 120 entries,
+  plus 4 Mythic sets. Families bias a build. Five operations, all free of real money: merge
+  (3 identical → next rarity), enhance (+0…+15), salvage, reforge and retune.
 - **Talents.** Two branches, MIGHT and WARD, 20 nodes each across 4 point-gated tiers ending
   in keystones, so specialisation is forced. Respec is free, unlimited and instant, and the
   tree is deliberately never maxable in v1.
 - **Collection.** One hero, up to 3 equipped pets and 1 mount; both level on Beast Feed and
   ascend on duplicates. Pets carry a passive aura and an active ability; mounts are passive.
-  Loadout changes are free outside a run and snapshotted at run start.
+  Loadout changes are free outside a run, snapshotted at run start.
 - **Economy.** 8 currencies — Gold (run-local, wiped at run end), Crowns, Soul Shards (the
   earned-only "premium" currency, a pacing valve rather than a revenue lever), Energy,
   Enhance Stones, Merge Dust, Beast Feed and Honor. Energy gates runs: 120 max, 1 per 4
-  minutes, 20 per run, with overflow banking into an Energy Reserve. It is the only thing in
-  the game that accrues offline.
+  minutes, 20 per run, overflow banking into an Energy Reserve — the only thing in the game
+  that accrues offline.
 
 ## Fairness
 
@@ -92,11 +89,11 @@ wide. Skipping pays gold and a reroll.
   three primitives — hard pity (forced success after N misses), soft pity (rising weight) and
   mercy accrual (misses buy a deterministic substitute). Counters are server-owned, scoped
   per source class so they cannot be farmed cheaply, never decay, are never purchasable, and
-  are **always shown to the player as a real number**. The **Focus** system lets the player
-  name a slot and family for weighted gear grants.
-- **The ad contract.** Every rewarded benefit is capped and reachable free by watching, and a
-  subscriber receives exactly that same capped amount automatically. An ad-watcher and a
-  payer sit on an identical power curve; a player who watches nothing is never more than 45%
+  are **always shown as a real number**. The **Focus** system lets the player name a slot
+  and family for weighted gear grants.
+- **The ad contract.** Every rewarded benefit is capped and reachable free by watching; a
+  subscriber receives exactly that capped amount automatically. An ad-watcher and a payer sit
+  on an identical power curve; a player who watches nothing is never more than 45%
   behind at day 30. 29 rewarded placements, no banners, entitlement owned by the server, and
   nothing lost when a subscription lapses.
 
@@ -108,9 +105,9 @@ wide. Skipping pays gold and a reroll.
   Honor shop. Non-combat perk categories are banned from the duel loadout.
 - **Resource Dungeons.** Three daily deterministic dungeons across 8 tiers, one per
   bottleneck material — Enhance Stones, Beast Feed, Crowns. Soul Shards stay unfarmable.
-- **Live-ops.** A data-driven limited-time-event framework with three archetypes: a
-  re-skinned chapter, a shared-seed score rush, and a low-pressure collection event. Each is
-  a content package with its own currency, reward track and shop, on a rolling calendar.
+- **Live-ops.** A data-driven limited-time-event framework with three archetypes — a
+  re-skinned chapter, a shared-seed score rush, a low-pressure collection event — each a
+  content package with its own currency, reward track and shop, on a rolling calendar.
 - **Guilds.** 30 players, unlocked mid-progression. Daily collective quests, a weekly Guild
   Boss, guild levels and non-combat perks only. **No resource transfers and no free text** —
   even the guild description is assembled from authored phrases.
@@ -122,16 +119,30 @@ wide. Skipping pays gold and a reroll.
 
 Combat power is one scalar, `K·√(EffectiveHP × DPS)`, evaluated against a fixed reference
 opponent — geometric so that a build with vast health and no damage scores near zero, as it
-deserves under a 90-second fight cap. It is graded against three authored tables: the power
-needed to clear each chapter and tier, the power expected at each Legend Level, and the power
-expected on each day per player profile. An **economy simulator** plays 14 behavioural
+deserves under a 90-second fight cap. It is graded against three authored tables: power
+needed to clear each chapter and tier, power expected at each Legend Level, and power
+expected per day per player profile. An **economy simulator** plays 14 behavioural
 profiles against those curves and must pass before the live service opens. Canonical pacing:
 content-complete around day 25–45 for an ad-watcher, mastery around day 150+.
 
+## Art style
+
+Chunky chibi fantasy: characters 2.5–3 heads tall with oversized heads, hands and feet, and
+large, high-contrast, expressive eyes. Medieval-fantasy subject matter played lighthearted
+and humorous rather than gritty — vibrant and energetic despite the combat themes. Produced
+as real-time toon-shaded 3D, plus 2D rendered from it: a uniform dark inverted-hull outline,
+two-band cel shading with a hard terminator, one stepped specular highlight, one soft rim
+light, and the key light from the upper left on every asset. Saturated, jewel-like colour
+from a locked six-hue palette per biome. A glossy mobile-game finish, actors on a fixed 3/4
+low-angle camera so they read as heroic and faintly toy-like. The target is **stylised toon
+3D that reads as 2D art, not stylised realism** — no PBR response, no gradients across large
+areas, no airbrushing. **Silhouette is the quality bar**: every character must be
+identifiable filled black at 64 px, and detail that does not survive that test is baked into
+the texture or deleted.
+
 ## Production scope
 
-39 portrait screens, EN and DE at launch, accessibility required in v1 · 975 art assets, chibi
-cartoon fantasy with bold outlines, produced as real-time toon-shaded 3D plus 2D rendered from
-it · 106 audio assets · content tables covering 30 event cards, 20 daily quests, 14 weekly
+975 art assets · 106 audio assets · 39 portrait screens, EN and DE at launch, accessibility
+required in v1 · content tables covering 30 event cards, 20 daily quests, 14 weekly
 modifiers, curses, the Lucky Wheel, a 28-day login calendar and the FTUE · a running
 asset-licence register.
