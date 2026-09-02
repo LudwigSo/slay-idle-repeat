@@ -214,7 +214,11 @@ material_override = SubResource("StandardMaterial3D_ground")
 [node name="Ui" type="CanvasLayer" parent="."]
 unique_name_in_owner = true
 
+; Uniquely named so PerkDraft.cs can find the surface a tap outside the cards lands on. It is a
+; full-rect Control in the OVERLAY, which is the only kind of node that has a GuiInput signal at
+; all — the World's 3D backdrop plane does not, whatever it happens to be called.
 [node name="Screen" type="Control" parent="Ui"]
+unique_name_in_owner = true
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0

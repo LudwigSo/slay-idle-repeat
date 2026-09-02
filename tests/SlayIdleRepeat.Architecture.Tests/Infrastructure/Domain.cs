@@ -336,6 +336,7 @@ internal static class Domain
         "ShopSlotRow",
         "HeroNames",
         "HeroNameDecision",
+        "RunExpiry",
     };
 
     /// <summary>

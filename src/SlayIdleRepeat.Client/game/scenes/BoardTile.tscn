@@ -1,0 +1,84 @@
+[gd_scene load_steps=7 format=3]
+
+; One tile of the board, and the ONE place a tile's drawn form is authored.
+;
+; 🔒 This is the seam `15` §E9's board art arrives through. Today it is engine primitives, because
+; D68 unblocked E9's 112 assets without producing them; when they exist, the Puck's mesh and the
+; Gate's marks are replaced here and nothing that reads this scene has to change. Board.cs's
+; missing-template error path is kept for the same reason it exists for TrackNode.tscn: GD.Load
+; answers null rather than throwing, so an unnamed null reference is all a caller gets unless the
+; scene is named in the message.
+;
+; 🔒 Every material here is UNSHADED (shading_mode = 0), and that is load-bearing three times over.
+; Board.cs's fifteen-kind palette was chosen as DRAWN colour, so lighting it moves every one of the
+; fifteen and silently invalidates the grouping argument in its own remarks. BoardTileGateContrastTests
+; measures authored albedo and can only stand in for rendered colour while the two are the same.
+; And HeroWeaponKitTests records what this build's lighting is: one key, one fill, flat ambient, no
+; probe and no sky. The hero stays lit and is then the one lit object on the board, which reads as
+; the focus rather than as a mismatch.
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_puck"]
+; A flat, chunky puck — `03` §8's word for it. Radial segments kept low: at the count a long board
+; draws these at, the silhouette is a disc either way and the triangles are not free.
+top_radius = 0.62
+bottom_radius = 0.62
+height = 0.16
+radial_segments = 16
+rings = 1
+
+[sub_resource type="TorusMesh" id="TorusMesh_collar"]
+; The gate mark's ring. Stands proud of the puck it surrounds so it reads as a collar around the
+; tile rather than as a wider tile.
+inner_radius = 0.66
+outer_radius = 0.78
+rings = 12
+ring_segments = 8
+
+[sub_resource type="BoxMesh" id="BoxMesh_bar"]
+size = Vector3(0.09, 0.09, 1.34)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_puck"]
+; Overridden per tile kind at build time from Board.cs's palette. Authored white so a puck whose
+; override never arrived is obviously wrong rather than plausibly grey.
+shading_mode = 0
+albedo_color = Color(1, 1, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_collar"]
+; The light collar. Transcribed from Board.cs's UnavailableColour, which is what TrackNode.tscn drew
+; the same mark in and what BoardTileGateContrastTests measures against the board's backdrop.
+shading_mode = 0
+albedo_color = Color(0.66, 0.67, 0.73, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bar"]
+; The dark bars, in the app's own background colour so they read as gaps cut through the collar.
+shading_mode = 0
+albedo_color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="BoardTile" type="Node3D"]
+
+[node name="Puck" type="MeshInstance3D" parent="."]
+mesh = SubResource("CylinderMesh_puck")
+material_override = SubResource("StandardMaterial3D_puck")
+
+; 🔴 Shown for TileKind.MiniBoss and for nothing else, off the projected tile kind, with no second
+; flag beside it. A roll that would carry over a mini-boss stops on it instead, so a player who
+; cannot see which node does that loses steps to a rule nothing on the screen stated. The mark is a
+; SHAPE — a collar and two bars — never a colour: the mini-boss and the boss share a red on purpose,
+; and the mark is what tells them apart for a player who cannot separate the two.
+[node name="Gate" type="Node3D" parent="."]
+visible = false
+
+[node name="Collar" type="MeshInstance3D" parent="Gate"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.09, 0)
+mesh = SubResource("TorusMesh_collar")
+material_override = SubResource("StandardMaterial3D_collar")
+
+[node name="LeftBar" type="MeshInstance3D" parent="Gate"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.22, 0.13, 0)
+mesh = SubResource("BoxMesh_bar")
+material_override = SubResource("StandardMaterial3D_bar")
+
+[node name="RightBar" type="MeshInstance3D" parent="Gate"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22, 0.13, 0)
+mesh = SubResource("BoxMesh_bar")
+material_override = SubResource("StandardMaterial3D_bar")

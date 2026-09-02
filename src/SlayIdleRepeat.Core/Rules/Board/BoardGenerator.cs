@@ -4,8 +4,8 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 
 /// <summary>
 /// The procedural producer of a run's <see cref="BoardGraph"/>: mandatory-tile placements, the
-/// weighted draw and constraints C1-C7 (with their redraw/injection fallbacks), and 1-2 forks per
-/// stage.
+/// weighted draw and constraints C1-C7 (with their redraw/injection fallbacks), and the authored
+/// number of forks per stage.
 /// </summary>
 /// <remarks>
 /// <list type="bullet">
@@ -514,7 +514,10 @@ internal static class BoardGenerator
     {
         var spineLength = stageSpine.Length;
         var lastRejoinLocal = LastRejoinLocalIndex(stageSpine);
-        var forkCount = rng.Range(1, 3); // "1-2 forks" — exclusive-max Range needs +1, see type doc.
+        // One draw, in the same stream position the hardcoded 1-2 occupied, so moving the number
+        // into content changes what is drawn and not when. Exclusive-max Range needs +1, see type doc.
+        var forks = config.ForksPerStage[stageIndex];
+        var forkCount = rng.Range(forks.Minimum, forks.Maximum + 1);
 
         var usedSpan = new List<(int start, int endExclusive)>(); // occupied local-index ranges (junction..rejoin]
 
@@ -544,8 +547,10 @@ internal static class BoardGenerator
 
             if (candidates.Count == 0)
             {
-                // No room left for another fork this stage — 1-2 forks is a range, not a floor
-                // this generator can force past what the stage geometry allows.
+                // No room left for another fork this stage — an authored fork count is a range,
+                // not a floor this generator can force past what the stage geometry allows. Content
+                // can now name a number larger than any stage could hold, and this is where that
+                // saturates instead of corrupting the layout.
                 break;
             }
 

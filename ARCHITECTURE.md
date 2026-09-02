@@ -75,8 +75,13 @@ stub, not the real editor project yet (tracker notes it's replaced in M7).
 **UI, scenes, presentation logic, client-side wiring → here.**
 
 Every screen scene roots at `Node3D` and has the same two halves: a `World` holding that
-screen's 3D content (its own `Camera3D` and backdrop plane), and a `Ui` `CanvasLayer`
-holding the whole interface as an overlay above it. `AppRoot` owns the one thing there can
+screen's 3D content (its own `Camera3D`, and a backdrop plane on every screen but the
+board), and a `Ui` `CanvasLayer` holding the whole interface as an overlay above it. The
+board is the first screen whose camera MOVES, and it moves a rig rather than the camera:
+`%Camera` stays a bare `Camera3D` with its scene-unique name, because that name is the
+whole of `ScreenStage`'s handover contract. It is also the screen with no backdrop plane —
+a plane at a fixed distance is left behind by a camera that travels, so what is behind the
+board is `AppRoot`'s environment background. `AppRoot` owns the one thing there can
 only be one of — the `WorldEnvironment` — plus the app-wide key light. Screens are siblings
 under the root and are shown and hidden through `ScreenStage`, never through `Visible`:
 engine visibility does not cross the `Node3D`/`CanvasLayer` seam, so hiding a screen is two

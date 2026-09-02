@@ -39,10 +39,14 @@
       "additionalProperties": false,
       "required": [
         "roll", "resolve", "skipUnbuilt", "forkContinue", "forkBranch",
-        "abandon", "abandonConfirm"
+        "abandon", "abandonConfirm",
+        "overviewStage", "overviewBoard", "overviewHero"
       ],
       "properties": {
         "roll": { "$ref": "#/$defs/locKey" },
+        "overviewStage": { "$ref": "#/$defs/locKey" },
+        "overviewBoard": { "$ref": "#/$defs/locKey" },
+        "overviewHero": { "$ref": "#/$defs/locKey" },
         "resolve": { "$ref": "#/$defs/locKey" },
         "skipUnbuilt": {
           "description": "🔴 What the tile control reads on a tile whose own screen this build has not written — an Event or a Minigame. A second key rather than a reused `resolve`, because it is a different offer: `Continue` promises the screen the tile is supposed to open, and the press actually resolves the tile WITHOUT one. Required rather than optional so that deleting the placeholder is a diff somebody has to argue for, the same way `abandonConfirm` is required.",

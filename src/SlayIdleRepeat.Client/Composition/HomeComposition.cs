@@ -105,7 +105,8 @@ public static class HomeComposition
         var strings = new LocaleStringCatalogue(content, composed.Capabilities.PlatformInfo.Locale);
 
         return new ComposedHomeScreen(
-            new HomePresenter(composed.Client.GameHost, strings, player),
+            new HomePresenter(
+                composed.Client.GameHost, strings, content, composed.Client.Clock, player),
             new ChapterSelectPresenter(composed.Client.GameHost, strings, content, player),
             run => BoardComposition.CreateBoardScreen(composed, player, run),
             () => InventoryComposition.CreateInventoryScreen(composed, player));

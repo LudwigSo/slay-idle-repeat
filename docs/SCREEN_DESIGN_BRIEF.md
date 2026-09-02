@@ -186,9 +186,14 @@ without it invents its own greys, and will not match the rest of the game.
   every fight in the run** — stage pips `2/3`, Gold, the consumable pouch `[🧪 2]`, and a `[≡ perks]`
   button reachable at all times so a player never loses track of their build.
 - 🔒 **The whole track, always.** Every tile of every stage drawn from run start. No fog, no preview
-  range, nothing scrolled-to. If the track is too long for one column it **wraps** — a board the player
-  must drag to see is not a visible board. This is load-bearing: it is what makes choosing a fixed die's
-  number a decision.
+  range, nothing generated as the run approaches it. This is load-bearing: it is what makes choosing a
+  fixed die's number a decision.
+- ⚠️ **`16` D67 amends the FRAMING and not the drawing.** The board is a 3D scene the camera rides
+  through with the hero, so it is *reachable* at all times rather than framed whole at all times, and
+  the wrapping clause is superseded. The reason: a chapter authors its own stage lengths, and framing a
+  long board whole draws every tile far under the 48 dp floor two bullets down — a promise of
+  visibility kept only on the shortest board in the game. A three-state control reads the far board:
+  this stage, the whole board, back to the hero.
 - Hero token on its mount at ~40 % screen height. Resolved tiles dim to 55 % and lose their icon glow.
 - 14 tile pucks, readable at 48 dp: Enemy ⚔ · Elite ☠ · Boss ★ · Shrine ✨ · Curse 💀 · Treasure 🎁 ·
   Shop 🏪 · Campfire 🔥 · Minigame 🎯 · Event ❓ · Portal 🌀 · Cache 🐾 · Dice Forge 🎲 · Waypoint ・

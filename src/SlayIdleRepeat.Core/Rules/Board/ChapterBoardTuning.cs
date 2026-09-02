@@ -43,12 +43,14 @@ internal static class ChapterBoardTuning
         var stageLengths = ReadIntArray(content, documentPath, "stageLengths");
         var eliteCount = ReadIntArray(content, documentPath, "eliteCount");
         var tileWeights = ReadTileWeights(content, documentPath);
+        var forksPerStage = ReadForksPerStage(content, documentPath);
         var bossId = content.ReadText($"{documentPath}#/bossId");
         var forkBiasPlus = content.ReadDouble($"{BoardGenerationPointer}/forkBiasPlusMultiplier");
         var forkBiasMinus = content.ReadDouble($"{BoardGenerationPointer}/forkBiasMinusMultiplier");
 
         return ChapterBoardConfig.From(
-            chapterId, stageLengths, eliteCount, tileWeights, bossId, forkBiasPlus, forkBiasMinus);
+            chapterId, stageLengths, eliteCount, tileWeights, bossId, forksPerStage,
+            forkBiasPlus, forkBiasMinus);
     }
 
     /// <summary>
@@ -129,6 +131,45 @@ internal static class ChapterBoardTuning
         }
 
         return values;
+    }
+
+    /// <summary>
+    /// Reads the chapter's <c>forksPerStage</c>: one <c>{ min, max }</c> object per stage.
+    /// </summary>
+    /// <remarks>
+    /// Required rather than optional-with-a-fallback. A chapter that omitted it would generate a
+    /// board whose fork density came from a default nobody authored, and the point of moving the
+    /// number out of <see cref="BoardGenerator"/> was that a long stage's fork count is a chapter's
+    /// decision. <see cref="ContentSnapshot.Read"/> raises <c>MissingContentException</c> for the
+    /// absent pointer, which is the loud failure this wants.
+    /// </remarks>
+    private static IReadOnlyList<ForkCountRange> ReadForksPerStage(
+        ContentSnapshot content, string documentPath)
+    {
+        var array = content.Read($"{documentPath}#/forksPerStage");
+
+        if (array.Items.Count != StageCount)
+        {
+            throw new MissingContentException(
+                $"{documentPath}#/forksPerStage",
+                $"a chapter states one fork-count range per stage, so forksPerStage needs " +
+                $"{StageCount.ToString(CultureInfo.InvariantCulture)} entries; this one has " +
+                $"{array.Items.Count.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        var ranges = new ForkCountRange[StageCount];
+
+        for (var i = 0; i < StageCount; i++)
+        {
+            var pointer = $"{documentPath}#/forksPerStage/{i.ToString(CultureInfo.InvariantCulture)}";
+
+            ranges[i] = ForkCountRange.Of(
+                content.ReadInt32($"{pointer}/min"),
+                content.ReadInt32($"{pointer}/max"),
+                pointer);
+        }
+
+        return ranges;
     }
 
     private static IReadOnlyList<IReadOnlyDictionary<TileKind, double>> ReadTileWeights(

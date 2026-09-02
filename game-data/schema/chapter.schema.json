@@ -5,7 +5,7 @@
   "description": "14 §6 — a chapter definition, transcribed field-for-field from the worked example in that section. CONTENT schema, not a tuning schema: the chapter files themselves belong to M2/M3. powerTarget must agree with the matching cell in tuning/par_power.json.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "displayName", "biomeArtSet", "paletteId", "musicId", "powerTarget", "stageLengths", "eliteCount", "tileWeights", "enemyPool", "elitePool", "miniBossIds", "bossId", "lootTable", "unlockCondition"],
+  "required": ["id", "displayName", "biomeArtSet", "paletteId", "musicId", "powerTarget", "stageLengths", "eliteCount", "tileWeights", "forksPerStage", "enemyPool", "elitePool", "miniBossIds", "bossId", "lootTable", "unlockCondition"],
   "properties": {
     "id": {
       "description": "14 §6 — the chapter number. Unique across content/chapters/.",
@@ -45,6 +45,21 @@
         "type": "object",
         "additionalProperties": false,
         "patternProperties": { "^TILE_[A-Z0-9_]+$": { "type": "number", "minimum": 0 } }
+      }
+    },
+    "forksPerStage": {
+      "description": "03 §1 — one inclusive fork-count range per stage, matching stageLengths. Authored rather than a generator constant (16 D69): a fixed 1-2 does not scale with stage length, and on a long stage that reduces the board's one real navigation decision to noise. The generator saturates when a stage's geometry has no room left, so a max the spine cannot hold is legal and simply stops early. No maximum is imposed here — 03 authorises none.",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["min", "max"],
+        "properties": {
+          "min": { "type": "integer", "minimum": 0 },
+          "max": { "type": "integer", "minimum": 0 }
+        }
       }
     },
     "enemyPool": {

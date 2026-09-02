@@ -112,6 +112,14 @@ public sealed record PendingTile(int Kind, string? NameKey, int LinearIndex, int
 /// <param name="Icons">
 /// The branch's own first tiles in walk order, at most three, or empty for the spine edge.
 /// </param>
+/// <param name="ToNodeId">
+/// The node this edge leads to, or null when the paused junction is not one this board knows.
+/// Read straight off the projected fork rather than re-derived from
+/// <paramref name="BranchIndex"/>, so the node the hero is animated onto cannot disagree with the
+/// node <c>CHOOSE_FORK</c> moved the run to — the exact confusion <c>BoardView.ForksOf</c>'s
+/// refusal message exists to prevent. A null degrades the animation to a snap, which is right:
+/// the fork the screen drew was not this board's.
+/// </param>
 /// <remarks>
 /// 🔒 The label and the icons are two INDEPENDENT reads of the same branch, and neither is derived
 /// from the other: the label is the bias the draw ran under and the icons are what the draw actually
@@ -122,7 +130,30 @@ public sealed record ForkBranch(
     int BranchIndex,
     string CaptionKey,
     ForkLabel? Label = null,
-    IReadOnlyList<TileKind>? Icons = null);
+    IReadOnlyList<TileKind>? Icons = null,
+    int? ToNodeId = null);
+
+/// <summary>What pressing the board's overview control does next.</summary>
+/// <remarks>
+/// 🔒 Three states rather than two, and the middle one is the reason. `16` D67 amended D42's "the
+/// board is completely visible at all times" to "reachable at all times", on the strength of an
+/// overview that shows the player what the numbers reach — and a single pull-back framing the WHOLE
+/// board cannot do that on a long one. A chapter authors its own stage lengths, and at the length a
+/// regular chapter is expected to run, every tile of a whole-board framing is a few pixels across:
+/// far under `03` §8's mandatory 48 dp. Framing the current STAGE keeps the promise legible at any
+/// board length; the whole board is then a shape, offered second and honestly.
+/// </remarks>
+public enum BoardOverviewStep
+{
+    /// <summary>Step back to frame the stage the hero is in, with its tiles still readable.</summary>
+    ToTheStage,
+
+    /// <summary>Step back again to frame the whole board, as shape.</summary>
+    ToTheWholeBoard,
+
+    /// <summary>Return to riding with the hero.</summary>
+    BackToTheHero,
+}
 
 /// <summary>A movement paused at a junction, waiting for the player to pick an edge.</summary>
 /// <param name="JunctionPosition">The junction the run is paused on.</param>
@@ -192,6 +223,9 @@ public sealed class BoardPresenter
     private const string RolledLabelKey = "loc.board.rolled.label";
     private const string StandingOnLabelKey = "loc.board.standing_on.label";
     private const string GateRuleLabelKey = "loc.board.gate.label";
+    private const string OverviewStageActionKey = "loc.board.overview_stage.action";
+    private const string OverviewBoardActionKey = "loc.board.overview_board.action";
+    private const string OverviewHeroActionKey = "loc.board.overview_hero.action";
     private const string RollActionKey = "loc.board.roll.action";
     private const string ResolveActionKey = "loc.board.resolve.action";
     private const string AbandonActionKey = "loc.board.abandon.action";
@@ -340,6 +374,46 @@ public sealed class BoardPresenter
     public BoardTrackNode? StandingOn => _board?.StandingOn;
 
     /// <summary>
+    /// The run's whole projected board, or null for a chapter this build does not ship.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Handed over whole rather than re-published a member at a time, because the screen draws
+    /// the board as a PLACE: it needs every node, every fork's branch chain and every rejoin to put
+    /// geometry somewhere, and a presenter that re-exposed each of those would be a second copy of
+    /// <c>BoardView</c> with nothing extra in it. The type is a read-only projection with no
+    /// behaviour — `30` §11.6 is the reason it is public at all — so nothing the screen can do with
+    /// it reaches the rules.
+    /// </remarks>
+    public BoardView? Board => _board;
+
+    /// <summary>
+    /// Every node a movement from <paramref name="fromNodeId"/> to the run's present position walked
+    /// through, in order, excluding the one it started on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is how the board screen learns what to animate. <c>Core</c> reports where a movement
+    /// ENDED and never how it got there — no domain event carries a position — so the walk is
+    /// reconstructed from the graph. <see cref="BoardPath"/> carries the argument for why that
+    /// re-implements no rule.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Pass where the HERO is, not <see cref="Position"/>.</b> The two differ for exactly as
+    /// long as an animation is in flight, and passing the run's position would walk from the
+    /// destination to itself — correct-looking on every path today, and silently wrong the first
+    /// time a walk is interrupted.
+    /// </para>
+    /// </remarks>
+    /// <param name="fromNodeId">Where the hero is drawn. Null at the trailhead, which is not a node.</param>
+    /// <param name="viaNodeId">
+    /// The edge a <c>CHOOSE_FORK</c> took, as <see cref="ForkBranch.ToNodeId"/> gave it. Null for
+    /// every other command; a junction departure without one cannot be walked and returns empty.
+    /// </param>
+    /// <returns>The nodes walked, or empty when there is no single forward walk that explains the move.</returns>
+    public IReadOnlyList<int> WalkFrom(int? fromNodeId, int? viaNodeId) =>
+        _board is { } board ? BoardPath.Between(board, fromNodeId, Position, viaNodeId) : [];
+
+    /// <summary>
     /// How far along the track the run stands, or null while it stands on no node of this board.
     /// </summary>
     /// <remarks>
@@ -465,6 +539,20 @@ public sealed class BoardPresenter
         Stage == BoardStage.Ready && Track.Any(IsAMarkedNodeNotYetPassed)
             ? _strings.Resolve(GateRuleLabelKey)
             : NothingLeftToSay;
+
+    /// <summary>The overview control's caption, naming what pressing it does next.</summary>
+    /// <remarks>
+    /// The caption states the NEXT step rather than the current framing, because a control is named
+    /// for what it does. It is also the only thing on the screen that says the third state exists —
+    /// there is one control, so a player learns the cycle by reading it.
+    /// </remarks>
+    /// <param name="step">What the press will do.</param>
+    public string OverviewText(BoardOverviewStep step) => _strings.Resolve(step switch
+    {
+        BoardOverviewStep.ToTheStage => OverviewStageActionKey,
+        BoardOverviewStep.ToTheWholeBoard => OverviewBoardActionKey,
+        _ => OverviewHeroActionKey,
+    });
 
     /// <summary>The roll control's caption, resolved.</summary>
     public string RollText => _strings.Resolve(RollActionKey);
@@ -1068,12 +1156,16 @@ public sealed class BoardPresenter
 
         return
         [
-            new ForkBranch(ContinueBranchIndex, ForkContinueActionKey),
+            new ForkBranch(
+                ContinueBranchIndex,
+                ForkContinueActionKey,
+                ToNodeId: preview?.ContinueNodeId),
             new ForkBranch(
                 ContinueBranchIndex + 1,
                 ForkBranchActionKey,
                 preview?.BranchLabel,
-                preview?.BranchIcons ?? []),
+                preview?.BranchIcons ?? [],
+                preview?.BranchNodeIds.Count > 0 ? preview.BranchNodeIds[0] : null),
         ];
     }
 

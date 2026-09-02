@@ -25,25 +25,40 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// carry the labels and icons the generator actually authored. `16` D42 fixes the visibility: no
 /// fog, no preview range, nothing clipped — a die that only answers a number is only an interesting
 /// decision if the player can see what the numbers reach. The row WRAPS rather than scrolls, because
-/// a board the player has to drag to see is not a board that is completely visible. ⚠️ Still absent
-/// from the HUD: the perks list and the consumable pouch, both owned by later milestones.
+/// the whole board is in the world from the first frame. ⚠️ `16` D67 amends D42's framing clause and
+/// nothing else: the camera RIDES the board rather than framing all of it at once, because at the
+/// length a chapter may author, a whole-board framing draws every tile too small to read — and the
+/// overview control is what reaches the far end. ⚠️ Still absent from the HUD: the perks list and
+/// the consumable pouch, both owned by later milestones.
 /// </para>
 /// <para>
-/// 🔒 <b>There is no art here at all, placeholder or otherwise, and no VFX.</b> The tile pips, the
-/// hero token, the dice of the tray and the HP bar are drawn as containers, buttons and coloured
-/// rectangles the engine already provides. ⚠️ So a node's tile kind is drawn as a COLOUR, from the
-/// table below, and the name of the one the run stands on is the only tile named in words. That is
-/// the honest limit of a screen with no icon set: the colours tell nodes apart and the caption says
-/// what the player is on. <b>One node is the exception, and it is an exception on purpose:</b> a
-/// node the run may not walk past wears the collar and bars of <c>TrackNode.tscn</c> — a light frame
-/// around its pip and two dark bars across it — because a rule the player cannot see coming may not
-/// be signalled by a colour. <b>And the mark is NAMED, in a line of its own under the track</b>: a
-/// shape is only a rule to somebody who has already been told what it means, so the shape says which
-/// node and <see cref="GateLabelPath"/> says what it does. See <see cref="RenderTrack"/> and
-/// <see cref="TrackNodeGatePath"/>.
+/// 🔒 <b>There is still no art here at all, placeholder or otherwise, and no VFX.</b> The board is
+/// drawn as engine primitives — a cylinder for a tile, a box for a run of track — in the palette
+/// below, and the dice tray and HP bar are still containers and coloured rectangles. What changed is
+/// the MEDIUM and not the rule: `15` §E9's board art is unblocked (`16` D68) and unbuilt, and
+/// arrives through <c>BoardTile.tscn</c> and <c>BoardPathSegment.tscn</c>. The one actor with a
+/// model is the hero, which <c>Home.tscn</c> already shipped.
+/// ⚠️ So a node's tile kind is drawn as a COLOUR, from the table below, and the name of the one the
+/// run stands on is the only tile named in words. That is the honest limit of a board with no icon
+/// set: the colours tell nodes apart and the caption says what the player is on. <b>One node is the
+/// exception, and it is an exception on purpose:</b> a node the run may not walk past wears a collar
+/// and two bars, because a rule the player cannot see coming may not be signalled by a colour.
+/// <b>And the mark is NAMED, in a line of its own under the board</b>: a shape is only a rule to
+/// somebody who has already been told what it means, so the shape says which node and
+/// <see cref="GateLabelPath"/> says what it does. See <see cref="RenderWorld"/> and
+/// <c>BoardTile.tscn</c>.
 /// The die tumble, the dust puff and the floating result number the design
 /// asks for are not built: they are procedural in-engine work by ruling, never a sprite sheet, and
 /// this task adds no asset row for them.
+/// </para>
+/// <para>
+/// 🔒 <b>The hero HOPS from tile to tile, one hop per node the run traversed.</b> Not a stylistic
+/// choice first: <c>chr_hero_rogue.glb</c> is a static unrigged mesh with no skeleton and no clip of
+/// any kind — <c>hero_export.py</c> exports with animations off — so there is no walk cycle to play
+/// and none is invented. A hop is what a piece on a board does anyway, and one hop per node is what
+/// makes the number the die came up readable from the motion. The junction pause needs no timer: a
+/// movement stops when it must LEAVE a junction, so the last hop of the chain IS the junction and
+/// the fork panel is already the live control by the time the hero lands on it.
 /// </para>
 /// <para>
 /// ⚠️ Every type size, colour and gap in <c>Board.tscn</c> is a per-node
@@ -151,56 +166,9 @@ public partial class Board : Node3D
     private const string StageLabelPath = "%StageLabel";
     private const string StageValuePath = "%StageValue";
     private const string TrackFramePath = "%TrackFrame";
-    private const string TrackPath = "%Track";
-
-    /// <summary>The scene one node of the track is drawn from.</summary>
-    /// <remarks>
-    /// 🔒 A scene rather than a rectangle built here, because a node now carries a MARK as well as a
-    /// colour, and its size and shape belong with it: the pip is a FIXED size, and fixed rather than
-    /// divided, because the row it fills draws the whole board — 43 nodes on the shipped chapters and
-    /// authored content on any other — so dividing one row between them would shrink each node as the
-    /// board grew and eventually draw a board too fine to read. A fixed size and a wrapping container
-    /// means a longer board takes another line instead.
-    /// </remarks>
-    private const string TrackNodeScenePath = "res://game/scenes/TrackNode.tscn";
-
-    /// <summary>The gate mark on one track node, hidden on every node that may be walked past.</summary>
-    /// <remarks>
-    /// <para>
-    /// 🔴 <b>Each of its two channels is drawn against a different background, and that is what
-    /// decides their colours.</b> The collar sits in the gap BETWEEN pips, so it is read against the
-    /// screen's ground and is drawn in the quiet caption grey — the dark iron a gate wants is the
-    /// ground's own colour and would be invisible there. The bars cross the pip, so they are read
-    /// against the fill and are drawn dark. Neither is drawn in the fill itself, so the mark survives
-    /// the node the run is standing on being repainted in the token colour.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Square corners, a 6-unit stroke and NO drop shadow, where a panel of this screen would
-    /// take a wide radius, a heavier stroke and a shadow.</b> This is the small-mark language the
-    /// perk card's rarity gem already uses, not the panel language: a rounded frame at 52 units
-    /// across is a lozenge, and a lozenge on a track whose pips ignore the mouse would read as a
-    /// button the player can press. The gem carries no shadow either, and the reason a mark this
-    /// size cannot is below.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>The collar draws OUTSIDE its pip's rect</b> — 6 units on each side, into a container
-    /// separation of 8 — so that marking a node costs the row no width and the wrap stays where it
-    /// was. The cost is that clipping either the pip or the row cuts the collar off, which is why
-    /// <see cref="RenderTrack"/> pins the row's clipping rather than trusting the scene. It is also
-    /// why the collar carries no shadow: a shadow grows the drawn extent past the separation and
-    /// onto the neighbouring pips, and because the row draws its children in order it would darken
-    /// only the neighbours BEFORE this one — a lopsided smudge, on a mark whose symmetry is what
-    /// left-handed mirroring rests on. Against this screen's near-black ground it would render
-    /// nothing anyway.
-    /// </para>
-    /// <para>
-    /// ⚠️ The collar's grey and the bars' near-black are authored in the scene, not read from the
-    /// colours below, so retuning <c>UnavailableColour</c> or the ground does not move them: the
-    /// collar was chosen to be the caption grey and the bars the ground's own dark, and only this
-    /// note keeps that pairing true.
-    /// </para>
-    /// </remarks>
-    private const string TrackNodeGatePath = "Gate";
+    private const string WorldPath = "%World";
+    private const string CameraRigPath = "%CameraRig";
+    private const string OverviewButtonPath = "%OverviewButton";
 
     /// <summary>Where the sentence saying what the gate mark means is written.</summary>
     /// <remarks>
@@ -369,6 +337,66 @@ public partial class Board : Node3D
 
     private CancellationToken _lifetime;
 
+    /// <summary>
+    /// ⚠️ <b>The distances this board is drawn at, and not one of them is authored.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 `03`, `13` and `15` state how the board must READ — every tile legible at 48 dp, branches
+    /// beside the spine with a clear join, the hero at roughly 40% of screen height — and state no
+    /// distance at all. Per steering rule S6 the hole stays open and greppable: these are exports
+    /// authored on <c>Board.tscn</c>, marked there as this task's choices and owed to a ruling,
+    /// rather than named constants that would read as decided. The same arrangement, for the same
+    /// reason, as the font sizes below.
+    /// <para>
+    /// What IS authored is derived rather than picked, and lives in <c>BoardCameraRig</c> and
+    /// <c>BoardFraming</c>: the hero is framed into the band the interface leaves free, and a
+    /// pull-back solves its distance from the viewport's real aspect.
+    /// </para>
+    /// </remarks>
+    [Export] public float NodeSpacing { get; set; } = 2.6f;
+
+    /// <inheritdoc cref="NodeSpacing"/>
+    [Export] public float WindAmplitude { get; set; } = 2.2f;
+
+    /// <inheritdoc cref="NodeSpacing"/>
+    [Export] public float WindWavelength { get; set; } = 34f;
+
+    /// <inheritdoc cref="NodeSpacing"/>
+    [Export] public float BranchOffset { get; set; } = 2.4f;
+
+    /// <inheritdoc cref="NodeSpacing"/>
+    [Export] public float HeroScale { get; set; } = 0.42f;
+
+    /// <inheritdoc cref="NodeSpacing"/>
+    [Export] public float HopArcHeight { get; set; } = 0.55f;
+
+    private BoardWorld? _world;
+    private BoardCameraRig? _rig;
+    private Button? _overviewButton;
+
+    /// <summary>
+    /// Where the hero is DRAWN, which is not where the run is for as long as a hop is in flight.
+    /// </summary>
+    private readonly BoardWalk _walk = new();
+
+    /// <summary>
+    /// The rest of a submission, held back until the walk lands.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>This is the ordering the whole screen turns on.</b> <see cref="Report"/> is what opens
+    /// the battle, the shop, the campfire and the perk draft, and what leaves for Home when the run
+    /// closes. Run where it used to be — the instant the command returns — it hands the player to
+    /// another screen on the frame the hop STARTS, over a hero visibly still crossing the board.
+    /// Nothing goes red when it does.
+    /// </remarks>
+    private Action? _afterWalk;
+
+    /// <summary>The node a pressed fork branch leads to, so the walk can animate the edge the command took.</summary>
+    private int? _pendingBranchNodeId;
+
+    /// <summary>Whether a board has been drawn into the 3D world yet.</summary>
+    private bool _built;
+
     private Control? _hud;
     private Control? _stageRow;
     private Label? _hpLabel;
@@ -379,7 +407,6 @@ public partial class Board : Node3D
     private Label? _stageLabel;
     private Label? _stageValue;
     private Control? _trackFrame;
-    private HFlowContainer? _track;
     private Label? _gateLabel;
     private Control? _standingOnRow;
     private Label? _standingOnLabel;
@@ -464,6 +491,12 @@ public partial class Board : Node3D
 
         ScreenStage.Show(this);
 
+        // 🔒 Snapped, never eased. The run behind this screen moved while another screen was up —
+        // that is the whole reason Resume reads again — so easing the camera across the gap would
+        // animate a journey the player did not take and did not see. StartAsync's read puts the
+        // hero down at wherever the run now is, for the same reason.
+        _rig?.Snap();
+
         _ = StartAsync();
     }
 
@@ -542,7 +575,9 @@ public partial class Board : Node3D
         _stageLabel = GetNode<Label>(StageLabelPath);
         _stageValue = GetNode<Label>(StageValuePath);
         _trackFrame = GetNode<Control>(TrackFramePath);
-        _track = GetNode<HFlowContainer>(TrackPath);
+        _world = GetNode<BoardWorld>(WorldPath);
+        _rig = GetNode<BoardCameraRig>(CameraRigPath);
+        _overviewButton = GetNode<Button>(OverviewButtonPath);
         _gateLabel = GetNode<Label>(GateLabelPath);
         _standingOnRow = GetNode<Control>(StandingOnRowPath);
         _standingOnLabel = GetNode<Label>(StandingOnLabelPath);
@@ -569,15 +604,18 @@ public partial class Board : Node3D
         _rollButton.Pressed += OnRollPressed;
         _resolveButton.Pressed += OnResolvePressed;
         _abandonButton.Pressed += OnAbandonPressed;
+        _overviewButton.Pressed += OnOverviewPressed;
 
         // Painted once, because nothing about which colour belongs to which state changes while the
         // screen is up. It is painted at all because a Button draws its text by draw mode, and the
         // disabled mode every one of these controls spends most of its life in has an engine default
         // of half-transparent grey that no override of font_color reaches.
-        foreach (var button in new[] { _rollButton, _resolveButton })
+        foreach (var button in new[] { _rollButton, _resolveButton, _overviewButton })
         {
             ButtonTextColours.ApplyTo(button, LiveColour, UnavailableColour);
         }
+
+        _rig.Follows(_world.HeroAnchor);
 
         // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
         // does this on the way in, because every handover in this build leaves the outgoing screen
@@ -586,6 +624,8 @@ public partial class Board : Node3D
         ScreenStage.Show(this);
 
         SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewport().GetVisibleRect().Size);
+
+        _rig.Snap();
 
         Render();
 
@@ -638,6 +678,10 @@ public partial class Board : Node3D
             // engine runs the scene tree on may do that.
             await presenter.StartAsync(_lifetime);
 
+            // A read is not a move. Whatever the run's position turns out to be, the hero is put
+            // down on it rather than walked to it: nothing the player did produced the difference.
+            _walk.SnapTo(presenter.StandingOn?.NodeId);
+
             Render();
             Report(presenter);
         }
@@ -660,7 +704,8 @@ public partial class Board : Node3D
         if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
             _hud is null || _hpLabel is null || _hpValue is null || _hpBar is null ||
             _goldLabel is null || _goldValue is null || _stageLabel is null || _stageValue is null ||
-            _trackFrame is null || _track is null || _gateLabel is null || _standingOnRow is null ||
+            _trackFrame is null || _world is null || _rig is null || _overviewButton is null ||
+            _gateLabel is null || _standingOnRow is null ||
             _standingOnLabel is null || _pendingTileLabel is null ||
             _statusLabel is null || _blockLabel is null || _rejectionLabel is null ||
             _forkPanel is null || _forkTitleLabel is null || _forkButtons is null ||
@@ -710,24 +755,43 @@ public partial class Board : Node3D
             _stageRow.Visible = _stageValue.Text.Length > 0;
         }
 
-        RenderTrack(presenter);
+        RenderWorld(presenter);
 
-        // 🔴 Read AFTER the track is built, and hidden with it. The sentence is about a mark on a pip,
-        // so on the one path where no pip is drawn at all — a node template that would not load — it
-        // would be a rule stated about a board that is not on the screen. Hidden rather than blanked,
-        // like every other sentence here: an empty label still claims its line of height.
+        // 🔴 Read AFTER the board is built, and hidden with it. The sentence is about a mark on a
+        // tile, so on the one path where no tile is drawn at all — a template that would not load —
+        // it would be a rule stated about a board that is not on the screen. Hidden rather than
+        // blanked, like every other sentence here: an empty label still claims its line of height.
         _gateLabel.Text = presenter.GateRuleText;
-        _gateLabel.Visible = _gateLabel.Text.Length > 0 && _track.Visible;
+        _gateLabel.Visible = _gateLabel.Text.Length > 0 && _world.IsBuilt;
+
+        _overviewButton.Text = presenter.OverviewText(_rig.Mode == BoardCameraMode.Follow
+            ? BoardOverviewStep.ToTheStage
+            : _rig.Mode == BoardCameraMode.Stage
+                ? BoardOverviewStep.ToTheWholeBoard
+                : BoardOverviewStep.BackToTheHero);
+
+        // 🔒 Live in EVERY state a board is up in, and the one control on this screen the turn latch
+        // does not touch. `16` D42 as amended by D67 makes it the whole compliance mechanism for a
+        // board the camera rides through — so gating it behind the latch that guards turn order
+        // would make the rule conditional on the game being idle. It moves no run state, so a press
+        // landing mid-hop can corrupt nothing.
+        _overviewButton.Visible = _world.IsBuilt;
 
         _standingOnLabel.Text = presenter.StandingOnLabel;
         _pendingTileLabel.Text = presenter.PendingTileName;
-        _standingOnRow.Visible = _pendingTileLabel.Text.Length > 0;
+
+        // 🔴 Hidden while a hop is in flight, along with the block sentence, the fork panel and the
+        // resolve button below. Every one of them is a statement about the tile the run is ON, and
+        // for as long as the hero is still crossing the board it has not arrived there yet. The
+        // numbers — HP, gold, stage, and the number the die came up — are drawn at once, because
+        // "you rolled 4", four hops, then "you are on the Shop" is the order a player reads it in.
+        _standingOnRow.Visible = _pendingTileLabel.Text.Length > 0 && !_walk.InProgress;
 
         _statusLabel.Text = presenter.StatusText;
         _statusLabel.Visible = _statusLabel.Text.Length > 0;
 
         _blockLabel.Text = presenter.BlockText;
-        _blockLabel.Visible = _blockLabel.Text.Length > 0;
+        _blockLabel.Visible = _blockLabel.Text.Length > 0 && !_walk.InProgress;
 
         _rejectionLabel.Text = presenter.RejectionText;
         _rejectionLabel.Visible = _rejectionLabel.Text.Length > 0;
@@ -746,11 +810,11 @@ public partial class Board : Node3D
         var forkOpen = presenter.RollBlock == BoardRollBlock.ForkOpen;
 
         _rollButton.Text = presenter.RollText;
-        _rollButton.Visible = !tilePending && !forkOpen;
+        _rollButton.Visible = !tilePending && !forkOpen && !_walk.InProgress;
         _rollButton.Disabled = _busy || presenter.RollBlock != BoardRollBlock.None;
 
         _resolveButton.Text = presenter.ResolveText;
-        _resolveButton.Visible = tilePending;
+        _resolveButton.Visible = tilePending && !_walk.InProgress;
         _resolveButton.Disabled = _busy;
 
         // 🔒 Drawn out of use rather than disabled. A disabled control accepts no press, and a press
@@ -776,109 +840,79 @@ public partial class Board : Node3D
     }
 
     /// <summary>
-    /// Draws the whole board: one square per node of the track, coloured by the tile that sits on it.
+    /// Draws the whole board as a place: a puck for every node, a run of track between every pair,
+    /// and the hero standing on one of them.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔒 <b>The whole track, every time (`16` D42).</b> This used to be a progress strip of
-    /// identical pips as long as the current stage, because no client could read a tile — and it drew
-    /// nothing at all whenever the run's exact distance was unknown. Both limits are gone: the
-    /// presenter projects the board, so every node has a kind and the node the run stands on is known
-    /// between tiles as well.
+    /// 🔒 <b>The whole board, every node of it (`16` D42).</b> What D67 amended is where the CAMERA
+    /// is, never what is drawn: every tile of every stage is in the world from the first frame, with
+    /// no fog, no preview range and nothing generated as the run approaches it. The overview control
+    /// is what reaches the far end of it.
     /// </para>
     /// <para>
-    /// The node the run stands on is drawn in the token colour rather than its tile's, which is the
-    /// one place a colour is overridden: where the player IS matters more than what they are on, and
-    /// the caption below the track names that tile in words anyway.
+    /// Built once. A board cannot change while the run that generated it is alive — it regenerates
+    /// from the run seed and the run's seed does not move — so rebuilding it each render would write
+    /// a few hundred transforms a frame for a picture that is already correct.
     /// </para>
     /// <para>
-    /// 🔴 <b>A node the run may not walk past wears the gate mark, and that mark is not a
-    /// colour.</b> A roll that would carry over a mini-boss stops on it instead, so the player who
-    /// cannot see which node does that loses steps to a rule nothing on the screen stated. A light
-    /// collar stands around the pip and two dark bars cross it, which reads as a barred gate at pip
-    /// size and reads the same to a player who cannot separate the two reds this screen draws
-    /// boss-tier fights in — the accessibility rule is frame and mark, never colour on its own. The
-    /// boss keeps a plain pip on purpose: the mark has to tell the two APART, and the boss is the
-    /// terminus of the last row, which no other node can be mistaken for.
-    /// </para>
-    /// <para>
-    /// ⚠️ Hidden rather than empty when the board could not be projected — a chapter this build does
-    /// not ship. An empty container still claims its separation, so an invisible one is the
-    /// difference between "no board" and "a board with nothing on it".
+    /// 🔒 <b>The palette is <see cref="TileColours"/>, unmoved.</b> The fifteen kinds and the six
+    /// colours they group into are the same ones the pip strip drew, with the same argument behind
+    /// them; what changed is that a colour is now on a puck rather than on a rectangle. Keeping the
+    /// table here is also what keeps the contrast suite's transcription guard honest.
     /// </para>
     /// </remarks>
-    private void RenderTrack(BoardPresenter presenter)
+    private void RenderWorld(BoardPresenter presenter)
     {
-        if (_track is not { } track)
+        if (_world is not { } world || _rig is not { } rig)
         {
             return;
         }
 
-        Clear(track);
-
-        if (presenter.Track is not { Count: > 0 } nodes)
+        if (!_built && presenter.Board is { } board)
         {
-            track.Visible = false;
+            world.Build(
+                board,
+                new BoardLayoutMetrics(NodeSpacing, WindAmplitude, WindWavelength, BranchOffset),
+                ColourOf,
+                HeroScale);
 
-            return;
-        }
+            _built = world.IsBuilt;
 
-        var template = GD.Load<PackedScene>(TrackNodeScenePath);
-
-        if (template is null)
-        {
-            // Load answers null rather than throwing when the resource is missing or its import
-            // cannot be read, so an unnamed null reference is all a caller gets unless it says so.
-            GD.PushError(
-                "The board cannot draw its track: no node template could be loaded from " +
-                $"'{TrackNodeScenePath}'. The whole board goes with it, including the mark on the " +
-                "nodes the run may not walk past.");
-
-            track.Visible = false;
-
-            return;
-        }
-
-        track.Visible = true;
-
-        // Pinned here rather than left to the scene, because the gate mark is the one thing on this
-        // row that draws outside its own pip: a row that clipped its children would cut the collar
-        // off the top and bottom rows and leave the mark half there, with nothing to say so.
-        track.ClipContents = false;
-
-        var standingOn = presenter.StandingOn?.NodeId;
-
-        foreach (var node in nodes)
-        {
-            var pip = template.Instantiate<ColorRect>();
-
-            pip.Color = node.NodeId == standingOn ? TokenColour : ColourOf(node.Tile);
-
-            var gate = pip.GetNodeOrNull<Control>(TrackNodeGatePath);
-
-            if (gate is null)
+            if (_built)
             {
-                // Named for the same reason the missing template is: a renamed or deleted child
-                // would otherwise be an unattributed null reference, and what is lost is not the
-                // pip but the only thing on the screen that says a node cannot be walked past.
-                GD.PushError(
-                    $"The board's node template '{TrackNodeScenePath}' carries no '" +
-                    TrackNodeGatePath + "' child, so no node can be marked as one the run may not " +
-                    "walk past. The track is drawn without the mark.");
-
-                track.AddChild(pip);
-
-                continue;
+                rig.Follows(world.HeroAnchor);
             }
-
-            // The mark comes off the tile kind the projection already carries. There is no flag
-            // beside it saying the node cannot be walked past: a second field derived from this one
-            // is a second thing to keep true, and the run's own movement rule is stated where the
-            // stop happens rather than mirrored here.
-            gate.Visible = node.Tile == TileKind.MiniBoss;
-
-            track.AddChild(pip);
         }
+
+        if (!_built)
+        {
+            return;
+        }
+
+        DrawHero();
+
+        rig.Frames(world.BoardBounds, world.StageBounds(world.StageOf(_walk.ShownNodeId)));
+    }
+
+    /// <summary>
+    /// Puts the hero where the playhead says it is — mid-hop on an arc, or standing on a node.
+    /// </summary>
+    private void DrawHero()
+    {
+        if (_world is not { } world)
+        {
+            return;
+        }
+
+        if (_walk.InProgress)
+        {
+            world.HopHero(_walk.HopFromNodeId, _walk.HopToNodeId, (float)_walk.HopProgress, HopArcHeight);
+
+            return;
+        }
+
+        world.PlaceHero(_walk.ShownNodeId);
     }
 
     /// <summary>The colour one tile kind is drawn as, or the quiet grey for a kind this build has none for.</summary>
@@ -899,6 +933,34 @@ public partial class Board : Node3D
             container.RemoveChild(child);
             child.QueueFree();
         }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The only thing on this screen that runs per frame, and it runs only while a hop is in flight.
+    /// The tail of the submission is released on the one call that finishes the walk — see
+    /// <see cref="_afterWalk"/> for why it was held back at all.
+    /// </remarks>
+    public override void _Process(double delta)
+    {
+        if (!_walk.InProgress)
+        {
+            return;
+        }
+
+        var landed = _walk.Advance(delta);
+
+        DrawHero();
+
+        if (!landed)
+        {
+            return;
+        }
+
+        var tail = _afterWalk;
+        _afterWalk = null;
+
+        tail?.Invoke();
     }
 
     private void RenderFork(BoardPresenter presenter)
@@ -940,10 +1002,13 @@ public partial class Board : Node3D
             ButtonTextColours.ApplyTo(button, LiveColour, UnavailableColour);
 
             // Captured by value into the handler, so the index a press submits is the index the
-            // button was drawn for even after the list is rebuilt beneath it.
+            // button was drawn for even after the list is rebuilt beneath it. The node the edge
+            // leads to rides along, because a junction has two successors and the walk cannot name
+            // a route from the two endpoints alone.
             var index = branch.BranchIndex;
+            var toNodeId = branch.ToNodeId;
 
-            button.Pressed += () => OnBranchPressed(index);
+            button.Pressed += () => OnBranchPressed(index, toNodeId);
 
             buttons.AddChild(button);
         }
@@ -1160,8 +1225,20 @@ public partial class Board : Node3D
     private void OnAbandonPressed() =>
         _ = SubmitAsync(presenter => presenter.AbandonRunAsync(_lifetime));
 
-    private void OnBranchPressed(int branchIndex) =>
+    private void OnBranchPressed(int branchIndex, int? toNodeId)
+    {
+        _pendingBranchNodeId = toNodeId;
+
         _ = SubmitAsync(presenter => presenter.ChooseForkAsync(branchIndex, _lifetime));
+    }
+
+    /// <summary>Steps the camera: the hero, then the stage, then the whole board, then back.</summary>
+    private void OnOverviewPressed()
+    {
+        _rig?.Step();
+
+        Render();
+    }
 
     private void OnFixedDiePressed(int pips) =>
         _ = SubmitAsync(presenter => presenter.UseFixedDieAsync(pips, _lifetime));
@@ -1182,23 +1259,68 @@ public partial class Board : Node3D
         }
 
         _busy = true;
+
+        // A command returns the camera to the hero first, so a player who rolls from the overview
+        // watches it come back in as the hop starts rather than watching the board move under a
+        // camera that stayed out. The two eases run together and the pull-back is the shorter of
+        // the two.
+        _rig?.Follow();
+
+        // 🔒 Where the HERO is, never presenter.Position. The two differ for exactly as long as an
+        // animation is in flight, and passing the run's position would walk from the destination to
+        // itself — correct on every path today, and silently wrong the first time a walk is cut
+        // short.
+        var from = _walk.ShownNodeId;
+        var via = _pendingBranchNodeId;
+        _pendingBranchNodeId = null;
+
         Render();
 
         try
         {
             await submit(presenter);
 
-            Report(presenter);
+            var hops = presenter.WalkFrom(from, via);
+
+            if (hops.Count == 0)
+            {
+                _walk.SnapTo(presenter.StandingOn?.NodeId);
+                Finish(presenter);
+
+                return;
+            }
+
+            // 🔒 The tail is DEFERRED to the frame the walk lands on. Report opens the battle, the
+            // shop, the campfire and the draft, and leaves for Home when the run closes — every one
+            // of those takes the player off this board, and done here it would take them off it
+            // mid-hop.
+            _afterWalk = () => Finish(presenter);
+
+            _walk.Begin(hops);
+            Render();
         }
         catch (Exception failure)
         {
             GD.PushError($"A board command failed: {failure}");
+
+            _walk.SnapTo(presenter.StandingOn?.NodeId);
+            Finish(presenter);
         }
-        finally
-        {
-            _busy = false;
-            Render();
-        }
+    }
+
+    /// <summary>Releases the turn and does what the command was going to do next.</summary>
+    /// <remarks>
+    /// Called once per submission, on whichever of the three paths that submission took: the walk
+    /// landing, a move that had nothing to walk, or a command that threw. The order matters — the
+    /// latch is released and the screen redrawn BEFORE <see cref="Report"/>, because Report may
+    /// detach and free this board and nothing may touch it afterwards.
+    /// </remarks>
+    private void Finish(BoardPresenter presenter)
+    {
+        _busy = false;
+
+        Render();
+        Report(presenter);
     }
 
     /// <summary>
@@ -1214,7 +1336,9 @@ public partial class Board : Node3D
             $"stage_no={Describe(presenter.StageNumber)}/{Describe(presenter.StageCount)} " +
             $"tile={presenter.PendingTile?.Kind.ToString(CultureInfo.InvariantCulture) ?? "none"} " +
             $"fork={presenter.Fork?.Branches.Count.ToString(CultureInfo.InvariantCulture) ?? "none"} " +
-            $"rolled={Describe(presenter.LastRolledPips)} rejection={Describe(presenter.RulesRejection)}");
+            $"rolled={Describe(presenter.LastRolledPips)} rejection={Describe(presenter.RulesRejection)} " +
+            $"nodes={presenter.Board?.Nodes.Count ?? 0} shown={Describe(_walk.ShownNodeId)} " +
+            $"walking={_walk.InProgress} camera={_rig?.Mode.ToString() ?? "none"}");
 
         if (LeaveIfTheRunHasClosed(presenter))
         {

@@ -12,6 +12,7 @@
     { "TILE_ENEMY": 34, "TILE_EMPTY": 10, "TILE_SHRINE": 9, "TILE_TREASURE": 8, "TILE_EVENT": 8, "TILE_MINIGAME": 7, "TILE_CURSE": 7, "TILE_SHOP": 5, "TILE_ELITE": 5, "TILE_CACHE": 3, "TILE_PORTAL": 2, "TILE_DICE_FORGE": 2 },
     { "TILE_ENEMY": 34, "TILE_EMPTY": 8, "TILE_SHRINE": 9, "TILE_TREASURE": 8, "TILE_EVENT": 8, "TILE_MINIGAME": 7, "TILE_CURSE": 8, "TILE_SHOP": 5, "TILE_ELITE": 6, "TILE_CACHE": 3, "TILE_PORTAL": 2, "TILE_DICE_FORGE": 2 }
   ],
+  "forksPerStage": [{ "min": 1, "max": 2 }, { "min": 1, "max": 2 }, { "min": 1, "max": 2 }],
   "enemyPool": { "GRUNT": 40, "SWARM": 20, "BRUTE": 15, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 5, "LEECH": 5, "REAVER": 0 },
   "elitePool": ["EL_THORN_SENTINEL", "EL_MOSSBACK_ALPHA"],
   "miniBossIds": ["EL_THORN_SENTINEL", "EL_MOSSBACK_ALPHA"],

@@ -29,6 +29,7 @@ internal static class ScreenContent
     internal const string StartRunActionKey = "loc.home.start_run.action";
     internal const string ContinueRunActionKey = "loc.home.continue_run.action";
     internal const string LoadingStatusKey = "loc.home.loading.status";
+    internal const string RunLapsedStatusKey = "loc.home.run_lapsed.status";
     internal const string UnavailableStatusKey = "loc.home.unavailable.status";
 
     internal const string ChapterSelectTitleKey = "loc.chapter_select.title.name";
@@ -75,6 +76,7 @@ internal static class ScreenContent
     [
         LegendLevelLabelKey, EnergyLabelKey, EnergyReserveLabelKey,
         StartRunActionKey, ContinueRunActionKey, LoadingStatusKey, UnavailableStatusKey,
+        RunLapsedStatusKey,
     ];
 
     /// <summary>Every string key the Chapter Select screen renders, chapter names aside.</summary>
@@ -101,8 +103,40 @@ internal static class ScreenContent
     /// <summary>A catalogue answering in English over the strings both screens need.</summary>
     internal static LocaleStringCatalogue Catalogue() => Catalogue(Strings());
 
-    /// <summary>A content set carrying both screens' strings and nothing else.</summary>
-    internal static ContentSnapshot Strings() => new(FixtureStamp, Locales([]));
+    /// <summary>
+    /// How long a run may be left alone in this fixture's content before it lapses.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately NOT the shipped 48 hours. Home reads the window from content, and a fixture that
+    /// transcribed the shipped number would agree with a presenter carrying its own copy of it.
+    /// </remarks>
+    internal const int FixtureRunExpiryHours = 5;
+
+    /// <summary>A content set carrying both screens' strings and the run window.</summary>
+    /// <remarks>
+    /// The window is in the base fixture rather than an opt-in, because Home now reads it on every
+    /// decision an open run reaches — a content set without it makes every case throw
+    /// <c>MissingContentException</c> rather than exercise the screen.
+    /// </remarks>
+    internal static ContentSnapshot Strings() =>
+        new(FixtureStamp, [.. Locales([]), Progression()]);
+
+    /// <summary>`03`'s authored run window, as the progression document states it.</summary>
+    /// <remarks>
+    /// 🔒 A MEMBER of the progression document rather than a document of its own, because a
+    /// <c>ContentSnapshot</c> refuses the same path twice — deliberately, so that neither of two
+    /// copies wins by ordering accident. The chapter ladder lives in the same file, so the two are
+    /// assembled together below.
+    /// </remarks>
+    private static KeyValuePair<string, ContentValue> RunLifetimeMember() =>
+        new("runLifetime", ContentValue.Object(
+        [
+            new KeyValuePair<string, ContentValue>("expiryHours", ContentValue.Number(FixtureRunExpiryHours)),
+        ]));
+
+    /// <summary>The progression document carrying only the run window — no ladder authored.</summary>
+    private static ContentDocument Progression() =>
+        new(ProgressionDocument, ContentValue.Object([RunLifetimeMember()]));
 
     /// <summary>
     /// A content set authoring the given chapters and a gating ladder.
@@ -167,6 +201,10 @@ internal static class ScreenContent
                 new KeyValuePair<string, ContentValue>("HEROIC", Rung(SameChapterNormal, null)),
                 new KeyValuePair<string, ContentValue>("MYTHIC", Rung(SameChapterHeroic, mythicLegendLevel)),
             ])),
+
+            // The shipped file carries both, and so must this one: Home reads the window off the
+            // same document Chapter Select reads the ladder off.
+            RunLifetimeMember(),
         ]));
 
     private static ContentValue Rung(string requiresClear, int? requiresLegendLevel) =>

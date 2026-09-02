@@ -96,7 +96,7 @@ public sealed class BoardView
         return new BoardView(
             Array.AsReadOnly(spine),
             Array.AsReadOnly(nodes),
-            Array.AsReadOnly(ForksOf(board, reachable)),
+            Array.AsReadOnly(ForksOf(board, reachable, onSpine)),
             byNodeId,
             run.Position,
             run.PendingForkJunctionPosition);
@@ -149,13 +149,20 @@ public sealed class BoardView
     /// <remarks>
     /// Internal rather than private, and not a second entry point: <see cref="Project"/> can only
     /// ever see a <see cref="BoardGenerator"/> board — it replays one out of the run seed — so the
-    /// refusal below is unreachable from the public door and would be silently deletable. The one
+    /// refusals below are unreachable from the public door and would be silently deletable. The one
     /// producer that CAN lay a junction out wrongly is <see cref="BoardGraph.FromLayout"/>, and the
     /// only caller that can hand this a hand-built layout is the domain suite through
     /// <c>InternalsVisibleTo</c>. <c>GameRules.Execute</c> is the same seam for the same reason.
+    /// <para>
+    /// 🔒 The branch is walked along its own <see cref="EdgeKind.Continue"/> edges until it reaches a
+    /// node on the spine, and that node is the rejoin. It is deliberately NOT derived as
+    /// <c>board.SpineNode(node.LinearIndex)</c>, which is the oracle the domain suite checks this
+    /// against: two derivations that must agree is evidence, and one derivation asserted against
+    /// itself is a restatement.
+    /// </para>
     /// </remarks>
-    /// <exception cref="InvalidOperationException">A junction is not laid out Continue-then-Branch, or its Branch edge carries no preview.</exception>
-    internal static BoardFork[] ForksOf(BoardGraph board, NodeId[] nodeIdOrder)
+    /// <exception cref="InvalidOperationException">A junction is not laid out Continue-then-Branch, its Branch edge carries no preview, a branch node is itself a junction, or a branch never returns to the spine.</exception>
+    internal static BoardFork[] ForksOf(BoardGraph board, NodeId[] nodeIdOrder, IReadOnlySet<NodeId> onSpine)
     {
         var forks = new List<BoardFork>();
 
@@ -181,14 +188,65 @@ public sealed class BoardView
                     "own tiles or the fork cannot be drawn at all.");
             }
 
+            var (branchNodeIds, rejoin) = WalkBranch(board, id, branch.To, onSpine);
+
             forks.Add(new BoardFork(
                 id.Value,
                 edges[0].To.Value,
-                branch.To.Value,
+                Array.AsReadOnly(branchNodeIds),
+                rejoin.Value,
                 preview.Label,
                 Array.AsReadOnly(preview.Icons.ToArray())));
         }
 
         return forks.ToArray();
+    }
+
+    /// <summary>Walks a branch from its entry to the spine node it rejoins on.</summary>
+    /// <exception cref="InvalidOperationException">A branch node is itself a junction, or the branch never returns to the spine.</exception>
+    private static (int[] BranchNodeIds, NodeId Rejoin) WalkBranch(
+        BoardGraph board, NodeId junction, NodeId entry, IReadOnlySet<NodeId> onSpine)
+    {
+        var branchNodeIds = new List<int>();
+        var current = entry;
+
+        // Bounded by the node count rather than by 03 §3's authored branch length: a branch is 2-4
+        // nodes on a GENERATED board, and this walk also runs over hand-built layouts, where the
+        // only honest bound is "it cannot visit more nodes than the board has".
+        for (var step = 0; step <= board.NodeCount; step++)
+        {
+            if (onSpine.Contains(current))
+            {
+                return (branchNodeIds.ToArray(), current);
+            }
+
+            if (board.IsJunction(current))
+            {
+                throw new InvalidOperationException(
+                    $"branch node {current} of junction {junction} is itself a junction. A fork inside a " +
+                    "fork has no entry in this projection, so CHOOSE_FORK could name a choice the screen " +
+                    "cannot draw and the run would pause at a junction nothing offers a way out of. " +
+                    "BoardGenerator's per-stage span reservation makes it unreachable; " +
+                    "BoardGraph.FromLayout does not check it.");
+            }
+
+            branchNodeIds.Add(current.Value);
+
+            var edges = board.OutgoingEdges(current);
+
+            if (edges.Count != 1)
+            {
+                break;
+            }
+
+            current = edges[0].To;
+        }
+
+        throw new InvalidOperationException(
+            $"the branch leaving junction {junction} never returns to the spine. Every branch rejoins " +
+            "(03 §3 step 4), and the rejoin is the only thing that makes a branch node's forward index " +
+            "meaningful; a branch that runs off the end would have this view name a fork whose two ways " +
+            "out never meet. BoardGraph.FromLayout refuses a dangling node, so what reaches here is a " +
+            "branch that loops or that runs longer than the board has nodes.");
     }
 }

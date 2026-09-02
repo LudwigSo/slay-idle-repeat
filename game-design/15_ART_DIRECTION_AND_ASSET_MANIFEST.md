@@ -383,7 +383,7 @@ The medium change splits the manifest three ways. Every section in Part E carrie
 | E6 | Pets | 46 | **M** |
 | E7 | Mounts | 22 | **M** |
 | E8 | Tile icons | 14 | **R** |
-| E9 | Board paths & decor | 112 | 🔴 **undecided** — see below |
+| E9 | Board paths & decor | 112 | **M** — ruled by `16` D68; see below |
 | E10 | Battle backdrops & scene backgrounds | 28 | **F** |
 | E11 | Gear icons | 120 | **R** |
 | E12 | Perk icons | 98 | **F** |
@@ -398,7 +398,7 @@ The medium change splits the manifest three ways. Every section in Part E carrie
 | E21 | Store & marketing | 15 | **R** |
 | | **TOTAL** | **949** | |
 
-**By kind:** **M** 330 · **R** 158 · **F** 349 · undecided 112 · **total 949**.
+**By kind:** **M** 442 · **R** 158 · **F** 349 · **total 949**. ⚠️ Counted in the commit that moved it (S29): E9's 112 joined **M** under `16` D68, and nothing is undecided any more.
 
 🔒 **Cosmetics remain cut entirely** (decision D14). No die skins, no profile frames, no borders, no badges. Rank and Plus status are displayed as **text labels**.
 
@@ -406,11 +406,13 @@ The medium change splits the manifest three ways. Every section in Part E carrie
 
 ⚠️ **`game-data/assets/asset_manifest_art.json` is now stale.** Its `technical` block mirrors the *2D* §C, and it carries no `kind` field. It was **not** updated by D60 — that file is enumerated into the `ContentSnapshot` and therefore into `ContentHashing.Compute`, so editing it moves the content version stamp that `14` §6 makes load-bearing for replay and `CONTENT_VERSION_MISMATCH`. Re-authoring it is its own task with its own migration. See `16` D60's consequences.
 
-### 🔴 E9's kind is undecided, deliberately
+### ✅ E9's kind is `M`, ruled
 
-Board paths and decor are 112 assets — the largest single section after enemies — and whether they are **M** or **R** depends on something this document does not own: whether the board screen becomes a 3D scene or stays a 2D track with rendered pieces on it. That is a `03` (board) and `13` (screens) question. `TrackNode.tscn` is 2D today.
+Board paths and decor are 112 assets — the largest single section after enemies — and whether they were **M** or **R** depended on something this document does not own: whether the board screen becomes a 3D scene or stays a 2D track with rendered pieces on it. That was a `03` (board) and `13` (screens) question, and `16` **D68** answers it. The board screen is a 3D scene the camera rides through (`16` D67); `TrackNode.tscn` is deleted.
 
-Per steering rule S6 the hole is left open and greppable rather than filled with a plausible answer. **Both readings are viable**, and they differ by roughly 45,000 triangles per board and by whether §C2's board budget matters at all. Do not begin E9 production until it is ruled.
+So **§C2's board budget does matter**: 400 triangles per piece, LOD0 only, and §C3's shared 512² per biome. ⚠️ Both are still ⚠️ PROVISIONAL and still unmeasured.
+
+⚠️ **Unblocked is not produced.** The board that shipped with D68 is drawn from engine primitives — a cylinder for a tile, a stretched box for a run of track — in the palette the screen already owned, and no asset of E9 exists. They arrive through `BoardTile.tscn` and `BoardPathSegment.tscn`, which exist to be that seam and hold nothing else. 🔴 The board draws its tiles and its track as **multimeshes**, so a piece with per-instance variation costs more than the one it replaces; that is a fact for whoever produces E9, not a budget.
 
 ---
 
@@ -633,7 +635,7 @@ Phase variants: phase 2 adds a visible damage/transformation cue; phase 3 adds a
 
 ## E9. Board paths & decor (112)
 
-🔴 **Kind: undecided — M or R.** This is the one open hole in the manifest and it is deliberate. Whether board pieces are real-time 3D or rendered 2D depends on whether the board screen becomes a 3D scene or stays a 2D track (`TrackNode.tscn` is 2D today) — a `03`/`13` question this document does not own. The two readings differ by roughly 45,000 triangles per board. Per steering rule S6 the hole stays open and greppable rather than filled with a plausible answer. **Do not begin E9 production until it is ruled.** See §E1.
+**Kind: M** — real-time 3D, ruled by `16` **D68**. The board screen became a 3D scene the camera rides through (`16` D67), which was the condition this section left the question open on. ⚠️ **Unblocked, not produced:** the shipped board is engine primitives, and these 112 arrive through `BoardTile.tscn` and `BoardPathSegment.tscn`. §C2's 400-triangle board budget and §C3's shared 512² per biome now apply and are both still ⚠️ PROVISIONAL. See §E1.
 
 Per biome: **6 path pieces + 8 decor props = 14 × 8 biomes = 112.**
 
@@ -915,7 +917,7 @@ Reordered by severity for the 3D pipeline. Four risks are new, three are inherit
 | **Mobile performance is unmeasured, and the outline doubles draw calls** 🆕 | **Critical** | The largest risk in this document. Godot's Mobile renderer, a mid-range Android handset, skinned meshes, and an inverted-hull shell that **doubles the draw call of every mesh it touches** — with no per-frame budget written and no device measurement taken. **Mitigation: a device spike before any batch production**, measuring a worst-case `05` battle frame. Everything in §C2/§C3/§C6 marked ⚠️ PROVISIONAL is waiting on it. If it fails, the fallback is kind **R** for actors too — pre-rendered sprites off the same models, which is a delivery change and not a re-authoring |
 | **Animation is new work with no 2D equivalent** 🆕 | **High** | The 2D spec cut four poses from one image. Real clips (§C5) are a straight quality gain and an unbudgeted schedule cost across ~330 **M** assets. **Mitigation: the shared-skeleton and retarget strategy (§B2, §C4) is the whole answer** — it is why per-character skeletons are banned outside bosses. If retargeting quality proves insufficient, cost scales with the number of bespoke rigs, so hold that line hard |
 | **Generated meshes have unusable topology, UVs and weights** 🆕 | **High** | Current text-to-3D is good at silhouette, bad at everything that must deform. **Mitigation: §B4 steps 2–10 are mandatory regardless of how good the generator output looks**, and the silhouette gate at step 4 rejects before any of that cost is incurred. Treat generation as a blocking-out tool, never as a delivery tool |
-| **E9's dimensionality is unruled** 🔴 | **High** | 112 assets — the second-largest section — cannot start. Owned by `03`/`13`, not by this document. See §E1 |
+| ~~**E9's dimensionality is unruled**~~ ✅ | — | Closed by `16` **D68**: `M`. The 112 assets are unblocked. They are still unbuilt, and §C2's board budget now applies to them and is still ⚠️ PROVISIONAL |
 | **Style drift across ~950 assets** | Medium *(was High)* | **Substantially reduced by the medium change**: shared base mesh, shared skeleton, one material, one light rig (§B2). A generator cannot drift what it is not allowed to author. Residual risk moves to *modelling* drift, caught by the §B2 step 8 batch comparison — which is now easier to miss precisely because drift is rarer |
 | **Texture memory across 8 biomes** 🆕 | Medium | Per-asset materials on enemies, elites and bosses (§D2) are the bulk of it, and 2048 is permitted. **Mitigation: biome-shared sheets for board and decor; the §D2 grouping is the lever.** Unquantified until the same device spike |
 | **98 perk icons looking interchangeable** | Medium | Unchanged — kind **F**, so 3D neither helps nor hurts. Author the per-icon symbol CSV first (E12, `22`) and enforce distinct silhouettes |
