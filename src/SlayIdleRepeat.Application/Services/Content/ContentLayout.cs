@@ -18,7 +18,7 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// re-export and invalidate every pinned run for a change no rule can read.
 /// </para>
 /// <para>
-/// It is a type rather than a set of private constants because <c>tools/ContentValidator</c> needs
+/// It is a type rather than a set of private constants because the CI content validator needed
 /// the same convention — two copies in two projects that must agree is one copy too many.
 /// </para>
 /// </remarks>

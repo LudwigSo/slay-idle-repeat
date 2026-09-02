@@ -1,6 +1,6 @@
 using System.Globalization;
 using Shouldly;
-using SlayIdleRepeat.BalanceHarness.Content;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;

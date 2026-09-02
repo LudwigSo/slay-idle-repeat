@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 using Shouldly;
-using SlayIdleRepeat.TestSupport;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using Xunit;
 

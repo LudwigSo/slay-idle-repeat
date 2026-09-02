@@ -1,7 +1,7 @@
 using System.Globalization;
 using Shouldly;
 using SlayIdleRepeat.Core.Primitives;
-using SlayIdleRepeat.TestSupport;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Primitives;

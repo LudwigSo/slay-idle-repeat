@@ -74,10 +74,10 @@ public sealed class InMemoryPlatformInfo : IPlatformInfoPort
     /// host in globalization-invariant mode.</b> Measured: under
     /// <c>DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1</c> the direct lookup throws
     /// <c>CultureNotFoundException</c> out of the field initialiser and every case running against
-    /// this fake dies before it starts. That is not hypothetical here — five <c>tools/</c> projects
-    /// already set <c>InvariantGlobalization</c>, and an ICU-less slim container is the ordinary
-    /// shape of a Linux server image. The invariant culture is an answer this port explicitly
-    /// admits, so falling back to it changes what a scenario sees without changing what is legal.
+    /// this fake dies before it starts. That is not hypothetical — an ICU-less slim container is
+    /// the ordinary shape of a Linux server image. The invariant culture is an answer this port
+    /// explicitly admits, so falling back to it changes what a scenario sees without changing what
+    /// is legal.
     /// <para>
     /// 🔒 <b>Both branches are pinned by a test</b>, because nothing else can see them: the shared
     /// suite asserts shapes, and the invariant culture satisfies every shape the preferred one does.

@@ -4,7 +4,6 @@ using System.Text;
 using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Core.Content;
-using SlayIdleRepeat.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
@@ -263,7 +262,7 @@ public sealed class ContentBundleTests
         Action act = () => _ = ContentBundle.Unpack(bundle);
 
         var found = Should.Throw<ContentBundleFormatException>(act);
-        found.Message.ShouldMatchWildcard("*format version*");
+        found.Message.ShouldContain("format version", Case.Insensitive);
         ShouldNameTheByte(found.Message, unknown);
         found.InnerException.ShouldBeNull("nothing failed to decompress here; the payload was read");
     }
@@ -281,7 +280,7 @@ public sealed class ContentBundleTests
         Action act = () => _ = ContentBundle.Unpack(payload);
 
         var found = Should.Throw<ContentBundleFormatException>(act);
-        found.Message.ShouldMatchWildcard("*gzip*");
+        found.Message.ShouldContain("gzip", Case.Insensitive);
         found.InnerException.ShouldNotBeNull("the decompression fault is carried, not swallowed");
     }
 
@@ -300,7 +299,7 @@ public sealed class ContentBundleTests
         Action act = () => _ = ContentBundle.Unpack(bundle);
 
         var found = Should.Throw<ContentBundleFormatException>(act);
-        found.Message.ShouldMatchWildcard("*truncated*");
+        found.Message.ShouldContain("truncated", Case.Insensitive);
         found.Message.ShouldNotContain("format version", Case.Insensitive);
     }
 
@@ -326,7 +325,7 @@ public sealed class ContentBundleTests
         Action act = () => _ = ContentBundle.Unpack(bundle);
 
         var found = Should.Throw<ContentBundleFormatException>(act);
-        found.Message.ShouldMatchWildcard("*tag*");
+        found.Message.ShouldContain("tag", Case.Insensitive);
         ShouldNameTheByte(found.Message, unknown);
         found.Message.ShouldNotContain("format version", Case.Insensitive);
     }

@@ -11,7 +11,7 @@
 
     At 100% coverage CRAP equals complexity - the floor. At 0% coverage it is
     complexity^2 + complexity. ReportGenerator computes it natively in its Risk
-    Hotspots section; nothing here recalculates it. See docs/crap.md.
+    Hotspots section; nothing here recalculates it.
 
     Three silent-failure modes this script exists to make loud:
 
@@ -58,7 +58,7 @@
 
 .PARAMETER FailOnCrap
     Build-breaking maximum CRAP score. 0 (the default) disables the gate
-    entirely. Deliberately NOT enabled in CI - calibrate first, see docs/crap.md.
+    entirely. Deliberately NOT enabled in CI - calibrate first.
 
 .PARAMETER ExcludeSuites
     Test suites that must not run under coverage. Defaults to the architecture
@@ -114,7 +114,7 @@ param(
     #
     # Nothing is lost by skipping it. Those rules READ assemblies rather than
     # executing them, so the suite contributes essentially no covered lines; the
-    # comparison in docs/crap.md records Core and Application landing on the same
+    # comparison recorded at the time had Core and Application landing on the same
     # percentages either way. It still runs, unaffected, in its own CI job.
     [string[]]$ExcludeSuites = @('SlayIdleRepeat.Architecture.Tests'),
 
@@ -357,7 +357,7 @@ if ($coberturaFiles.Count -lt $suites.Count) {
 }
 
 # Not a fault - the allow-list in coverage.runsettings is narrow on purpose, so
-# suites that only exercise tools/ or adapters legitimately produce an empty
+# suites that only exercise adapters legitimately produce an empty
 # file. Named anyway: these are the suites whose runtime buys this report
 # nothing, and -ExcludeSuites is how you stop paying for them.
 $idleSuites = @($bySuite | Where-Object { -not $_.Contributes } | Select-Object -ExpandProperty Suite -Unique)

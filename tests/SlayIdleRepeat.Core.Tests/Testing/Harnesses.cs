@@ -8,7 +8,7 @@ using SlayIdleRepeat.Core.Tests.Content;
 using Shouldly;
 using SlayIdleRepeat.Core.Tests.Model.Gear;
 using SlayIdleRepeat.Core.Tests.Rules.Combat;
-using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 
 namespace SlayIdleRepeat.Core.Tests;
 

@@ -1,4 +1,4 @@
-using SlayIdleRepeat.BalanceHarness.Content;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using SlayIdleRepeat.Core.Rules.Combat.Bosses;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;

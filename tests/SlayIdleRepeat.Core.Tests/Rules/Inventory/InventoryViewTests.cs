@@ -3,7 +3,7 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Inventory;
-using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using SlayIdleRepeat.Core.Tests.Model;
 using SlayIdleRepeat.Core.Tests.Model.Gear;
 using SlayIdleRepeat.Core.Tests.Rules.Combat;

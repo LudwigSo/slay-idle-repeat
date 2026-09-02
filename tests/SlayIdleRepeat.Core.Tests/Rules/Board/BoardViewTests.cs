@@ -8,7 +8,7 @@ using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Testing;
-using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
 using CoreBoard = SlayIdleRepeat.Core.Rules.Board.BoardGraph;

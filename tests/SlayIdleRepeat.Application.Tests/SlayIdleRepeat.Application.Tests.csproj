@@ -3,13 +3,6 @@
   <!--
     Use-case tests. Every content case runs against SlayIdleRepeat.Adapters.InMemory
     exclusively — no real adapter, no container, no network (23 §8).
-
-    The one exception is the 📐 tunable audit, which is a build-time audit of a
-    repository rather than a runtime read of content: it enumerates game-design/*.md,
-    which never ships. Its composition therefore lives in tools/ContentValidator, and
-    this project references that tool so the guarding test runs the SAME wiring CI runs.
-    Re-assembling it here would leave the tool's doc glob, its governsTuningFile
-    derivation and its baseline path unexercised, with the test still green.
   -->
 
   <PropertyGroup>
@@ -21,7 +14,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
-    <!-- Provides the "XPlat code coverage" collector coverage.runsettings names; see docs/crap.md. -->
+    <!-- Provides the "XPlat code coverage" collector coverage.runsettings names. -->
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Shouldly" />
   </ItemGroup>
@@ -29,7 +22,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
     <ProjectReference Include="..\..\src\adapters\fakes\SlayIdleRepeat.Adapters.InMemory\SlayIdleRepeat.Adapters.InMemory.csproj" />
-    <ProjectReference Include="..\..\tools\ContentValidator\SlayIdleRepeat.ContentValidator.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -48,14 +40,5 @@
     <EmbeddedResource Include="Parity\ParityCorpusBaseline.json" />
   </ItemGroup>
 
-  <!--
-    Shared test vocabulary, linked rather than project-referenced. tests/Shared/ holds no
-    .csproj on purpose: build/ci/test-suites.json discovers suites with the glob
-    tests/*/*.csproj and fails any it finds containing zero tests, so a helper project here
-    would be a permanently red empty suite. See tests/Shared/WildcardMessageAssertions.cs.
-  -->
-  <ItemGroup>
-    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
-  </ItemGroup>
 
 </Project>

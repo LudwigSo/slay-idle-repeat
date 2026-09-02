@@ -1,6 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content.BoardEvents;
-using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;

@@ -1,7 +1,7 @@
 # Game Design
 
 What the game *is*: pillars, loops, systems and the constraints that shape them. The full
-specification lives in `game-design/`; code layout and tech stack are in
+code layout and tech stack are in
 [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 **Slay. Idle. Repeat.** — a portrait, one-handed, always-online mobile roguelike RPG. Roll a

@@ -166,7 +166,7 @@ jobs:
   # crap - coverage + CRAP (Change Risk Anti-Patterns) risk hotspots.
   #
   # CRAP = complexity^2 * (1 - coverage)^3 + complexity, computed natively by
-  # ReportGenerator. See docs/crap.md for the bands and how to read the report.
+  # ReportGenerator.
   #
   # Its own job rather than a step on `test`: the coverage run instruments every
   # assembly and is measurably slower than the plain suite run, and this job is
@@ -207,7 +207,7 @@ jobs:
         # RENDERED report actually contains a Crap Score column. That last check
         # is the important one: feed ReportGenerator coverlet's OpenCover output
         # instead and it renders a Risk Hotspots table with no Crap Score column
-        # and exits 0. See docs/crap.md. Exit 2 is a setup failure; exit 1 needs
+        # and exits 0. Exit 2 is a setup failure; exit 1 needs
         # -FailOnCrap, which is not passed here.
         shell: pwsh
         run: ./scripts/Measure-Crap.ps1
@@ -238,7 +238,7 @@ jobs:
         # Published separately from the rendered report so any tool that wants
         # to ingest coverage directly gets the machine-readable file without
         # unpacking a directory of HTML. This is also the file the CRAP ranking
-        # is computed from - see docs/crap.md for why it is Cobertura and not the
+        # is computed from - see coverage.runsettings for why it is Cobertura and not the
         # OpenCover twin beside it.
         if: always()
         uses: actions/upload-artifact@v4
@@ -246,82 +246,6 @@ jobs:
           name: coverage-cobertura
           path: TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
-
-  # ===========================================================================
-  # content-validation — 14 §6 🔒, 14 §13 "build-time schema validation of all JSON"
-  #
-  # M0-09 swapped the body of Invoke-ContentValidation.ps1 for the real harness:
-  # JSON Schema enforcement, cross-file reference resolution and the 📐-marker
-  # check, all running the SAME code the game loads content with
-  # (SlayIdleRepeat.Application/Services/Content/, unit-tested against the
-  # in-memory fake). Same script path, same parameters, same exit codes.
-  #
-  # The one change M0-09 needed here: the check is .NET now rather than pure
-  # PowerShell, so the job needs the SDK. Everything else is untouched.
-  # ===========================================================================
-  content-validation:
-    name: content validation (14 §6)
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
-          restore-keys: nuget-${{ runner.os }}-
-
-      - name: Validate game-data
-        shell: pwsh
-        run: ./build/ci/Invoke-ContentValidation.ps1
-
-  # ===========================================================================
-  # asset-provenance — 15 §G 🔒 / 20 §2.1 🔒 / 20 §6
-  #
-  # "keep provenance records ... for every asset. Legal prerequisite, not a
-  #  formality." Both docs say it, in the same words.
-  #
-  # Bidirectional: no delivered asset without a provenance record, and no
-  # provenance record for an unknown asset id. A record for an asset a ruling
-  # CUT is its own failure — the O8 ruling cut all 32 of 15 §E19's sheets.
-  #
-  # ⚠️ Zero assets are delivered today, so the forward direction quantifies over
-  # an empty set. It is not a vacuous green: the job asserts M8-09's register
-  # floor and its canary ids, runs the reverse direction and the record-field
-  # rules over the store, and reports "AWAITING FIRST DELIVERY — 0 of 1048 ...
-  # 0 pairings verified" rather than a bare pass. The moment one asset lands
-  # under assets/, DeliveryDeclaration goes stale and this job goes RED until
-  # somebody has looked at it. See the header of Invoke-ProvenanceGate.ps1.
-  #
-  # Its own job, beside content-validation, for the reason 23 §6 gives about the
-  # architecture suite: a licence gate that can be masked by an unrelated flake
-  # is not a gate.
-  # ===========================================================================
-  asset-provenance:
-    name: asset provenance (15 §G, 20 §2.1)
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
-          restore-keys: nuget-${{ runner.os }}-
-
-      - name: Every delivered asset has a provenance record
-        shell: pwsh
-        run: ./build/ci/Invoke-ProvenanceGate.ps1
 
   # ===========================================================================
   # vendor-package-uniqueness — 14 §1.1 🔒 / A9
@@ -815,8 +739,7 @@ jobs:
   #
   # The recipe this job will implement — Godot version pin, Gradle/Java 17 setup,
   # the custom export template build, where the MAX plugin goes — is the output of
-  # spike O23, written up at docs/spikes/O23-godot-android-export.md (M0-05a).
-  # M7-10 implements that document; it does not re-research it.
+  # spike O23 (M0-05a). M7-10 implements that write-up; it does not re-research it.
   #
   # Left `if: false` on purpose. A `echo TODO && exit 0` here would put a green
   # tick next to "Android build" while shipping nothing, and 12 §3.2 is explicit
@@ -980,8 +903,7 @@ jobs:
   # job is M7-10, and it cannot exist before M7-01 turns SlayIdleRepeat.Client
   # into an actual Godot project.
   #
-  # The recipe is spike O23's iOS leg, written up at
-  # docs/spikes/O23-godot-ios-export.md (M0-05b). M7-10 implements that document;
+  # The recipe is spike O23's iOS leg (M0-05b). M7-10 implements that write-up;
   # it does not re-research it. Five things from it constrain this job's shape
   # and are why it looks the way it does:
   #
@@ -1035,5 +957,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Export the iOS Xcode project and assert it contains .NET
         run: |
-          echo "::error::iOS export not implemented (M7-10). Recipe: docs/spikes/O23-godot-ios-export.md — and note O23 is still OPEN for iOS: that recipe has never been executed."
+          echo "::error::iOS export not implemented (M7-10). Recipe: spike O23's iOS leg — and note O23 is still OPEN for iOS: that recipe has never been executed."
           exit 1

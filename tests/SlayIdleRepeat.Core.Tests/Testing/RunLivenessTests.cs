@@ -5,7 +5,7 @@ using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Testing;
-using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using SlayIdleRepeat.Core.Tests.Handlers;
 using Xunit;
 using RunAggregate = SlayIdleRepeat.Core.Model.Run;

@@ -29,7 +29,7 @@
       passes vacuously, which is exactly what test-suites.json exists to prevent.
     -->
     <PackageReference Include="xunit.runner.visualstudio" />
-    <!-- Provides the "XPlat code coverage" collector coverage.runsettings names; see docs/crap.md. -->
+    <!-- Provides the "XPlat code coverage" collector coverage.runsettings names. -->
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Shouldly" />
   </ItemGroup>
@@ -38,12 +38,5 @@
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Client\SlayIdleRepeat.Client.csproj" />
   </ItemGroup>
 
-  <!--
-    Shared test vocabulary, linked rather than project-referenced. tests/Shared/ holds no
-    .csproj on purpose: the discovery glob would find it and fail it as an empty suite.
-  -->
-  <ItemGroup>
-    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
-  </ItemGroup>
 
 </Project>

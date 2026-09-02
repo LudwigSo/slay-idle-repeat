@@ -2,7 +2,7 @@
 
 `15` §G and `20` §2.1 both require a provenance record for **every** generated asset, and both call
 it *"a legal prerequisite, not a formality"*. This directory is the record store. The tooling that
-reads, writes and enforces it is `tools/AssetProvenance/`; the gate runs in CI as
+read, wrote and enforced it was `tools/AssetProvenance/` (since removed); the gate ran in CI as
 `build/ci/Invoke-ProvenanceGate.ps1`.
 
 ## Layout
@@ -52,7 +52,7 @@ A record for an **audio** asset additionally carries `tool` and `toolVersion` (`
 for an **art** asset must *not*: its tool is named by its `kind`, and a second tool field would be a
 second source of truth for one fact.
 
-`dotnet run --project tools/AssetProvenance -- template <assetId> <kind> [--audio]` prints the shape.
+The tool that printed the shape (`tools/AssetProvenance`) has been removed.
 
 ## What the gate enforces
 

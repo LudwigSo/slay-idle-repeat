@@ -27,7 +27,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
-    <!-- Provides the "XPlat code coverage" collector coverage.runsettings names; see docs/crap.md. -->
+    <!-- Provides the "XPlat code coverage" collector coverage.runsettings names. -->
     <PackageReference Include="coverlet.collector" />
     <!--
       🔒 Shouldly (BSD-3-Clause), the assertion library for all four test suites. M1-00
@@ -83,21 +83,6 @@
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Server\SlayIdleRepeat.Server.csproj" />
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Client\SlayIdleRepeat.Client.csproj" />
 
-    <!--
-      tools/. These are here because ProductionProjectFiles now covers tools/ as well as
-      src/, so ProductionAssemblies.AllNames names them — and every rule that loads an
-      assembly by name would throw FileNotFoundException on a project the suite governs but
-      does not reference. Four projects with no dependency-rule coverage was the gap; the
-      remedy is to reference them, not to narrow the rules back to src/.
-    -->
-    <ProjectReference Include="..\..\tools\EconomySim\SlayIdleRepeat.EconomySim.csproj" />
-    <ProjectReference Include="..\..\tools\BalanceHarness\SlayIdleRepeat.BalanceHarness.csproj" />
-    <ProjectReference Include="..\..\tools\ContentValidator\SlayIdleRepeat.ContentValidator.csproj" />
-    <ProjectReference Include="..\..\tools\InboxOps\SlayIdleRepeat.InboxOps.csproj" />
-    <ProjectReference Include="..\..\tools\AssetManifest\SlayIdleRepeat.AssetManifest.csproj" />
-    <ProjectReference Include="..\..\tools\AssetProvenance\SlayIdleRepeat.AssetProvenance.csproj" />
-    <ProjectReference Include="..\..\tools\AssetPipeline\SlayIdleRepeat.AssetPipeline.csproj" />
-    <ProjectReference Include="..\..\tools\AssetPlaceholders\SlayIdleRepeat.AssetPlaceholders.csproj" />
     <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Content.Packed\SlayIdleRepeat.Adapters.Content.Packed.csproj" />
   </ItemGroup>
 

@@ -6,8 +6,8 @@ core, application use cases behind interfaces, and swappable adapters for everyt
 touches the outside world (Godot, databases, ad networks, billing, push, telemetry).
 
 What the game *is* — pillars, loops, systems — is summarised in
-[`game-design.md`](game-design.md), and specified in full under `game-design/`. This file is
-just a map for finding the right folder quickly.
+[`game-design.md`](game-design.md). This file is just a map for finding the right folder
+quickly.
 
 Three constraints from the design shape every folder below, so they are worth stating here:
 the domain is a **pure, synchronous state machine with one entry point** and the whole game
@@ -25,13 +25,10 @@ src/SlayIdleRepeat.Contracts/     wire/DTO contracts shared between client and s
 src/SlayIdleRepeat.Client/        Godot client app (scenes, presenters, composition root)
 src/SlayIdleRepeat.Server/        server host
 src/adapters/{client,server,shared,fakes}/   one project per external integration
-tests/                            xUnit + FluentAssertions + NetArchTest, mirrors src/ layout
-game-design/                      authoritative design specification (numbered docs)
+tests/                            xUnit + Shouldly + NetArchTest, mirrors src/ layout
 game-design.md                    one-page summary of the design
 game-data/                        tuning/content data, schemas, tuning experiments
-tools/                            EconomySim, ContentValidator, BalanceHarness, asset tools
 .claude/                          milestone-based agent workflow (skills, retros, steering, handovers)
-IMPLEMENTATION_TRACKER.md         master milestone/task tracker (single source of truth for status)
 ```
 
 ## Core (`src/SlayIdleRepeat.Core/`)
@@ -116,12 +113,12 @@ results). Commands, including the diff-only run, are in `README.md`.
 
 Schema-validated tuning/content data (not code) — `content/`, `schema/`, `tuning/`
 (including `tuning/experiments/`), `loc/`, `assets/`. **Balance/tuning changes → here**,
-validated against `schema/` and checked with `tools/ContentValidator`.
+validated against `schema/` by the content loader in
+`src/SlayIdleRepeat.Application/Services/Content/`.
 
 ## Dev process (`.claude/`)
 
-Work happens milestone-by-milestone against `IMPLEMENTATION_TRACKER.md` (M0–M18, statuses
-and exit criteria). Key references:
+Work happened milestone-by-milestone (M0–M18). Key references:
 
 - `.claude/retros/STEERING.md` — binding rules distilled from past milestone retros;
   **read before implementing anything non-trivial**.
@@ -133,9 +130,9 @@ and exit criteria). Key references:
 
 ## CI / build
 
-`.github/workflows/ci.yml` and `nightly.yml`; `Directory.Build.props` /
+`.github/workflows/ci.yml`; `Directory.Build.props` /
 `Directory.Packages.props` for central package versioning; `global.json` pins the .NET SDK
 to `net8.0` (kept in sync with what the Godot client can load); `docker-compose.yml` for
 the local stack (Postgres, Redis, OTel/Jaeger/Prometheus/Grafana — no cloud creds needed).
 Export spikes for platform packaging live under `spikes/godot-android-export/` and
-`spikes/godot-ios-export/`, written up in `docs/spikes/`.
+`spikes/godot-ios-export/`.

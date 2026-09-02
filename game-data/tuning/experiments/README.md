@@ -42,7 +42,7 @@ it names only what it changes. The example in `21` §3.3:
 Overrides layer, in the order given on the command line:
 
 ```
-dotnet run --project tools/EconomySim -- --overrides tuning/experiments/cheaper_merges.json
+# the economy simulator that consumed these overrides (tools/EconomySim) has been removed
 ```
 
 ---

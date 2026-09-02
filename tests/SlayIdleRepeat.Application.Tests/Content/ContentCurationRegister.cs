@@ -22,7 +22,7 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// <para>
 /// ⚠️ <b>Why it is here and not beside <c>ContentLoader.SchemasAwaitingContent</c>, which is the
 /// closer sibling.</b> That register is production code and its rule runs inside the content load,
-/// so a stale entry fails <c>tools/ContentValidator</c> and therefore the build — which is the
+/// so a stale entry fails the content validation and therefore the build — which is the
 /// stronger place to be. The trade is that <c>ContentLoader</c> would then have to know what a
 /// <c>curation</c> block is, and `14` §6's loader is deliberately generic: it pairs a document with
 /// a schema and validates it, while every type-specific rule already lives in

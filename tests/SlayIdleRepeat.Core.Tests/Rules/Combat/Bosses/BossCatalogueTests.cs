@@ -1,5 +1,5 @@
 using Shouldly;
-using SlayIdleRepeat.BalanceHarness.Content;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Combat.Bosses;

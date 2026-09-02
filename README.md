@@ -4,7 +4,7 @@
 
 Only `SlayIdleRepeat.Core` and `SlayIdleRepeat.Application` are mutated. Stryker mutates
 one project per run, so that is two runs and one config each — dropping `project` from a
-config puts Stryker in solution mode and mutates all 37 projects instead. Reports land in
+config puts Stryker in solution mode and mutates all 36 projects instead. Reports land in
 `StrykerOutput/`.
 
 `MSBUILD_EXE_PATH` is required, not a convenience: without it the analysis ends in
@@ -34,3 +34,8 @@ the full initial test run and coverage capture all still happen, which is ~15 mi
 Application before the first diff mutant is tested.
 
 Run one at a time — the two runs and any `dotnet build` fight over the same Debug output.
+
+## History
+
+`dfbdebc` removed `game-design/`, `docs/`, `IMPLEMENTATION_TRACKER.md`, `tools/` and all
+architecture tests but the dependency rule. Recover from that commit's parent if ever needed.

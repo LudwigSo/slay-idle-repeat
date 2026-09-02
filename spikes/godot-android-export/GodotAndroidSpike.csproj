@@ -2,7 +2,7 @@
   <PropertyGroup>
     <!-- net8.0 is the locked project-wide target framework. Godot 4.7.1 ships
          GodotSharp as lib/net8.0, so this pin holds for the engine version
-         verified by this spike. See docs/spikes/O23-godot-android-export.md. -->
+         verified by this spike (O23). -->
     <TargetFramework>net8.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <Nullable>enable</Nullable>
