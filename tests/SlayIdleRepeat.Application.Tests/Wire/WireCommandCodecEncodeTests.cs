@@ -57,6 +57,6 @@ public sealed class WireCommandCodecEncodeTests
         decode.Command.ShouldNotBeNull(
             "the canonical encoding decoded to a refusal: " + decode.Rejection);
 
-        return decode.Command!;
+        return decode.Command;
     }
 }

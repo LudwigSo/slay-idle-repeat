@@ -50,7 +50,7 @@ public sealed class ShopRefreshTests
 
         refreshed.Accepted.ShouldBeTrue();
         refreshed.NewState.Run!.ShopOfferDraw!.Value.ShouldBe(before + RunShopOffer.DrawsPerOffer);
-        refreshed.NewState.Run!.StreamPosition(RngStreams.Shop)
+        refreshed.NewState.Run.StreamPosition(RngStreams.Shop)
             .ShouldBe(before + (2 * (ulong)RunShopOffer.DrawsPerOffer));
     }
 

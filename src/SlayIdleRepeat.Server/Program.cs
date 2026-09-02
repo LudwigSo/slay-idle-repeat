@@ -31,4 +31,4 @@ app.MapQuerySurfaceEndpoints();
 app.MapRemoteConfigEndpoint();
 app.MapContentDistributionEndpoints();
 
-app.Run();
+await app.RunAsync();

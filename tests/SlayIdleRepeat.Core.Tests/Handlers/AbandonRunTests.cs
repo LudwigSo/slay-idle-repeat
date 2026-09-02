@@ -102,7 +102,7 @@ public sealed class AbandonRunTests
         result.Accepted.ShouldBeTrue(
             "a draft the player does not want to answer must not be able to hold the run open.");
         result.NewState.Run!.Phase.ShouldBe(RunPhase.Ended);
-        result.NewState.Run!.DraftPending.ShouldBeFalse();
+        result.NewState.Run.DraftPending.ShouldBeFalse();
     }
 
     /// <summary>Paused at a junction: <c>CHOOSE_FORK</c> is the only other legal move.</summary>

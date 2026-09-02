@@ -249,6 +249,8 @@ public partial class Campfire : Node3D
     /// </remarks>
     public override void _ExitTree()
     {
+        // Deliberately empty — see the remarks above. Kept so a control added back here has an
+        // obvious place to unhook, rather than needing the override reinstated first.
     }
 
     /// <remarks>

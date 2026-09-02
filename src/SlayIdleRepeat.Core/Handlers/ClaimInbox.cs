@@ -81,7 +81,7 @@ internal static class ClaimInbox
         }
         else
         {
-            claimed.AddRange(inbox.Claimable);
+            claimed.AddRange(inbox.Claimable());
         }
 
         var events = new List<DomainEvent>();

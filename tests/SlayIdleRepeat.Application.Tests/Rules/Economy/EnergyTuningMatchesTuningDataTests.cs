@@ -137,7 +137,7 @@ public sealed class EnergyTuningMatchesTuningDataTests
     public void Every_leaf_the_energy_reader_reads_is_present_in_the_block()
     {
         var present = EnergyBlock().EnumerateObject().Select(p => p.Name).ToArray();
-        var read = AuthoredEnergyNumbers.Select(row => (string)row[0]!).ToArray();
+        var read = AuthoredEnergyNumbers.Select(row => (string)row[0]).ToArray();
 
         read.Length.ShouldBe(6, "EnergyTuning reads six pointers; this theory data has drifted.");
         read.Except(present, StringComparer.Ordinal).ShouldBeEmpty(

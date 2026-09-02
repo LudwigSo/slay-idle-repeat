@@ -1,0 +1,329 @@
+# Slay Idle Repeat — analyser severities.
+#
+# This file exists for ONE job: to say which SonarAnalyzer rules do not apply to
+# this repository, and why. It deliberately sets no formatting or naming
+# conventions — the code style here predates it, nothing enforces a style today,
+# and a file that quietly reformats 36 projects is not what anybody asked for.
+#
+# ============================================================================
+# HOW STATIC ANALYSIS WORKS HERE — read this before adding a suppression
+#
+# SonarAnalyzer.CSharp is a GlobalPackageReference in Directory.Packages.props,
+# so Sonar's C# rules run inside every `dotnet build`, on every branch, in every
+# agent's checkout. There is no server, no token and no separate scan step.
+#
+# Directory.Build.props sets TreatWarningsAsErrors=true for the whole repository
+# and the S-rules are NOT exempted. A Sonar finding is a build error. That is the
+# point: an analysis whose output has to be read somewhere else is an analysis
+# nobody reads.
+#
+# The consequence is that this file is load-bearing. Every entry below removes a
+# rule that would otherwise stop the build, so each one needs a reason that is
+# about THIS codebase rather than about the rule being inconvenient. Three
+# escalating options, narrowest first:
+#
+#   1. Fix the code. The default, and what happened to 188 of the 492 findings
+#      the first run produced. The ones that mattered: two iterator methods whose
+#      ArgumentNullException.ThrowIfNull was deferred to the first MoveNext
+#      instead of firing on the call, a duplicated test whose name promised an
+#      assertion its body never made, an undisposed CancellationTokenSource on
+#      the client's root node, and an integer division compared against a double.
+#   2. A one-site suppression — `#pragma warning disable` with the reason on the
+#      line above, or [SuppressMessage] with a Justification. For a deliberate
+#      exception in one place: Assembly.LoadFrom in the architecture tests,
+#      GC.Collect in a finaliser test.
+#   3. An entry in this file. Only when the rule contradicts a decision this
+#      project has already locked — not when it is merely noisy. Say which
+#      decision, and where it is written down.
+#
+# 🔴 A rule silenced here is silenced everywhere and forever, with no counter in
+# any report to remind anybody it happened. Prefer 1 and 2.
+# ============================================================================
+
+root = true
+
+[*.cs]
+
+# ---------------------------------------------------------------------------
+# S3267 — "Loops should be simplified using the Where LINQ method"  (51 hits)
+#
+# Contradicts the engine-boundary performance rule. SlayIdleRepeat.Core is the
+# simulation core: combat, board generation and drafting run per tick and must
+# stay allocation-lean, and LINQ in a hot path is a standing review finding in
+# this project's own code-review pass. 40 of the 51 hits were in Core, the rest
+# in Application and in client presenters that feed _Process.
+#
+# The rule is also purely stylistic — it never finds a defect, only a foreach it
+# would have written as a query.
+dotnet_diagnostic.S3267.severity = none
+
+# ---------------------------------------------------------------------------
+# S1244 — "Do not check floating point equality with exact values"  (19 hits)
+#
+# Exact float comparison is this codebase's CONTRACT, not an oversight. Core is
+# bit-exact deterministic: the same seed must produce byte-identical combat,
+# boards and drafts on the client and on the server, or PvP is unfair and replay
+# desyncs. The flagged sites are the invariants that enforce it —
+#
+#     DeterminismRounding:  Math.Round(value, Decimals, ToEven) == value
+#     CanonicalStateWriter: if (DeterminismRounding.Round(value) != value) throw
+#
+# — each one asking "is this value exactly what the rounding rule produces?".
+# A tolerance range there would defeat the assertion it is written to make.
+dotnet_diagnostic.S1244.severity = none
+
+# ---------------------------------------------------------------------------
+# S1075 — "Refactor your code not to use hardcoded absolute paths or URIs"
+#                                                                   (25 hits)
+# Every hit is a `res://` string — a Godot RESOURCE path, resolved by the engine
+# out of the packed project, not a filesystem path and not a URI:
+#
+#     "res://game/scenes/BoardTile.tscn"      a scene this scene instantiates
+#     "res://data"                            the embedded content root
+#
+# There is no configuration form for these. A scene path is as much a compile-
+# time identity as a type name, and the driving-adapter scenes are where they
+# belong.
+dotnet_diagnostic.S1075.severity = none
+
+# ---------------------------------------------------------------------------
+# S1144 — "Remove the unused private field/method"  (37 hits)
+#
+# Contradicts an established convention here, and would delete documentation if
+# followed. This repository forbids citing a design-doc section inside a comment
+# (those docs are scaffolding and get archived), and prescribes instead that the
+# REASON be pulled into the code as a well-named constant. The result is a body
+# of private constants that are read by a human and never by the compiler:
+#
+#     TheUnreadableRunHasNowhereToGo
+#     RarityIsAShapeAndASymbolBeforeItIsAColour
+#     ThereIsNoContentDataRootResolverAnyMore
+#     BattlePendingRefusesAStockChange
+#
+# 26 of the 37 hits are exactly that, most of them in the client scenes and
+# presenters. The rule cannot tell them from dead code, and it is right that it
+# cannot — they ARE dead code, deliberately, carrying the only copy of a design
+# decision that would otherwise live in a comment pointing at a doomed document.
+#
+# ⚠️ The cost is real and accepted: genuinely dead privates now go unreported.
+dotnet_diagnostic.S1144.severity = none
+
+# ---------------------------------------------------------------------------
+# S3236 — "Remove this argument from the method call; it hides the caller
+#          information"                                             (20 hits)
+# S3928 — "The parameter name 'X' is not declared in the argument list"
+#                                                                   (13 hits)
+#
+# One idiom, flagged by two rules, and the flagged behaviour is the whole point
+# of it: BLAME THE ARGUMENT THE CALLER ACTUALLY PASSED.
+#
+#     foreach (var item in equipped)
+#         ArgumentNullException.ThrowIfNull(item, nameof(equipped));
+#
+# The caller passed `equipped`. It contains a null. `item` is a loop variable
+# that exists nowhere in the caller's code, so letting CallerArgumentExpression
+# fill in "item" — which is precisely what S3236 asks for — would name something
+# the caller cannot act on. All 20 S3236 hits are this shape.
+#
+# S3928 is the same story from the other end: the validating method is a record's
+# own Validate(), so a name like nameof(Actors) is not among ITS parameters —
+# but BattlePlan is a `record`, so Actors IS the caller's constructor argument.
+# The one remaining hit is deliberate too, and says so in its own summary:
+# PerIpRateLimit centralises "options" in OptionsParameterName so that "both
+# public entry points name it the same".
+#
+# Both rules are right about the mechanism and wrong about the intent, and there
+# is no way to say "yes, deliberately" to them 33 times that is cheaper or
+# clearer than this.
+dotnet_diagnostic.S3236.severity = none
+dotnet_diagnostic.S3928.severity = none
+
+# ---------------------------------------------------------------------------
+# S3358 — "Extract this nested ternary operation into an independent statement"
+#                                                                   (23 hits)
+# The only rule switched off here on a straight readability disagreement rather
+# than because following it would break something, so it gets the longest leash
+# to justify itself.
+#
+# S3358 does not distinguish a ternary NESTED inside another — which is what its
+# rationale is about — from one CHAINED after it, which is a decision table:
+#
+#     private static RunEndKind KindOf(RunSnapshot run) =>
+#         run.BossDefeated      ? RunEndKind.Victory
+#         : run.CurrentHp == 0  ? RunEndKind.Death
+#         : RunEndKind.Abandoned;
+#
+# That is the clearest form this function has, and the statement version the rule
+# asks for is strictly worse. The remainder are single ternaries sitting in an
+# argument position (`MoveCurrency(currency, amount > 0 ? scaled : amount)`),
+# which the rule counts as nested because the call itself is inside a ternary.
+#
+# 19 of the 23 are in SlayIdleRepeat.Core. Rewriting bit-exact deterministic
+# combat, board and economy code to satisfy a formatting preference is real risk
+# for no behavioural gain, and this is the one place in this repository where
+# "if it compiles and the tests pass" is not a good enough standard.
+dotnet_diagnostic.S3358.severity = none
+
+# ---------------------------------------------------------------------------
+# S125 — "Remove this commented out code"  (7 hits)
+#
+# Not one of the seven was commented-out code. All seven were prose, and the
+# heuristic tripped on prose that names things — which is most of the prose here,
+# because a comment in this repository exists to explain a decision and decisions
+# are about types, commands and fields:
+#
+#     // NOT add EXPAND_INVENTORY — capacity is flat instead. Each row lands …
+#     // CurrentBossPhase is what makes PHASE-scope duration mean anything …
+#     // Console.Error keeps the [remote-config] marker greppable in the …
+#
+# Taking the advice would delete documentation, and in three of the seven cases
+# the only written record of why the code beneath is shaped the way it is.
+dotnet_diagnostic.S125.severity = none
+
+# ---------------------------------------------------------------------------
+# S2325 — "Make this member a static method/property"  (25 hits)
+#
+# 20 of the 25 are PUBLIC members of adapters and presenters, and making a public
+# member static is a breaking change at every call site — `presenter.SkipAvailable`
+# stops compiling — in exchange for nothing at runtime.
+#
+# They read as static only because they are answers that do not depend on state
+# YET:
+#
+#     public bool AdRerollAvailable => false;      // the feature is not built
+#     public bool SkipAvailable     => true;       // 🔒 unconditional, on purpose
+#     public string PlatformName    => OS.GetName();
+#
+# The first becomes instance-dependent the day the ad path lands. The second is
+# documented as unconditional on accessibility grounds — "a screen that withdraws
+# it in the states where it is least sure of itself is a screen a player can be
+# trapped on" — so its constancy is the contract, not an oversight. The third
+# reads the host through an adapter instance that exists to be swapped for a fake.
+#
+# ⚠️ Accepted cost: the five genuinely-private helpers it also flagged
+# (SpeedTextOf, StageReadout, Report, Cue, PumpOver) stay instance methods.
+dotnet_diagnostic.S2325.severity = none
+
+# ---------------------------------------------------------------------------
+# S4136 — "All 'X' method overloads should be adjacent"  (6 hits)
+# S3218 — "Rename this member to not shadow the outer class' member"  (6 hits)
+# S3398 — "Move this method inside 'X'"  (3 hits)
+#
+# Three rules about where a member SITS. None has behavioural content, and each
+# of the three asks this repository to give up a structure it chose on purpose.
+#
+# S4136: four of the six are in CommandPayload, which is laid out as two blocks —
+# the IReadOnlyList<string> overloads, then the generic <TId> ones — so that the
+# common path reads top to bottom before the generic machinery starts. Making
+# overloads adjacent means interleaving those blocks.
+#
+# S3218: one of the six is IComparer<T>.Compare on a nested comparer, which
+# cannot be renamed at all. The rest are nested records and DTOs whose members
+# are named after the domain concept they carry (Scalar, Throttle, Draftable,
+# Stat) and which "shadow" an outer member with the same name for exactly that
+# reason: it is the same concept. Renaming them makes every one of them worse.
+#
+# S3398: asks for a private static helper used only by a nested type to move
+# inside it. Each of the three sits with the outer type's other helpers, where a
+# reader looking for the outer type's private surface finds it.
+#
+# 🔴 These are OFF as a judgement about member layout, not about member layout
+# mattering. If a future change makes any of them fire on genuinely disorganised
+# new code, the answer is to organise the code, not to point at this block.
+dotnet_diagnostic.S4136.severity = none
+dotnet_diagnostic.S3218.severity = none
+dotnet_diagnostic.S3398.severity = none
+
+# ===========================================================================
+# TEST-ONLY SUPPRESSIONS
+#
+# Production code keeps these rules. They are removed only where the test tier's
+# own idioms make them false positives.
+# ===========================================================================
+[tests/**.cs]
+
+# ---------------------------------------------------------------------------
+# S2699 — "Add at least one assertion to this test case"  (14 hits)
+#
+# Not that the tests assert nothing — that they assert through this suite's own
+# helpers, which S2699 cannot see into:
+#
+#     Replies.Rejection(reply, "UNKNOWN_COMMAND_TYPE");
+#
+# Every flagged test ends in one of those. The rule takes a parameter naming
+# custom assertion methods, but only the server-side profile can set it; the
+# standalone analyser has no way to be told.
+#
+# ⚠️ Read this one carefully before trusting it, because a test that really
+# cannot fail is the single largest defect class this project has had. Nothing
+# here relaxes that: the mutation-testing stage of scripts/Invoke-Verification.ps1
+# catches an assertion-free test by killing nothing, which is a stronger check
+# than S2699 was making.
+dotnet_diagnostic.S2699.severity = none
+
+# ---------------------------------------------------------------------------
+# S3878 — "Remove this array creation and simply pass the elements"  (25 hits)
+#
+# Two reasons, and the second one is the serious one.
+#
+# First: every hit is a NAMED argument to a `params` parameter, and a named
+# argument cannot be expanded — the elements have nowhere to go.
+#
+#     internal static ActorPlan Actor(..., ActorStats? stats = null,
+#                                     int level = 1, params HeldEffect[] effects)
+#     ...
+#     Actor(id, effects: new[] { held });    // the name is what skips the optionals
+#
+# Second, and this is why the rule is off rather than worked around: taking the
+# advice would silently destroy a test.
+#
+#     var viaDrawOverload    = Hash64.Of(0x0123…UL, "dice", 12UL);
+#     var viaGeneralOverload = Hash64.Of(new Hash64Argument[] { 0x0123…UL, "dice", 12UL });
+#     viaDrawOverload.ShouldBe(viaGeneralOverload);
+#
+# The explicit array is what selects the general overload. Remove it and both
+# lines bind to the same method, the assertion becomes x == x, and a test that
+# pins two overloads against each other quietly becomes one that cannot fail —
+# the exact defect class this repository spends the most effort hunting.
+dotnet_diagnostic.S3878.severity = none
+
+# ---------------------------------------------------------------------------
+# S2344 — "Rename this enumeration to remove the Enum suffix"  (8 hits)
+#
+# The RNG reference vectors declare one enum per underlying integral type to pin
+# how each is hashed — ByteEnum : byte, Int16Enum : short, UInt64Enum : ulong.
+# The suffix is the fixture's whole meaning: the subject under test is "an enum
+# backed by this type". Renaming them would leave eight names that no longer say
+# what they are for.
+dotnet_diagnostic.S2344.severity = none
+
+# ---------------------------------------------------------------------------
+# S3871 — "Make this exception 'public'"  (2 hits)
+#
+# Both are exception types declared inside a test assembly — an injected chaos
+# fault and the architecture suite's rule-violation report. S3871 is about
+# exceptions crossing an assembly boundary so a caller can catch them; nothing
+# outside a test assembly can reference these, and nothing should.
+dotnet_diagnostic.S3871.severity = none
+
+# ---------------------------------------------------------------------------
+# S3885 — "Replace this call to 'Assembly.LoadFrom' with 'Assembly.Load'"
+#                                                                    (2 hits)
+# Both are in suites whose job is to inspect assemblies they deliberately do not
+# reference: the architecture suite walks the product's production assemblies,
+# and the contract suite loads each real adapter. `Assembly.Load` takes an
+# identity and resolves it against the test host's probing paths — which is the
+# lookup these two are written to avoid, because it finds whatever the test host
+# happened to copy rather than the file on the path under test.
+dotnet_diagnostic.S3885.severity = none
+
+# ---------------------------------------------------------------------------
+# S1172 — "Remove this unused method parameter"  (3 remaining hits)
+#
+# The genuine one (a `tick` StatusTimeline never read) is fixed. The three that
+# remain are members of ScriptedLedger, a test double that implements
+# ICommandLedgerStore and whose write-side members are `=> throw` bodies proving
+# the query path never writes. Their parameters are the interface's, so they
+# cannot go; S1172's own interface-implementation exemption just does not reach
+# an expression-bodied throw.
+dotnet_diagnostic.S1172.severity = none

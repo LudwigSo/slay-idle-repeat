@@ -33,8 +33,8 @@ public sealed class UseConsumableTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.CurrentHp.ShouldBe(70, "30% of a 100 Max HP bar, on top of 40.");
-        result.NewState.Run!.ConsumableCount(Consumables.HealthDraught).ShouldBe(0);
-        result.NewState.Run!.ConsumableCount(Consumables.EscapeRope).ShouldBe(
+        result.NewState.Run.ConsumableCount(Consumables.HealthDraught).ShouldBe(0);
+        result.NewState.Run.ConsumableCount(Consumables.EscapeRope).ShouldBe(
             1, "…and only the one named is spent.");
     }
 
@@ -59,7 +59,7 @@ public sealed class UseConsumableTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.EscapeRopeArmed.ShouldBeTrue();
-        result.NewState.Run!.ConsumableCount(Consumables.EscapeRope).ShouldBe(0);
+        result.NewState.Run.ConsumableCount(Consumables.EscapeRope).ShouldBe(0);
     }
 
     /// <summary>Only one rope may be armed (`03` §7.1), so a second is refused rather than destroyed.</summary>

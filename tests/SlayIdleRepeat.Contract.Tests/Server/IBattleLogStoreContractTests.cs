@@ -105,11 +105,11 @@ public abstract class IBattleLogStoreContractTests
         await store.PutAsync(upper, new byte[] { 0xB2 }, PersistenceWorlds.Cancel);
         await SettleAsync();
 
-        (await store.GetAsync(lower, PersistenceWorlds.Cancel))!.Value.ToArray()
+        (await store.GetAsync(lower, PersistenceWorlds.Cancel)).Value.ToArray()
             .ShouldBe(new byte[] { 0xA1 },
                 "ids differing only in case are two logs — a backing that lets its storage compare "
                 + "names case-insensitively merges them on some deployments and not others.");
-        (await store.GetAsync(upper, PersistenceWorlds.Cancel))!.Value.ToArray()
+        (await store.GetAsync(upper, PersistenceWorlds.Cancel)).Value.ToArray()
             .ShouldBe(new byte[] { 0xB2 });
     }
 

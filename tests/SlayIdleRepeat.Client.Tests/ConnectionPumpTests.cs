@@ -4,6 +4,13 @@ using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Client.Game.Net;
 using Xunit;
 
+// S2925 (no Thread.Sleep in a test) is off for this file. Every pause here is an INPUT, not a
+// race being waited out: the subject under test is a pump whose behaviour depends on the wall-clock
+// elapsed between Advance calls, so a fake clock would remove the thing being measured. Scoped to
+// this file rather than the suite, because anywhere else a sleep in a test is exactly the smell
+// S2925 says it is.
+#pragma warning disable S2925
+
 namespace SlayIdleRepeat.Client.Tests;
 
 /// <summary>

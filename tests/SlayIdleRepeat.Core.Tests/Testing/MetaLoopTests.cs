@@ -168,7 +168,7 @@ public sealed class MetaLoopTests
 
         run.ShouldNotBeNull(Trace(driver));
 
-        run!.Phase.ShouldBe(
+        run.Phase.ShouldBe(
             RunPhase.Ended,
             "the run did not end. " + driver.Ending + Environment.NewLine +
             "⚠️ If the command budget was exhausted, the likeliest cause is a tile the driver has no " +
@@ -294,7 +294,7 @@ public sealed class MetaLoopTests
             "08 §4.2 charges the stones whether the attempt lands or misses, so a balance that did " +
             "not move means no attempt was made on the banked item at all." + Trace(driver));
 
-        (enhanced!.EnhanceLevel > beforeAttempt!.EnhanceLevel ||
+        (enhanced.EnhanceLevel > beforeAttempt.EnhanceLevel ||
          enhanced.EnhanceFailures > beforeAttempt.EnhanceFailures).ShouldBeTrue(
             "the attempt on the BANKED item neither raised its level nor recorded a failure, so " +
             "nothing happened to it — 24 §4.6's mercy counts the failures, and one of the two has to " +
@@ -400,7 +400,7 @@ public sealed class MetaLoopTests
             "08 §4.2 charges the stones whether the attempt succeeds or fails, so a balance that did " +
             "not move means no attempt was made." + Trace(driver));
 
-        (enhanced!.EnhanceLevel > 0 || enhanced.EnhanceFailures > 0).ShouldBeTrue(
+        (enhanced.EnhanceLevel > 0 || enhanced.EnhanceFailures > 0).ShouldBeTrue(
             "the attempt neither raised the level nor recorded a failure, so nothing happened to the " +
             "item at all — 24 §4.6's mercy counts the failures, and one of the two has to move." +
             Trace(driver));
@@ -430,7 +430,7 @@ public sealed class MetaLoopTests
             "there. If a fusion now mints a fresh id, find the output by set difference instead — " +
             "the band assertion below is the point, not the lookup." + Trace(driver));
 
-        ((int)fused!.Rarity).ShouldBeGreaterThan(
+        ((int)fused.Rarity).ShouldBeGreaterThan(
             (int)inputBand,
             "the fusion's output is on the same rung it started on. 08 §4.1 fuses ONTO the next band, " +
             "and that decision is LuckService.MergeOutputBand's — an output at the input band means " +
@@ -577,7 +577,7 @@ public sealed class MetaLoopTests
 
         opened.ShouldNotBeNull("START_RUN was accepted and attached no run." + Trace(driver));
 
-        opened!.Phase.ShouldBe(
+        opened.Phase.ShouldBe(
             RunPhase.InProgress, "the second run came back unplayable." + Trace(driver));
 
         opened.Id.ShouldNotBe(
@@ -653,7 +653,7 @@ public sealed class MetaLoopTests
             "the run froze an EMPTY loadout over a hero who was wearing something, so it is fighting " +
             "naked and the comparison below is comparing two empties." + Trace(play));
 
-        Canonical(slice.Run!.StartingLoadout.ToSnapshot()).ShouldBe(
+        Canonical(slice.Run.StartingLoadout.ToSnapshot()).ShouldBe(
             Canonical(slice.Player.Loadout.ToSnapshot()),
             "the loadout the run froze at START_RUN is not the one the player was holding." +
             Trace(play));

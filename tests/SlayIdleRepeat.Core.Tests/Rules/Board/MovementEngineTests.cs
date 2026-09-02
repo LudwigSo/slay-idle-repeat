@@ -136,7 +136,7 @@ public sealed class MovementEngineTests
     [Fact]
     public void A_junction_reached_mid_move_pauses_the_same_way_as_one_the_move_started_at()
     {
-        var (board, n0, j, _, _, _, _) = JunctionBoard();
+        var (board, _, j, _, _, _, _) = JunctionBoard();
 
         // Starting AT the junction with movement to spend is the same pause as reaching it mid-move.
         var result = MovementEngine.Advance(board, j, 1);
@@ -149,7 +149,7 @@ public sealed class MovementEngineTests
     [Fact]
     public void The_junctions_branch_list_is_Continue_then_Branch_and_both_are_choosable()
     {
-        var (board, _, j, n2, n3, b0, b1) = JunctionBoard();
+        var (board, _, j, n2, _, b0, b1) = JunctionBoard();
 
         var edges = board.OutgoingEdges(j);
 

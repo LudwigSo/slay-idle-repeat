@@ -250,9 +250,9 @@ public sealed class DraftViewTests
         var state = DraftWorlds.DraftPendingOn(gold: 500);
         var before = CanonicalStateWriter.CanonicalBytes(state.Run!.ToSnapshot());
 
-        DraftView.Project(state.Run!.ToSnapshot(), Content);
+        DraftView.Project(state.Run.ToSnapshot(), Content);
 
-        CanonicalStateWriter.CanonicalBytes(state.Run!.ToSnapshot()).ShouldBe(
+        CanonicalStateWriter.CanonicalBytes(state.Run.ToSnapshot()).ShouldBe(
             before, "a read-only projection moved something on the run it was drawing.");
     }
 

@@ -20,7 +20,12 @@ public sealed record ChapterListing(int ChapterId, string DisplayName);
 /// are different instructions to the player, and three enum names carrying no chapter and no tier
 /// could be swapped by a wrong-branch bug without any test noticing.
 /// </remarks>
+// S2094 reads this as an empty record. It is the base of a closed hierarchy — the records below
+// are its cases — which is how C# spells a discriminated union. An interface would let anything
+// outside this file add a case.
+#pragma warning disable S2094
 public abstract record ChapterTierRequirement;
+#pragma warning restore S2094
 
 /// <summary>A clear that has not happened yet.</summary>
 /// <param name="ChapterId">The chapter that must be cleared.</param>

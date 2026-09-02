@@ -141,12 +141,12 @@ public sealed class RunAttritionTests
 
         lost.Accepted.ShouldBeTrue();
         lost.NewState.Run!.CurrentHp.ShouldBe(0, "the recomputed fight from 300 is a genuine loss");
-        lost.NewState.Run!.HasPendingTile.ShouldBeTrue("the loss leaves the fight pending for REVIVE");
+        lost.NewState.Run.HasPendingTile.ShouldBeTrue("the loss leaves the fight pending for REVIVE");
 
         var revived = Apply(lost.NewState, new ReviveCommand());
         revived.Accepted.ShouldBeTrue();
         revived.NewState.Run!.CurrentHp.ShouldBe(759, "66% of 1150 — D45's figure, not `02` §6's 50% (575)");
-        revived.NewState.Run!.Phase.ShouldBe(RunPhase.BattlePending);
+        revived.NewState.Run.Phase.ShouldBe(RunPhase.BattlePending);
 
         Confirm(revived.NewState, won: false).NewState.Run!.CurrentHp.ShouldBe(
             0, "the re-fight opens at the revive's 759 — same seed, and 759 is not enough here");

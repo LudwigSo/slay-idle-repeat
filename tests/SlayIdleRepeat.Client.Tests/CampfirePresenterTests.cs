@@ -347,7 +347,7 @@ public sealed class CampfirePresenterTests
                 $"'{key}' is not in the shipped English locale, so one of this screen's own " +
                 "sentences has no wording and a player meeting it is shown its key.");
 
-            return sentence!;
+            return sentence;
         }).ToArray();
 
         authored.ShouldAllBe(sentence => sentence.Length > 0);

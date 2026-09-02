@@ -63,7 +63,7 @@ public sealed class LegendTuningMatchesTuningDataTests
     public void Every_leaf_the_legend_level_reader_reads_is_present_in_the_block()
     {
         var present = LegendLevelBlock().EnumerateObject().Select(p => p.Name).ToArray();
-        var read = AuthoredLegendLevelBounds.Select(row => (string)row[0]!).ToArray();
+        var read = AuthoredLegendLevelBounds.Select(row => (string)row[0]).ToArray();
 
         read.Length.ShouldBe(2, "LegendTuning reads two pointers; this theory data has drifted.");
         read.Except(present, StringComparer.Ordinal).ShouldBeEmpty(

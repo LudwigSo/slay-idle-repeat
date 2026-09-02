@@ -132,7 +132,7 @@ public sealed class ConfirmBattleResultTests
         var result = Confirm(opened, "1");
 
         result.NewState.Run!.BossDefeated.ShouldBeTrue("the premise: the boss actually died.");
-        result.NewState.Run!.ToSnapshot().DraftPending.ShouldBeFalse();
+        result.NewState.Run.ToSnapshot().DraftPending.ShouldBeFalse();
     }
 
     /// <summary>
@@ -150,16 +150,16 @@ public sealed class ConfirmBattleResultTests
 
         elite.NewState.Run!.Gold.ShouldBeGreaterThan(
             0L, "the elite arm is the reference; a reference that paid nothing compares nothing.");
-        elite.NewState.Run!.BankedLegendXp.ShouldBeGreaterThan(
+        elite.NewState.Run.BankedLegendXp.ShouldBeGreaterThan(
             0L, "same reason: two zeroes agree about nothing.");
         GearGrants(elite).ShouldBeGreaterThan(
             0, "and a reference that granted no gear would compare no gear.");
 
         miniBoss.NewState.Run!.Gold.ShouldBe(
-            elite.NewState.Run!.Gold, "elite Gold-per-kill, scaled by the same run modifiers.");
-        miniBoss.NewState.Run!.BankedLegendXp.ShouldBe(
-            elite.NewState.Run!.BankedLegendXp, "the elite Legend XP source, not the normal one.");
-        miniBoss.NewState.Run!.BankedSoulShards.ShouldBe(
+            elite.NewState.Run.Gold, "elite Gold-per-kill, scaled by the same run modifiers.");
+        miniBoss.NewState.Run.BankedLegendXp.ShouldBe(
+            elite.NewState.Run.BankedLegendXp, "the elite Legend XP source, not the normal one.");
+        miniBoss.NewState.Run.BankedSoulShards.ShouldBe(
             0L, "Soul Shards are the boss kill's alone.");
         GearGrants(miniBoss).ShouldBe(
             GearGrants(elite), "the elite guaranteed gear drop, at the elite count.");
@@ -182,11 +182,11 @@ public sealed class ConfirmBattleResultTests
         result.NewState.Run!.Gold.ShouldBe(290);
         // At the ceiling rather than somewhere interesting because the over-par fixture hero ends the
         // fight far above the run's Max HP of 100; a wounded-survivor case needs `05` §9's near-par harness.
-        result.NewState.Run!.CurrentHp.ShouldBe(
-            result.NewState.Run!.MaxHp,
+        result.NewState.Run.CurrentHp.ShouldBe(
+            result.NewState.Run.MaxHp,
             "a won fight writes its own ending HP, clamped into the run's range.");
-        result.NewState.Run!.BankedLegendXp.ShouldBe(25);
-        result.NewState.Run!.BankedSoulShards.ShouldBe(0);
+        result.NewState.Run.BankedLegendXp.ShouldBe(25);
+        result.NewState.Run.BankedSoulShards.ShouldBe(0);
         result.Events.ShouldNotBeEmpty();
     }
 
@@ -204,10 +204,10 @@ public sealed class ConfirmBattleResultTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.Gold.ShouldBe(250);
-        result.NewState.Run!.CurrentHp.ShouldBe(0);
-        result.NewState.Run!.BankedLegendXp.ShouldBe(0);
-        result.NewState.Run!.Phase.ShouldBe(RunPhase.InProgress);
-        result.NewState.Run!.HasPendingTile.ShouldBeTrue("a loss leaves the fight pending for REVIVE");
+        result.NewState.Run.CurrentHp.ShouldBe(0);
+        result.NewState.Run.BankedLegendXp.ShouldBe(0);
+        result.NewState.Run.Phase.ShouldBe(RunPhase.InProgress);
+        result.NewState.Run.HasPendingTile.ShouldBeTrue("a loss leaves the fight pending for REVIVE");
     }
 
     /// <summary>
@@ -222,7 +222,7 @@ public sealed class ConfirmBattleResultTests
         var result = Confirm(opened, "1");
 
         result.NewState.Run!.BossDefeated.ShouldBeTrue();
-        result.NewState.Run!.BankedSoulShards.ShouldBe(15 + 450);
+        result.NewState.Run.BankedSoulShards.ShouldBe(15 + 450);
     }
 
     [Fact]
@@ -271,6 +271,6 @@ public sealed class ConfirmBattleResultTests
         var closed = Confirm(opened.NewState, "1");
         closed.Accepted.ShouldBeTrue();
         closed.NewState.Run!.Phase.ShouldBe(RunPhase.InProgress);
-        closed.NewState.Run!.HasPendingTile.ShouldBeFalse();
+        closed.NewState.Run.HasPendingTile.ShouldBeFalse();
     }
 }

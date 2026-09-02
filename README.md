@@ -2,34 +2,28 @@
 
 ## Verification — one command
 
-The three quality measurements documented below — SonarQube static analysis, the CRAP
-score and Stryker mutation testing — run as one command that aggregates their results into
-a single summary:
+Static analysis runs in the build (see below). The two measured stages — the CRAP score
+and Stryker mutation testing — run as one command that aggregates their results into a
+single summary:
 
 ```powershell
 pwsh ./scripts/Invoke-Verification.ps1
 ```
 
-It needs `$env:SONAR_TOKEN` and a running SonarQube server for its first stage; see
-[Static analysis](#static-analysis-sonarqube) below, or drop that stage with
-`-Stages Crap,Mutation`.
-
 The script measures nothing itself. It runs the same scripts the sections below document
-and reads every number back out of the artifact the owning tool produced: the SonarQube web
-API, `coverage/Summary.json` plus the Risk Hotspots table rendered into
-`coverage/index.html`, and each Stryker run's `mutation-report.json`. A second
-implementation of any of those metrics would be a second thing to be wrong.
+and reads every number back out of the artifact the owning tool produced:
+`coverage/Summary.json` plus the Risk Hotspots table rendered into `coverage/index.html`,
+and each Stryker run's `mutation-report.json`. A second implementation of either metric
+would be a second thing to be wrong.
 
-What it adds over running the three by hand:
+What it adds over running the two by hand:
 
-- **Ordering.** The stages fight over the same build output on disk — Sonar builds Release
-  inside a scanner session, CRAP builds Debug, Stryker builds Debug and then rewrites
-  assemblies per mutant. They run strictly one after another for that reason, not for
-  tidiness.
-- **One preflight for all three, before the first build.** A full run is roughly half an
-  hour before Stryker even starts, so an unset `SONAR_TOKEN` or an unresolvable
-  `MSBUILD_EXE_PATH` is worth learning in the first two seconds. A stage whose
-  preconditions fail is reported `BLOCKED`, the others still run, and the exit code says
+- **Ordering.** The stages fight over the same build output on disk — CRAP builds Debug,
+  Stryker builds Debug and then rewrites assemblies per mutant. They run strictly one
+  after another for that reason, not for tidiness.
+- **One preflight for both, before the first build.** A full run is tens of minutes, so an
+  unresolvable `MSBUILD_EXE_PATH` is worth learning in the first two seconds. A stage whose
+  preconditions fail is reported `BLOCKED`, the other still runs, and the exit code says
   the verification was incomplete.
 - **`MSBUILD_EXE_PATH` is derived** from the SDK `global.json` actually selects, so the
   literal path in the Stryker section below need not be kept current.
@@ -50,11 +44,11 @@ one gate is red · **2** a requested stage could not run, so the verification is
 a known bad. Both are listed in the summary either way.
 
 Mutation testing defaults to **diff mode against `main`**, because a full run is hours: the
-score it reports is about the changed files, and the summary says so. Useful variants:
+score it reports is about the changed files, and the summary says so. On a feature branch,
+point it at the branch point instead. Useful variants:
 
 ```powershell
-pwsh ./scripts/Invoke-Verification.ps1 -Stages Crap,Mutation   # no SonarQube server to hand
-pwsh ./scripts/Invoke-Verification.ps1 -ReuseCoverageForCrap   # ~12 min faster, caveat in -?
+pwsh ./scripts/Invoke-Verification.ps1 -Stages Mutation -MutationSince <base ref>
 pwsh ./scripts/Invoke-Verification.ps1 -FullMutation           # every mutant, hours
 pwsh ./scripts/Invoke-Verification.ps1 -Open                   # open the HTML reports after
 ```
@@ -62,26 +56,54 @@ pwsh ./scripts/Invoke-Verification.ps1 -Open                   # open the HTML r
 `Get-Help ./scripts/Invoke-Verification.ps1 -Full` documents every switch and why its
 default is what it is.
 
-## Static analysis (SonarQube)
+## Static analysis — in the build, not beside it
 
-A SonarQube Community Build server runs on the laptop, in its own compose stack, and the
-whole solution is analysed by one script. Full walk-through:
-[`infra/sonarqube/README.md`](infra/sonarqube/README.md).
+There is nothing to run. `SonarAnalyzer.CSharp` is a `GlobalPackageReference` in
+[`Directory.Packages.props`](Directory.Packages.props), so Sonar's C# rules run inside the
+compiler on every build, on every branch, in every checkout — no server, no token, no scan
+step:
 
 ```powershell
-docker compose -f docker-compose.sonarqube.yml up -d --wait  # http://127.0.0.1:9000
-pwsh ./infra/sonarqube/Set-SonarQubeDefaults.ps1             # $env:SONAR_ADMIN_TOKEN
-pwsh ./build/ci/Invoke-SonarAnalysis.ps1                     # $env:SONAR_TOKEN
+dotnet build SlayIdleRepeat.sln      # this is the analysis
 ```
 
-The analysis configuration — what is analysed, what is excluded, where coverage comes
-from — lives in [`SonarQube.Analysis.xml`](SonarQube.Analysis.xml). There is no
-`sonar-project.properties`, and adding one would do nothing: the .NET scanner ignores it.
+🔴 **A finding is a build error.** `Directory.Build.props` sets `TreatWarningsAsErrors` for
+the whole repository and the `S*` rules are not exempted. An analysis whose output has to
+be read somewhere else is an analysis nobody reads.
 
-Deliberately **not** in CI: an analysis needs a `secrets.SONAR_TOKEN`, and
+The corollary is that the rule set is load-bearing on the build, so the rules that do not
+apply to this codebase are switched off **one at a time, each with its reason**, in
+[`.editorconfig`](.editorconfig) — read it before adding a suppression.
+
+The first run over this repository produced **492 findings**. 188 were fixed, 15 carry a
+one-line `#pragma` with the reason, and the remaining 289 are covered by 18 rule entries in
+`.editorconfig` — because the analyser's default profile disagrees with conventions this
+codebase had already settled: prose comments it reads as commented-out code, documentation
+constants it reads as dead fields, exact float comparison in a bit-exact-deterministic core,
+`res://` paths it reads as URIs, and `ThrowIfNull(item, nameof(collection))` — blaming the
+argument the caller actually passed — it reads as a mistake.
+
+⚠️ Three of those findings would have made the code **worse** if followed, which is the
+argument for reading a rule before obeying it: dropping a `_ =` discard reintroduced CS4014
+(an error here), removing a "dead" store would have made a failed profile-open report itself
+as a failed session-open, and collapsing an explicit array argument would have bound two
+overloads to the same method and turned a real test into `x == x`.
+
+This replaced a local **SonarQube Community Build** server — a compose stack, an admin
+token, a scanner session and 1,600 lines of setup, deleted in `chore/sonar-analyzers` and
+recoverable from git history. What went with it: the dashboard, the quality gate, issue
+history, duplication density and SonarQube's own coverage view. Coverage and complexity are
+measured by the CRAP stage instead. The trade was worth making because the server could
+never reach the workflow that needed it — the Community Build has **no branch analysis**, so
+every run landed on the project's single `main` branch whatever the working tree was on,
+which made a per-branch analysis meaningless and two concurrent ones destructive.
+
+It also settles a standing gap rather than moving it. The server-based analysis was
+**deliberately not in CI**, because it needed a `secrets.SONAR_TOKEN` and
 `build/ci/Test-NoCloudCredentials.ps1` fails the build on any `secrets.` expression in any
-workflow. That is a decision to take, not a step somebody forgot — the three honest options
-are laid out at the end of the SonarQube README.
+workflow — so the one place every change passes through was the one place the analysis
+never ran. The analyser needs no credential, so `.github/workflows/ci.yml` now analyses
+every push for free, without a line being added to it.
 
 ## CRAP score
 

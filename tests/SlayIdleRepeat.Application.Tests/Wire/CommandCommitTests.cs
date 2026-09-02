@@ -50,8 +50,8 @@ public sealed class CommandCommitTests
         commit.State.ShouldNotBeNull(
             "an accepted command moved the aggregates, and a record committed without them is the "
             + "torn state where a replay answers with a move the stored player never made.");
-        commit.State!.ActiveRun.ShouldNotBeNull();
-        commit.State.ActiveRun!.LastAppliedAtUtc.ShouldBe(
+        commit.State.ActiveRun.ShouldNotBeNull();
+        commit.State.ActiveRun.LastAppliedAtUtc.ShouldBe(
             applied,
             "the snapshot committed is the one this command produced, not the one it was loaded "
             + "with — the loaded run was last applied five minutes earlier.");

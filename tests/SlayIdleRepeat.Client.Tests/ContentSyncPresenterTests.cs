@@ -90,7 +90,7 @@ public sealed class ContentSyncPresenterTests
         presenter.State.ShouldBe(SyncState.Updated);
         presenter.Failure.ShouldBeNull();
         presenter.Downloaded.ShouldNotBeNull();
-        presenter.Downloaded!.Version.ShouldBe(served.Version);
+        presenter.Downloaded.Version.ShouldBe(served.Version);
         client.BundlesAskedFor.ShouldBe([served.Version.Value]);
     }
 
@@ -178,7 +178,7 @@ public sealed class ContentSyncPresenterTests
 
         presenter.State.ShouldBe(SyncState.Failed);
         presenter.Failure.ShouldNotBeNull().Kind.ShouldBe(ContentSyncFailureKind.VersionMalformed);
-        presenter.Failure!.Detail.ShouldContain(
+        presenter.Failure.Detail.ShouldContain(
             named.Length == 0 ? "empty" : named,
             Case.Sensitive,
             "the failure names what the server actually said, not that a failure occurred");

@@ -169,7 +169,7 @@ public sealed class ClientServerParityTests
             "command the parity corpus does not carry.");
 
         var hostHash = WireProjections.HashPlayerAndRun(
-            hostOutcome.State.Player.ToSnapshot(), hostOutcome.State.Run!.ToSnapshot());
+            hostOutcome.State.Player.ToSnapshot(), hostOutcome.State.Run.ToSnapshot());
 
         hostHash.ShouldNotBe(
             body.GetProperty("stateHash").GetString()!,

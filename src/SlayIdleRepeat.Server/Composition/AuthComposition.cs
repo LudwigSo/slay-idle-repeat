@@ -325,7 +325,12 @@ internal sealed class CachedAccountStatus : IAccountStatusReader, IDisposable
     {
         _rows = rows;
         _clock = clock;
+        // S1854 reads the discard as a dead store to a local. It is neither: `_ =` is what states
+        // fire-and-forget out loud, and dropping it turns the unawaited call into CS4014 — an error
+        // here, because Directory.Build.props treats warnings as errors.
+#pragma warning disable S1854
         _refresh = new Timer(_ => _ = RefreshAsync(), null, TimeSpan.Zero, RefreshInterval);
+#pragma warning restore S1854
     }
 
     /// <inheritdoc/>
@@ -362,9 +367,9 @@ internal sealed class CachedAccountStatus : IAccountStatusReader, IDisposable
             // A failed sweep keeps the last good view rather than emptying it: unlocking every
             // account because the database blinked is the worse of the two failure modes. The
             // marker greps in the container's log stream, as the remote-config source's does.
-            Console.Error.WriteLine(
+            await Console.Error.WriteLineAsync(
                 "[auth] account-status refresh failed at " + _clock.UtcNow.ToString("O") +
-                "; the previous view stands. " + failure.Message);
+                "; the previous view stands. " + failure.Message).ConfigureAwait(false);
         }
     }
 }

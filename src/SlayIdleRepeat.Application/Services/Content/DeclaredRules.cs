@@ -108,8 +108,13 @@ internal static class DeclaredRules
     /// this, a walk that silently matched nothing would pass exactly as loudly as one that validated
     /// everything. Populated by running <see cref="Check"/>.
     /// </remarks>
+    // S2365: a method here would only push the same copy behind ContentInvariants' own property,
+    // which forwards it — the signal would move one call further from the cost, not closer. Both
+    // are content-validation surfaces read once per suite, never per tick.
+#pragma warning disable S2365
     internal static IReadOnlyList<string> ValidatedEmbeddedEffects =>
         ValidatedEffects.Keys.OrderBy(e => e, StringComparer.Ordinal).ToArray();
+#pragma warning restore S2365
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> ValidatedEffects =
         new(StringComparer.Ordinal);
@@ -174,7 +179,7 @@ internal static class DeclaredRules
 
         foreach (var (location, effect) in embedded)
         {
-            issues.AddRange(JsonSchemaValidator.Validate(effect, effectSchema!, location));
+            issues.AddRange(JsonSchemaValidator.Validate(effect, effectSchema, location));
 
             ValidatedEffects.TryAdd(location, 0);
         }
@@ -1623,8 +1628,10 @@ internal static class DeclaredRules
     /// the shipped data. Recorded at lookup rather than restated in a list, so references composed
     /// at run time are covered too.
     /// </remarks>
+#pragma warning disable S2365 // As ValidatedEmbeddedEffects above: forwarded by ContentInvariants.
     internal static IReadOnlyList<string> References =>
         Referenced.Keys.OrderBy(r => r, StringComparer.Ordinal).ToArray();
+#pragma warning restore S2365
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> Referenced =
         new(StringComparer.Ordinal);

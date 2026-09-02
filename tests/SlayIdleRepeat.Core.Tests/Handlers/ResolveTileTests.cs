@@ -287,7 +287,7 @@ public sealed class ResolveTileTests
         result.Accepted.ShouldBeTrue();
         result.Events.ShouldBeEmpty("stocking announces nothing; nothing has been bought yet");
         result.NewState.Run!.HasOpenShop.ShouldBeTrue("the visit is what stocks the four slots");
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(
+        result.NewState.Run.ToSnapshot().PendingTileKind.ShouldBe(
             (int)TileKind.Shop,
             "SHOP_LEAVE is the shop's clearing step — a shop that cleared on arrival could never " +
             "sell anything, which is exactly what it used to do.");
@@ -387,10 +387,10 @@ public sealed class ResolveTileTests
             "a shop visit announced something. Stocking is not a purchase, and a purchase is the " +
             "only thing at a shop that moves a currency.");
         result.NewState.Run!.Gold.ShouldBe(500);
-        result.NewState.Run!.CurrentHp.ShouldBe(40);
-        result.NewState.Run!.ShrineBuffs.ShouldBeEmpty();
-        result.NewState.Run!.RunBuffs.ShouldBeEmpty();
-        result.NewState.Run!.Consumables.ShouldBeEmpty();
+        result.NewState.Run.CurrentHp.ShouldBe(40);
+        result.NewState.Run.ShrineBuffs.ShouldBeEmpty();
+        result.NewState.Run.RunBuffs.ShouldBeEmpty();
+        result.NewState.Run.Consumables.ShouldBeEmpty();
     }
 
     /// <summary>A Dice Forge visit modifies no die face — the CHOICE does, and it has not been made.</summary>

@@ -136,7 +136,7 @@ public sealed class WorldSliceStoreTests
             .ReadArchivedRunAsync(slice.Run!.Id, Worlds.Cancel);
 
         archived.ShouldNotBeNull("the finished run was not archived at all.");
-        Worlds.RunHash(slice.Player.ToSnapshot(), archived!).ShouldBe(
+        Worlds.RunHash(slice.Player.ToSnapshot(), archived).ShouldBe(
             Worlds.RunHash(slice.Player.ToSnapshot(), slice.Run.ToSnapshot()),
             "the archived copy differs from the run that finished; the same player row is hashed on " +
             "both sides, so the run is the only thing that can have moved.");

@@ -11,7 +11,12 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
 internal enum TriggerParameter
 {
     /// <summary>The kind takes no parameters at all.</summary>
+    // S2346 wants this called None. Every other member of this enum is a trigger name spelled the
+    // way the Effect DSL and the JSON schema spell it (ON_BATTLE_END, …); a lone PascalCase member
+    // would be the odd one out in a set whose whole job is to mirror that vocabulary.
+#pragma warning disable S2346
     NONE = 0,
+#pragma warning restore S2346
 
     /// <summary><c>ON_BATTLE_END</c>.</summary>
     ONLY_IF_WON = 1 << 0,

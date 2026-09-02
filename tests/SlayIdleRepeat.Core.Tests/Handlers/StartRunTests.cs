@@ -121,7 +121,7 @@ public sealed class StartRunTests
 
         var run = result.NewState.Run;
         run.ShouldNotBeNull();
-        run!.ChapterId.ShouldBe(3);
+        run.ChapterId.ShouldBe(3);
         run.Tier.ShouldBe(DifficultyTier.HEROIC);
         run.Position.ShouldBe(-1, "the virtual trailhead — one step before node 0.");
         run.Gold.ShouldBe(0L);

@@ -33,7 +33,7 @@ public sealed class SkipDraftTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.BalanceOf(CurrencyId.GOLD).ShouldBe(SkipGoldReward);
-        result.NewState.Run!.DraftPending.ShouldBeFalse();
+        result.NewState.Run.DraftPending.ShouldBeFalse();
     }
 
     [Fact]

@@ -216,7 +216,7 @@ public sealed class BoardPresenterTests
                 $"'{key}' is not in the shipped English locale, so the block it names has no sentence " +
                 "and a player meeting it is shown its key.");
 
-            return sentence!;
+            return sentence;
         }).ToArray();
 
         authored.ShouldAllBe(sentence => sentence.Length > 0);
@@ -361,7 +361,7 @@ public sealed class BoardPresenterTests
         presenter.Position.ShouldBe(3);
         presenter.Gold.ShouldBe(55L);
         presenter.PendingTile.ShouldNotBeNull();
-        presenter.PendingTile!.LinearIndex.ShouldBe(3);
+        presenter.PendingTile.LinearIndex.ShouldBe(3);
 
         // And the block it now reports is the one the new state implies, not the old one.
         presenter.RollBlock.ShouldBe(BoardRollBlock.TilePending);
@@ -400,7 +400,7 @@ public sealed class BoardPresenterTests
         await presenter.StartAsync(CancellationToken.None);
 
         presenter.PendingTile.ShouldNotBeNull();
-        presenter.PendingTile!.Kind.ShouldBe(EnemyTileKind);
+        presenter.PendingTile.Kind.ShouldBe(EnemyTileKind);
         presenter.PendingTileName.ShouldBe(BoardContent.EnglishValueOf(BoardTileKinds.NameKeys[EnemyTileKind]));
     }
 
@@ -420,7 +420,7 @@ public sealed class BoardPresenterTests
         await presenter.StartAsync(CancellationToken.None);
 
         presenter.PendingTile.ShouldNotBeNull();
-        presenter.PendingTile!.Kind.ShouldBe(beyondTheTable);
+        presenter.PendingTile.Kind.ShouldBe(beyondTheTable);
         presenter.PendingTile.NameKey.ShouldBeNull();
         presenter.PendingTileName.ShouldBeEmpty();
     }
@@ -712,7 +712,7 @@ public sealed class BoardPresenterTests
         await presenter.StartAsync(CancellationToken.None);
 
         presenter.Fork.ShouldNotBeNull();
-        presenter.Fork!.JunctionPosition.ShouldBe(5);
+        presenter.Fork.JunctionPosition.ShouldBe(5);
         presenter.Fork.RemainingSteps.ShouldBe(3);
 
         // The indices are what CHOOSE_FORK carries, and a junction has exactly two edges: the first

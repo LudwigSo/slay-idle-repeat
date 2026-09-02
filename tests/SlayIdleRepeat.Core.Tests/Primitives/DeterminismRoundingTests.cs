@@ -32,6 +32,9 @@ public sealed class DeterminismRoundingTests
         DeterminismRounding.Round(double.NegativeInfinity).ShouldBe(double.NegativeInfinity);
 
         // The consequence the two guard sites are built on, asserted as the guard states it.
+        // S2688 wants double.IsNaN() here. That would assert a different thing: the point is that
+        // the literal comparison the two guard sites make comes out true for NaN.
+#pragma warning disable S2688
         (DeterminismRounding.Round(double.NaN) != double.NaN).ShouldBeTrue(
             "CanonicalStateWriter and CombatLog guard with `Round(v) != v`, and a NaN must fail it");
     }

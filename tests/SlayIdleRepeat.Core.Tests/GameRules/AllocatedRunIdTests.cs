@@ -26,8 +26,8 @@ public sealed class AllocatedRunIdTests
         Registry.ContainsKey("START_RUN").ShouldBeTrue("the one opening row this whole case is about.");
 
         var openers = Registry
-            .OrderBy(row => row.Key, StringComparer.Ordinal)
             .Where(row => GameRules.OpensRun(CommandVocabularyTests.Build(row.Value)))
+            .OrderBy(row => row.Key, StringComparer.Ordinal)
             .Select(row => row.Key)
             .ToArray();
 
@@ -68,7 +68,7 @@ public sealed class AllocatedRunIdTests
 
         result.Accepted.ShouldBeTrue("the fixture player may start (1, NORMAL); this case is about the id alone.");
         result.NewState.Run.ShouldNotBeNull();
-        result.NewState.Run!.Id.ShouldBe(
+        result.NewState.Run.Id.ShouldBe(
             WireIssued,
             "the wire regime: the server allocates the RunId (14 §2.3), the handler installs it " +
             "verbatim. A run under any other id is a run the client cannot address.");

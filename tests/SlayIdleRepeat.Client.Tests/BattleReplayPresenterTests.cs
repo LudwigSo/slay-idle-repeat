@@ -289,7 +289,7 @@ public sealed class BattleReplayPresenterTests
                 $"'{cause.SentenceKey}' is not in the shipped English locale, so the cause it names " +
                 "has no sentence and a player meeting it is shown its key.");
 
-            return sentence!;
+            return sentence;
         }).ToArray();
 
         authored.Length.ShouldBe(4);
@@ -398,7 +398,7 @@ public sealed class BattleReplayPresenterTests
             "the readiness says a fight is in hand, so a null result would leave the screen " +
             "reporting a fight it cannot animate and submitting nothing — the same dead end under a " +
             "different name.");
-        attempt.Result!.Log.ShouldNotBeEmpty(
+        attempt.Result.Log.ShouldNotBeEmpty(
             "an empty log is its own readiness. A fight reported as ready with no events would " +
             "play in a single frame and confirm a result nobody watched.");
         attempt.Result.DurationTicks.ShouldBeGreaterThan(
@@ -461,8 +461,8 @@ public sealed class BattleReplayPresenterTests
 
         novice.ShouldNotBeNull();
         veteran.ShouldNotBeNull();
-        veteran!.LogHash.ShouldNotBe(
-            novice!.LogHash,
+        veteran.LogHash.ShouldNotBe(
+            novice.LogHash,
             "the same battle seed fought by a level-1 hero and a level-60 one has to be two " +
             "different fights, or the hero this screen is animating is not the player's hero. The " +
             "seed, the tile and the chapter are identical here — the Legend Level is the only thing " +
@@ -1173,8 +1173,8 @@ public sealed class BattleReplayPresenterTests
             "recoverable by reconstruction: what was left, plus every point taken off, minus every " +
             "point healed back. Drawing it at its maximum instead would hide every point of damage " +
             "the hero carried in from an earlier fight.");
-        hero.StartingHp!.Value.ShouldBeLessThan(
-            hero.MaxHp!.Value,
+        hero.StartingHp.Value.ShouldBeLessThan(
+            hero.MaxHp.Value,
             "and the fixture's two numbers differ on purpose, so a screen that confused them fails " +
             "here rather than passing on a hero that happened to be at full health.");
         hero.EndingHp!.Value.ShouldBe(
@@ -1485,7 +1485,7 @@ public sealed class BattleReplayPresenterTests
         fell.Health.ShouldNotBeNull(
             "the death is what fixes this actor's final health, so a cue that carried none " +
             "would leave the bar wherever the last blow happened to stop.");
-        fell.Health!.Value.ShouldBe(
+        fell.Health.Value.ShouldBe(
             0,
             tolerance: HealthTolerance,
             customMessage:

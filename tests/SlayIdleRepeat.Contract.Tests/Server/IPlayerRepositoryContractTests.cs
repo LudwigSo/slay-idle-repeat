@@ -127,7 +127,7 @@ public abstract class IPlayerRepositoryContractTests
         read.ActiveRun.ShouldNotBeNull(
             "the profile committed with a run and read back without one — the pair moves together "
             + "or a crash-shaped bug becomes a player whose run silently vanished.");
-        PersistenceWorlds.CanonicalBytes(read.ActiveRun!).ShouldBe(
+        PersistenceWorlds.CanonicalBytes(read.ActiveRun).ShouldBe(
             PersistenceWorlds.CanonicalBytes(profile.ActiveRun!));
     }
 

@@ -105,7 +105,7 @@ public sealed class ShopBuyTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.CurrentHp.ShouldBeGreaterThan(40);
-        result.NewState.Run!.Gold.ShouldBe(Rich - price);
+        result.NewState.Run.Gold.ShouldBe(Rich - price);
         result.Events.ShouldHaveSingleItem()
             .ShouldBeOfType<CurrencyChanged>().Delta.ShouldBe(-price);
     }

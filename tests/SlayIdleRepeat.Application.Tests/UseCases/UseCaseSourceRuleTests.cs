@@ -227,7 +227,7 @@ public sealed class UseCaseSourceRuleTests
             "the scan never saw " + PhaseControlFile + ", so it cannot prove the banned term is " +
             "findable at all and a typo among the terms would read as compliance.");
 
-        var controlText = File.ReadAllText(control!);
+        var controlText = File.ReadAllText(control);
 
         foreach (var term in DomainStateVocabulary)
         {

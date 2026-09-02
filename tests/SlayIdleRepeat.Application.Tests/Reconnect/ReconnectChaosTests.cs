@@ -357,7 +357,7 @@ public sealed class ReconnectChaosTests
     [Fact]
     public async Task The_reconnect_read_cannot_answer_a_client_that_never_saw_the_run_id_so_only_the_retry_can()
     {
-        var reference = await ReferenceRun.Value;
+        await ReferenceRun.Value;
         var chaos = await CaptureAsync(FaultSchedules.Only(0, ChaosFault.ReconnectAndResync));
 
         chaos.Driver.Substitutions.Count.ShouldBe(

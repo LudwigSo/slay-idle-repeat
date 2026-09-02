@@ -285,7 +285,7 @@ public sealed class HttpGameApiTransportTests : IDisposable
         await api.AuthenticateAsync(Credentials, Cancel);
         await api.FetchRunStateAsync(WireWorlds.Run.Id, sinceSequence: 1_234_567, Cancel);
 
-        var read = server.Requests.Last();
+        var read = server.Requests[^1];
 
         read.Query.ShouldBe(
             "?sinceSequence=1234567",

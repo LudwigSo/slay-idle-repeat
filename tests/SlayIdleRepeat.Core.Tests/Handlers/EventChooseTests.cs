@@ -99,7 +99,7 @@ public sealed class EventChooseTests
 
         result.NewState.ShouldBeSameAs(state);
         result.NewState.Run!.Gold.ShouldBe(500);
-        result.NewState.Run!.ToSnapshot().PendingEventCardId.ShouldBe(FixtureCards.Gold);
+        result.NewState.Run.ToSnapshot().PendingEventCardId.ShouldBe(FixtureCards.Gold);
     }
 
     [Fact]
@@ -185,8 +185,8 @@ public sealed class EventChooseTests
         result.Accepted.ShouldBeFalse();
         result.Rejection.ShouldBe(RejectionReason.INSUFFICIENT_FUNDS);
         result.NewState.Run!.Gold.ShouldBe(99);
-        result.NewState.Run!.ToSnapshot().PendingEventCardId.ShouldBe(FixtureCards.Costly);
-        result.NewState.Run!.RngStreamPositions.ShouldBeEmpty(
+        result.NewState.Run.ToSnapshot().PendingEventCardId.ShouldBe(FixtureCards.Costly);
+        result.NewState.Run.RngStreamPositions.ShouldBeEmpty(
             "a refused command draws nothing, so no RNG stream counter moves");
     }
 
@@ -319,8 +319,8 @@ public sealed class EventChooseTests
         result.Accepted.ShouldBeTrue();
         result.Events.ShouldBeEmpty();
         result.NewState.Run!.Gold.ShouldBe(250);
-        result.NewState.Run!.CurrentHp.ShouldBe(60);
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
+        result.NewState.Run.CurrentHp.ShouldBe(60);
+        result.NewState.Run.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
     /// <summary>
@@ -337,8 +337,8 @@ public sealed class EventChooseTests
         result.Accepted.ShouldBeTrue();
         result.Events.ShouldBeEmpty();
         result.NewState.Run!.Gold.ShouldBe(250);
-        result.NewState.Run!.CurrentHp.ShouldBe(60);
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
+        result.NewState.Run.CurrentHp.ShouldBe(60);
+        result.NewState.Run.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
     /// <remarks>
@@ -394,7 +394,7 @@ public sealed class EventChooseTests
 
         chosen.Accepted.ShouldBeTrue();
         chosen.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
-        chosen.NewState.Run!.ToSnapshot().PendingEventCardId.ShouldBe("");
+        chosen.NewState.Run.ToSnapshot().PendingEventCardId.ShouldBe("");
 
         var again = Choose(chosen.NewState, 0);
         again.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
@@ -425,7 +425,7 @@ public sealed class EventChooseTests
             return (
                 drawn.NewState.Run!.ToSnapshot().PendingEventCardId,
                 chosen.NewState.Run!.Gold,
-                chosen.NewState.Run!.CurrentHp,
+                chosen.NewState.Run.CurrentHp,
                 string.Join(
                     ",",
                     chosen.Events.OfType<CurrencyChanged>()

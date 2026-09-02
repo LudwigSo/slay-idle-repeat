@@ -142,7 +142,7 @@ public sealed class ChapterGatingMatchesTuningDataTests
             .Where(name => !name.Equals(DocMember, StringComparison.Ordinal))
             .ToArray();
 
-        var transcribed = AuthoredRungs.Select(row => (string)row[0]!).ToArray();
+        var transcribed = AuthoredRungs.Select(row => (string)row[0]).ToArray();
 
         authored.Except(transcribed, StringComparer.Ordinal).ShouldBeEmpty(
             $"{ProgressionDocument}#/chapterGating authors a rung this file does not transcribe. " +

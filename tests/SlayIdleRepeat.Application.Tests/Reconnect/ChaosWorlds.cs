@@ -21,11 +21,11 @@ namespace SlayIdleRepeat.Application.Tests.Reconnect;
 /// The connection dying mid-exchange. Its own type so the client seam catches exactly its own
 /// injected fault and never swallows a genuine defect raised from inside the pipeline.
 /// </summary>
-internal sealed class ConnectionLost : Exception
+internal sealed class ConnectionLostException : Exception
 {
     /// <summary>Builds the fault, whose message names which side of the commit it fired on.</summary>
     /// <param name="message">Which side of the commit the connection died on.</param>
-    internal ConnectionLost(string message)
+    internal ConnectionLostException(string message)
         : base(message)
     {
     }
@@ -100,7 +100,7 @@ internal sealed class FaultingUnitOfWork : IUnitOfWork
         {
             FaultsBeforeCommit++;
 
-            throw new ConnectionLost(
+            throw new ConnectionLostException(
                 "The connection died BEFORE the commit: no transaction was opened, so this command " +
                 "never happened and a retry of it must re-execute exactly once.");
         }
@@ -112,7 +112,7 @@ internal sealed class FaultingUnitOfWork : IUnitOfWork
         {
             FaultsAfterCommit++;
 
-            throw new ConnectionLost(
+            throw new ConnectionLostException(
                 "The connection died AFTER the commit: the transaction landed and the client was " +
                 "never told, so a retry of it must replay the stored outcome rather than re-execute.");
         }

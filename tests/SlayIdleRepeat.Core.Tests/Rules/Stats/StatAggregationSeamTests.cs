@@ -274,7 +274,7 @@ public sealed class StatAggregationSeamTests
             StatAggregationSeams.Strict with { Ops = conversions });
 
         conversions.Seen.ShouldNotBeNull();
-        conversions.Seen![StatId.ATK].ShouldBe(20.0, "step 5 doubled ATK before step 6 was asked");
+        conversions.Seen[StatId.ATK].ShouldBe(20.0, "step 5 doubled ATK before step 6 was asked");
         conversions.Seen[StatId.DEF].ShouldBe(100.0);
 
         conversions.Calls.ShouldBe(1);

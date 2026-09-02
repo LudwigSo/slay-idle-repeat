@@ -39,7 +39,8 @@ internal sealed class StatCaps
         new Dictionary<StatId, double>(), new Dictionary<StatId, double>());
 
     /// <summary>The stats that carry a ceiling, in table order.</summary>
-    internal IReadOnlyList<StatId> Capped =>
+    /// <returns>A fresh list on every call; it is filtered and copied rather than stored.</returns>
+    internal IReadOnlyList<StatId> Capped() =>
         StatIds.Combat.Where(_maxima.ContainsKey).ToArray();
 
     /// <summary>Builds a bounds table.</summary>

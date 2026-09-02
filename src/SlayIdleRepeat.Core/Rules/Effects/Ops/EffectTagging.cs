@@ -19,11 +19,19 @@ internal static class EffectTagging
     /// <remarks>Duplicates are not rejected here — the schema's <c>uniqueItems</c> already states that rule.</remarks>
     internal static IEnumerable<AuthorTag> AuthorTags(EffectDefinition effect)
     {
+        // Split so the null check runs when AuthorTags is CALLED. In a single iterator method the
+        // throw is deferred to the first MoveNext, which puts the ArgumentNullException on whoever
+        // enumerates rather than whoever passed the null.
         ArgumentNullException.ThrowIfNull(effect);
 
-        foreach (var tag in effect.Tags)
+        return Tags(effect);
+
+        static IEnumerable<AuthorTag> Tags(EffectDefinition effect)
         {
-            yield return new AuthorTag(tag);
+            foreach (var tag in effect.Tags)
+            {
+                yield return new AuthorTag(tag);
+            }
         }
     }
 

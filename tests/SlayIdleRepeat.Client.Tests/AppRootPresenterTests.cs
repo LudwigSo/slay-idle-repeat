@@ -120,7 +120,7 @@ public sealed class AppRootPresenterTests
         presenter.FailureReason.ShouldNotBeNullOrWhiteSpace(
             "Failed without a reason is indistinguishable from Failed for any other cause, which makes " +
             "the one state that exists to be reported unreportable.");
-        presenter.FailureReason!.ShouldContain(
+        presenter.FailureReason.ShouldContain(
             HostFailureMessage,
             Case.Sensitive,
             "the reason has to identify the failure that actually happened, not merely be non-blank. " +

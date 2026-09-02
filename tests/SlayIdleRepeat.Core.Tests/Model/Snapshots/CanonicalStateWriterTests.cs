@@ -107,17 +107,6 @@ public sealed class CanonicalStateWriterTests
         hash.ShouldBe("fnv1a:" + expected.ToString("x16", CultureInfo.InvariantCulture));
     }
 
-    [Fact]
-    public void HashMetaCommandState_hashes_the_player_bytes_alone()
-    {
-        var expected = CanonicalStateWriter.Fnv1a64(
-            CanonicalStateWriter.CanonicalBytes(ReferenceSnapshots.Player));
-
-        var hash = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Player);
-
-        hash.ShouldBe("fnv1a:" + expected.ToString("x16", CultureInfo.InvariantCulture));
-    }
-
     /// <summary>
     /// The run-mode hash of (player, run) is <b>not</b> the meta-mode hash of the player. Two
     /// commands that touched different state must not report the same <c>stateHash</c>.

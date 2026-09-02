@@ -47,7 +47,7 @@ public sealed class BattleClockTests
 
             if (tick % CombatLog.TicksPerSecond == 0)
             {
-                seconds.ShouldBe(tick / CombatLog.TicksPerSecond);
+                seconds.ShouldBe(tick / (double)CombatLog.TicksPerSecond);
             }
         }
     }

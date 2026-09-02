@@ -15,9 +15,14 @@ internal sealed class RunTriggerCounters : IRunTriggerCounters
 {
     private readonly Dictionary<EffectInstanceId, int> _counts = new();
 
+    // S2365 wants this to be a method. It cannot be: IRunTriggerCounters declares Entries as a
+    // property, and the ordered snapshot is that contract. Changing the shape means changing the
+    // interface and every implementation of it, which is a design change and not this one.
+#pragma warning disable S2365
     /// <inheritdoc />
     public IReadOnlyList<KeyValuePair<EffectInstanceId, int>> Entries =>
         _counts.OrderBy(entry => entry.Key.Value, EffectInstanceId.Comparer).ToArray();
+#pragma warning restore S2365
 
     /// <inheritdoc />
     public int Read(EffectInstanceId instance)

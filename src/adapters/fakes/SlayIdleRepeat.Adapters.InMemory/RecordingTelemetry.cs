@@ -40,14 +40,12 @@ public sealed class RecordingTelemetry : ITelemetryPort
     }
 
     /// <summary>The names of spans begun and not yet disposed, in begin order.</summary>
-    public IReadOnlyList<string> OpenSpans
+    /// <returns>A fresh list on every call, taken under the lock.</returns>
+    public IReadOnlyList<string> OpenSpans()
     {
-        get
+        lock (_gate)
         {
-            lock (_gate)
-            {
-                return _openSpans.Select(span => span.Name).ToArray();
-            }
+            return _openSpans.Select(span => span.Name).ToArray();
         }
     }
 

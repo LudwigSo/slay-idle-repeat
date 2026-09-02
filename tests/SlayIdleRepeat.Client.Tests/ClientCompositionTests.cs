@@ -573,7 +573,7 @@ public sealed class ClientCompositionTests : IDisposable
         seams.ShouldNotBeNull(
             "the server arm resolved no wire half at all, so the build it composes opens no session " +
             "and climbs a ladder over nothing — the arm's name would be the only true thing about it.");
-        seams!.Api.ShouldBeOfType<HttpGameApi>(
+        seams.Api.ShouldBeOfType<HttpGameApi>(
             "this is the swap the whole task is: the arm that has a server reaches it over HTTP. " +
             "Any other seam here is a build that took the server arm and then talked to itself.");
         seams.Content.ShouldBeOfType<HttpContentDistribution>(

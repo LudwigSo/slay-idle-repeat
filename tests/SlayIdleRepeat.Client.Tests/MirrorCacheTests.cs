@@ -73,7 +73,7 @@ public sealed class MirrorCacheTests : IDisposable
         bytes.ShouldNotBeNull(
             $"nothing was written under '{MirrorCache.MirrorKey}', so the mirror is not being " +
             "persisted at all and the round-trip above is passing on something else.");
-        bytes!.Take(GzipMagic.Length).ShouldBe(
+        bytes.Take(GzipMagic.Length).ShouldBe(
             GzipMagic,
             "the cache is specified as gzipped, and it holds two whole projections of a profile and " +
             "a run — the shape that compresses best and the one a handset can least afford to write " +

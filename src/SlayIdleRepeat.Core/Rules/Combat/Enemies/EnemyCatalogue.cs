@@ -305,7 +305,6 @@ internal sealed record EnemyCatalogue(
         for (var i = 0; i < rows.Items.Count; i++)
         {
             var pointer = $"{Document}#/elites/modifiers/{i.ToString(CultureInfo.InvariantCulture)}";
-            var row = rows.Items[i];
 
             var authored = content.Read(pointer + "/parameters");
             var parameters = new Dictionary<string, double>(StringComparer.Ordinal);

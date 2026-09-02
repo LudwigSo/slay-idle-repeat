@@ -148,7 +148,7 @@ public sealed class GameRulesRunPhaseGateTests
 
         opened.ShouldNotBeNull("START_RUN was accepted and attached no run.");
 
-        opened!.Phase.ShouldBe(
+        opened.Phase.ShouldBe(
             RunPhase.InProgress, "the run that came back is not playable, so nothing was opened.");
 
         opened.Id.ShouldNotBe(

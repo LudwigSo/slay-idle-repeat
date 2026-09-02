@@ -279,8 +279,15 @@ internal static class BuildPermutationGenerator
     /// </summary>
     internal static IEnumerable<string> ExtensionKeysIn(EffectDefinition effect)
     {
+        // Split so the null check runs when ExtensionKeysIn is CALLED rather than at the first
+        // MoveNext of whoever enumerates it.
         ArgumentNullException.ThrowIfNull(effect);
 
+        return Keys(effect);
+    }
+
+    private static IEnumerable<string> Keys(EffectDefinition effect)
+    {
         if (effect.Op == EffectOp.STAT_CONVERT && effect.ToStat is not null)
         {
             yield return EffectVocabularyEmissionSets.ToStatOnStatConvert;

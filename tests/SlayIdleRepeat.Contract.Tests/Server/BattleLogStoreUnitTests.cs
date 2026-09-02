@@ -142,8 +142,8 @@ public sealed class QueuedBattleLogStoreTests
             await Task.Delay(10, Cancel);
         }
 
-        stop.Cancel();
-        await running.WaitAsync(TimeSpan.FromSeconds(5));
+        await stop.CancelAsync();
+        await running.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
     }
 
     [Fact]

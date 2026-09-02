@@ -45,8 +45,8 @@ public sealed class ReviveTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.CurrentHp.ShouldBe(healed);
-        result.NewState.Run!.Phase.ShouldBe(RunPhase.BattlePending);
-        result.NewState.Run!.AdUseCount("AD_REVIVE").ShouldBe(1);
+        result.NewState.Run.Phase.ShouldBe(RunPhase.BattlePending);
+        result.NewState.Run.AdUseCount("AD_REVIVE").ShouldBe(1);
     }
 
     [Fact]

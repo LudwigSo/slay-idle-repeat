@@ -68,7 +68,11 @@ internal static class UnsupportedSnapshots
     }
 
     /// <summary>A record with no fields at all — nothing to serialise is not a state.</summary>
+    // S2094 wants this filled in or turned into an interface. Being empty is the entire fixture:
+    // it is the input that proves the writer refuses a stateless snapshot.
+#pragma warning disable S2094
     internal sealed record Empty;
+#pragma warning restore S2094
 
     /// <summary>
     /// A positional record carrying a public property <b>outside</b> its primary constructor — the

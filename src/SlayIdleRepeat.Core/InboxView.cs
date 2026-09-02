@@ -155,7 +155,8 @@ public sealed record InboxView
     public IReadOnlyList<InboxMessage> Messages { get; }
 
     /// <summary>The messages a claim would actually grant, in claim order.</summary>
-    public IReadOnlyList<InboxMessage> Claimable =>
+    /// <returns>A fresh list on every call; it is filtered and copied rather than stored.</returns>
+    public IReadOnlyList<InboxMessage> Claimable() =>
         Messages.Where(m => m.IsClaimable).ToArray();
 
     /// <summary>The message with this id, or <c>null</c> when the player has no such message.</summary>
@@ -190,7 +191,7 @@ public sealed record InboxView
 
         builder.Append(
             CultureInfo.InvariantCulture,
-            $"{nameof(Messages)} = {Messages.Count}, {nameof(Claimable)} = {Claimable.Count}");
+            $"{nameof(Messages)} = {Messages.Count}, {nameof(Claimable)} = {Claimable().Count}");
 
         return true;
     }

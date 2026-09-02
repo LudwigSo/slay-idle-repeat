@@ -38,7 +38,7 @@ public sealed class ShrineResolverTests
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.StreamPosition(RngStreams.Shrine).ShouldBe(
             0UL, "the offer is drawn by SHRINE_CHOOSE, not by the acknowledgement.");
-        result.NewState.Run!.HasPendingTile.ShouldBeTrue(
+        result.NewState.Run.HasPendingTile.ShouldBeTrue(
             "the player has not chosen yet, so the tile is not finished.");
     }
 
@@ -73,7 +73,7 @@ public sealed class ShrineResolverTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.Curses.ShouldBeEmpty("slot 2 was the Cleanse.");
-        result.NewState.Run!.StreamPosition(RngStreams.Shrine).ShouldBe(
+        result.NewState.Run.StreamPosition(RngStreams.Shrine).ShouldBe(
             1UL, "the cleanse branch spends no second draw.");
     }
 
@@ -123,7 +123,7 @@ public sealed class ShrineResolverTests
             var result = Choose(TileWorlds.OnTile(TileKind.Shrine, currentHp: 95, runSeed: seed));
 
             result.NewState.Run!.CurrentHp.ShouldBeLessThanOrEqualTo(100);
-            result.NewState.Run!.CurrentHp.ShouldBeGreaterThanOrEqualTo(95, "a shrine never hurts");
+            result.NewState.Run.CurrentHp.ShouldBeGreaterThanOrEqualTo(95, "a shrine never hurts");
         }
     }
 }

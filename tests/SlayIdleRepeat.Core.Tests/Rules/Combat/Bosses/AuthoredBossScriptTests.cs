@@ -287,7 +287,7 @@ public sealed class AuthoredBossScriptTests
             .GetMethod(nameof(The_authored_magnitudes_and_periods_are_17_section_2_to_9s))!
             .GetCustomAttributes(typeof(InlineDataAttribute), false)
             .Cast<InlineDataAttribute>()
-            .Select(d => (string)d.GetData(null!).First()[0]!)
+            .Select(d => (string)d.GetData(null!).First()[0])
             .Distinct(StringComparer.Ordinal)
             .OrderBy(id => id, StringComparer.Ordinal)
             .ToArray();

@@ -285,7 +285,7 @@ public sealed class StageGateTriggerTests
 
         result.NewState.Run!.Position.ShouldBe(
             junction.Value, "the premise: the run came to rest ON the junction.");
-        result.NewState.Run!.PendingFork.ShouldBeNull(
+        result.NewState.Run.PendingFork.ShouldBeNull(
             "the premise: landing on a junction with nothing left to spend does not prompt.");
 
         NoGateFired(result, dice);

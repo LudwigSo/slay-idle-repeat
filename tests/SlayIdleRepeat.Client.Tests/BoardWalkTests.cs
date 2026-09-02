@@ -114,7 +114,7 @@ public sealed class BoardWalkTests
     public async Task The_same_two_positions_walk_different_routes_for_different_chosen_edges()
     {
         var board = Board();
-        var fork = board.Forks.First();
+        var fork = board.Forks[0];
         var destination = fork.RejoinNodeId;
 
         var presenter = await PresenterStandingOn(destination);
@@ -142,7 +142,7 @@ public sealed class BoardWalkTests
     public async Task A_walk_off_the_last_branch_node_rejoins_the_spine()
     {
         var board = Board();
-        var fork = board.Forks.First();
+        var fork = board.Forks[0];
 
         var walk = (await PresenterStandingOn(fork.RejoinNodeId))
             .WalkFrom(fork.BranchNodeIds[^1], viaNodeId: null);
@@ -228,7 +228,7 @@ public sealed class BoardWalkTests
     public async Task A_junction_departure_with_no_chosen_edge_walks_nothing()
     {
         var board = Board();
-        var fork = board.Forks.First();
+        var fork = board.Forks[0];
 
         (await PresenterStandingOn(fork.RejoinNodeId))
             .WalkFrom(fork.JunctionNodeId, viaNodeId: null)
@@ -243,7 +243,7 @@ public sealed class BoardWalkTests
     public async Task A_chosen_edge_that_does_not_leave_the_start_walks_nothing()
     {
         var board = Board();
-        var fork = board.Forks.First();
+        var fork = board.Forks[0];
 
         (await PresenterStandingOn(fork.RejoinNodeId))
             .WalkFrom(fork.JunctionNodeId, viaNodeId: board.Spine[^1].NodeId)

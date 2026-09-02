@@ -95,7 +95,12 @@ internal sealed class BattleSimulation
     private readonly BattlePlan _plan;
     private readonly List<BattleActor> _actors;
     private readonly BattleSeams _seams;
+    // S1450 suggests making this a local. It is assigned in the constructor from the simulation's
+    // dependencies, like every field around it; re-deriving it inside the one method that reads it
+    // would mean threading the constructor's arguments back down to that method.
+#pragma warning disable S1450
     private readonly BattleServices _services;
+#pragma warning restore S1450
     private readonly BattleFlowSink _flow;
     private readonly BattleTriggeredStatSink _triggeredStats;
     private readonly BattleRunEffects _runEffects;

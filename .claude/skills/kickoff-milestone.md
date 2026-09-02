@@ -65,6 +65,7 @@ Build the plan before dispatching anything. For every dispatchable task (⬜, no
 
 - **Dependencies** within the milestone: task B needs task A's types/data/screens. Spec refs and the task wording tell you; when in doubt, treat it as dependent — a wrong "independent" call costs a merge conflict and a rework loop, a wrong "dependent" call costs only wall-clock.
 - **Footprint**: which projects/directories it will touch. The decisive question: **does it touch the Godot client checkout** (`src/SlayIdleRepeat.Client/`, anything under `res://`, `.tscn`/`.tres`/theme files)?
+- **Measured-verification cost**: a task that changes `SlayIdleRepeat.Core` or `SlayIdleRepeat.Application` makes its `feature-oneshot` run measure itself (Phase 5b — CRAP plus Stryker, 20–40 minutes of CPU on top of the implementation). It is per-worktree and correct in parallel, just heavy — count it when sizing a lane's wall-clock, and don't widen concurrency past the usual cap expecting the extra lanes to be free. Static analysis costs a lane nothing extra and is not schedulable: Sonar's rules run inside every `dotnet build`, so each agent hits its own findings as build errors in the phase that caused them.
 
 Then group tasks into 🔒 **lanes — not waves**:
 

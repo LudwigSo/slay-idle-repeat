@@ -260,7 +260,7 @@ internal sealed class WardPool
             {
                 (null, _) => 1,
                 (_, null) => -1,
-                var (l, r) => l!.Value.CompareTo(r!.Value),
+                var (l, r) => l.Value.CompareTo(r.Value),
             };
         }
 

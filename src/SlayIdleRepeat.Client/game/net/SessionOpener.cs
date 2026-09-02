@@ -63,8 +63,16 @@ public sealed class SessionOpener
     /// </remarks>
     /// <param name="ct">Cancellation.</param>
     /// <exception cref="GameApiRefusedException">The server understood and said no.</exception>
-    public Task OpenAsync(CancellationToken ct) =>
-        _opening is { IsCompleted: false } inFlight ? inFlight : _opening = OpenOnceAsync(ct);
+    public Task OpenAsync(CancellationToken ct)
+    {
+        if (_opening is { IsCompleted: false } inFlight)
+        {
+            return inFlight;
+        }
+
+        _opening = OpenOnceAsync(ct);
+        return _opening;
+    }
 
     private async Task OpenOnceAsync(CancellationToken ct)
     {

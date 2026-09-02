@@ -339,7 +339,13 @@ public sealed class BootPresenter
                 Mark();
             }
 
+            // S1854 calls this store dead because the next assignment to `reached` overwrites it.
+            // It misses the exception path: the profile open below can throw, and both catch blocks
+            // read `reached` to name the stage that failed. Without this line a failed profile open
+            // would report itself as a failed session open.
+#pragma warning disable S1854
             reached = BootStage.Profile;
+#pragma warning restore S1854
             Stage = BootStage.Profile;
 
             // Awaited inside the guard rather than merely called inside it: a real host's open is an

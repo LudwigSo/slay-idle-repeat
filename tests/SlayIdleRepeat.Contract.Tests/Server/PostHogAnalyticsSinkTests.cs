@@ -73,7 +73,7 @@ public sealed class PostHogAnalyticsSinkTests
         payload.RootElement.GetProperty("api_key").GetString().ShouldBe(
             Key, "the project key authenticates the batch.");
 
-        var entry = payload.RootElement.GetProperty("batch").EnumerateArray().ToArray()
+        var entry = payload.RootElement.GetProperty("batch").EnumerateArray()
             .ShouldHaveSingleItem("one tracked event is one batch entry.");
 
         entry.GetProperty("event").GetString().ShouldBe("die_rolled", "the vocabulary name, verbatim.");

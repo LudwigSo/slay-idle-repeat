@@ -66,7 +66,7 @@ public sealed class SimulatePendingBattleUseCaseTests
 
         result.Lookup.ShouldBe(PendingBattleLookup.Found);
         result.View.ShouldNotBeNull();
-        result.View!.Fight.Log.ShouldNotBeEmpty("a fight with no events is a fight that never composed");
+        result.View.Fight.Log.ShouldNotBeEmpty("a fight with no events is a fight that never composed");
     }
 
     /// <summary>
@@ -86,7 +86,7 @@ public sealed class SimulatePendingBattleUseCaseTests
         var view = (await Use(store).ExecuteAsync(new SimulatePendingBattleRequest(player), Worlds.Cancel)).View;
 
         view.ShouldNotBeNull();
-        view!.LogHash.ShouldBe(view.Fight.LogHash.ToString(CultureInfo.InvariantCulture));
+        view.LogHash.ShouldBe(view.Fight.LogHash.ToString(CultureInfo.InvariantCulture));
 
         ulong.TryParse(view.LogHash, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed)
             .ShouldBeTrue("CONFIRM_BATTLE_RESULT parses the hash with exactly these two arguments");
@@ -109,7 +109,7 @@ public sealed class SimulatePendingBattleUseCaseTests
         var view = (await Use(store).ExecuteAsync(new SimulatePendingBattleRequest(player), Worlds.Cancel)).View;
 
         view.ShouldNotBeNull();
-        view!.BattleSeed.ShouldBe(
+        view.BattleSeed.ShouldBe(
             SlayIdleRepeat.Core.Rules.Combat.RunBattle.SeedOf(run),
             "the reported seed is the one the run's committed row derives, and a server recomputing " +
             "the fight will derive that one");

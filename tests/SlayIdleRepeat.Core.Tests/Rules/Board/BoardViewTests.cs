@@ -133,7 +133,7 @@ public sealed class BoardViewTests
                 view.PendingFork.ShouldNotBeNull(
                     "the run is paused at junction " + Text(paused.JunctionPosition) +
                     " waiting for CHOOSE_FORK, and the view offers no fork to choose from.");
-                view.PendingFork!.JunctionNodeId.ShouldBe(
+                view.PendingFork.JunctionNodeId.ShouldBe(
                     paused.JunctionPosition,
                     "the view named a different junction than the one the run is waiting at.");
             }
@@ -209,7 +209,7 @@ public sealed class BoardViewTests
         view.StandingOn.ShouldNotBeNull(
             "the run is standing on " + at + " with a tile pending, and the view has no node there.");
 
-        view.StandingOn!.NodeId.ShouldBe(run.Position, "the view resolved the wrong node for " + at + ".");
+        view.StandingOn.NodeId.ShouldBe(run.Position, "the view resolved the wrong node for " + at + ".");
 
         ((int)view.StandingOn.Tile).ShouldBe(
             snapshot.PendingTileKind,
@@ -258,7 +258,7 @@ public sealed class BoardViewTests
         var view = BoardView.Project(snapshot, ShippedHarness.Content);
 
         view.PendingFork.ShouldNotBeNull();
-        view.PendingFork!.JunctionNodeId.ShouldBe(junction.Value);
+        view.PendingFork.JunctionNodeId.ShouldBe(junction.Value);
         view.PendingFork.ContinueNodeId.ShouldBe(edges[0].To.Value, "edge 0 is 03 §1.1's spine continuation.");
         view.PendingFork.BranchNodeIds[0].ShouldBe(edges[1].To.Value, "edge 1 is the fork's branch entry.");
         view.PendingFork.BranchLabel.ShouldBe(preview.Label);

@@ -247,7 +247,7 @@ public sealed class GearDocumentsMatchesTuningDataTests
             .Select(member => member.Name)
             .Where(name => !name.StartsWith('_'))
             .ShouldBe(
-                EveryPercentStat().Select(row => (string)row[0]!),
+                EveryPercentStat().Select(row => (string)row[0]),
                 "a sixth stat here is one a slot row's null coefficient could point at and no " +
                 "reader resolves; a fifth removed is a null coefficient that resolves to nothing.");
     }
@@ -569,7 +569,7 @@ public sealed class GearDocumentsMatchesTuningDataTests
             "nothing to compare it to, and every case here would report success over a fixture " +
             "nobody had checked.");
 
-        using var parsed = JsonDocument.Parse(text!);
+        using var parsed = JsonDocument.Parse(text);
 
         return parsed.RootElement.Clone();
     }

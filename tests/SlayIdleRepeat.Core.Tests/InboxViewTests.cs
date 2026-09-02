@@ -50,7 +50,7 @@ public sealed class InboxViewTests
     public void An_empty_inbox_is_not_the_same_value_as_an_unloaded_one()
     {
         InboxView.Empty.Messages.ShouldBeEmpty();
-        InboxView.Empty.Claimable.ShouldBeEmpty();
+        InboxView.Empty.Claimable().ShouldBeEmpty();
     }
 
     [Fact]

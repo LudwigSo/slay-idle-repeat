@@ -1,102 +1,81 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    One command that runs this repository's three quality measurements —
-    SonarQube static analysis, the CRAP score, and Stryker mutation testing —
-    and aggregates them into a single readable summary.
+    One command that runs this repository's two measured quality stages — the
+    CRAP score and Stryker mutation testing — and aggregates them into a single
+    readable summary.
 
 .DESCRIPTION
-    The three measurements already exist as scripts and configs. What did not
-    exist is a way to run all of them, in an order that does not corrupt any of
-    them, and read the answer in one place. That is all this script is.
+    Both measurements already exist as scripts and configs. What did not exist is
+    a way to run them, in an order that does not corrupt either, and read the
+    answer in one place. That is all this script is.
 
     IT MEASURES NOTHING ITSELF. Every number in the summary is read back out of
     the artifact the owning tool produced:
 
-      SonarQube   build/ci/Invoke-SonarAnalysis.ps1, then the server's own web
-                  API for the gate status and the measures.
       CRAP        scripts/Measure-Crap.ps1, then coverage/Summary.json for the
                   coverage figures and the Risk Hotspots table rendered into
                   coverage/index.html for the ranking.
       Mutation    dotnet-stryker once per stryker-config*.json, then each run's
                   reports/mutation-report.json.
 
-    That is deliberate. A second implementation of any of these metrics would be
-    a second thing to be wrong, and the two scripts it calls are emphatic about
-    the silent-failure modes they guard against. This script does not re-litigate
-    any of it — it runs them and reports what they said.
+    That is deliberate. A second implementation of either metric would be a
+    second thing to be wrong, and Measure-Crap.ps1 is emphatic about the
+    silent-failure modes it guards against. This script does not re-litigate any
+    of it — it runs them and reports what they said.
+
+    ── WHERE STATIC ANALYSIS WENT ────────────────────────────────────────────
+    There is no SonarQube stage, and its absence is the design rather than a
+    gap. SonarAnalyzer.CSharp is a GlobalPackageReference in
+    Directory.Packages.props, so Sonar's C# rules run inside the compiler on
+    every build, on every branch, with no server, no token and no scan step —
+    and because Directory.Build.props treats warnings as errors, a finding fails
+    the build instead of landing in a report somebody has to go and read.
+
+    Anything this script could have said about static analysis has therefore
+    already been said, louder, by the build that produced the binaries it
+    measures. What the server-based analysis could do and the analyser cannot —
+    duplication, a coverage figure of its own, issue history, a quality gate —
+    is either covered by the CRAP stage below or gone on purpose. The reasoning,
+    and the .editorconfig entries that switch individual rules off, live in
+    .editorconfig.
 
     ── WHY SEQUENTIAL, AND WHY THIS ORDER ────────────────────────────────────
-    Not a scheduling preference. The three stages fight over the same build
-    output on disk: the Sonar stage does a Release build of the whole solution
-    inside a scanner session, Measure-Crap.ps1 does a Debug build, and Stryker
-    does its own Debug build and then rewrites assemblies per mutant. Run any two
-    at once and the loser reports numbers about a tree that changed under it.
-    README.md says as much for the two Stryker runs alone. Getting the ordering
-    right is most of what this script buys you.
+    Not a scheduling preference. The two stages fight over the same build output
+    on disk: Measure-Crap.ps1 does a Debug build, and Stryker does its own Debug
+    build and then rewrites assemblies per mutant. Run both at once and the
+    loser reports numbers about a tree that changed under it. README.md says as
+    much for the two Stryker runs alone.
 
-    ── WHY PREFLIGHT COMES FIRST, FOR ALL THREE ──────────────────────────────
-    A full run is roughly half an hour before Stryker even starts. Discovering
-    then that SONAR_TOKEN is unset, or that MSBUILD_EXE_PATH cannot be resolved,
-    costs the whole run. So every precondition for every requested stage is
-    checked before the first build. Same argument Invoke-SonarAnalysis.ps1 makes
-    for its own preflight; this is that argument applied across the three.
+    ── WHY PREFLIGHT COMES FIRST, FOR BOTH ───────────────────────────────────
+    A full run is tens of minutes. Discovering at the end of it that
+    MSBUILD_EXE_PATH cannot be resolved costs the whole run. So every
+    precondition for every requested stage is checked before the first build.
 
-    A stage whose preconditions fail is reported BLOCKED and the others still
-    run — a dead SonarQube server is no reason to learn nothing about mutation
-    coverage. But a blocked stage is never quiet: it appears in the summary with
-    its reason and it makes the exit code 2, because "incomplete" must not be
+    A stage whose preconditions fail is reported BLOCKED and the other still
+    runs. But a blocked stage is never quiet: it appears in the summary with its
+    reason and it makes the exit code 2, because "incomplete" must not be
     readable as "verified".
 
     ── WHAT THE STAGES DO NOT COVER ──────────────────────────────────────────
     SlayIdleRepeat.Architecture.Tests is excluded from both coverage runs, and
     that exclusion is about correctness rather than speed — its rules read the IL
-    that coverlet rewrites. It runs uninstrumented in its own CI job. Both
-    Invoke-SonarAnalysis.ps1 and Measure-Crap.ps1 carry the measurement.
+    that coverlet rewrites. It runs uninstrumented in its own CI job.
+    Measure-Crap.ps1 carries the measurement.
 
     Coverage and mutation are measured for SlayIdleRepeat.Core and
     SlayIdleRepeat.Application only. That allow-list lives in
     coverage.runsettings and in the stryker-config*.json files, not here.
 
 .PARAMETER Stages
-    Which of the three to run. Defaults to all of them. Anything left out is
-    reported SKIPPED and does not affect the exit code — asking for two stages is
-    a choice, unlike a stage that was asked for and could not run.
+    Which of the two to run. Defaults to both. Anything left out is reported
+    SKIPPED and does not affect the exit code — asking for one stage is a choice,
+    unlike a stage that was asked for and could not run.
 
 .PARAMETER OutputDirectory
     Where the summary and the per-stage logs land. Defaults to
     artifacts/verification (gitignored). The tools' own reports stay where they
-    already write them: coverage/ for CRAP, the SonarQube server for Sonar.
-
-.PARAMETER SonarToken
-    Defaults to $env:SONAR_TOKEN. Never defaulted to a literal, never logged.
-    Also used to read the gate and the measures back afterwards.
-
-.PARAMETER NoQualityGate
-    Do not wait for SonarQube's quality gate.
-
-    ⚠️ The wait is ON by default here, unlike in Invoke-SonarAnalysis.ps1, and
-    the difference is the point of this script. That script's default suits an
-    exploratory analysis; a verification run wants a verdict. Waiting also
-    guarantees the server has FINISHED processing before the measures are read —
-    without it the numbers in the summary can be the previous analysis'.
-    -NoQualityGate keeps the correctness half: the summary is then read after
-    polling the compute-engine queue instead, and says the gate was not waited
-    on.
-
-.PARAMETER ReuseCoverageForCrap
-    Run Measure-Crap.ps1 with -SkipTests over the coverage the Sonar stage has
-    just produced, instead of running the suites a second time. Saves roughly
-    twelve minutes.
-
-    ⚠️ Not the default, and the summary labels any run that used it. The Sonar
-    stage collects its coverage from a RELEASE build; Measure-Crap.ps1 on its own
-    uses Debug. Both come from the same coverlet collector and the same
-    coverage.runsettings, so the reused files are the right shape — but "a Release
-    build yields the same per-method complexity as a Debug one" is an assumption
-    this repository has not measured, and the CRAP ranking is built on exactly
-    that attribute. Opt in when you want the time back and treat the ranking as
-    indicative; leave it off when you intend to quote it.
+    already write them: coverage/ for CRAP, StrykerOutput/ for mutation.
 
 .PARAMETER FullMutation
     Mutate every mutant in each project instead of only what differs from
@@ -122,8 +101,8 @@
     is normally right and nobody has to keep the README's literal path current.
 
 .PARAMETER Open
-    Open the reports when the run finishes: coverage/index.html, each Stryker
-    HTML report, and the SonarQube dashboard.
+    Open the reports when the run finishes: coverage/index.html and each Stryker
+    HTML report.
 
 .OUTPUTS
     Exit code 0 - every requested stage ran and none tripped a gate.
@@ -136,12 +115,11 @@
 
 .EXAMPLE
     # The whole thing.
-    $env:SONAR_TOKEN = 'squ_...'
     pwsh ./scripts/Invoke-Verification.ps1
 
 .EXAMPLE
-    # No SonarQube server to hand.
-    pwsh ./scripts/Invoke-Verification.ps1 -Stages Crap,Mutation
+    # Mutation only, measured against the branch point rather than main.
+    pwsh ./scripts/Invoke-Verification.ps1 -Stages Mutation -MutationSince <base ref>
 
 .EXAMPLE
     # The long one, before a release.
@@ -149,20 +127,12 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Sonar', 'Crap', 'Mutation')]
-    [string[]]$Stages = @('Sonar', 'Crap', 'Mutation'),
+    [ValidateSet('Crap', 'Mutation')]
+    [string[]]$Stages = @('Crap', 'Mutation'),
 
     [string]$OutputDirectory,
 
     [string]$RepositoryRoot,
-
-    # ---------------------------------------------------------------- SonarQube
-    [string]$SonarProjectKey = 'slay-idle-repeat',
-    [string]$SonarHostUrl,
-    [string]$SonarToken,
-    [switch]$NoQualityGate,
-    [ValidateRange(30, 3600)]
-    [int]$QualityGateTimeout = 300,
 
     # --------------------------------------------------------------------- CRAP
     [ValidateRange(1, [int]::MaxValue)]
@@ -171,7 +141,6 @@ param(
     [int]$ComplexityThreshold = 15,
     [ValidateRange(0, [int]::MaxValue)]
     [int]$FailOnCrap = 0,
-    [switch]$ReuseCoverageForCrap,
 
     # ----------------------------------------------------------------- Mutation
     [switch]$FullMutation,
@@ -191,7 +160,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # Pinned for the same reason build/ci/Invoke-UnitTests.ps1, Measure-Crap.ps1 and
-# Invoke-SonarAnalysis.ps1 pin it: this script reads $LASTEXITCODE after every
+# Measure-Crap.ps1 pins it: this script reads $LASTEXITCODE after every
 # stage and turns it into a status. A runner image that flips this preference
 # would turn those reads into thrown exceptions and lose the distinction between
 # "the gate is red" and "the tool broke".
@@ -273,31 +242,6 @@ function ConvertTo-InvariantNumber {
     return $null
 }
 
-function Convert-RatingToLetter {
-    <# SonarQube reports its ratings as "1.0".."5.0". Nobody reads those. #>
-    param($Value)
-
-    $number = ConvertTo-InvariantNumber ([string]$Value)
-    if ($null -eq $number) { return [string]$Value }
-    $letters = @('A', 'B', 'C', 'D', 'E')
-    $index = [int]$number - 1
-    if ($index -lt 0 -or $index -ge $letters.Count) { return [string]$Value }
-    return $letters[$index]
-}
-
-function Format-Debt {
-    <# sqale_index is technical debt in minutes. Render it as an eight-hour day. #>
-    param($Minutes)
-
-    $number = ConvertTo-InvariantNumber ([string]$Minutes)
-    if ($null -eq $number) { return $null }
-    $days = [Math]::Floor($number / 480)
-    $hours = [Math]::Floor(($number % 480) / 60)
-    if ($days -gt 0) { return "${days}d ${hours}h" }
-    if ($hours -gt 0) { return "${hours}h" }
-    return "$([int]$number)min"
-}
-
 function New-StageResult {
     param([Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][string]$Title)
 
@@ -377,13 +321,11 @@ function Invoke-Stage {
 Write-Section 'Verification preflight'
 
 $requested = @{
-    Sonar    = $Stages -contains 'Sonar'
     Crap     = $Stages -contains 'Crap'
     Mutation = $Stages -contains 'Mutation'
 }
 
 $results = [ordered]@{
-    Sonar    = New-StageResult -Name 'Sonar'    -Title 'SonarQube static analysis'
     Crap     = New-StageResult -Name 'Crap'     -Title 'CRAP score'
     Mutation = New-StageResult -Name 'Mutation' -Title 'Mutation testing (Stryker)'
 }
@@ -427,59 +369,11 @@ if ($fatal.Count -gt 0) {
     exit $ExitIncomplete
 }
 
-$sonarScript = Join-Path $repoRoot 'build' 'ci' 'Invoke-SonarAnalysis.ps1'
 $crapScript = Join-Path $repoRoot 'scripts' 'Measure-Crap.ps1'
 $runSettings = Join-Path $repoRoot 'coverage.runsettings'
 $coverageDirectory = Join-Path $repoRoot 'coverage'
 $testResultsDirectory = Join-Path $repoRoot 'TestResults'
 
-# ------------------------------------------------------------- Sonar preflight
-if ($requested.Sonar) {
-    $stage = $results.Sonar
-
-    if (-not (Test-Path -LiteralPath $sonarScript)) {
-        $stage.Blockers.Add("$sonarScript is missing.")
-    }
-    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'SonarQube.Analysis.xml'))) {
-        # Existence only. Whether the file is SHAPED so the scanner can read it is
-        # Invoke-SonarAnalysis.ps1's own preflight, which has a measured story
-        # about comments truncating property values; a second copy of that check
-        # here would be a second thing to keep in step.
-        $stage.Blockers.Add('SonarQube.Analysis.xml is missing. It is the only place this repository''s analysis scope lives.')
-    }
-    if (-not (Test-Path -LiteralPath $runSettings)) {
-        $stage.Blockers.Add("$runSettings is missing; it is what turns coverage collection on at all.")
-    }
-
-    if (-not $SonarHostUrl) { $SonarHostUrl = $env:SONAR_HOST_URL }
-    # 127.0.0.1 and not localhost, for the reason Invoke-SonarAnalysis.ps1 gives:
-    # on Windows the latter can resolve to ::1 first, and the published port is
-    # IPv4-only.
-    if (-not $SonarHostUrl) { $SonarHostUrl = 'http://127.0.0.1:9000' }
-    $SonarHostUrl = $SonarHostUrl.TrimEnd('/')
-
-    if (-not $SonarToken) { $SonarToken = $env:SONAR_TOKEN }
-    if (-not $SonarToken) {
-        $stage.Blockers.Add("No SonarQube token. Set `$env:SONAR_TOKEN or pass -SonarToken. Generate one at $SonarHostUrl/account/security (infra/sonarqube/README.md).")
-    }
-
-    # Asked now rather than after a full Release build, which is the whole
-    # argument for a preflight.
-    if ($stage.Blockers.Count -eq 0) {
-        try {
-            $status = Invoke-RestMethod -Method Get -Uri "$SonarHostUrl/api/system/status" -TimeoutSec 15
-            if ($status.status -ne 'UP') {
-                $stage.Blockers.Add("$SonarHostUrl reports status '$($status.status)', not 'UP'. It is starting, migrating, or degraded.")
-            } else {
-                Write-Host "sonarqube       : $SonarHostUrl (SonarQube $($status.version), UP)"
-            }
-        } catch {
-            $stage.Blockers.Add("$SonarHostUrl is not answering /api/system/status ($($_.Exception.Message)). Start it with: docker compose -f docker-compose.sonarqube.yml up -d --wait")
-        }
-    }
-}
-
-# -------------------------------------------------------------- CRAP preflight
 if ($requested.Crap) {
     $stage = $results.Crap
 
@@ -488,17 +382,6 @@ if ($requested.Crap) {
     }
     if (-not (Test-Path -LiteralPath $runSettings)) {
         $stage.Blockers.Add("$runSettings is missing; without it there is no per-method complexity and therefore no CRAP score.")
-    }
-
-    if ($ReuseCoverageForCrap) {
-        # -SkipTests reuses whatever is in TestResults/, and Measure-Crap.ps1 is
-        # explicit that stale coverage there produces plausible, wrong numbers. So
-        # there has to be a run in THIS session that put it there.
-        if (-not $requested.Sonar) {
-            $stage.Blockers.Add('-ReuseCoverageForCrap needs the Sonar stage to produce the coverage it reuses, and Sonar is not in -Stages. Drop the switch, or add Sonar.')
-        } elseif ($results.Sonar.Blockers.Count -gt 0) {
-            $stage.Blockers.Add('-ReuseCoverageForCrap was asked for, but the Sonar stage is blocked and will produce no coverage to reuse. Drop the switch.')
-        }
     }
 }
 
@@ -637,9 +520,6 @@ if ($requested.Crap -and $results.Crap.Status -ne 'Blocked') {
     $gateText = 'no gate'
     if ($FailOnCrap -gt 0) { $gateText = "gate at $FailOnCrap" }
     Write-Host "crap thresholds : CRAP >= $CrapThreshold at complexity >= $ComplexityThreshold, $gateText"
-    $coverageSource = 'collected by its own run'
-    if ($ReuseCoverageForCrap) { $coverageSource = 'REUSED from the Sonar stage (-ReuseCoverageForCrap)' }
-    Write-Host "crap coverage   : $coverageSource"
 }
 if ($requested.Mutation -and $results.Mutation.Status -ne 'Blocked') {
     $mutationMode = "diff against '$MutationSince'"
@@ -648,183 +528,18 @@ if ($requested.Mutation -and $results.Mutation.Status -ne 'Blocked') {
     Write-Host "mutated projects: $((@($strykerConfigs | ForEach-Object { $_.Label })) -join ', ')"
 }
 Write-Host ''
-Write-Host 'Rough cost, from this repository''s own measurements: Sonar ~15 min (a Release build of the' -ForegroundColor DarkGray
-Write-Host 'solution plus six suites under coverage), CRAP ~12 min (or seconds with' -ForegroundColor DarkGray
-Write-Host '-ReuseCoverageForCrap), mutation tens of minutes in diff mode and hours with' -ForegroundColor DarkGray
-Write-Host '-FullMutation. The stages run strictly one after another: they share build output on' -ForegroundColor DarkGray
-Write-Host 'disk and would corrupt one another in parallel.' -ForegroundColor DarkGray
+Write-Host 'Rough cost, from this repository''s own measurements: CRAP ~12 min (a Debug build plus' -ForegroundColor DarkGray
+Write-Host 'the instrumented suites), mutation tens of minutes in diff mode and hours with' -ForegroundColor DarkGray
+Write-Host '-FullMutation. The two stages run strictly one after another: they share build output' -ForegroundColor DarkGray
+Write-Host 'on disk and would corrupt one another in parallel.' -ForegroundColor DarkGray
+Write-Host '' -ForegroundColor DarkGray
+Write-Host 'Static analysis is NOT a stage here. SonarAnalyzer.CSharp is a GlobalPackageReference,' -ForegroundColor DarkGray
+Write-Host 'so Sonar''s rules ran in the compiler that built this — and, warnings being errors, a' -ForegroundColor DarkGray
+Write-Host 'finding would have failed the build rather than reached a report.' -ForegroundColor DarkGray
 
 $runStarted = Get-Date
 $stageNumber = 0
 $stageCount = $runnable.Count
-
-# ============================================================ stage: SonarQube ===
-
-if ($requested.Sonar -and $results.Sonar.Status -ne 'Blocked') {
-    $stage = $results.Sonar
-    $stage.LogPath = Join-Path $logDirectory 'sonar.log'
-    $stageNumber++
-    Write-Section "Stage $stageNumber/$stageCount - SonarQube static analysis"
-
-    $sonarArguments = @(
-        '-NoProfile', '-File', $sonarScript
-        '-ProjectKey', $SonarProjectKey
-        '-HostUrl', $SonarHostUrl
-        '-Token', $SonarToken
-        '-RepositoryRoot', $repoRoot
-    )
-    if (-not $NoQualityGate) {
-        $sonarArguments += @('-WaitForQualityGate', '-QualityGateTimeout', "$QualityGateTimeout")
-    }
-
-    $stopwatch = [Diagnostics.Stopwatch]::StartNew()
-    $exitCode = Invoke-Stage -FilePath $pwshPath -Arguments $sonarArguments -LogPath $stage.LogPath
-    $stopwatch.Stop()
-
-    $stage.Duration = $stopwatch.Elapsed
-    $stage.ExitCode = $exitCode
-    # The exit contract Invoke-SonarAnalysis.ps1 documents: 1 is a red gate — the
-    # tool working — and 2 is the plumbing. Keeping them apart is what lets the
-    # summary say "measured, and bad" rather than "unknown".
-    switch ($exitCode) {
-        0 { $stage.Status = 'Passed' }
-        1 {
-            $stage.Status = 'GateFailed'
-            $stage.Reason = 'SonarQube quality gate is red.'
-        }
-        default {
-            $stage.Status = 'Failed'
-            $stage.Reason = "Invoke-SonarAnalysis.ps1 exited $exitCode. Nothing was uploaded, or the server rejected the upload."
-        }
-    }
-    $stage.Reports.Add("$SonarHostUrl/dashboard?id=$SonarProjectKey")
-
-    # ------------------------------------------------- read the numbers back
-    # Only if something was actually uploaded. Reading measures after a failed
-    # upload would report the PREVIOUS analysis' numbers as this run's, which is
-    # exactly the class of quiet wrongness the two stage scripts spend their
-    # length preventing.
-    if ($stage.Status -eq 'Passed' -or $stage.Status -eq 'GateFailed') {
-        $headers = @{ Authorization = "Bearer $SonarToken" }
-
-        # 🔴 WAIT FOR THE COMPUTE ENGINE FIRST. `sonarscanner end` returns when the
-        # report has been UPLOADED, not when the server has PROCESSED it. Query
-        # measures before that finishes and the answer is the previous analysis,
-        # with nothing anywhere saying so. -WaitForQualityGate already implies the
-        # wait; this covers -NoQualityGate and costs one call when it is already
-        # done.
-        $deadline = (Get-Date).AddSeconds($QualityGateTimeout)
-        $engineSettled = $false
-        while ((Get-Date) -lt $deadline) {
-            $activity = $null
-            try {
-                $activity = Invoke-RestMethod -Method Get -Headers $headers -TimeoutSec 30 `
-                    -Uri "$SonarHostUrl/api/ce/component?component=$([uri]::EscapeDataString($SonarProjectKey))"
-            } catch {
-                $stage.Notes.Add("Could not poll the compute-engine queue ($($_.Exception.Message)); the measures below may lag this analysis.")
-                break
-            }
-            $queue = @(Get-Prop $activity 'queue' @())
-            $current = Get-Prop $activity 'current'
-            $currentStatus = Get-Prop $current 'status'
-            if ($queue.Count -eq 0 -and $null -ne $currentStatus -and @('SUCCESS', 'FAILED', 'CANCELED') -contains $currentStatus) {
-                $engineSettled = $true
-                if ($currentStatus -ne 'SUCCESS') {
-                    $stage.Notes.Add("The server's last background task for this project ended '$currentStatus'. The measures below are whatever survived it.")
-                }
-                break
-            }
-            Start-Sleep -Seconds 3
-        }
-        if (-not $engineSettled) {
-            $stage.Notes.Add("The server was still processing after ${QualityGateTimeout}s; the measures below may belong to the previous analysis.")
-        }
-
-        # --- the gate -------------------------------------------------------
-        try {
-            $gate = Invoke-RestMethod -Method Get -Headers $headers -TimeoutSec 30 `
-                -Uri "$SonarHostUrl/api/qualitygates/project_status?projectKey=$([uri]::EscapeDataString($SonarProjectKey))"
-            $projectStatus = Get-Prop $gate 'projectStatus'
-            $gateStatus = Get-Prop $projectStatus 'status' 'UNKNOWN'
-            $stage.Metrics['quality_gate'] = $gateStatus
-
-            $failing = @(
-                @(Get-Prop $projectStatus 'conditions' @()) |
-                    Where-Object { (Get-Prop $_ 'status') -eq 'ERROR' } |
-                    ForEach-Object {
-                        "$(Get-Prop $_ 'metricKey') = $(Get-Prop $_ 'actualValue') (fails $(Get-Prop $_ 'comparator') $(Get-Prop $_ 'errorThreshold'))"
-                    }
-            )
-            if ($failing.Count -gt 0) { $stage.Details['Failing gate conditions'] = $failing }
-
-            # The gate can be red while the scanner exited 0 — that is precisely
-            # what -NoQualityGate means. Trust the server over the exit code.
-            if ($gateStatus -eq 'ERROR' -and $stage.Status -eq 'Passed') {
-                $stage.Status = 'GateFailed'
-                $stage.Reason = 'SonarQube quality gate is red (read back from the server; the run itself did not wait for it).'
-            }
-        } catch {
-            $stage.Notes.Add("Could not read the quality gate status ($($_.Exception.Message)).")
-        }
-
-        # --- the measures ---------------------------------------------------
-        # 🔴 Intersected with what the server actually publishes rather than
-        # requested blind: /api/measures/component rejects the WHOLE request with a
-        # 400 if a single metric key is unknown, and SonarQube renames and retires
-        # metric keys between versions. One extra call buys a summary an upgrade
-        # cannot empty.
-        $wanted = @(
-            'ncloc', 'coverage', 'line_coverage', 'branch_coverage',
-            'duplicated_lines_density', 'violations', 'blocker_violations',
-            'critical_violations', 'bugs', 'vulnerabilities', 'code_smells',
-            'security_hotspots', 'sqale_index', 'sqale_debt_ratio',
-            'sqale_rating', 'reliability_rating', 'security_rating',
-            'complexity', 'cognitive_complexity'
-        )
-        try {
-            $published = @((Invoke-RestMethod -Method Get -Headers $headers -TimeoutSec 60 `
-                        -Uri "$SonarHostUrl/api/metrics/search?ps=500").metrics.key)
-            $available = @($wanted | Where-Object { $published -contains $_ })
-            $unavailable = @($wanted | Where-Object { $published -notcontains $_ })
-            if ($unavailable.Count -gt 0) {
-                $stage.Notes.Add("This SonarQube does not publish $($unavailable -join ', '); those rows are absent rather than zero.")
-            }
-
-            if ($available.Count -gt 0) {
-                $measures = Invoke-RestMethod -Method Get -Headers $headers -TimeoutSec 60 `
-                    -Uri "$SonarHostUrl/api/measures/component?component=$([uri]::EscapeDataString($SonarProjectKey))&metricKeys=$($available -join ',')"
-                foreach ($measure in @(Get-Prop (Get-Prop $measures 'component') 'measures' @())) {
-                    $key = Get-Prop $measure 'metric'
-                    $value = Get-Prop $measure 'value'
-                    if ($null -eq $key -or $null -eq $value) { continue }
-                    if ($key -like '*_rating') {
-                        $stage.Metrics[$key] = Convert-RatingToLetter $value
-                    } else {
-                        $stage.Metrics[$key] = $value
-                    }
-                }
-                if ($stage.Metrics.Contains('sqale_index')) {
-                    $stage.Metrics['technical_debt'] = Format-Debt $stage.Metrics['sqale_index']
-                }
-            }
-        } catch {
-            $stage.Notes.Add("Could not read the measures back ($($_.Exception.Message)). The dashboard has them.")
-        }
-
-        $headlineParts = [System.Collections.Generic.List[string]]::new()
-        if ($stage.Metrics.Contains('quality_gate')) {
-            $headlineParts.Add("gate $($stage.Metrics['quality_gate'])")
-        } else {
-            $headlineParts.Add('gate unknown')
-        }
-        if ($stage.Metrics.Contains('coverage')) { $headlineParts.Add("$($stage.Metrics['coverage'])% coverage") }
-        if ($stage.Metrics.Contains('violations')) { $headlineParts.Add("$($stage.Metrics['violations']) issues") }
-        if ($stage.Metrics.Contains('duplicated_lines_density')) { $headlineParts.Add("$($stage.Metrics['duplicated_lines_density'])% duplicated") }
-        $stage.Headline = $headlineParts -join ' | '
-    } else {
-        $stage.Headline = 'analysis did not complete'
-    }
-}
 
 # ================================================================= stage: CRAP ===
 
@@ -834,20 +549,6 @@ if ($requested.Crap -and $results.Crap.Status -ne 'Blocked') {
     $stageNumber++
     Write-Section "Stage $stageNumber/$stageCount - CRAP score"
 
-    # Guard the reuse rather than trusting the switch: if the Sonar stage did not
-    # actually leave Cobertura behind, -SkipTests would rank whatever happens to be
-    # in TestResults/ — including a run from days ago.
-    $skipTests = $false
-    if ($ReuseCoverageForCrap) {
-        $reusable = @(Get-ChildItem -Path $testResultsDirectory -Filter 'coverage.cobertura.xml' -Recurse -File -ErrorAction SilentlyContinue)
-        $sonarProduced = ($results.Sonar.Status -eq 'Passed' -or $results.Sonar.Status -eq 'GateFailed')
-        if ($sonarProduced -and $reusable.Count -gt 0) {
-            $skipTests = $true
-            $stage.Notes.Add("Coverage REUSED from the Sonar stage's Release run ($($reusable.Count) Cobertura file(s)); the suites were not run again. That assumes a Release build yields the same per-method complexity as a Debug one, which this repository has not measured — treat the ranking as indicative.")
-        } else {
-            $stage.Notes.Add('-ReuseCoverageForCrap was asked for, but the Sonar stage left no usable Cobertura behind, so the suites ran normally. These are the stronger numbers.')
-        }
-    }
 
     $crapArguments = @(
         '-NoProfile', '-File', $crapScript
@@ -855,7 +556,6 @@ if ($requested.Crap -and $results.Crap.Status -ne 'Blocked') {
         '-ComplexityThreshold', "$ComplexityThreshold"
     )
     if ($FailOnCrap -gt 0) { $crapArguments += @('-FailOnCrap', "$FailOnCrap") }
-    if ($skipTests) { $crapArguments += '-SkipTests' }
 
     $stopwatch = [Diagnostics.Stopwatch]::StartNew()
     $exitCode = Invoke-Stage -FilePath $pwshPath -Arguments $crapArguments -LogPath $stage.LogPath
@@ -1091,7 +791,7 @@ if ($requested.Mutation -and $results.Mutation.Status -ne 'Blocked') {
 
         # 🔴 Stryker exits 1 BOTH for "the score is below --break-at" and for "the
         # run never happened" — the latter measured on a probe with a bad solution
-        # path. Same ambiguity Invoke-SonarAnalysis.ps1 resolves for its own `end`
+        # path. The same ambiguity a tool's own working directory creates
         # step, and the same resolution: ask the artifact, not the exit code. A
         # parsed score means it ran.
         $projectStatus = 'Passed'
@@ -1221,7 +921,7 @@ if ($incomplete.Count -gt 0) {
 } elseif ($skipped.Count -gt 0) {
     $verdict = "PASSED, PARTIAL — $($ordered.Count - $skipped.Count) of $($ordered.Count) stages were requested"
 } else {
-    $verdict = 'PASSED — all three stages ran and none tripped a gate'
+    $verdict = 'PASSED — every requested stage ran and none tripped a gate'
 }
 
 $branch = & git rev-parse --abbrev-ref HEAD 2>$null
@@ -1288,7 +988,6 @@ $markdown.Add('## What this run does not cover')
 $markdown.Add('')
 $markdown.Add('- `SlayIdleRepeat.Architecture.Tests` runs in neither coverage stage, on purpose: its rules read the IL that coverlet rewrites, and instrumenting it produces violations that are not in the source. It runs uninstrumented in its own CI job.')
 $markdown.Add('- Coverage and mutation cover `SlayIdleRepeat.Core` and `SlayIdleRepeat.Application` only. That allow-list lives in `coverage.runsettings` and in the `stryker-config*.json` files.')
-$markdown.Add('- SonarQube Community Build has no branch or pull-request analysis. Whatever branch this ran on, the result landed on the project''s single `main`, so read it as "what the project would look like if this branch were main".')
 
 Set-Content -LiteralPath $summaryMarkdown -Value ($markdown -join [Environment]::NewLine) -Encoding utf8
 
@@ -1338,9 +1037,6 @@ if ($Open) {
         $toOpen.Add((Join-Path $coverageDirectory 'index.html'))
     }
     foreach ($report in $results.Mutation.Reports) { $toOpen.Add((Join-Path $repoRoot $report)) }
-    if ($results.Sonar.Status -eq 'Passed' -or $results.Sonar.Status -eq 'GateFailed') {
-        $toOpen.Add("$SonarHostUrl/dashboard?id=$SonarProjectKey")
-    }
 
     foreach ($target in $toOpen) {
         if ($target -notmatch '^https?://' -and -not (Test-Path -LiteralPath $target)) { continue }

@@ -62,6 +62,7 @@ public sealed class PostHogAnalyticsSink : IAnalyticsSinkPort, IDisposable
 
         while (_queue.Count > QueueCapacity && _queue.TryDequeue(out _))
         {
+            // The dequeue in the condition IS the work: drop oldest until back under capacity.
         }
     }
 

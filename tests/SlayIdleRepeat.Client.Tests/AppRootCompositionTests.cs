@@ -75,7 +75,7 @@ public sealed class AppRootCompositionTests : IDisposable
             "the driver has to exist and be public for the root scene's per-frame callback to " +
             "call it; whether the callback calls it is proved by the marker lines a headless " +
             "run prints, not by this tier.");
-        advance!.ReturnType.ShouldBe(
+        advance.ReturnType.ShouldBe(
             typeof(void),
             "and the shape is the half of it this tier CAN pin. The per-frame callback cannot await, " +
             "so a driver that handed back a task would be awaited by nobody — which is the async-void " +

@@ -53,14 +53,14 @@ public sealed class CommandGatewayResponseTests
         // The discriminating half: flip ONLY the seed on the stored run and the wire hash must not
         // move — runSeed is excluded from the projection (`02` §2 wins), so a client that never
         // sees it can still reproduce every hash.
-        var reseeded = rows.Run! with { RunSeed = rows.Run!.RunSeed ^ 0xDEAD_BEEFUL };
+        var reseeded = rows.Run! with { RunSeed = rows.Run.RunSeed ^ 0xDEAD_BEEFUL };
         WireProjections.HashPlayerAndRun(rows.Player, reseeded).ShouldBe(
             expected,
             "the wire hash covers the client-visible projection; a hash that moved with the seed " +
             "would leak it one bit at a time");
 
         // Negative control: a field the client DOES see moves the hash.
-        var richer = rows.Run! with { Gold = rows.Run!.Gold + 1 };
+        var richer = rows.Run with { Gold = rows.Run.Gold + 1 };
         WireProjections.HashPlayerAndRun(rows.Player, richer).ShouldNotBe(expected);
     }
 
@@ -73,7 +73,7 @@ public sealed class CommandGatewayResponseTests
             world.Player, run, Envelopes.Body("PICK_PERK", 1, "c-1", "{\"optionIndex\": 0}"), Worlds.Cancel);
 
         var body = Replies.Parse(reply, expectedStatus: 200);
-        var rows = await world.RowsAsync();
+        await world.RowsAsync();
 
         body.GetProperty("profile").GetProperty("id").GetString()
             .ShouldBe(world.Player.Value, "profile is the full client-visible PlayerSnapshot projection");

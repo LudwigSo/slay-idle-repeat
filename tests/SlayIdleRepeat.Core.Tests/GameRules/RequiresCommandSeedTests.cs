@@ -41,9 +41,9 @@ public sealed class RequiresCommandSeedTests
             "milestone may append, but never so low that the sweep below can quantify over nothing.");
 
         var offenders = Registry
-            .OrderBy(row => row.Key, StringComparer.Ordinal)
             .Where(row => GameRules.RequiresCommandSeed(CommandVocabularyTests.Build(row.Value)) !=
                           (GameRules.RegistrationFor(row.Value)!.Kind == CommandKind.Meta))
+            .OrderBy(row => row.Key, StringComparer.Ordinal)
             .Select(row =>
                 $"'{row.Key}' is registered {GameRules.RegistrationFor(row.Value)!.Kind} and " +
                 $"RequiresCommandSeed answers " +

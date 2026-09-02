@@ -91,23 +91,17 @@ have taken it past 5 GB.
 
 ---
 
-## What is deliberately in a SEPARATE stack: SonarQube
+## Static analysis needs no stack at all
 
-Static analysis runs against a SonarQube Community Build server started from
-[`docker-compose.sonarqube.yml`](../docker-compose.sonarqube.yml) — its own
-compose project, its own Postgres, its own volumes, and **not** part of
-`docker compose up`. See [`sonarqube/README.md`](sonarqube/README.md).
+It used to: a SonarQube Community Build server, its own compose project, its own
+Postgres, ~3 GB where the entire product stack idles under half of one, and a
+paragraph here explaining why it was deliberately kept out of
+`docker compose up`.
 
-It is out of this file for the same reason Sentry and PostHog are: it is a tool
-that reads the repository, not a service the game talks to, and it wants ~3 GB
-where the entire product stack idles under half of one. Folding it in would make
-every `docker compose up` a developer runs to work on the game boot an
-Elasticsearch index they did not ask for — and would put a second Postgres next
-to 🔒 the system of record, where one mistimed `down -v` is a bad afternoon.
-
-Compose does not auto-load a file named `docker-compose.sonarqube.yml`, so the
-`-f` is mandatory and nothing here changes. The two stacks share no network, no
-volume and no port.
+All of it is gone. Sonar's C# rules now run as a Roslyn analyser inside
+`dotnet build` — see [Static analysis](../README.md#static-analysis--in-the-build-not-beside-it).
+There is no container, no port, no token and no second Postgres sitting next to
+🔒 the system of record where one mistimed `down -v` was a bad afternoon.
 
 ---
 

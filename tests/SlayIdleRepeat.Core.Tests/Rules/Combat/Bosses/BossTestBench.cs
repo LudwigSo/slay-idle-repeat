@@ -499,13 +499,13 @@ internal sealed class BossDriver : IStatusTimeline
         {
             if (!_services.Triggers.IsRegistered(id))
             {
-                Samples.Add(new InstanceSample(tick, id.Value!, false, false, null, null));
+                Samples.Add(new InstanceSample(tick, id.Value, false, false, null, null));
                 continue;
             }
 
             var instance = _services.Triggers[id];
             Samples.Add(new InstanceSample(
-                tick, id.Value!, true, instance.IsActive, instance.AnchorTick, instance.NextFiringTick));
+                tick, id.Value, true, instance.IsActive, instance.AnchorTick, instance.NextFiringTick));
         }
     }
 }

@@ -149,7 +149,7 @@ internal sealed class ListEffectSource : IEffectSource
             var id = effects[i]?.Id ?? "?";
 
             sourced[i] = new SourcedEffect(
-                effects[i]!, EffectInstanceId.Of($"synthetic:{kind}:{position}:{id}"));
+                effects[i], EffectInstanceId.Of($"synthetic:{kind}:{position}:{id}"));
         }
 
         return new ListEffectSource(kind, sourced);

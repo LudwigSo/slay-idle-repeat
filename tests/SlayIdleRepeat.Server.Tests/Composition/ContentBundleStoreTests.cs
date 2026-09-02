@@ -106,7 +106,7 @@ public sealed class ContentBundleStoreTests : IDisposable
         var read = store.TryRead(current.Version);
 
         read.ShouldNotBeNull();
-        ContentBundle.Open(read!.Value, current.Version).Version.ShouldBe(current.Version);
+        ContentBundle.Open(read.Value, current.Version).Version.ShouldBe(current.Version);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class ContentBundleStoreTests : IDisposable
         var read = Store(current, _root).TryRead(older.Version);
 
         read.ShouldNotBeNull();
-        ContentBundle.Open(read!.Value, older.Version).Version.ShouldBe(older.Version);
+        ContentBundle.Open(read.Value, older.Version).Version.ShouldBe(older.Version);
     }
 
     [Fact]
@@ -279,7 +279,7 @@ public sealed class ContentBundleStoreTests : IDisposable
 
         read.ShouldNotBeNull(
             "the current bundle is rendered from the loaded snapshot and needs no disk at all");
-        ContentBundle.Open(read!.Value, current.Version).Version.ShouldBe(current.Version);
+        ContentBundle.Open(read.Value, current.Version).Version.ShouldBe(current.Version);
     }
 
     [Fact]

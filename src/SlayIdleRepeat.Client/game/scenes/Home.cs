@@ -523,7 +523,7 @@ public partial class Home : Node3D
 
         var picked = scene.Instantiate<ChapterSelect>();
 
-        picked.Drive(picker, _board!, this, _lifetime);
+        picked.Drive(picker, _board, this, _lifetime);
 
         ScreenStage.Hide(this);
 

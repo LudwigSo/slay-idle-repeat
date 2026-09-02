@@ -45,7 +45,7 @@ public sealed class RerollDraftTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.BalanceOf(CurrencyId.GOLD).ShouldBe(0L);
-        result.NewState.Run!.DraftPending.ShouldBeTrue("a reroll redraws the offer, it does not close the draft");
+        result.NewState.Run.DraftPending.ShouldBeTrue("a reroll redraws the offer, it does not close the draft");
     }
 
     /// <summary>A reroll advances the draft stream, so a later PICK_PERK sees different options.</summary>

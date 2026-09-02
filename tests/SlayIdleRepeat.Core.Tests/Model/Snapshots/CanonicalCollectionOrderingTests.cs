@@ -249,6 +249,10 @@ public sealed class CanonicalCollectionOrderingTests
     /// Unpinned scalar shapes are refused too: an encoder that invents a byte layout for one of
     /// them has invented a second serialisation contract.
     /// </summary>
+    // S4144 compares method BODIES and cannot see the attributes above them. This body is
+    // deliberately identical to the container theory's: the two differ in their MemberData source,
+    // which is where the subject of each test lives. Merging them would hide which shape failed.
+#pragma warning disable S4144
     [Theory]
     [MemberData(nameof(UnpinnedScalars))]
     public void CanonicalBytes_refuses_a_scalar_the_specification_does_not_pin(object snapshot)
@@ -257,6 +261,7 @@ public sealed class CanonicalCollectionOrderingTests
 
         Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*16.6*");
     }
+#pragma warning restore S4144
 
     public static TheoryData<object> UnorderedContainers() => new()
     {

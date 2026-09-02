@@ -36,8 +36,7 @@ public sealed partial class RealDataSetTests
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
         snapshot.DocumentPaths
-            .Where(p => p.StartsWith("tuning/", StringComparison.Ordinal))
-            .Count().ShouldBe(16, "21 §3.1 catalogues exactly sixteen tuning files");
+            .Count(p => p.StartsWith("tuning/", StringComparison.Ordinal)).ShouldBe(16, "21 §3.1 catalogues exactly sixteen tuning files");
     }
 
     [Fact]

@@ -182,7 +182,7 @@ public sealed class DeathSaveTests
 
         var hits = probe.EventsOf(CombatEventType.Hit);
         hits.Count.ShouldBe(2, "the chip and the voided blow — a swing with no event would draw as a miss");
-        hits.Last().Value.ShouldBe(
+        hits[^1].Value.ShouldBe(
             0.0, "nothing came off HP, and the Hit event says so rather than reporting the lethal amount");
     }
 

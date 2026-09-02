@@ -43,13 +43,16 @@ public sealed class ChooseForkTests
     /// <summary>The first junction the board's spine reaches (guaranteed on a board this size).</summary>
     private static NodeId FirstJunction(BoardGraph board)
     {
-        for (var linearIndex = 0; ; linearIndex++)
+        var linearIndex = 0;
+        while (true)
         {
             var id = board.SpineNode(linearIndex);
             if (board.IsJunction(id))
             {
                 return id;
             }
+
+            linearIndex++;
         }
     }
 
@@ -209,7 +212,7 @@ public sealed class ChooseForkTests
 
         result.NewState.Run!.Position.ShouldBe(junction.Value);
         result.NewState.Run.PendingFork.ShouldNotBeNull();
-        result.NewState.Run.PendingFork!.Value.JunctionPosition.ShouldBe(junction.Value);
+        result.NewState.Run.PendingFork.Value.JunctionPosition.ShouldBe(junction.Value);
         result.NewState.Run.PendingFork.Value.RemainingSteps.ShouldBe(pip - 1);
     }
 
@@ -251,7 +254,7 @@ public sealed class ChooseForkTests
         // ROLL_DICE arrives at whatever tile the first roll landed on and refuses a second roll while
         // it is pending, so the pending tile is cleared directly on the snapshot here — this test is
         // about board-stream replay stability, not tile-resolution legality.
-        var clearedSnapshot = afterFirstRoll.NewState.Run!.ToSnapshot() with
+        var clearedSnapshot = afterFirstRoll.NewState.Run.ToSnapshot() with
         {
             PendingTileKind = RunSnapshots.NoPendingTile,
             PendingTileLinearIndex = 0,

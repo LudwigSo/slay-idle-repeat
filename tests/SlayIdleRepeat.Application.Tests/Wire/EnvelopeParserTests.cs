@@ -75,7 +75,12 @@ public sealed class EnvelopeParserTests
             "{\"protocolVersion\": 1, \"commandId\": \"c-1\", \"sequence\": 1, " +
             "\"type\": \"PICK_PERK\", \"payload\": {\"optionIndex\": 1}}");
 
+        // S1215: the collect is the subject, not a workaround. The parsed payload is a JsonElement
+        // over a pooled JsonDocument; if the parser handed back a view whose owner it had let go, this
+        // is what would surface it. Removing the collect removes the test.
+#pragma warning disable S1215
         GC.Collect();
+#pragma warning restore S1215
 
         parse.Envelope!.Payload.GetProperty("optionIndex").GetInt32().ShouldBe(1);
     }

@@ -464,7 +464,7 @@ public sealed class ApplyCommandUseCaseTests
             "the run was dropped by a command that acts outside it — a player can open a shop without " +
             "leaving their run, and the loaded run travels with them.");
 
-        Worlds.RunHash(pin, committed.Run!).ShouldBe(
+        Worlds.RunHash(pin, committed.Run).ShouldBe(
             before,
             "the run changed under a command that acts outside it. The same player row is hashed on " +
             "both sides, so the run is the only thing that can have moved.");
@@ -523,7 +523,7 @@ public sealed class ApplyCommandUseCaseTests
         archived.ShouldNotBeNull(
             "the finished run is gone. It is keyed by its own identity precisely so the next run cannot " +
             "displace it, and the results screen is read after the next run has already started.");
-        archived!.Id.ShouldBe(
+        archived.Id.ShouldBe(
             first,
             "the row under the first run's key holds some other run, so the second run displaced the " +
             "first one's finished record instead of being archived under its own identity.");

@@ -61,7 +61,7 @@ public sealed class TelemetryExceptionMiddlewareTests
         var telemetry = new CapturingTelemetryPort();
         var context = new DefaultHttpContext();
         using var aborted = new CancellationTokenSource();
-        aborted.Cancel();
+        await aborted.CancelAsync();
         context.RequestAborted = aborted.Token;
 
         var middleware = new TelemetryExceptionMiddleware(

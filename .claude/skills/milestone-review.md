@@ -1,6 +1,6 @@
 ---
 name: milestone-review
-description: Whole-milestone quality pass for Slay Idle Repeat, run once after a milestone's tasks are all implemented. Reviews the milestone's entire diff with every available review skill (tests, code, architecture, UI, mobile UX) plus cross-task consistency checks that per-feature reviews can't see, auto-applies the findings on a review branch, verifies the milestone's exit criteria, then runs one retro session with the user and distills it into steering rules that future kickoffs and feature agents are given.
+description: Whole-milestone quality pass for Slay Idle Repeat, run once after a milestone's tasks are all implemented. Reviews the milestone's entire diff with every available review skill (tests, code, architecture, UI, mobile UX) plus cross-task consistency checks that per-feature reviews can't see, auto-applies the findings on a review branch, runs the repository's measured verification (CRAP score and Stryker mutation testing) over the whole milestone, verifies the milestone's exit criteria, then runs one retro session with the user and distills it into steering rules that future kickoffs and feature agents are given.
 model: fable
 ---
 
@@ -56,13 +56,19 @@ Cap loop effort: if a fix cascades (breaks tests, reveals deeper problems) more 
 1. From a clean build, run **both CI groups** on `review/M<N>` (`Invoke-UnitTests.ps1 -Group unit`, then `-Group architecture`); record literal results, per suite.
    ⚠️ Do not use a bare `dotnet build <sln>` to prepare them — it clobbers the client suite's output directory and produces a spurious architecture failure. Let the CI script build.
    🔒 **Re-measure the milestone's own reported figures rather than quoting them** (S9). Check out the milestone head in a scratch worktree and run the suites there: M4's review confirmed all four of its reported counts exactly, which is what makes the tracker's numbers trustworthy instead of merely consistent.
-2. Walk the milestone's **exit criteria** from the tracker, one by one, and verify each honestly — by test evidence, by running the relevant harness/tool where one exists, or by inspection where nothing executable covers it. State per criterion: met / met-with-caveat / not met, and how you know.
-3. Check the milestone's rows in the **overarching tasks** table (X-01…X-08): did this milestone advance any of them, and is anything it was supposed to leave green actually green?
-4. Update the tracker on the review branch:
+2. **Run the repository's measured verification over the whole milestone**, once, alone, from the review branch — 30–60 minutes, and nothing else may build or commit while it runs:
+   ```powershell
+   pwsh ./scripts/Invoke-Verification.ps1 -MutationSince <the milestone base ref>
+   ```
+   Wider than any single task's run: diff mode against the milestone base covers everything the milestone wrote, including the seams between tasks that no one task's own run measured. Triage as `feature-oneshot`'s Phase 5b does — a surviving mutant or a CRAP hotspot in code the milestone touched is a finding fixed here, anything older is carried forward. `-FullMutation` only if the user asks; it is hours and most of it measures code the milestone never touched. Record the figures for Phase 4; never re-run to restate them.
+   ⚠️ **Static analysis is not part of this run and needs no stage.** Sonar's rules are a Roslyn analyser in the build and warnings are errors, so step 1's clean build already proved the milestone carries no `S####` finding. What it cannot prove is that nobody bought that silence: **`git diff <base> -- .editorconfig` before you trust it.** A new suppression there is a milestone-level finding — it exempts the whole repository, not the task that added it — and belongs in the report with the rule id and whatever reason was given.
+3. Walk the milestone's **exit criteria** from the tracker, one by one, and verify each honestly — by test evidence, by running the relevant harness/tool where one exists, or by inspection where nothing executable covers it. State per criterion: met / met-with-caveat / not met, and how you know.
+4. Check the milestone's rows in the **overarching tasks** table (X-01…X-08): did this milestone advance any of them, and is anything it was supposed to leave green actually green?
+5. Update the tracker on the review branch:
    - Tasks verified by this review: 🔍 → ✅.
    - Milestone snapshot row: ✅ if every exit criterion is met and nothing ⛔ remains; otherwise leave 🔄 with a one-line note of what stands open.
    - Add any carried-forward findings as new task rows (or notes on the affected milestone's kickoff block).
-5. Commit (`Review M<N>: verify exit criteria, settle tracker`).
+6. Commit (`Review M<N>: verify exit criteria, settle tracker`).
 
 ## Phase 3 — The retro session (interactive)
 
@@ -96,6 +102,7 @@ Review fixes applied:
   · ui / ux:       <… or skipped (no presentation changes)>
   · cross-task:    <…>
 Open findings carried forward: <list → where they were recorded, or none>
+Measured verification: mutation <score>% vs <base>, <n> survivors killed / <n> left alive · CRAP hotspots fixed: <n> · .editorconfig suppressions added by the milestone: <none | rule ids + who added them and why>
 Exit criteria: <n>/<n> met  ·  <per-criterion one-liners for anything not cleanly met>
 Tracker: <tasks moved to ✅> · milestone row now <✅ | 🔄 + reason>
 Retro: <n> steering rules added/updated in .claude/retros/STEERING.md · skill edits applied: <list or none>

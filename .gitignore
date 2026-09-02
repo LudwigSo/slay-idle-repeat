@@ -39,21 +39,10 @@ coverage/
 # Stryker.NET mutation reports (README.md). Regenerated in full by every run.
 StrykerOutput/
 
-# SonarScanner for .NET's working directory (build/ci/Invoke-SonarAnalysis.ps1).
-# Written by `begin`, consumed by `end`, and it holds the analysis config the
-# scanner downloaded from the server - which includes the token it was given.
-# Never committed.
-.sonarqube/
-
-# The two SonarQube tokens, one per file, for a local analysis run. The scripts
-# read $env:SONAR_TOKEN / $env:SONAR_ADMIN_TOKEN and know nothing about these
-# files - they are just somewhere to keep a value the server shows you exactly
-# once, so it survives a new shell without being typed again:
-#
-#   $env:SONAR_TOKEN = (Get-Content .sonar-token -Raw).Trim()
-#
-# Ignored by pattern rather than by name, so a second one cannot be added later
-# and land outside the rule. See infra/sonarqube/README.md.
+# Leftover SonarQube server tokens. The server is gone (static analysis is a build-time
+# analyser now, see Directory.Packages.props), so these hold nothing that can still be used
+# and are safe to delete. The pattern stays because a credential that stops being ignored the
+# day its reason is removed is how one reaches a commit.
 .sonar-token
 .sonar-*-token
 

@@ -188,10 +188,15 @@ public sealed class PersistenceComposition : IAsyncDisposable
 
         lock (InitializationGate)
         {
+            // S2696: yes, an instance method clearing a static field — that is what releasing the
+            // shared instance means, and the identity check is what stops a later instance's disposal
+            // clearing a live one.
+#pragma warning disable S2696
             if (ReferenceEquals(_shared, this))
             {
                 _shared = null;
             }
+#pragma warning restore S2696
         }
     }
 }

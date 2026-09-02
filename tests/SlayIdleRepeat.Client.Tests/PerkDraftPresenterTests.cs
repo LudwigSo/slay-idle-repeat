@@ -177,7 +177,7 @@ public sealed class PerkDraftPresenterTests
                 $"'{key}' is not in the shipped English locale, so one of the four things that can " +
                 "be wrong with the reroll has no sentence and a player meeting it is shown its key.");
 
-            return sentence!;
+            return sentence;
         }).ToArray();
 
         authored.ShouldAllBe(sentence => sentence.Length > 0);
@@ -222,7 +222,7 @@ public sealed class PerkDraftPresenterTests
                 $"'{key}' is not in the shipped English locale, so one of the five ways this screen " +
                 "can come to nothing has no sentence and a player meeting it is shown its key.");
 
-            return sentence!;
+            return sentence;
         }).ToArray();
 
         authored.ShouldAllBe(sentence => sentence.Length > 0);
@@ -275,7 +275,7 @@ public sealed class PerkDraftPresenterTests
                 $"'{key}' is not in the shipped English locale, so one of the three DRAFT counters " +
                 "has no caption and a player is shown its key beside a number.");
 
-            caption!.Contains("draft", StringComparison.OrdinalIgnoreCase).ShouldBeTrue(
+            caption.Contains("draft", StringComparison.OrdinalIgnoreCase).ShouldBeTrue(
                 $"'{key}' is authored as \"{caption}\", which does not name what it counts. 24 §9's " +
                 "S07 row requires each DRAFT counter to name its unit rather than sit beside a bare " +
                 "number, because a player who has been skipping or rerolling reads an unexplained " +

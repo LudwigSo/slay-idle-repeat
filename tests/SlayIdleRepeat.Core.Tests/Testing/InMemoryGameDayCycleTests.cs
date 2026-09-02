@@ -33,7 +33,7 @@ public sealed class InMemoryGameDayCycleTests
         game.Clock.Advance(TimeSpan.FromHours(8));
         var result = game.Send(player, Harnesses.BeginSession);
 
-        var accrued = (long)(TimeSpan.FromHours(8).Ticks / Harnesses.Tuning.RegenInterval.Ticks);
+        var accrued = TimeSpan.FromHours(8).Ticks / Harnesses.Tuning.RegenInterval.Ticks;
         accrued.ShouldBe(
             MaxEnergy,
             "eight hours at the shipped interval is exactly one full bar — 10 §3's own 'full refill " +

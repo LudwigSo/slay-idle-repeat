@@ -80,6 +80,7 @@ public sealed class PersistenceLifecycle : IHostedService
         }
         catch (OperationCanceledException) when (_stopDrain.IsCancellationRequested)
         {
+            // Our own stop token. Shutdown cancelling the drain is the expected path, not a fault.
         }
         catch (Exception fault)
         {

@@ -191,7 +191,7 @@ public sealed class ShrineViewTests
                 Healed(before, chosen.ImmediateHealPctMaxHp),
                 "the shrine applied a different row than the one the view drew into slot " + slot +
                 ": the view drew " + chosen.BuffId + " there.");
-            resolved.NewState.Run!.ShrineBuffs.ShouldBe(
+            resolved.NewState.Run.ShrineBuffs.ShouldBe(
                 new[] { chosen.BuffId },
                 "…and it is the buff the view named that the run now carries, not the other one.");
         }
@@ -252,9 +252,9 @@ public sealed class ShrineViewTests
         var state = TileWorlds.OnTile(TileKind.Shrine, gold: 500, currentHp: 40);
         var before = CanonicalStateWriter.CanonicalBytes(state.Run!.ToSnapshot());
 
-        ShrineView.Project(state.Run!.ToSnapshot(), Content);
+        ShrineView.Project(state.Run.ToSnapshot(), Content);
 
-        CanonicalStateWriter.CanonicalBytes(state.Run!.ToSnapshot()).ShouldBe(
+        CanonicalStateWriter.CanonicalBytes(state.Run.ToSnapshot()).ShouldBe(
             before, "a read-only projection moved something on the run it was drawing.");
     }
 

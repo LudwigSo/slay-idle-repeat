@@ -416,7 +416,7 @@ public sealed class BoardGeneratorTests
                     cursor = next.To;
                 }
 
-                branchEdge.Preview!.Icons.ShouldBe(actual.Take(3).ToArray());
+                branchEdge.Preview.Icons.ShouldBe(actual.Take(3).ToArray());
                 checkedAny = true;
             }
         }

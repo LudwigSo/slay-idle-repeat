@@ -119,7 +119,7 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
                 continue;
             }
 
-            Tick(actor, instance, tick);
+            Tick(actor, instance);
         }
     }
 
@@ -452,7 +452,7 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     /// fight where the stacks changed between application and boundary. No draw is taken: a DoT tick
     /// is a damage event, not an attack.
     /// </remarks>
-    private void Tick(BattleActor actor, StatusInstance instance, int tick)
+    private void Tick(BattleActor actor, StatusInstance instance)
     {
         var definition = instance.Definition;
 

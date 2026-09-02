@@ -93,7 +93,7 @@ internal sealed class TriggerRegistry
 
     /// <summary>Every instance registered, in ascending ordinal instance-id order.</summary>
     /// <remarks>Ordered here for <see cref="RunTriggerCounters.Entries"/>' reason.</remarks>
-    internal IReadOnlyList<TriggerInstance> Instances =>
+    internal IReadOnlyList<TriggerInstance> Instances() =>
         _instances.Values.OrderBy(i => i.Id.Value, EffectInstanceId.Comparer).ToArray();
 
     /// <summary>Registers and activates one effect instance — and, for a <c>PERIODIC</c>, starts its clock at <paramref name="activationTick"/>.</summary>

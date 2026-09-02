@@ -50,7 +50,7 @@ public sealed class SnapshotCodecTests
         var decoded = SnapshotCodec.DecodeSlice(SnapshotCodec.EncodeSlice(original));
 
         decoded.Run.ShouldNotBeNull("the run was dropped by the round-trip.");
-        Worlds.RunHash(original.Player, decoded.Run!).ShouldBe(
+        Worlds.RunHash(original.Player, decoded.Run).ShouldBe(
             Worlds.RunHash(original.Player, original.Run),
             "the run came back differing from the one stored; the same player row is hashed on both " +
             "sides, so the run is the only thing that can have moved.");

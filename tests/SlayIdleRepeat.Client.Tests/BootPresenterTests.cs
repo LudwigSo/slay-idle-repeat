@@ -217,7 +217,7 @@ public sealed class BootPresenterTests
             BootFailureKind.ContentUnavailable,
             "a content set that holds nothing is the export having shipped no data — a build " +
             "problem, fixed by rebuilding, and nothing at all like a profile that will not open.");
-        presenter.Failure!.Stage.ShouldBe(
+        presenter.Failure.Stage.ShouldBe(
             BootStage.Content,
             "the stage is the other half of the identity: it says WHERE the boot got to, which is " +
             "what turns a crash report into a place to look.");
@@ -235,7 +235,7 @@ public sealed class BootPresenterTests
             "a dangling profile pointer or a corrupt cache row is a LOCAL, per-device fault that a " +
             "reinstall clears. Reporting it under the same name as missing content sends everyone " +
             "who hits it to the wrong answer.");
-        presenter.Failure!.Stage.ShouldBe(
+        presenter.Failure.Stage.ShouldBe(
             BootStage.Profile,
             "and it happened after content loaded, which is the fact that separates the two reports.");
     }
@@ -253,7 +253,7 @@ public sealed class BootPresenterTests
             "the same fault, thrown one instant earlier. A presenter that awaits the call inside a " +
             "try block catches both shapes; one that starts the call outside it and awaits inside " +
             "catches only the faulted task, and this arrangement is the one that tells them apart.");
-        presenter.Failure!.Stage.ShouldBe(
+        presenter.Failure.Stage.ShouldBe(
             BootStage.Profile,
             "and it is still the profile stage that broke — a synchronous throw must not escape the " +
             "stage it happened in and get filed against whatever ran next.");
@@ -290,7 +290,7 @@ public sealed class BootPresenterTests
             "an atlas that is ABSENT is not a failure at all; an atlas that is present and refuses " +
             "to parse is one nobody anticipated. Folding the second into the first would report a " +
             "corrupt manifest as the ordinary empty-checkout state and lose it entirely.");
-        presenter.Failure!.Stage.ShouldBe(
+        presenter.Failure.Stage.ShouldBe(
             BootStage.Atlas,
             "carried rather than swallowed, and located: the stage is what says which read threw.");
     }
@@ -431,7 +431,7 @@ public sealed class BootPresenterTests
         presenter.Atlas!.IsAvailable.ShouldBeFalse(
             "non-fatal is not the same as invisible. Something has to be able to tell that the " +
             "artwork is placeholder rectangles rather than the real pages.");
-        presenter.Atlas!.Detail.ShouldBe(
+        presenter.Atlas.Detail.ShouldBe(
             AtlasAbsenceReason,
             "and it has to say why the catalogue said it was absent, not merely say something. " +
             "Stated as the reason this read actually produced, because any fixed line — 'no atlas' — " +
@@ -447,11 +447,11 @@ public sealed class BootPresenterTests
         await presenter.StartAsync(CancellationToken.None);
 
         presenter.Atlas!.IsAvailable.ShouldBeTrue("the loaded arm has to be distinguishable from the absent one");
-        presenter.Atlas!.AtlasCount.ShouldBe(
+        presenter.Atlas.AtlasCount.ShouldBe(
             LoadedAtlasCount,
             "the counts are what the atlas stage produced. A presenter that reported availability " +
             "and dropped them has kept the boolean and thrown away the evidence behind it.");
-        presenter.Atlas!.PlacementCount.ShouldBe(LoadedPlacementCount, "likewise the placements the pages hold");
+        presenter.Atlas.PlacementCount.ShouldBe(LoadedPlacementCount, "likewise the placements the pages hold");
     }
 
     // -------------------------------------------------------------------------- status text
@@ -688,7 +688,7 @@ public sealed class BootPresenterTests
                      BootFailureKind.SessionRefused,
                      "one name per cause: a refused sign-in is fixed by whoever owns the account " +
                      "service, not by the player's network and not by a reinstall.");
-        presenter.Failure!.Stage.ShouldBe(
+        presenter.Failure.Stage.ShouldBe(
             BootStage.Session,
             "and the stage is the other half of the identity — it says which read refused, which is " +
             "what turns a crash report into a place to look.");
@@ -1029,7 +1029,7 @@ public sealed class BootPresenterTests
                      BootFailureKind.Unexpected,
                      "carried rather than swallowed, and under the name that means 'nobody " +
                      "anticipated this' — which is exactly what it is.");
-        presenter.Failure!.Stage.ShouldBe(
+        presenter.Failure.Stage.ShouldBe(
             BootStage.Session,
             "and it still happened in the session stage: narrowing the KIND must not lose WHERE.");
     }
@@ -1202,6 +1202,6 @@ public sealed class BootPresenterTests
             "against a collaborator that cannot succeed, so the comparison that follows would be " +
             "comparing nothing.");
 
-        return presenter.Failure!;
+        return presenter.Failure;
     }
 }

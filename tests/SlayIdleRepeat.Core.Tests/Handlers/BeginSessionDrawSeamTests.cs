@@ -108,7 +108,7 @@ public sealed class BeginSessionDrawSeamTests
         result.Events.ShouldNotBeEmpty("positive evidence the daily block ran: the refill was paid.");
 
         result.NewState.Run.ShouldNotBeNull();
-        result.NewState.Run!.RngStreamPositions.ShouldBe(
+        result.NewState.Run.RngStreamPositions.ShouldBe(
             positions,
             "out-of-run draws use the command seed with no persisted counter; a meta command that " +
             "moved a run stream would consume a draw the run can never see again.");

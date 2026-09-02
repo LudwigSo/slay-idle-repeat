@@ -41,7 +41,7 @@ public sealed class CampfireChooseTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.CurrentHp.ShouldBe(90);
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
+        result.NewState.Run.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
     [Fact]
@@ -160,6 +160,6 @@ public sealed class CampfireChooseTests
 
         rested.Accepted.ShouldBeTrue();
         rested.NewState.Run!.CurrentHp.ShouldBe(70);
-        rested.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
+        rested.NewState.Run.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 }

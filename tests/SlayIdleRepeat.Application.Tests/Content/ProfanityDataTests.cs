@@ -146,7 +146,7 @@ public sealed class ProfanityDataTests
                 .SingleOrDefault(seed => seed.DocumentPath == documentPath);
 
             entry.ShouldNotBeNull($"{documentPath} has no register entry naming who curates it.");
-            entry!.Owner.ShouldBe(
+            entry.Owner.ShouldBe(
                 "M17",
                 "M17 completes localisation and accessibility, which is where a native reviewer per " +
                 "language exists. The mechanism is M4-10's; the words are not.");

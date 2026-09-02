@@ -109,6 +109,7 @@ public partial class AppRoot : Node3D
     public override void _ExitTree()
     {
         _lifetime.Cancel();
+        _lifetime.Dispose();
         _pump?.Stop();
         _composed?.Dispose();
     }

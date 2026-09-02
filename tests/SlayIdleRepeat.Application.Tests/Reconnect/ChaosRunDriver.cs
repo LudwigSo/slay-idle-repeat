@@ -682,7 +682,7 @@ internal sealed class ChaosRunDriver
         {
             answered = await SubmitAsync(envelope, playerScope);
         }
-        catch (ConnectionLost)
+        catch (ConnectionLostException)
         {
             return;
         }

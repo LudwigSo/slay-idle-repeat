@@ -242,7 +242,7 @@ public sealed class RunStateQueryTests
 
         // The negative control: a state the player is not in hashes differently, so none of the
         // above is an equality that would hold whatever the run contained.
-        WireProjections.HashPlayerAndRun(rows.Player, rows.Run! with { Gold = rows.Run!.Gold + 1 })
+        WireProjections.HashPlayerAndRun(rows.Player, rows.Run! with { Gold = rows.Run.Gold + 1 })
             .ShouldNotBe(lastCommandsHash);
     }
 
@@ -272,7 +272,7 @@ public sealed class RunStateQueryTests
 
         var reply = await query.ReadAsync(fixture.World.Player, fixture.Run, 5, Worlds.Cancel);
 
-        Read(reply).GetProperty("missedOutcomes").EnumerateArray().ToArray().ShouldBeEmpty();
+        Read(reply).GetProperty("missedOutcomes").EnumerateArray().ShouldBeEmpty();
         reply.Body.ShouldNotContain(
             "resyncFull",
             Case.Sensitive,
@@ -292,7 +292,7 @@ public sealed class RunStateQueryTests
         body.GetProperty("resyncFull").GetBoolean().ShouldBeTrue(
             "a ledger that cannot produce the missed outcomes has not said there were none — " +
             "answering [] would tell the client it is up to date when three outcomes are missing.");
-        body.GetProperty("missedOutcomes").EnumerateArray().ToArray().ShouldBeEmpty();
+        body.GetProperty("missedOutcomes").EnumerateArray().ShouldBeEmpty();
         body.GetProperty("sequence").GetInt64().ShouldBe(
             5L, "the scope is known, so the client still learns where the conversation stands");
     }
@@ -373,7 +373,7 @@ public sealed class RunStateQueryTests
             "sequence 3 fell out under its 48 h lifetime while 4 and 5 survived, so the enumeration " +
             "succeeds but does not cover 3..5 — wiring the read must not turn a genuinely expired " +
             "record into a short list presented as the complete set of what was missed.");
-        body.GetProperty("missedOutcomes").EnumerateArray().ToArray().ShouldBeEmpty();
+        body.GetProperty("missedOutcomes").EnumerateArray().ShouldBeEmpty();
         body.GetProperty("sequence").GetInt64().ShouldBe(
             5L, "the counter outlives the records, so the client still learns where the run stands");
     }
@@ -390,7 +390,7 @@ public sealed class RunStateQueryTests
         body.GetProperty("resyncFull").GetBoolean().ShouldBeTrue(
             "the client believes it has been answered at a sequence the run never reached, so its " +
             "model of the conversation is wrong and nothing incremental can repair it.");
-        body.GetProperty("missedOutcomes").EnumerateArray().ToArray().ShouldBeEmpty();
+        body.GetProperty("missedOutcomes").EnumerateArray().ShouldBeEmpty();
     }
 
     [Fact]

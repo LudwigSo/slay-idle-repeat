@@ -132,4 +132,54 @@
     <PackageVersion Include="GodotSharp" Version="4.7.1" />
   </ItemGroup>
 
+  <!--
+    ========================================================================
+    STATIC ANALYSIS. This one line is the whole of it.
+
+    SonarAnalyzer.CSharp is the same rule engine SonarQube's C# plugin runs,
+    shipped as a Roslyn analyser. As a GlobalPackageReference it lands in every
+    project that imports this file, so `dotnet build` IS the analysis: every
+    branch, every agent's checkout, every CI job, no server, no token, no scan
+    step, nothing to remember to run.
+
+    🔴 A FINDING IS A BUILD ERROR. Directory.Build.props sets
+    TreatWarningsAsErrors=true for the whole repository and the S-rules are not
+    exempted. That is the point of doing it this way — an analysis whose output
+    has to be read somewhere else is an analysis nobody reads — but it means the
+    rule set is load-bearing on the build. The rules that do not apply to this
+    codebase are switched off, one at a time and each with its reason, in
+    .editorconfig. READ THAT FILE BEFORE ADDING A SUPPRESSION.
+
+    What this deliberately gives up, having replaced a local SonarQube Community
+    Build server (deleted in this change, recoverable from git history): the
+    dashboard, the quality gate, issue history, duplication density, and
+    SonarQube's own coverage view. Coverage and complexity are measured instead
+    by scripts/Measure-Crap.ps1, and both are aggregated by
+    scripts/Invoke-Verification.ps1 alongside mutation testing. The server was
+    never reachable from the workflow that needed it: the Community Build has no
+    branch analysis, so every run landed on the project's single `main` branch
+    whatever the tree was on, which made a per-branch analysis meaningless and
+    two concurrent ones destructive.
+
+    ⚠️ GlobalPackageReference, not PackageReference, and the difference matters
+    to two gates in build/ci/. Both read the `Include` attributes of
+    PackageReference elements in .csproj files; a GlobalPackageReference lives
+    only here, so it is invisible to them and needs no entry in
+    non-vendor-packages.json. If anyone ever converts this to a per-project
+    PackageReference, that list needs "SonarAnalyzer.CSharp" added or A9-UNIQUE
+    goes red the moment the second project takes it — analysers are exactly what
+    that allow-list exists to carry.
+
+    The spike projects are excluded, which repeats a decision the deleted
+    SonarQube.Analysis.xml also made and for the same reason: a throwaway export
+    probe is not held to the project's quality bar. They are not in
+    SlayIdleRepeat.sln and not in CI, so nothing else would have noticed either
+    way — this just keeps `dotnet build` on one of them from failing on rules it
+    was never written against.
+    ========================================================================
+  -->
+  <ItemGroup Condition=" '$(MSBuildProjectName)' != 'GodotAndroidSpike' and '$(MSBuildProjectName)' != 'GodotIosSpike' ">
+    <GlobalPackageReference Include="SonarAnalyzer.CSharp" Version="10.33.0.1635" />
+  </ItemGroup>
+
 </Project>

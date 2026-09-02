@@ -140,10 +140,10 @@ public sealed class BattleDataTests
 
         string[] sentences =
         [
-            snapshot.ReadText(EnglishStrings + "loc.battle.phase_not_battle.status")!,
-            snapshot.ReadText(EnglishStrings + "loc.battle.seed_unavailable.status")!,
-            snapshot.ReadText(EnglishStrings + "loc.battle.simulator_failed.status")!,
-            snapshot.ReadText(EnglishStrings + "loc.battle.log_empty.status")!,
+            snapshot.ReadText(EnglishStrings + "loc.battle.phase_not_battle.status"),
+            snapshot.ReadText(EnglishStrings + "loc.battle.seed_unavailable.status"),
+            snapshot.ReadText(EnglishStrings + "loc.battle.simulator_failed.status"),
+            snapshot.ReadText(EnglishStrings + "loc.battle.log_empty.status"),
         ];
 
         sentences.Distinct(StringComparer.Ordinal).Count().ShouldBe(

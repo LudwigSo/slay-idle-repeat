@@ -97,7 +97,7 @@ public sealed class SysEnrageAnchoringTests
                     .Value.ShouldBe(EnrageInstance);
 
         BossBuiltIns.BuiltInInstance(BossTestBench.Thornmaw, BossBuiltIns.EnrageId)
-                    .Value!.Contains("#P", StringComparison.Ordinal)
+                    .Value.Contains("#P", StringComparison.Ordinal)
                     .ShouldBeFalse("a built-in's id carries no phase, deliberately");
     }
 

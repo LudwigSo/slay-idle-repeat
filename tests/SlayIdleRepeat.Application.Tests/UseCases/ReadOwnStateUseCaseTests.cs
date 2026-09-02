@@ -47,7 +47,7 @@ public sealed class ReadOwnStateUseCaseTests
         var read = typeof(ReadOwnStateUseCase).GetMethod(nameof(ReadOwnStateUseCase.ReadAsync));
 
         read.ShouldNotBeNull("the method this rule is about is not there, so the rule has no subject.");
-        read!.GetParameters().Select(parameter => parameter.ParameterType).ShouldBe(
+        read.GetParameters().Select(parameter => parameter.ParameterType).ShouldBe(
             [typeof(ReadOwnStateRequest), typeof(CancellationToken)],
             "an extra parameter here is how 'give me the view as of a moment ago' becomes expressible.");
 

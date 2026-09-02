@@ -388,7 +388,7 @@ public sealed class RunEndPresenterTests
                 $"'{key}' is not in the shipped English locale, so a mercy counter has no caption and " +
                 "a player is shown its key beside a number.");
 
-            caption!.Contains("kill", StringComparison.OrdinalIgnoreCase).ShouldBeTrue(
+            caption.Contains("kill", StringComparison.OrdinalIgnoreCase).ShouldBeTrue(
                 $"'{key}' is authored as \"{caption}\", which does not name what it counts. 24 §9 " +
                 "requires each counter to name its unit rather than sit beside a bare number, and " +
                 "these two count Elite kills and boss kills.");
