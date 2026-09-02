@@ -410,7 +410,13 @@ $reportGeneratorArgs = @(
     'reportgenerator'
     "-reports:$reportsGlob"
     "-targetdir:$targetDir"
-    '-reporttypes:Html;TextSummary;MarkdownSummaryGithub'
+    # JsonSummary sits beside the three human-readable ones so that
+    # scripts/Invoke-Verification.ps1 can read the coverage figures back as
+    # culture-invariant JSON numbers instead of regexing percentages out of
+    # Summary.txt, which ReportGenerator renders in the machine's own locale.
+    # It carries the summary ONLY - no Risk Hotspots section, measured against
+    # 5.5.11 - so the ranking still has to be read out of the rendered HTML.
+    '-reporttypes:Html;TextSummary;MarkdownSummaryGithub;JsonSummary'
     '-riskhotspotclassfilters:-*.Migrations.*;-*Generated*'
     "riskHotspotsAnalysisThresholds:metricThresholdForCyclomaticComplexity=$ComplexityThreshold"
     "riskHotspotsAnalysisThresholds:metricThresholdForCrapScore=$CrapThreshold"
