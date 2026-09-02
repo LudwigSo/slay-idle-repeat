@@ -5,11 +5,16 @@ codebase follows **hexagonal architecture (ports & adapters)**: a pure, engine-f
 core, application use cases behind interfaces, and swappable adapters for everything that
 touches the outside world (Godot, databases, ad networks, billing, push, telemetry).
 
-The full design rationale lives in [`game-design/`](game-design/00_README_INDEX.md) (30
-numbered docs) — read [`14_TECHNICAL_ARCHITECTURE.md`](game-design/14_TECHNICAL_ARCHITECTURE.md),
-[`23_PORTS_AND_ADAPTERS.md`](game-design/23_PORTS_AND_ADAPTERS.md), and
-[`30_DOMAIN_MODEL.md`](game-design/30_DOMAIN_MODEL.md) first. This file is just a map for
-finding the right folder quickly.
+What the game *is* — pillars, loops, systems — is summarised in
+[`game-design.md`](game-design.md), and specified in full under `game-design/`. This file is
+just a map for finding the right folder quickly.
+
+Three constraints from the design shape every folder below, so they are worth stating here:
+the domain is a **pure, synchronous state machine with one entry point** and the whole game
+must be playable in memory from `Core` alone; **every external dependency is a port** the
+application owns and an adapter implements; and the simulation is **deterministic** — the
+same seed and build produce a byte-identical battle log on device and on server. All three
+are enforced by tests, not convention.
 
 ## Layout
 
@@ -21,7 +26,8 @@ src/SlayIdleRepeat.Client/        Godot client app (scenes, presenters, composit
 src/SlayIdleRepeat.Server/        server host
 src/adapters/{client,server,shared,fakes}/   one project per external integration
 tests/                            xUnit + FluentAssertions + NetArchTest, mirrors src/ layout
-game-design/                      authoritative design docs (numbered, indexed in 00_README_INDEX.md)
+game-design/                      authoritative design specification (numbered docs)
+game-design.md                    one-page summary of the design
 game-data/                        tuning/content data, schemas, tuning experiments
 tools/                            EconomySim, ContentValidator, BalanceHarness, asset tools
 .claude/                          milestone-based agent workflow (skills, retros, steering, handovers)
@@ -37,7 +43,7 @@ Pure, deterministic game logic — must stay playable and testable without Godot
 - `Rules/` — game systems, subfoldered: `Board`, `Combat`, `Dice`, `Economy`, `Effects`, `Feats`,
   `Forge`, `Gear`, `Hero`, `Inventory`, `Luck`, `Perks`, `Stats`. Tile-kind resolution (Portal,
   Minigame, Shop, …) lives here, driven from `Handlers/ResolveTile.cs`. ⚠️ The Dice Forge is a
-  placeholder that clears itself; its resolver is gone with the die's faces (`04` §5.1).
+  placeholder that clears itself; its resolver went with the die's configurable faces.
   `Economy` is energy, currency math, shop pricing and run rewards; **merge, enhance and salvage
   are `Forge`**, not `Economy`.
 - `Model/` — `Player`, `Run`, `Guild`, `Gear`, `Snapshots` (versioned state via `SchemaVersion`).
