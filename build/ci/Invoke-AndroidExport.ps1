@@ -9,7 +9,7 @@
     MAX plugin included (see 12 §3.2 - a plain export will not produce a working ad
     build)".
 
-    This implements docs/spikes/O23-godot-android-export.md (M0-05a, executed for
+    This implements the O23 Android export recipe (M0-05a, executed for
     real on the developer machine). It does not re-research it.
 
     🔒 THE CENTRAL RULE OF THIS SCRIPT: IT NEVER GATES ON THE EXIT CODE.
@@ -165,7 +165,7 @@ if (-not $godot) {
     Write-CiError -Message (
         'No Godot 4.7.1 .NET/mono editor binary was found. Pass -GodotExecutable or set ' +
         'GODOT_BIN. It must be the MONO build: the plain build exports an APK with no .NET ' +
-        'in it and exits 0 doing so. Recipe: docs/spikes/O23-godot-android-export.md.')
+        'in it and exits 0 doing so.')
     exit 1
 }
 

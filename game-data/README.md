@@ -57,7 +57,8 @@ rule reads them. Their consumers are the M8 asset tasks — provenance records k
 the post-processing pipeline (delivery size, pivot, atlas) and placeholder generation.
 
 They pair by the stem rule like any other non-`content/` file (`assets/X.json` →
-`schema/X.schema.json`) and are therefore validated at build time by `tools/ContentValidator`. Two
+`schema/X.schema.json`) and are therefore validated by the content loader in
+`src/SlayIdleRepeat.Application/Services/Content/`. Two
 conventions here differ from `tuning/`, deliberately:
 
 - 🔒 **Counts are transcribed, never reconciled.** Where a row count disagrees with the design
@@ -70,7 +71,7 @@ conventions here differ from `tuning/`, deliberately:
   `RealDataNegativeCaseTests.The_shipped_data_set_still_carries_exactly_its_96_unauthorised_holes`
   pins that population across the whole snapshot. A 974-row register carrying "§C states no pivot
   for a 9-slice panel" as a `null` would add ~3,500 to a population of 96 and destroy the guard. So
-  the register omits the member; the typed reader in `tools/AssetManifest` surfaces it as `null`,
+  the register omits the member; the typed reader surfaced it as `null`,
   and `AbsentValueTests` pins each absence population the same way.
 
 ⚠️ Both files enter the `ContentSnapshot` and so ship to client and server, and every edit to them

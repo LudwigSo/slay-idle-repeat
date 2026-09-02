@@ -5,7 +5,7 @@
          to net9.0 for ANDROID ONLY (GodotTools.ProjectEditor/ProjectGenerator.cs,
          GodotMinimumRequiredTfm => "net8.0"). The 4.7 docs prose about "exporting
          to Android requires .NET 9 or later" is stale wording; it does not apply
-         to iOS. See docs/spikes/O23-godot-ios-export.md §2. -->
+         to iOS. See spike O23's iOS leg §2. -->
     <TargetFramework>net8.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <Nullable>enable</Nullable>

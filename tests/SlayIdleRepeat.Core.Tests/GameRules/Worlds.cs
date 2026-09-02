@@ -4,7 +4,7 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Model;
 using RunAggregate = SlayIdleRepeat.Core.Model.Run;
-using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 
 namespace SlayIdleRepeat.Core.Tests;
 

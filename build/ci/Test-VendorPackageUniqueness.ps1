@@ -86,7 +86,7 @@ function Test-IsAllowed {
 #                  third-party .csproj files — lands under the repository root.
 #                  Scanning it would report every NuGet package on earth as a
 #                  vendor SDK in a non-adapter location.
-#   spikes/        throwaway export probes (docs/spikes/*). They are not in
+#   spikes/        throwaway export probes. They are not in
 #                  SlayIdleRepeat.sln, they are not shipped, and 14 §1.1's
 #                  "no vendor SDK outside an adapter" is a rule about the
 #                  product's dependency graph, not about a scratch project whose
@@ -209,7 +209,7 @@ foreach ($id in $usage.Keys) {
                     "A9-LOCATION: vendor package '$id' is referenced by '$projectPath', which is not an " +
                     "adapter. 14 §1.1: no driver or vendor SDK anywhere outside an adapter. Move it behind " +
                     "a port, add it to build/ci/non-vendor-packages.json if it is test infrastructure, or - " +
-                    "only for a build-time tool under tools/ that ships in no artifact - pin it in " +
+                    "only for a build-time tool that ships in no artifact - pin it in " +
                     "build/ci/vendor-location-exceptions.json with a written reason.")
             }
         }

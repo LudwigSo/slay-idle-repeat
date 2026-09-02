@@ -1,5 +1,5 @@
 using Shouldly;
-using SlayIdleRepeat.TestSupport;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using Xunit;

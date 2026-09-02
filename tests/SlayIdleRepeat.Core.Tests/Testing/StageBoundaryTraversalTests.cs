@@ -3,7 +3,7 @@ using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Testing;
-using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Testing;

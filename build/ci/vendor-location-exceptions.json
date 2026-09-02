@@ -6,27 +6,16 @@
     "written about the SHIPPED dependency graph - the client and the server - and it",
     "is the right rule for every project that ends up in an APK or a container.",
     "",
-    "M8 hit the case it does not describe: a BUILD-TIME tool under tools/ that ships",
-    "in no artifact at all. 15 §B4 mandates a seven-step image post-processing",
-    "pipeline (background removal, quantise, resample, PNG-32 export). That cannot be",
-    "written without an imaging library, .NET ships none cross-platform in-box",
-    "(System.Drawing.Common is Windows-only from net7.0), and SixLabors.ImageSharp was",
-    "rejected at the M8 kickoff because its Split License charges above a revenue",
-    "threshold. So a vendor imaging package in a build-time tool is unavoidable, and",
-    "reading 14 §1.1 literally forbids something that must exist.",
-    "",
-    "WHY THIS FILE AND NOT non-vendor-packages.json. Allow-listing SkiaSharp there",
-    "would have declared it 'not a vendor SDK', which is false, and would have",
-    "removed it from the A9-UNIQUE check as well - so a second project could take it",
-    "with the gate green. An entry here is narrower: the package stays a VENDOR",
+    "An entry here does NOT declare a package 'not a vendor SDK' - that is what",
+    "non-vendor-packages.json does, and it would remove the package from the",
+    "A9-UNIQUE check as well. An entry here is narrower: the package stays a VENDOR",
     "package, A9-UNIQUE still governs it in full, and only its permitted LOCATION",
     "moves, to one named project. Both teeth stay in.",
     "",
-    "WHAT BELONGS HERE: a vendor package in a build-time tool under tools/ that is",
-    "referenced by no shipped project. WHAT DOES NOT: anything reachable from",
-    "src/SlayIdleRepeat.Client or src/SlayIdleRepeat.Server, and anything that talks",
-    "to a database, cache, object store, payment or ad network, push service,",
-    "analytics or telemetry backend. Those live in exactly one adapter, as before.",
+    "WHAT DOES NOT BELONG HERE: anything reachable from src/SlayIdleRepeat.Client or",
+    "src/SlayIdleRepeat.Server, and anything that talks to a database, cache, object",
+    "store, payment or ad network, push service, analytics or telemetry backend.",
+    "Those live in exactly one adapter.",
     "",
     "🔒 EVERY ENTRY MUST EXPIRE BY ITSELF (steering S4). An entry whose (id, project)",
     "pair is not in the scan fails the build as a stale exception - the same shape as",
@@ -34,24 +23,8 @@
     "forces its exception to go with it; it cannot sit here pre-armed for whatever",
     "lands on that name next.",
     "",
-    "⚠️ AWAITING RATIFICATION. Added by the M8 conductor at the wave-3 integration",
-    "(2026-08-13) to resolve a gate that had been red since M8-06 merged. It is an",
-    "interpretation of 14 §1.1's SCOPE, not a change to its intent, but it is the",
-    "product owner's to confirm - it belongs with X-07, and the M8 milestone review",
-    "should either ratify it or amend 14 §1.1 to state the build-time carve-out",
-    "directly."
+    "The list is empty: the two SkiaSharp entries it held were for a build-time",
+    "imaging tool that no longer exists."
   ],
-
-  "exceptions": [
-    {
-      "id": "SkiaSharp",
-      "project": "tools/AssetPipeline/SlayIdleRepeat.AssetPipeline.csproj",
-      "reason": "MIT. The rasteriser behind 15 §B4's seven post-processing steps (M8-06). Build-time only: no project under src/ references AssetPipeline, and the architecture rule The_manifest_consumer_tools_reference_the_register_and_nothing_else pins it to the asset register, so it cannot reach Core, Application, Contracts or any adapter. Ships in no artifact."
-    },
-    {
-      "id": "SkiaSharp.NativeAssets.Linux",
-      "project": "tools/AssetPipeline/SlayIdleRepeat.AssetPipeline.csproj",
-      "reason": "The Linux native payload for the above, required for the pipeline to run on a CI runner. Same scope: build-time only, ships in no artifact."
-    }
-  ]
+  "exceptions": []
 }

@@ -1,7 +1,7 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Rules.Combat;
-using SlayIdleRepeat.TestSupport;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;

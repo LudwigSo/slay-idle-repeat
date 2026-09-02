@@ -3,7 +3,7 @@
 
   <!--
     Coverage collection settings for the CRAP (Change Risk Anti-Patterns) score.
-    Consumed by scripts/Measure-Crap.ps1; see docs/crap.md for what the numbers mean.
+    Consumed by scripts/Measure-Crap.ps1.
 
     🔴 COBERTURA IS THE FORMAT THE CRAP SCORE COMES FROM. This is the opposite of
     the usual advice, and it was MEASURED on this repository (ReportGenerator
@@ -43,12 +43,12 @@
             risk is worth ranking, and the code `23` keeps free of vendor SDKs so
             that a hotspot in it is always a hotspot in OUR logic. Everything else
             is deliberately out of scope: adapters are thin shells around vendor
-            SDKs, tools/ does not ship, and the Godot client's complexity is
-            dominated by generated dispatch nobody can refactor.
+            SDKs, and the Godot client's complexity is dominated by generated
+            dispatch nobody can refactor.
 
             This is an INCLUDE, applied at COLLECTION time, and both halves matter:
 
-              - Include, not Exclude, so a new adapter or tool is out of scope the
+              - Include, not Exclude, so a new adapter is out of scope the
                 day it is created rather than the day somebody remembers to add a
                 filter. The scope cannot drift open by omission.
               - At collection time, not in ReportGenerator, so coverlet never

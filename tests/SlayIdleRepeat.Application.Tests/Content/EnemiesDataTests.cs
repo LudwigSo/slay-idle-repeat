@@ -47,9 +47,9 @@ public sealed class EnemiesDataTests
     }
 
     /// <summary>
-    /// The file has a schema, and the schema is what closes `05` §6's five 📐 baseline entries. The
-    /// audit reads <c>game-design/</c> and <c>game-data/schema/</c> and never <c>content/</c>, so a
-    /// data file with no schema would close nothing and be unvalidated besides.
+    /// The file has a schema, and the schema is what closes `05` §6's five 📐 baseline entries: the
+    /// audit read <c>game-data/schema/</c> and never <c>content/</c>, so a data file with no schema
+    /// would close nothing and be unvalidated besides.
     /// </summary>
     [Fact]
     public void The_document_is_governed_by_its_own_schema()

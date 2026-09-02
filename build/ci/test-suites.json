@@ -67,7 +67,7 @@
     "",
     "Every tier that remains is fast and dependency-free: Core.Tests,",
     "Application.Tests (against Adapters.InMemory), Contract.Tests,",
-    "Client.Tests, Architecture.Tests."
+    "Client.Tests, Server.Tests, Architecture.Tests."
   ],
 
   "knownEmpty": [],

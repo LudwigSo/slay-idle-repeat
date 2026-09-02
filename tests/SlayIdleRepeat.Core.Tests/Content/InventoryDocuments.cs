@@ -1,5 +1,5 @@
 using SlayIdleRepeat.Core.Content;
-using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 
 namespace SlayIdleRepeat.Core.Tests.Content;
 

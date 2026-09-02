@@ -37,9 +37,6 @@ internal static class RepoData
     /// <summary>The <c>game-data</c> root.</summary>
     internal static string DataRoot => Path.Combine(RepositoryRoot, "game-data");
 
-    /// <summary>The <c>game-design</c> documentation root.</summary>
-    internal static string DesignDocsRoot => Path.Combine(RepositoryRoot, "game-design");
-
     /// <summary>Every real data document, keyed by its snapshot-relative path.</summary>
     internal static IReadOnlyDictionary<string, string> Documents => LazyDocuments.Value;
 

@@ -1,7 +1,7 @@
 ; Engine configuration file for the O23 Android export spike (task M0-05a).
 ; This is a THROWAWAY project. It exists only to prove that the Godot 4.x
 ; C#/.NET Android export works through the CUSTOM BUILD TEMPLATE (Gradle) path
-; required by game-design/12_MONETIZATION_ADS.md section 3.2.
+; required by doc 12 section 3.2.
 ; It is deliberately not part of SlayIdleRepeat.sln.
 
 config_version=5

@@ -6,7 +6,7 @@ using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 using SlayIdleRepeat.Core.Rules.Stats;
 using SlayIdleRepeat.Core.Tests.Rules.Stats;
-using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 using Xunit.Abstractions;
 

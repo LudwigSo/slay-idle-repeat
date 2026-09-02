@@ -3,7 +3,7 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Tests.Model;
-using SlayIdleRepeat.TestSupport;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;

@@ -2,7 +2,7 @@ using Shouldly;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Tests.Content;
-using SlayIdleRepeat.TestSupport;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model;

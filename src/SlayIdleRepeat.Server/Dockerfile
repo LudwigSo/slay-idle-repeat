@@ -38,7 +38,7 @@ FROM ${DOTNET_SDK_IMAGE} AS build
 
 WORKDIR /src
 
-# Only what the Server's project graph needs. tests/ and tools/ are deliberately
+# Only what the Server's project graph needs. tests/ is deliberately
 # absent: restoring the .sln would drag the xunit stack and the Godot client
 # placeholder into a production image build for no reason.
 #

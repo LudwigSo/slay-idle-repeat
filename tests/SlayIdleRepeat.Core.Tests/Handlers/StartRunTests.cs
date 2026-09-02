@@ -7,6 +7,7 @@ using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Perks;
 using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Tests.Model;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 using PlayerAggregate = SlayIdleRepeat.Core.Model.Player;
 
@@ -438,7 +439,7 @@ public sealed class StartRunTests
             Worlds.Context.Content.DocumentPaths
                 .Where(path => !string.Equals(path, CurrenciesPath, StringComparison.Ordinal))
                 .Select(Worlds.Context.Content.GetDocument)
-                .Append(BalanceHarness.ShippedHarness.Content.GetDocument(CurrenciesPath))),
+                .Append(ShippedHarness.Content.GetDocument(CurrenciesPath))),
     };
 
     private const string CurrenciesPath = "tuning/currencies.json";

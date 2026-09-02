@@ -2,7 +2,7 @@ using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Conditions;
-using SlayIdleRepeat.TestSupport;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Conditions;

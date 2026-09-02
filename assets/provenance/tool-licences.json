@@ -4,7 +4,7 @@
     "have been confirmed IN WRITING.",
     "",
     "🔒 `confirmedInWriting` is ABSENT on every row below, and absent means UNSET — nobody has",
-    "confirmed anything. There is no default: tools/AssetProvenance reads an absent member as null,",
+    "confirmed anything. There was no default: the (since removed) provenance gate read an absent member as null,",
     "ToolLicence.RequireConfirmedInWriting() throws on it, and ProvenanceGate raises",
     "UnconfirmedLicence for any asset whose record names the tool. The day the first Midjourney",
     "asset is delivered, this file is what decides whether the build is green.",

@@ -26,8 +26,6 @@ the gate is still there, that is a bug in the milestone, not a detail.
 | `build` | 🟢 live | `dotnet restore` + `dotnet build SlayIdleRepeat.sln -c Release`. Warnings are errors via `Directory.Build.props`, so a new warning fails here. NuGet cached on the project files. | `14` §14 |
 | `test` | 🟢 live | The unit and contract suites, discovered by glob. Fails on a suite that contains **zero** tests without a declared exemption — see [The empty-suite rule](#the-empty-suite-rule). | `14` §13 |
 | `architecture-tests` | 🟢 live | `SlayIdleRepeat.Architecture.Tests` alone, in its own job. `23` §6 says these fail the build, so they are not lumped in with `test` where an unrelated flake could mask them. | `23` §6, `30` §9 |
-| `content-validation` | 🟢 live | Every JSON under `game-data/` is validated against its schema and against the cross-file invariants: `14` §6's five failure classes (unknown IDs, missing icons, out-of-range values, orphaned references, duplicate IDs), plus malformed JSON, duplicate property names, unpaired schemas, and any JSON Schema keyword the validator does not implement. Runs the same code the game loads content with (M0-09). ⚠️ The 📐 marker audit this job also used to run has been removed. | `14` §6 🔒, `14` §13 |
-| `asset-provenance` | 🟢 live *(since M8-01a)* | Bidirectional: **no delivered asset without a provenance record**, and **no provenance record for an unknown asset id**. A record for an asset a ruling has *cut* is its own failure. Plus the record's own fields, and `20` §6's *"commercial licence for each tool confirmed in writing"*. ⚠️ **Zero assets are delivered today**, so the forward direction quantifies over an empty set — what keeps it non-vacuous is the register floor (≥1,000 ids + five canary ids + one canary cut id), the reverse direction, and `DeliveryDeclaration`, which fails the build the moment one asset lands under `assets/`. It reports *"AWAITING FIRST DELIVERY — 0 of 1048 … 0 pairings verified"* rather than a bare pass. | `15` §B0, §G 🔒, `20` §2.1 🔒, §6 |
 | `vendor-package-uniqueness` | 🟢 live | Fails if a vendor `PackageReference` appears in more than one `.csproj` (**A9-UNIQUE**), or in a project that is not an adapter (**A9-LOCATION**). | `14` §1.1 🔒 |
 | `server-image` | 🟢 live | Builds `src/SlayIdleRepeat.Server/Dockerfile`, starts the container, asserts it is **not running as root**, and waits for `GET /health` → 200 `{"status":"ok"}`. Build and smoke only — **no registry login, no push**. | `14` §14 |
 | `compose-boot` | 🟢 live *(since M0-03)* | Asserts CI holds **no cloud credentials at all**, then `docker compose config` → `up --detach --wait` → probe `/health`, the MinIO liveness endpoint and the Prometheus scrape targets → `down`. Those probes are **CI steps, not a test suite** — there is no integration tier. The stack it boots is `docker-compose.yml` + `infra/` — see [`infra/README.md`](../../infra/README.md). | `14` §14, `14` §1.1 🔒 |
@@ -37,13 +35,6 @@ the gate is still there, that is a bug in the milestone, not a detail.
 | `android-export` | ⛔ gated off | Android debug APK **through the custom export template with the MAX plugin included** — a plain export does not produce a working ad build. | `14` §14, `12` §3.2 |
 | `ios-export` | ⛔ gated off | iOS Xcode project export on a **`macos-15`** runner, asserting the build actually contains .NET (`<Assembly>_aot.xcframework` + `godot-publish-dotnet/`). macOS is not a preference: Godot 4.7.1's exporter hard-refuses .NET iOS builds off macOS. | `14` §14, `12` §3.2 |
 
-### `nightly.yml` — 03:17 UTC daily, plus manual dispatch
-
-| Job | State | What it enforces | Doc source |
-|---|---|---|---|
-| `balance-harness` | 🟡 live but thin | Builds and runs `tools/BalanceHarness`, asserts exit 0. The tool is an empty shell, so this currently only catches it failing to build or starting to throw. | `14` §14, `05` §9 |
-| `economy-simulator` | 🟡 live but thin | Builds and runs `tools/EconomySim`, asserts exit 0. Same shape. | `14` §14, `21` |
-
 ---
 
 ## The gated-off register
@@ -51,8 +42,8 @@ the gate is still there, that is a bug in the milestone, not a detail.
 | Job | Gate | What turns it on | Why it is not `echo TODO && exit 0` |
 |---|---|---|---|
 | `determinism-ios` | `if: false` | ⚠️ **Nothing in the current plan** — it turns on with iOS itself (**D34**), and it is the *first* leg to re-enable if iOS returns: NativeAOT is a different **runtime** from the CoreCLR path the two live legs exercise, so it is the leg most likely to disagree and the one currently asserting nothing. On the day it is re-enabled, `ios-arm64` must also be added to `determinism-observed`'s expected list — otherwise this leg can fail and the guard will still pass. | A determinism job that passes without comparing hashes across architectures asserts the exact opposite of `14` §8.2 — which is why the *live* two legs are not gated, why neither of them trusts an exit code, and why `determinism-observed` fails when a leg leaves no evidence behind. |
-| `android-export` | `if: false` | **M7-10** (client CI), which needs **M7-01** to turn `SlayIdleRepeat.Client` into a real Godot project. It is a plain `net8.0` class library today so the solution builds without Godot installed. The recipe is spike **O23**, written up in `docs/spikes/O23-godot-android-export.md` (M0-05a) — M7-10 implements that document rather than re-researching it. | `12` §3.2 is explicit that a plain export yields an APK where ads do not work. A green tick over a fake export would hide precisely the failure the job exists to catch. |
-| `ios-export` | `if: false` | ⚠️ **Nothing in the current plan.** **D34** (M0 review) descopes iOS to post-launch: Android ships alone. This job and the `ios-arm64` determinism leg stay **authored and gated off rather than deleted**, because D34 is a shipping decision, not an architectural one, and its binding four-part reopen condition should be a one-line change to act on. The recipe is `docs/spikes/O23-godot-ios-export.md` (M0-05b) and — unlike the Android one — **it has never been run**: O23 closes on the iOS side by descoping, not by evidence. Whoever reopens iOS must expect to debug that document, not transcribe it. | Same argument, sharper: iOS is the half of O23 that `16` flagged as *especially* risky. It also fails vacuously in a second way the others do not — a missing `.sln` makes Godot skip the .NET publish and still emit a buildable Xcode project with **zero managed code**, so the job must assert on `<Assembly>_aot.xcframework` and `godot-publish-dotnet/`, never on the exit code. |
+| `android-export` | `if: false` | **M7-10** (client CI), which needs **M7-01** to turn `SlayIdleRepeat.Client` into a real Godot project. It is a plain `net8.0` class library today so the solution builds without Godot installed. The recipe is spike **O23** (M0-05a) — M7-10 implements that write-up rather than re-researching it. | `12` §3.2 is explicit that a plain export yields an APK where ads do not work. A green tick over a fake export would hide precisely the failure the job exists to catch. |
+| `ios-export` | `if: false` | ⚠️ **Nothing in the current plan.** **D34** (M0 review) descopes iOS to post-launch: Android ships alone. This job and the `ios-arm64` determinism leg stay **authored and gated off rather than deleted**, because D34 is a shipping decision, not an architectural one, and its binding four-part reopen condition should be a one-line change to act on. The iOS recipe (M0-05b) — unlike the Android one — **has never been run**: O23 closes on the iOS side by descoping, not by evidence. Whoever reopens iOS must expect to debug that document, not transcribe it. | Same argument, sharper: iOS is the half of O23 that `16` flagged as *especially* risky. It also fails vacuously in a second way the others do not — a missing `.sln` makes Godot skip the .NET publish and still emit a buildable Xcode project with **zero managed code**, so the job must assert on `<Assembly>_aot.xcframework` and `godot-publish-dotnet/`, never on the exit code. |
 
 All three report **skipped**, not success. None runs `exit 0` over an empty step.
 
@@ -78,9 +69,8 @@ Two notes for whoever turns the macOS jobs on:
 
 ## Jobs that are red today, on purpose
 
-**None.** Both entries this section carried during M0 have since gone green, and neither was made to pass by weakening it:
+**None.** The entry this section carried during M0 has since gone green, and it was not made to pass by weakening it:
 
-- **`content-validation`** was red while `game-data/` held only `.gitkeep` files — a validator with nothing to validate reported failure rather than a green tick over an empty directory. **M0-10** landed `schema/`, `tuning/` (the 16 files of `21` §3.1), `loc/` and `content/`; **M0-09** then replaced the script's body with a call into `tools/ContentValidator`, so CI now runs the same code the game loads content with.
 - **`compose-boot`** was red while `docker-compose.yml` did not exist; the job checked for it explicitly so the failure read as "M0-03 has not landed" rather than Docker's bare `no configuration file provided`. **M0-03** landed the stack, and the sequence was walked locally against Docker 28.4.0 — `config` → `up -d --wait` (all 8 services healthy, 2 init containers completed) → `/health` → 200 `{"status":"ok"}` → integration suite 3/3 → `down -v`.
 
 Keep this section honest: a job that is red for a *planned* reason belongs here with the task that clears it. A job that is red for any other reason is a defect, not a row.
@@ -162,8 +152,6 @@ nobody can reproduce when it goes red.
 | Script | Run it | Used by |
 |---|---|---|
 | `Invoke-UnitTests.ps1` | `pwsh build/ci/Invoke-UnitTests.ps1 -Group unit` | `test`, `architecture-tests`, `compose-boot` |
-| `Invoke-ContentValidation.ps1` | `pwsh build/ci/Invoke-ContentValidation.ps1` | `content-validation` |
-| `Invoke-ProvenanceGate.ps1` | `pwsh build/ci/Invoke-ProvenanceGate.ps1` | `asset-provenance` |
 | `Test-VendorPackageUniqueness.ps1` | `pwsh build/ci/Test-VendorPackageUniqueness.ps1` | `vendor-package-uniqueness` |
 | `Test-NoCloudCredentials.ps1` | `pwsh build/ci/Test-NoCloudCredentials.ps1` | `compose-boot` |
 | `Wait-ForHttpOk.ps1` | `pwsh build/ci/Wait-ForHttpOk.ps1 -Url http://127.0.0.1:8080/health` | `server-image`, `compose-boot` |
@@ -175,35 +163,6 @@ PowerShell, because it is the one shell that runs identically on the Windows
 development machine and on the `ubuntu-24.04` runners, where `pwsh` is
 preinstalled.
 
-### Handover: `content-validation` → M0-09 · **done**
-
-M0-02 authored `Invoke-ContentValidation.ps1` as a structural floor and asked
-M0-09 to **replace the body, not the interface**. That is what happened: same
-script path, same parameters, same exit codes.
-
-The body is now a call into `tools/ContentValidator`, which runs the **same code
-the game loads content with** — the loader, the JSON Schema validator, the
-cross-file invariants all live in
-`SlayIdleRepeat.Application/Services/Content/` and are unit-tested in
-`SlayIdleRepeat.Application.Tests` against the in-memory fake. A CI-only
-validator written a second time in PowerShell would drift from the runtime one,
-and the day it did, CI would be green about content the game cannot load.
-
-The pairing convention M0-02 guessed turned out to be right, so no
-`schema-map.json` was needed. Two schemas govern nothing yet (`chapter`,
-`event`); rather than loosening the orphan check they are named in
-`ContentLoader.SchemasAwaitingContent` with the milestone that authors their
-content, and the check **fails if one of them ever does govern a file** — the
-exemption cannot outlive its milestone.
-
-The one edit `ci.yml` did need: an `actions/setup-dotnet` step on the job, since
-the check is .NET now rather than pure PowerShell.
-
-⚠️ **The 📐 marker audit has been removed**, together with its dated baseline at
-`build/content/tunable-marker-baseline.json`. `14` §6 still asks for it — "that
-check is what stops the tuning surface eroding over eighteen months" — so this
-job now delivers the schema half of that section and not the marker half.
-
 ### Deliberate overlap with the architecture tests
 
 M0-08's `ProjectFileTests.Vendor_package_is_referenced_by_exactly_one_project`
@@ -213,7 +172,7 @@ not duplicates:**
 | | Architecture test (M0-08) | `Test-VendorPackageUniqueness.ps1` |
 |---|---|---|
 | Scope | `src/` only — test projects legitimately share xUnit | Whole repository, with an explicit allow-list |
-| Location rule | Covered indirectly (`Core` references nothing, `Application` references only Core + Contracts) | **A9-LOCATION**, directly: a vendor package anywhere outside `src/adapters/**` fails, including `Server`, `Contracts`, `tools/` and `tests/` |
+| Location rule | Covered indirectly (`Core` references nothing, `Application` references only Core + Contracts) | **A9-LOCATION**, directly: a vendor package anywhere outside `src/adapters/**` fails, including `Server`, `Contracts` and `tests/` |
 | Runs when the solution does not compile | No | Yes |
 | New package appears | Passes if it is unique | Fails until it is either in an adapter or justified in `non-vendor-packages.json` |
 
@@ -233,7 +192,7 @@ A stack that comes up *because* CI first authenticated to a cloud registry has
 failed that test while reporting success — so `Test-NoCloudCredentials.ps1` runs
 before `docker compose up` and fails on any of:
 
-- a `${{ secrets.* }}` expression in `ci.yml` or `nightly.yml`
+- a `${{ secrets.* }}` expression in any workflow
 - `docker/login-action`, `aws-actions/configure-aws-credentials`,
   `google-github-actions/auth`, `azure/login`
 - `docker login` or `docker push`
@@ -255,8 +214,8 @@ in [`infra/README.md`](../../infra/README.md#dev-credentials). MinIO speaks the 
 API, so an S3-shaped key pair there is not a cloud account.
 
 It scans **every** `.github/workflows/*.yml`, not a list of filenames. Until the
-M0 review it named `ci.yml` and `nightly.yml` literally, which meant renaming
-`nightly.yml` — or adding `codeql.yml` in M1 — left the new file silently never
+M0 review it named the workflow files literally, which meant renaming one — or
+adding `codeql.yml` in M1 — left the new file silently never
 scanned while the check still reported success. This is the one gate whose entire
 value is "it looked at everything CI can reach for", so it also fails when a glob
 matches nothing at all.
@@ -274,10 +233,9 @@ exemption cannot outlive the file it was written for.
 | Thing | Owner |
 |---|---|
 | ~~`docker-compose.yml` itself~~ | ✅ landed with M0-03 — `docker-compose.yml` + `infra/`, documented in [`infra/README.md`](../../infra/README.md) |
-| ~~The real content-validation harness~~ | ✅ landed with M0-09 — `tools/ContentValidator` over `SlayIdleRepeat.Application/Services/Content/`, so CI runs the same code the game loads content with |
 | ~~The `SchemaVersion` snapshot field-list pin (`14` §16.6)~~ | ✅ landed with M0-07 — `tests/SlayIdleRepeat.Core.Tests/Model/Snapshots/SnapshotFieldOrderPin.cs`, picked up by the `test` job through glob discovery with no YAML edit, exactly as this row predicted |
 | ~~The determinism + parity harness~~ | ✅ landed with M5-12 — `determinism` (Linux x64 + Android ARM64) and `determinism-observed` are live; `determinism-ios` stays gated under D34. The corpora are `tests/SlayIdleRepeat.Core.Tests/Rules/Effects/Determinism/` and `tests/SlayIdleRepeat.Application.Tests/Parity/` (the `Rules/Combat/Determinism/` LogHash corpus was removed), driven by `build/ci/Assert-DeterminismRun.ps1` |
-| The real Android client CI | M7-10. Recipe: `docs/spikes/O23-godot-android-export.md` (executed — a real signed, .NET-bearing APK through the custom-template path). **iOS is out of scope for v1** per D34; its recipe `docs/spikes/O23-godot-ios-export.md` is written but never executed, and reopening iOS reopens O23 |
+| The real Android client CI | M7-10. Recipe: spike **O23** (executed — a real signed, .NET-bearing APK through the custom-template path). **iOS is out of scope for v1** per D34; the iOS half of O23 is written up but was never executed, and reopening iOS reopens O23 |
 | Server release: registry push, rolling deploy, pre-deploy migrations | Not yet scheduled — `14` §14 |
 | Client release: AAB / IPA, 5 % staged rollout | Not yet scheduled — `14` §14 |
 | Kill switches (remote config flags) | Runtime config, not CI — `14` §14 |
@@ -294,20 +252,19 @@ Run locally against this checkout on 2026-08-11 (Windows 10, Docker 28.4.0,
 | `dotnet restore` + `dotnet build -c Release` — 34 projects, 0 warnings, 0 errors | Every `actions/*` step (`checkout`, `setup-dotnet`, `cache`, `upload-artifact`) |
 | All three test groups via `Invoke-UnitTests.ps1`, plus **both** failure modes of the empty-suite rule (undeclared-empty, and stale-exemption) proven against a throwaway suite, and all four manifest-validation failures (unmatched `include`/`exclude` name, `knownEmpty` naming a missing project, malformed `turnsOn`, empty `reason`) proven against a throwaway manifest | `global-json-file: global.json` actually selecting the 8.0 SDK on a runner |
 | `Test-VendorPackageUniqueness.ps1` — passes on the real tree (34 projects, 12 with a `PackageReference`, 8 vendor SDKs); A9-UNIQUE and A9-LOCATION both proven to fire, including through a project carrying the legacy MSBuild `xmlns` that the previous namespace-sensitive XPath returned zero nodes for; the "scanned N projects and found no PackageReference at all" vacuity guard proven against a scratch tree | NuGet cache hit/miss behaviour |
-| `Invoke-ContentValidation.ps1` — pass, bad-parse, duplicate-key and both orphan directions proven on fixtures. **Superseded by M0-09**: the body now calls `tools/ContentValidator`, and the schema-awaiting-content declaration moved from `schema-map.json` into `ContentLoader.SchemasAwaitingContent` | Runner-label availability (`ubuntu-24.04`, `macos-15`). `macos-14` is deprecated and unsupported from **2026-11-02**; no job names it any more — the M0 review moved the iOS ARM64 determinism leg to `macos-15`, and M5-12 made it a job of its own |
+| — | Runner-label availability (`ubuntu-24.04`, `macos-15`). `macos-14` is deprecated and unsupported from **2026-11-02**; no job names it any more — the M0 review moved the iOS ARM64 determinism leg to `macos-15`, and M5-12 made it a job of its own |
 | `Test-NoCloudCredentials.ps1` — passes on the real workflows; all seven bans proven to fire on a fixture; the glob proven to pick up a newly-added `codeql.yml` that the previous hard-coded file list would never have read, and the stale-`-WorkflowExclusion` failure proven | `schedule:` firing, and GitHub's 60-day disable of scheduled workflows on an inactive repo |
 | `docker build` of the server image, non-root uid **1654**, `GET /health` → 200 `{"status":"ok"}`, and `ASPNETCORE_HTTP_PORTS` override proving 12-factor config | Concurrency cancellation, artifact upload |
 | The whole `compose-boot` command sequence (`config` → `up --wait` → health poll → `down`) against a throwaway stack in a scratch directory | |
-| Both `nightly.yml` commands (`dotnet run` on each tool, exit 0) | |
-| YAML parse + `yamllint` clean on both workflows | `actionlint` (not installed; not fetched — no unvetted binaries) |
+| YAML parse + `yamllint` clean on the workflow | `actionlint` (not installed; not fetched — no unvetted binaries) |
 | **Integration rehearsal**, re-run on `review/M0` at the end of the M0 review: build clean (34 projects, 0 warnings), architecture suite **38/38**, `Core.Tests` 799, `Application.Tests` 256, `Contract.Tests` 24, `Integration.Tests` 3 against a live stack, all four `build/ci/` checks exit 0, and **no job red** — the two documented reds of the earlier rehearsal were cleared by M0-03 and M0-09/M0-10, see "Jobs that are red today" above | |
 
 ### Follow-ups for when the repository exists
 
 1. **Pin the `actions/*` steps to commit SHAs** rather than `@v4`. Not done here
    because the SHAs cannot be resolved or verified without a remote.
-2. **Run `actionlint`** over both workflows, and consider adding it as a job.
+2. **Run `actionlint`** over the workflow, and consider adding it as a job.
 3. **Branch protection**: `build`, `test`, `architecture-tests` and
    `vendor-package-uniqueness` are the checks that pass today and are safe to
-   require immediately. `compose-boot` joined them with M0-03 and
-   `content-validation` with M0-09, so all six are now safe to require.
+   require immediately. `compose-boot` joined them with M0-03, so all five are
+   now safe to require.

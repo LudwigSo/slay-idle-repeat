@@ -7,7 +7,7 @@ using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Economy;
 using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Model;
-using SlayIdleRepeat.TestSupport;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;

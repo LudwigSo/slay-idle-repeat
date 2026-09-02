@@ -1,7 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Core.Commands;
-using SlayIdleRepeat.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Client.Tests;
@@ -148,8 +147,9 @@ public sealed class CommandQueueTests
 
         var refusal = Should.Throw<InvalidOperationException>(() => queue.Acknowledge(second.Id));
 
-        refusal.Message.ShouldMatchWildcard(
-            $"*{second.Id.Value}*",
+        refusal.Message.ShouldContain(
+            second.Id.Value,
+            Case.Insensitive,
             "the message has to name the id that was offered, because the caller's whole problem is " +
             "that it thinks it holds an answer to a different command from the one at the front — and " +
             "a refusal that does not say which id it refused sends a reader to the wrong end of the " +

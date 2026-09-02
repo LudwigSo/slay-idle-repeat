@@ -4,7 +4,7 @@
 ; and no Apple Developer account, so the iOS leg of O23 is a written recipe, not
 ; an executed export, and O23 REMAINS OPEN. This directory exists so that the
 ; first person with a Mac can start at step 1 of
-; docs/spikes/O23-godot-ios-export.md §9 instead of at step 0.
+; spike O23's iOS leg §9 instead of at step 0.
 ;
 ; It is the deliberate twin of spikes/godot-android-export/: same C# sources,
 ; same assembly-name/solution shape, same engine pin. The only differences are
@@ -37,7 +37,7 @@ renderer/rendering_method.mobile="mobile"
 ; exporter's has_valid_project_configuration() calls
 ; ResourceImporterTextureSettings::should_import_etc2_astc() and marks the
 ; project invalid when it is off. Verified by reading the 4.7.1-stable source;
-; see docs/spikes/O23-godot-ios-export.md §5.
+; see spike O23's iOS leg §5.
 ;
 ; ⚠️ Note the cost of the "mobile" renderer above: the exporter force-adds the
 ; `iphone-ipad-minimum-performance-a12` required-device-capability whenever

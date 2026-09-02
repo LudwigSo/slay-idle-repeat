@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Shouldly;
-using SlayIdleRepeat.TestSupport;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using Xunit;
 
