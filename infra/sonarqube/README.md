@@ -49,6 +49,25 @@ distinction is the point:
 | `local-analysis` | **Global Analysis Token** | `Invoke-SonarAnalysis.ps1` | Submit an analysis. Nothing else. |
 | `local-admin` | **User Token** | `Set-SonarQubeDefaults.ps1` | Administer the server. |
 
+SonarQube shows each value exactly once. Both scripts read them from the
+environment and nothing else, so the only decision is where the value lives
+between shells. `.gitignore` reserves two filenames for it:
+
+```powershell
+# paste each token into its file once...
+Set-Content .sonar-token       'sqa_...'   # the analysis token (sqa_)
+Set-Content .sonar-admin-token 'squ_...'   # the admin token    (squ_)
+
+# ...then load them in any new shell
+$env:SONAR_TOKEN       = (Get-Content .sonar-token -Raw).Trim()
+$env:SONAR_ADMIN_TOKEN = (Get-Content .sonar-admin-token -Raw).Trim()
+```
+
+They are ignored by pattern (`.sonar-token`, `.sonar-*-token`), never read by
+any script, and hold nothing that is not revocable from *My Account → Security*
+on a server bound to loopback. Keeping them in the environment instead is
+equally fine — no script here looks for these files.
+
 **4 — apply the configuration.**
 
 ```bash

@@ -194,8 +194,21 @@ services:
       # /api/system/status is unauthenticated and returns UP only once the
       # database migration AND the search index are ready — which is precisely
       # "can I now run an analysis against it", and is not the same thing as the
-      # port being open. wget is present in the image; curl is not.
-      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:9000/api/system/status | grep -q ''"status":"UP"''']
+      # port being open.
+      #
+      # 🔴 curl, NOT wget — MEASURED IN THIS IMAGE, and the comment that used to
+      # stand here claimed the opposite. `sonarqube:26.8.0.126808-community` ships
+      # /usr/bin/curl and no wget at all, so this probe exited 1 forever:
+      # `docker inspect` showed 2161 consecutive failures reading "wget: not
+      # found" against a server that had been answering UP the whole time. The
+      # container ran perfectly well and reported `unhealthy`, which means
+      # `up -d --wait` — the first command the README gives you — could never
+      # return. Re-check on any other image with:
+      #     docker exec <container> sh -c 'command -v curl; command -v wget'
+      #
+      # --fail so an HTTP error status fails the probe rather than being grepped
+      # as a body.
+      test: ['CMD-SHELL', 'curl --fail --silent http://127.0.0.1:9000/api/system/status | grep -q ''"status":"UP"''']
       interval: 10s
       timeout: 10s
       # 5 minutes. A first boot migrates the schema and builds the index on a

@@ -45,6 +45,18 @@ StrykerOutput/
 # Never committed.
 .sonarqube/
 
+# The two SonarQube tokens, one per file, for a local analysis run. The scripts
+# read $env:SONAR_TOKEN / $env:SONAR_ADMIN_TOKEN and know nothing about these
+# files - they are just somewhere to keep a value the server shows you exactly
+# once, so it survives a new shell without being typed again:
+#
+#   $env:SONAR_TOKEN = (Get-Content .sonar-token -Raw).Trim()
+#
+# Ignored by pattern rather than by name, so a second one cannot be added later
+# and land outside the rule. See infra/sonarqube/README.md.
+.sonar-token
+.sonar-*-token
+
 # --------------------------------------------------------------------- NuGet
 *.nupkg
 *.snupkg
