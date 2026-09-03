@@ -34,16 +34,40 @@ public sealed class HeroPowerReadoutTests
             0.0, "sqrt(EffectiveHP × DPS) of a hero with any health and any attack is above zero.");
     }
 
-    /// <summary>The other half of the S1 pair: one level past the curve is no hero at all.</summary>
+    /// <summary>
+    /// The other half of the S1 pair. The legend curve and the hero base curve are both authored to
+    /// 200, and the row door checks the legend curve first — so over the shipped content a level
+    /// past the top is a row the domain refuses, not a curve point that is missing.
+    /// </summary>
     [Fact]
-    public void Read_reports_LegendLevelOutsideCurve_one_level_past_the_authored_curve()
+    public void Read_reports_RowNotRehydratable_one_level_past_the_shipped_legend_curve()
     {
         var reading = Readout().Read(PlayerState.Rehydratable(Profile, TopOfCurve + 1), run: null);
 
         reading.Standing.ShouldBe(
+            HeroPowerStanding.RowNotRehydratable,
+            "Player.Rehydrate refuses a Legend Level outside tuning/progression.json#/legendLevel, " +
+            "and that refusal is reached before the hero base curve is consulted. A reading that " +
+            "reported the curve here would be naming a rule that never fired.");
+        reading.PowerIndex.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// The curve's own refusal is reachable only when the legend curve admits a level the hero base
+    /// curve does not — the two are authored apart, so this is the retune that tells them apart.
+    /// </summary>
+    [Fact]
+    public void Read_reports_LegendLevelOutsideCurve_when_the_legend_curve_outgrows_the_hero_base_curve()
+    {
+        var content = WithLegendLevelCap(BootContent.Shipped, TopOfCurve + 1);
+
+        var reading = new HeroPowerReadout(content).Read(PlayerState.Rehydratable(Profile, TopOfCurve + 1), run: null);
+
+        reading.Standing.ShouldBe(
             HeroPowerStanding.LegendLevelOutsideCurve,
-            "the base curve is authored to 200 and refuses 201 by name. Read as a row fault instead, " +
-            "the tile would blame the profile for a level the curve simply has not been extended to.");
+            "the row is now one the domain accepts, so the only thing left to refuse 201 is the hero " +
+            "base curve, which is authored to 200 and says so by range. Read as a row fault instead, " +
+            "the tile would blame a profile the domain has just accepted.");
         reading.PowerIndex.ShouldBeNull("no curve point, no stat block, no number.");
     }
 
@@ -150,6 +174,41 @@ public sealed class HeroPowerReadoutTests
             Loadout = new LoadoutSnapshot(new Dictionary<GearSlot, GearInstanceId> { [GearSlot.WEAPON] = blade }),
         };
     }
+
+    /// <summary>The shipped content with <c>tuning/progression.json#/legendLevel/max</c> rewritten.</summary>
+    private static ContentSnapshot WithLegendLevelCap(ContentSnapshot content, int max)
+    {
+        const string progression = "tuning/progression.json";
+        const string legendLevel = "legendLevel";
+
+        var root = content.GetDocument(progression).Root;
+        var curve = root.TryGetMember(legendLevel, out var authored) && authored is not null
+            ? authored
+            : throw new InvalidOperationException($"{progression} authors no '{legendLevel}' member to retune.");
+
+        var retunedCurve = ContentValue.Object(
+            curve.MemberNames.Select(name => new KeyValuePair<string, ContentValue>(
+                name,
+                name == "max" ? ContentValue.Number(max) : Member(curve, name))));
+
+        var retunedRoot = ContentValue.Object(
+            root.MemberNames.Select(name => new KeyValuePair<string, ContentValue>(
+                name,
+                name == legendLevel ? retunedCurve : Member(root, name))));
+
+        return new ContentSnapshot(
+            content.Version,
+            content.DocumentPaths
+                .Select(path => path == progression
+                    ? new ContentDocument(path, retunedRoot)
+                    : content.GetDocument(path))
+                .ToArray());
+    }
+
+    private static ContentValue Member(ContentValue owner, string name) =>
+        owner.TryGetMember(name, out var value) && value is not null
+            ? value
+            : throw new InvalidOperationException($"'{name}' vanished while its owner was being rebuilt.");
 
     private static ContentSnapshot Without(ContentSnapshot content, string documentPath) =>
         new(
