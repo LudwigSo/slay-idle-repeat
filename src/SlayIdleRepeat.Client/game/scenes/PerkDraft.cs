@@ -23,11 +23,10 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// decision a run is actually made of.
 /// </para>
 /// <para>
-/// 🔒 <b>This screen draws only what exists.</b> Three cards, the Gold-priced reroll with its price
-/// and the balance it is read against, the skip with its reward, and the guarantee counters. There
-/// is no reroll by ad, no fourth option earned by an ad and no free-reroll count, because the
-/// presenter has none of them to give: the ad reward command is not built and the free-reroll
-/// allowance was never written, and a slot kept for either would be a control for nothing.
+/// 🔒 <b>This screen draws only what the presenter gives it.</b> Three cards, the Gold-priced reroll
+/// with its price and the balance it is read against, the skip with its reward, and the guarantee
+/// counters. There is no reroll by ad, no fourth card by ad and no free-reroll count, and no slot
+/// kept for any of them: why none exists is <see cref="PerkDraftPresenter"/>'s to say, not this half's.
 /// </para>
 /// <para>
 /// 🔴 <b>A card whose numbers cannot be rendered says so</b> — the presenter answers with a named
