@@ -63,10 +63,10 @@ public sealed class BattleFramingTests
         var straightOn = BattleFraming.Frame(deep, Camera with { YawDegrees = 0 }, Fov, PortraitAspect);
         var yawed = BattleFraming.Frame(deep, Camera, Fov, PortraitAspect);
 
-        var yaw = double.DegreesToRadians(28);
+        var yaw = double.DegreesToRadians(Math.Abs(Camera.YawDegrees));
 
         // Width governs both in portrait: the projected half-width is 1 straight on and
-        // cos 28° + 4·sin 28° ≈ 2.76 yawed, so the yawed camera sits that much further back.
+        // cos yaw + 4·sin yaw (≈ 2.76 at 28°) yawed, so the yawed camera sits that much further back.
         straightOn.Distance.ShouldBeGreaterThan(0d);
         yawed.Distance.ShouldBe(straightOn.Distance * (Math.Cos(yaw) + (4 * Math.Sin(yaw))), 1e-6);
     }

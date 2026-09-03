@@ -1,5 +1,7 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Combat.Bosses;
 using SlayIdleRepeat.Core.Rules.Combat.Enemies;
@@ -22,7 +24,8 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// </remarks>
 public sealed class BattleRosterTests
 {
-    private const ulong BattleSeed = 0xB0_57_E4_0000_0001UL;
+    private const ulong BattleSeed = 0xB0_57_E4_0000_0002UL;
+    private const double EnemyPower = 400.0;
     private const int ChapterOne = 1;
     private const int NormalTier = 0;
     private const int Level = 10;
@@ -56,7 +59,7 @@ public sealed class BattleRosterTests
     [Fact]
     public void The_hero_is_the_first_roster_entry_and_is_named_HERO()
     {
-        var result = Encounter([400.0]);
+        var result = Encounter([EnemyPower]);
 
         result.Roster.Count.ShouldBeGreaterThanOrEqualTo(2, "the floor: the hero and one enemy");
         result.Roster[0].ActorId.ShouldBe(CombatActor.Hero);
@@ -64,9 +67,10 @@ public sealed class BattleRosterTests
     }
 
     [Fact]
-    public void An_enemy_tile_names_a_weighted_chapter_archetype_that_is_neither_elite_nor_boss()
+    public void An_enemy_tile_names_each_slot_by_the_drawn_archetype_whose_statline_it_spawned_with()
     {
-        var pool = EnemyCatalogue.Read(Content).Pool(ChapterOne);
+        var catalogue = EnemyCatalogue.Read(Content);
+        var pool = catalogue.Pool(ChapterOne);
         var drawable = pool.Weights
             .Where(w => w.Weight > 0.0)
             .Select(w => w.Archetype.ToString())
@@ -78,13 +82,24 @@ public sealed class BattleRosterTests
             "the floor that makes 'weighted' mean anything: chapter 1 authors at least one archetype " +
             "at weight 0, so an identity read off the wrong table could name it");
 
-        var result = Encounter([400.0, 400.0, 400.0]);
+        var result = Encounter([EnemyPower, EnemyPower, EnemyPower]);
 
+        var spawnedMaxHp = result.Log
+            .Where(e => e.Type == CombatEventType.ActorSpawned && e.TargetId >= CombatActor.FirstEnemy)
+            .ToDictionary(e => e.TargetId, e => e.Value);
         var enemies = result.Roster.Where(r => r.ActorId >= CombatActor.FirstEnemy).ToArray();
 
         enemies.Length.ShouldBe(3, "one entry per enemy power handed in");
         enemies.Select(e => e.Identity ?? Unnamed).ShouldBeSubsetOf(
-            drawable, "the archetype the pool drew, by its enum name");
+            drawable, "the archetype the pool drew, by its exact enum name");
+        enemies.Select(e => e.Identity).Distinct().Count().ShouldBeGreaterThanOrEqualTo(
+            2,
+            "the floor that makes the statline check discriminating: this seed draws two archetypes, " +
+            "so one name written on every slot cannot match every body");
+        enemies.Select(e => MaxHpOf(catalogue, e.Identity)).ShouldBe(
+            enemies.Select(e => spawnedMaxHp[e.ActorId]),
+            "each slot's name is the archetype whose statline the log spawned that slot with — the " +
+            "body the name dresses is the body the server fought, not the pool's first row");
         enemies.ShouldAllBe(e => !e.IsElite && !e.IsBoss && !e.IsSummon);
     }
 
@@ -96,7 +111,7 @@ public sealed class BattleRosterTests
 
         elitePool.Length.ShouldBeGreaterThanOrEqualTo(1, "the floor: an elite to draw");
 
-        var result = Encounter([400.0, 400.0], eliteIndex: 1);
+        var result = Encounter([EnemyPower, EnemyPower], eliteIndex: 1);
 
         result.Roster.Select(r => r.ActorId).ShouldBe(
             [CombatActor.Hero, CombatActor.Enemy(0), CombatActor.Enemy(1)],
@@ -153,7 +168,7 @@ public sealed class BattleRosterTests
             .Where(r => r.ActorId != CombatActor.Hero && r.ActorId != CombatActor.Enemy(0))
             .ToArray();
 
-        adds.Length.ShouldBe(2, "the floor: 17 §2's Thornmaw summons 2 on its phase-3 entry");
+        adds.Length.ShouldBe(2, "the floor: the bench's SUMMON op authors two adds on the phase-3 entry");
         adds.Select(a => a.ActorId).ShouldBe(
             [CombatActor.Enemy(1), CombatActor.Enemy(2)], "the next free ids, after the boss's");
         adds.ShouldAllBe(a => a.IsSummon);
@@ -184,17 +199,23 @@ public sealed class BattleRosterTests
     }
 
     [Fact]
-    public void Replacing_the_roster_leaves_the_LogHash_unchanged()
+    public void The_LogHash_is_computed_over_the_log_alone_with_the_roster_outside_it()
     {
-        var result = Encounter([400.0]);
+        var result = Encounter([EnemyPower]);
 
-        result.Roster.Count.ShouldBeGreaterThanOrEqualTo(2, "the floor: a real roster to strip");
-
-        var stripped = result with { Roster = [] };
-
-        stripped.Roster.ShouldBeEmpty();
-        stripped.LogHash.ShouldBe(result.LogHash, "the roster is outside the hash");
+        result.Roster.Count.ShouldBeGreaterThanOrEqualTo(2, "the floor: a roster that could have been hashed");
+        result.LogHash.ShouldBe(
+            CanonicalStateWriter.HashCombatLog(result.Log),
+            "the roster is the cast list a renderer dresses the replay with, not part of the replay's " +
+            "integrity check — a client and a server that agree on every event keep agreeing whether " +
+            "or not either carries the names");
     }
+
+    /// <summary>The Max HP the encounter door derives for an archetype at <see cref="EnemyPower"/>; NaN for a name that is no archetype.</summary>
+    private static double MaxHpOf(EnemyCatalogue catalogue, string? identity) =>
+        EnemyArchetypes.TryParse(identity ?? Unnamed, out var archetype)
+            ? EnemyDerivation.Derive(EnemyPower, catalogue.Archetype(archetype), catalogue.Derivation)[StatId.MAX_HP]
+            : double.NaN;
 
     private static SimulationResult Encounter(IReadOnlyList<double> enemyPowers, int eliteIndex = -1) =>
         CombatSimulator.SimulateEncounter(

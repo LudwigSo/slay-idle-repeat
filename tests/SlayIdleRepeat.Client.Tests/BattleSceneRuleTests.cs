@@ -80,12 +80,32 @@ public sealed class BattleSceneRuleTests
     [InlineData("SkipButton")]
     [InlineData("PhaseBand")]
     [InlineData("PhaseBandLabel")]
-    public void The_battle_declares_each_node_its_script_resolves_by_unique_name(string name)
+    public void The_battle_declares_each_stage_and_interface_node_by_unique_name(string name)
     {
         var node = SceneText.Node(BattleScene, name).ShouldNotBeNull(
-            $"BattleReplay.tscn declares no single node named '{name}', and the script resolves '%{name}'.");
+            $"BattleReplay.tscn declares no single node named '{name}'.");
 
         node.Body.ShouldContain("unique_name_in_owner = true");
+    }
+
+    [Fact]
+    public void Every_unique_name_the_battle_script_resolves_is_declared_once_in_its_scene()
+    {
+        var resolved = Regex.Matches(Source("BattleReplay.cs"), @"""%(?<name>\w+)""", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups["name"].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        resolved.Count.ShouldBeGreaterThanOrEqualTo(
+            10, "the floor: the script reaches its stage and its interface through unique names.");
+
+        var missing = resolved.Where(name =>
+            SceneText.Node(BattleScene, name) is not { } node ||
+            !node.Body.Contains("unique_name_in_owner = true"));
+
+        missing.ShouldBeEmpty(
+            "each of these is a '%Name' lookup in BattleReplay.cs that resolves to nothing, or to " +
+            "one of several, in the scene that runs it.");
     }
 
     [Fact]

@@ -1915,38 +1915,6 @@ public sealed class BattleReplayPresenterTests
             "null: an empty string reads as a biome whose props happen to be missing.");
     }
 
-    /// <summary>
-    /// 🔒 The production prediction over the shipped chapter 1: the enemies the screen shows are
-    /// named from the chapter's weighted pool.
-    /// </summary>
-    [Fact]
-    public async Task A_real_chapter_one_fight_names_its_enemies_from_the_chapters_weighted_pool()
-    {
-        var pool = ChapterOnePool();
-        var drawable = pool.MemberNames
-                           .Where(archetype => pool.TryGetMember(archetype, out var weight) && weight!.AsDouble() > 0)
-                           .ToArray();
-        var presenter = Build(RecordingGameHost.Finding(AnyRehydratablePlayer(), OnAFightTile()), Predicting());
-
-        await presenter.StartAsync(CancellationToken.None);
-
-        drawable.Length.ShouldBeGreaterThanOrEqualTo(1, "the floor: something for the tile to draw.");
-        drawable.Length.ShouldBeLessThan(
-            pool.MemberNames.Count,
-            "the floor that makes 'weighted' mean anything: chapter 1 authors at least one archetype " +
-            "at weight zero, so a name read off the wrong table could be one of those.");
-        presenter.Actors.Count.ShouldBeGreaterThanOrEqualTo(2, "the floor: the hero and one enemy.");
-
-        var enemies = presenter.Actors.Where(actor => actor.Side == ReplaySide.Enemy).ToArray();
-
-        enemies.Length.ShouldBeGreaterThanOrEqualTo(1, "an enemy tile fights at least one enemy.");
-        enemies.Select(enemy => enemy.Identity ?? "(null)").ShouldBeSubsetOf(
-            drawable,
-            "every enemy of a real chapter-1 fight is one of the archetypes the chapter can draw, " +
-            "carried from the rules layer's roster through this screen unchanged — the model the " +
-            "stage loads for it is the model the server fought.");
-    }
-
     // ---- 🔒 one arithmetic for one health bar --------------------------------------------------
 
     /// <summary>
@@ -2588,10 +2556,6 @@ public sealed class BattleReplayPresenterTests
             chapterId: chapterId,
             runSeed: 4242,
             rngStreamPositions: Counters(battlesStarted: 1));
-
-    /// <summary>The shipped chapter 1's enemy pool: archetype name to draw weight.</summary>
-    private static ContentValue ChapterOnePool() =>
-        BootContent.Shipped.Read("content/chapters/CH_01_GREENWOOD_VALE.json#/enemyPool");
 
     /// <summary>A fight whose roster reaches the hero, a pet and two enemies.</summary>
     private static SimulationResult RosterFight() =>

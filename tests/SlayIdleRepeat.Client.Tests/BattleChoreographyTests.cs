@@ -56,7 +56,7 @@ public sealed class BattleChoreographyTests
     }
 
     [Fact]
-    public void A_swing_is_still_under_way_before_its_seconds_are_up_and_at_rest_after()
+    public void A_swing_is_still_under_way_and_on_its_way_back_at_three_quarters_of_its_seconds()
     {
         var choreography = new BattleChoreography(Timings);
 
@@ -64,11 +64,19 @@ public sealed class BattleChoreographyTests
         choreography.Advance(Timings.SwingSeconds * 0.75);
 
         var late = choreography.PoseOf(Hero);
+
         late.Advance.ShouldBeGreaterThan(0d);
         late.Advance.ShouldBeLessThan(Timings.SwingReach);
         choreography.InProgress.ShouldBeTrue();
+    }
 
-        choreography.Advance(Timings.SwingSeconds * 0.25 + 0.001);
+    [Fact]
+    public void A_swing_leaves_no_displacement_behind_once_its_seconds_are_up()
+    {
+        var choreography = new BattleChoreography(Timings);
+
+        choreography.Play(Cue(Hero, ReplayMotion.Swing, Enemy));
+        choreography.Advance(Timings.SwingSeconds + 0.001);
 
         choreography.PoseOf(Hero).ShouldBe(Rest, "a finished swing leaves no displacement behind.");
         choreography.InProgress.ShouldBeFalse();
@@ -217,7 +225,7 @@ public sealed class BattleChoreographyTests
         alone.Advance(Timings.RecoilSeconds / 2);
 
         interrupted.PoseOf(Enemy).Advance.ShouldBe(-Timings.RecoilDistance, 1e-9, "only the recoil is left.");
-        interrupted.PoseOf(Enemy).ShouldBe(alone.PoseOf(Enemy));
+        ShouldMatch(interrupted.PoseOf(Enemy), alone.PoseOf(Enemy));
     }
 
     [Fact]
@@ -248,7 +256,7 @@ public sealed class BattleChoreographyTests
         manyFrames.Advance(0.025);
 
         oneFrame.PoseOf(Hero).Advance.ShouldBeGreaterThan(0d);
-        oneFrame.PoseOf(Hero).ShouldBe(manyFrames.PoseOf(Hero));
+        ShouldMatch(oneFrame.PoseOf(Hero), manyFrames.PoseOf(Hero));
     }
 
     [Theory]
@@ -338,6 +346,24 @@ public sealed class BattleChoreographyTests
     private static readonly ActorPose Rest = new(
         Advance: 0, Toward: null, SideStep: 0, Squash: 0, Lift: 0, TipDegrees: 0, Sink: 0,
         Scale: 1, Pulse: 0, Fallen: false, Present: true);
+
+    /// <summary>Two poses reached along different frame sequences: equal up to accumulated rounding.</summary>
+    private static void ShouldMatch(ActorPose actual, ActorPose expected)
+    {
+        const double tolerance = 1e-9;
+
+        actual.Advance.ShouldBe(expected.Advance, tolerance);
+        actual.Toward.ShouldBe(expected.Toward);
+        actual.SideStep.ShouldBe(expected.SideStep, tolerance);
+        actual.Squash.ShouldBe(expected.Squash, tolerance);
+        actual.Lift.ShouldBe(expected.Lift, tolerance);
+        actual.TipDegrees.ShouldBe(expected.TipDegrees, tolerance);
+        actual.Sink.ShouldBe(expected.Sink, tolerance);
+        actual.Scale.ShouldBe(expected.Scale, tolerance);
+        actual.Pulse.ShouldBe(expected.Pulse, tolerance);
+        actual.Fallen.ShouldBe(expected.Fallen);
+        actual.Present.ShouldBe(expected.Present);
+    }
 
     private static ReplayCue Cue(byte actor, ReplayMotion motion, byte counterpart, double seconds = 0) =>
         new(actor, counterpart, ReplaySide.Enemy, motion, seconds,

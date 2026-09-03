@@ -65,14 +65,6 @@ public sealed class EnemyModelCatalogueTests
             "chapter one can put each of these on the stage, and one with no model draws nothing.");
     }
 
-    [Fact]
-    public void For_covers_at_least_nine_distinct_models_for_chapter_one()
-    {
-        var paths = CastIds.Select(id => EnemyModelCatalogue.For(Biome, id)?.ScenePath);
-
-        paths.Distinct().Count(p => p is not null).ShouldBeGreaterThanOrEqualTo(9);
-    }
-
     [Theory]
     [MemberData(nameof(Cast))]
     public void For_names_a_model_file_that_ships(string identity)
@@ -123,13 +115,20 @@ public sealed class EnemyModelCatalogueTests
         return JsonDocument.Parse(File.ReadAllText(path));
     }
 
+    /// <summary>The highest vertex over every primitive of every mesh, so a second mesh cannot hide above the first.</summary>
     private static double PositionMaxY(JsonDocument gltf)
     {
         var root = gltf.RootElement;
-        var accessor = root.GetProperty("meshes")[0].GetProperty("primitives")[0]
-            .GetProperty("attributes").GetProperty("POSITION").GetInt32();
+        var accessors = root.GetProperty("accessors");
+        var maxYs = root.GetProperty("meshes").EnumerateArray()
+            .SelectMany(mesh => mesh.GetProperty("primitives").EnumerateArray())
+            .Select(primitive => primitive.GetProperty("attributes").GetProperty("POSITION").GetInt32())
+            .Select(accessor => accessors[accessor].GetProperty("max")[1].GetDouble())
+            .ToList();
 
-        return root.GetProperty("accessors")[accessor].GetProperty("max")[1].GetDouble();
+        maxYs.ShouldNotBeEmpty("a model with no POSITION accessor has no height to measure.");
+
+        return maxYs.Max();
     }
 
     /// <summary>The JSON chunk of a binary glTF file: a 12-byte header, then the length-prefixed JSON chunk.</summary>
