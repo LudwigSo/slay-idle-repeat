@@ -41,10 +41,10 @@ public static class EnemyModelCatalogue
                 boss: ("BOSS_THORNMAW", 4.912f)),
         };
 
-    /// <summary>The model for an identity in a biome, or null when there is none.</summary>
-    /// <param name="biome">The chapter's art set with its prefix stripped, such as <c>greenwood</c>.</param>
-    /// <param name="identity">The archetype, elite id or boss id the roster names.</param>
-    public static EnemyModel? For(string biome, string identity)
+    /// <summary>The model for an identity in a biome, or null when there is none — a null biome or identity among them.</summary>
+    /// <param name="biome">The chapter's art set with its prefix stripped, such as <c>greenwood</c>; null when the chapter authors none.</param>
+    /// <param name="identity">The archetype, elite id or boss id the roster names; null when it names none.</param>
+    public static EnemyModel? For(string? biome, string? identity)
     {
         if (biome is null || identity is null || !CastByBiome.TryGetValue(biome, out var cast))
         {

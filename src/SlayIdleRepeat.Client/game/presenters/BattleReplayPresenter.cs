@@ -598,21 +598,17 @@ public sealed class BattleReplayPresenter
     {
         get
         {
-            var named = "";
+            var named = new List<string>();
 
             foreach (var actor in Actors)
             {
-                if (actor.Side != ReplaySide.Enemy)
+                if (actor.Side == ReplaySide.Enemy)
                 {
-                    continue;
+                    named.Add(CaptionOf(actor.ActorId));
                 }
-
-                named = named.Length == 0
-                    ? CaptionOf(actor.ActorId)
-                    : named + OpponentJoin + CaptionOf(actor.ActorId);
             }
 
-            return named.Length > 0 ? named : EnemyLabel;
+            return named.Count > 0 ? string.Join(OpponentJoin, named) : EnemyLabel;
         }
     }
 
@@ -1029,7 +1025,7 @@ public sealed class BattleReplayPresenter
         type is not (CombatEventType.BattleStart or CombatEventType.BattleEnd or
                      CombatEventType.RunEffectQueued or CombatEventType.PhaseChange);
 
-    /// <summary>And what one of them asks for.</summary>
+    /// <summary>And what one of them asks for. An event with no reading here asks for nothing.</summary>
     private ReplayCue CueFor(CombatEvent entry) => entry.Type switch
     {
         CombatEventType.Attack => Swung(entry),
@@ -1046,7 +1042,8 @@ public sealed class BattleReplayPresenter
         CombatEventType.StatusApplied => Stacked(entry, (int)Math.Round(entry.Value)),
         CombatEventType.StatusExpired => Stacked(entry, 0),
         CombatEventType.PetAbility => Acted(entry),
-        _ => Slain(entry),
+        CombatEventType.ActorDeath => Slain(entry),
+        _ => Cue(entry.TargetId),
     };
 
     /// <remarks>
@@ -1407,22 +1404,23 @@ public sealed class BattleReplayPresenter
         foreach (var path in _content.DocumentPaths)
         {
             if (!path.StartsWith(ChaptersDirectoryPrefix, StringComparison.Ordinal) ||
-                !_content.TryGetDocument(path, out var document))
+                !_content.TryGetDocument(path, out var document) ||
+                document is null)
             {
                 continue;
             }
 
-            var root = document!.Root;
+            var root = document.Root;
 
             if (!root.TryGetMember(ChapterIdMember, out var id) ||
-                id!.Kind != ContentValueKind.Number ||
+                id is not { Kind: ContentValueKind.Number } ||
                 id.AsInt32() != chapterId)
             {
                 continue;
             }
 
             BiomeArtSet = root.TryGetMember(BiomeArtSetMember, out var artSet) &&
-                          artSet!.Kind == ContentValueKind.Text
+                          artSet is { Kind: ContentValueKind.Text }
                 ? WithoutBiomePrefix(artSet.AsText())
                 : null;
 

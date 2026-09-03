@@ -492,9 +492,14 @@ public partial class BattleReplay : Node3D
     {
         var cues = presenter.StepCues;
 
-        for (var index = 0; index < cues.Count; index++)
+        if (cues.Count > 0)
         {
-            DrawCue(cues[index]);
+            var mapping = MapToCanvas();
+
+            for (var index = 0; index < cues.Count; index++)
+            {
+                DrawCue(cues[index], mapping);
+            }
         }
 
         Render();
@@ -661,7 +666,7 @@ public partial class BattleReplay : Node3D
     /// Draws one instruction of the step the playhead has just crossed: a motion, a bar, a chip, a
     /// number and a burst — none of it decided here.
     /// </summary>
-    private void DrawCue(ReplayCue cue)
+    private void DrawCue(ReplayCue cue, in CanvasMapping mapping)
     {
         _choreography?.Play(cue);
 
@@ -685,7 +690,7 @@ public partial class BattleReplay : Node3D
             Fell(cue.ActorId);
         }
 
-        if (!AnchorOnCanvas(cue.ActorId, out var at))
+        if (!AnchorOnCanvas(cue.ActorId, mapping, out var at))
         {
             return;
         }
@@ -819,12 +824,19 @@ public partial class BattleReplay : Node3D
     /// <summary>Hangs every plate over its actor, or hides it while the actor is off stage or behind the camera.</summary>
     private void PlacePlates()
     {
+        if (_views.Count == 0)
+        {
+            return;
+        }
+
+        var mapping = MapToCanvas();
+
         for (var index = 0; index < _views.Count; index++)
         {
             var view = _views[index];
             var plate = view.Plate;
 
-            if (!AnchorOnCanvas(view.ActorId, out var anchor))
+            if (!AnchorOnCanvas(view.ActorId, mapping, out var anchor))
             {
                 plate.Visible = false;
 
@@ -837,12 +849,7 @@ public partial class BattleReplay : Node3D
     }
 
     /// <summary>Where an actor's anchor lands on the canvas, or false when it has none or it is behind the camera.</summary>
-    /// <remarks>
-    /// Unprojection answers in the viewport's visible rect, and the overlay is laid out in the
-    /// canvas; the two are one and the same under the canvas_items stretch and differ under none, so
-    /// the step between them is taken through the viewport's own transforms rather than assumed.
-    /// </remarks>
-    private bool AnchorOnCanvas(byte actorId, out Vector2 canvas)
+    private bool AnchorOnCanvas(byte actorId, in CanvasMapping mapping, out Vector2 canvas)
     {
         canvas = Vector2.Zero;
 
@@ -852,6 +859,19 @@ public partial class BattleReplay : Node3D
             return false;
         }
 
+        canvas = mapping.Map(camera.UnprojectPosition(anchor));
+
+        return true;
+    }
+
+    /// <summary>The step from an unprojected point to the overlay's canvas, read once per frame rather than once per actor.</summary>
+    /// <remarks>
+    /// Unprojection answers in the viewport's visible rect, and the overlay is laid out in the
+    /// canvas; the two are one and the same under the canvas_items stretch and differ under none, so
+    /// the step between them is taken through the viewport's own transforms rather than assumed.
+    /// </remarks>
+    private CanvasMapping MapToCanvas()
+    {
         var viewport = GetViewport();
         var visible = viewport.GetVisibleRect().Size;
         var window = (Vector2)GetWindow().Size;
@@ -859,9 +879,7 @@ public partial class BattleReplay : Node3D
             visible.X > 0f ? window.X / visible.X : 1f,
             visible.Y > 0f ? window.Y / visible.Y : 1f);
 
-        canvas = viewport.GetFinalTransform().AffineInverse() * (camera.UnprojectPosition(anchor) * toWindow);
-
-        return true;
+        return new CanvasMapping(toWindow, viewport.GetFinalTransform().AffineInverse());
     }
 
     /// <summary>Writes what has changed since the previous draw, and nothing that has not.</summary>
@@ -1127,11 +1145,17 @@ public partial class BattleReplay : Node3D
         /// <summary>Where the playhead has walked this actor's health to; null when the log never fixes it.</summary>
         internal double? Current { get; set; } = startingHp;
 
-        /// <summary>What is on this actor now, by status number.</summary>
-        internal Dictionary<ushort, int> Stacks { get; } = new();
+        /// <summary>What is on this actor now, by status number — ordered by it, so the chips never reshuffle.</summary>
+        internal SortedDictionary<ushort, int> Stacks { get; } = new();
 
         internal bool Dirty { get; set; } = true;
 
         internal bool StatusesDirty { get; set; }
+    }
+
+    /// <summary>The viewport-to-canvas step for one frame: a scale into the window, then the canvas transform's inverse.</summary>
+    private readonly record struct CanvasMapping(Vector2 ToWindow, Transform2D FromWindow)
+    {
+        internal Vector2 Map(Vector2 viewportPoint) => FromWindow * (viewportPoint * ToWindow);
     }
 }

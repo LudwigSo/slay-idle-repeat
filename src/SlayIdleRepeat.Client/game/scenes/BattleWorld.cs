@@ -216,9 +216,7 @@ public partial class BattleWorld : Node3D
     /// <summary>The catalogue's model for an actor, or null with the reason pushed.</summary>
     private static EnemyModel? ModelFor(ReplayActor actor, string? biome)
     {
-        var model = biome is { } artSet && actor.Identity is { } identity
-            ? EnemyModelCatalogue.For(artSet, identity)
-            : null;
+        var model = EnemyModelCatalogue.For(biome, actor.Identity);
 
         if (model is null)
         {
@@ -230,8 +228,16 @@ public partial class BattleWorld : Node3D
         return model;
     }
 
+    /// <remarks>Writes the nodes only when the pose moved: an actor at rest costs the frame nothing.</remarks>
     private void Apply(ActorRig rig, in ActorPose pose)
     {
+        if (rig.Posed == pose)
+        {
+            return;
+        }
+
+        rig.Posed = pose;
+
         if (rig.Shown != pose.Present)
         {
             rig.Shown = pose.Present;
@@ -252,7 +258,7 @@ public partial class BattleWorld : Node3D
                      (side * (float)pose.SideStep) +
                      (Vector3.Up * (float)(pose.Lift - pose.Sink));
 
-        rig.Motion.Position = rig.Root.Basis.Inverse() * offset;
+        rig.Motion.Position = rig.ToLocal * offset;
 
         var swell = (float)(pose.Scale * (1d + (pose.Pulse * _pulseSwell)));
         var squash = (float)pose.Squash;
@@ -303,7 +309,13 @@ public partial class BattleWorld : Node3D
 
         internal float Height { get; } = height;
 
+        /// <summary>The root's basis inverted, once: a world-space displacement becomes the motion node's local one through it.</summary>
+        internal Basis ToLocal { get; } = root.Basis.Inverse();
+
         /// <summary>Whether the root is visible, kept here so a frame need not ask the node.</summary>
         internal bool Shown { get; set; } = true;
+
+        /// <summary>The pose last written to the nodes, or null before the first.</summary>
+        internal ActorPose? Posed { get; set; }
     }
 }
