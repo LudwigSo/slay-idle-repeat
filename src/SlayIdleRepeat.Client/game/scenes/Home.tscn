@@ -93,6 +93,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"HudCaption"
+vertical_alignment = 2
 autowrap_mode = 3
 
 [node name="LegendLevelValue" type="Label" parent="Ui/Screen/SafeArea/Column/Header/LegendLevelRow"]
@@ -101,8 +102,9 @@ layout_mode = 2
 theme_type_variation = &"HudValue"
 horizontal_alignment = 2
 
-; The tile band: two columns of 468 with a 16 gutter is the 952 the safe area leaves of a 1080
-; canvas. Each tile stops the pointer so a long press on it reaches Home.cs; the icon and the
+; The tile band: two equal columns over whatever width the safe area leaves, with a 16 gutter —
+; 468 each of the 952 a 1080 canvas has at the authored margins, less once a device reports a wider
+; inset. Each tile stops the pointer so a long press on it reaches Home.cs; the icon and the
 ; containers inside it ignore the pointer so the press lands on the tile rather than on a child.
 [node name="Tiles" type="GridContainer" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
@@ -113,7 +115,7 @@ columns = 2
 
 [node name="EnergyTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(468, 168)
+custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 0
@@ -136,6 +138,7 @@ stretch_mode = 5
 [node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 4
 mouse_filter = 2
 
 [node name="EnergyValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row/Text"]
@@ -152,7 +155,7 @@ autowrap_mode = 3
 
 [node name="ReserveTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(468, 168)
+custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 0
@@ -175,6 +178,7 @@ stretch_mode = 5
 [node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 4
 mouse_filter = 2
 
 [node name="EnergyReserveValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row/Text"]
@@ -191,7 +195,7 @@ autowrap_mode = 3
 
 [node name="CrownsTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(468, 168)
+custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 0
@@ -214,6 +218,7 @@ stretch_mode = 5
 [node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 4
 mouse_filter = 2
 
 [node name="CrownsValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row/Text"]
@@ -230,7 +235,7 @@ autowrap_mode = 3
 
 [node name="SoulShardsTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(468, 168)
+custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 0
@@ -253,6 +258,7 @@ stretch_mode = 5
 [node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 4
 mouse_filter = 2
 
 [node name="SoulShardsValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row/Text"]
@@ -269,7 +275,7 @@ autowrap_mode = 3
 
 [node name="PowerTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(468, 168)
+custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 0
@@ -292,6 +298,7 @@ stretch_mode = 5
 [node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 4
 mouse_filter = 2
 
 [node name="PowerValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row/Text"]
@@ -308,7 +315,7 @@ autowrap_mode = 3
 
 [node name="ProgressTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(468, 168)
+custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 0
@@ -331,13 +338,14 @@ stretch_mode = 5
 [node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 4
 mouse_filter = 2
 
 [node name="HighestClearValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row/Text"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"HudValue"
-text_overrun_behavior = 3
+theme_type_variation = &"HudValueSmall"
+autowrap_mode = 3
 
 [node name="ProgressLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row/Text"]
 unique_name_in_owner = true
@@ -345,7 +353,11 @@ layout_mode = 2
 theme_type_variation = &"HudCaption"
 autowrap_mode = 3
 
-; The run panel: one compact row for the run there is to go back to, and hidden when there is none.
+; The run panel: the run there is to go back to, on two lines, and hidden when there is none. Line
+; one is the chapter and the stage it stands in; line two the hero's hit points and the run's Gold.
+; One line could not hold them: three glyphs, a chapter name, a stage, a full HP readout and a Gold
+; readout are wider than the 880 the panel has, and the chapter name is what would have given way.
+; The card's numbers and words are set in HudValueSmall: a compact register under the tile band.
 [node name="RunPanel" type="PanelContainer" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 168)
@@ -353,12 +365,17 @@ layout_mode = 2
 mouse_filter = 0
 theme_type_variation = &"HudTile"
 
-[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel"]
+[node name="Lines" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="ChapterRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 24
 
-[node name="ChapterIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+[node name="ChapterIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/ChapterRow"]
 custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 size_flags_vertical = 4
@@ -367,33 +384,32 @@ texture = ExtResource("9_chapter")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Chapter" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+[node name="RunChapterValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/ChapterRow"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-mouse_filter = 2
-
-[node name="RunChapterValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Chapter"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudValue"
+theme_type_variation = &"HudValueSmall"
+vertical_alignment = 1
 text_overrun_behavior = 3
 
-[node name="StageRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Chapter"]
+[node name="StageLabel" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/ChapterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudCaption"
+vertical_alignment = 1
+
+[node name="RunStageValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/ChapterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudValueSmall"
+vertical_alignment = 1
+
+[node name="VitalsRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 24
 
-[node name="StageLabel" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Chapter/StageRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudCaption"
-
-[node name="RunStageValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Chapter/StageRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudCaption"
-
-[node name="HpIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+[node name="HpIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/VitalsRow"]
 custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 size_flags_vertical = 4
@@ -402,13 +418,15 @@ texture = ExtResource("10_hp")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="RunHitPointsValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+[node name="RunHitPointsValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/VitalsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 4
-theme_type_variation = &"HudCaption"
+size_flags_horizontal = 3
+theme_type_variation = &"HudValueSmall"
+vertical_alignment = 1
+text_overrun_behavior = 3
 
-[node name="GoldIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+[node name="GoldIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/VitalsRow"]
 custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 size_flags_vertical = 4
@@ -417,21 +435,17 @@ texture = ExtResource("11_gold")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Gold" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
-layout_mode = 2
-mouse_filter = 2
-
-[node name="RunGoldValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Gold"]
+[node name="RunGoldValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/VitalsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"HudValue"
-horizontal_alignment = 2
+theme_type_variation = &"HudValueSmall"
+vertical_alignment = 1
 
-[node name="GoldLabel" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Gold"]
+[node name="GoldLabel" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/VitalsRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudCaption"
-horizontal_alignment = 2
+vertical_alignment = 1
 
 [node name="StatusFrame" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2

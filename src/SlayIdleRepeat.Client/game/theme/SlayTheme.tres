@@ -1,11 +1,11 @@
-[gd_resource type="Theme" load_steps=10 format=3]
+[gd_resource type="Theme" load_steps=11 format=3]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hud_tile"]
 content_margin_left = 36.0
-content_margin_top = 28.0
+content_margin_top = 12.0
 content_margin_right = 36.0
-content_margin_bottom = 28.0
-bg_color = Color(0.24, 0.26, 0.33, 1)
+content_margin_bottom = 20.0
+bg_color = Color(0.19, 0.21, 0.28, 1)
 border_width_left = 9
 border_width_top = 9
 border_width_right = 9
@@ -162,6 +162,12 @@ corner_radius_bottom_right = 63
 corner_radius_bottom_left = 63
 corner_detail = 12
 
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_focus"]
+content_margin_left = 40.0
+content_margin_top = 24.0
+content_margin_right = 40.0
+content_margin_bottom = 24.0
+
 [resource]
 HudCaption/base_type = &"Label"
 HudCaption/colors/font_color = Color(0.66, 0.67, 0.73, 1)
@@ -174,23 +180,32 @@ HudTitle/font_sizes/font_size = 72
 HudValue/base_type = &"Label"
 HudValue/colors/font_color = Color(0.93, 0.93, 0.96, 1)
 HudValue/font_sizes/font_size = 60
+HudValueSmall/base_type = &"Label"
+HudValueSmall/colors/font_color = Color(0.93, 0.93, 0.96, 1)
+HudValueSmall/font_sizes/font_size = 40
+Label/colors/font_color = Color(0.93, 0.93, 0.96, 1)
+Label/font_sizes/font_size = 36
 PrimaryButton/base_type = &"Button"
 PrimaryButton/colors/font_color = Color(0.93, 0.93, 0.96, 1)
 PrimaryButton/colors/font_disabled_color = Color(0.66, 0.67, 0.73, 1)
+PrimaryButton/colors/font_focus_color = Color(0.93, 0.93, 0.96, 1)
 PrimaryButton/colors/font_hover_color = Color(0.93, 0.93, 0.96, 1)
 PrimaryButton/colors/font_pressed_color = Color(0.93, 0.93, 0.96, 1)
 PrimaryButton/font_sizes/font_size = 52
 PrimaryButton/styles/disabled = SubResource("StyleBoxFlat_primary_off")
+PrimaryButton/styles/focus = SubResource("StyleBoxEmpty_focus")
 PrimaryButton/styles/hover = SubResource("StyleBoxFlat_primary_hover")
 PrimaryButton/styles/normal = SubResource("StyleBoxFlat_primary_rest")
 PrimaryButton/styles/pressed = SubResource("StyleBoxFlat_primary_down")
 QuietButton/base_type = &"Button"
 QuietButton/colors/font_color = Color(0.93, 0.93, 0.96, 1)
 QuietButton/colors/font_disabled_color = Color(0.66, 0.67, 0.73, 1)
+QuietButton/colors/font_focus_color = Color(0.93, 0.93, 0.96, 1)
 QuietButton/colors/font_hover_color = Color(0.93, 0.93, 0.96, 1)
 QuietButton/colors/font_pressed_color = Color(0.93, 0.93, 0.96, 1)
 QuietButton/font_sizes/font_size = 48
 QuietButton/styles/disabled = SubResource("StyleBoxFlat_quiet_off")
+QuietButton/styles/focus = SubResource("StyleBoxEmpty_focus")
 QuietButton/styles/hover = SubResource("StyleBoxFlat_quiet_hover")
 QuietButton/styles/normal = SubResource("StyleBoxFlat_quiet_rest")
 QuietButton/styles/pressed = SubResource("StyleBoxFlat_quiet_down")
