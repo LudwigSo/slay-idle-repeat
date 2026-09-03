@@ -26,7 +26,8 @@ src/SlayIdleRepeat.Client/        Godot client app (scenes, presenters, composit
 src/SlayIdleRepeat.Server/        server host
 src/adapters/{client,server,shared,fakes}/   one project per external integration
 tests/                            xUnit + Shouldly + NetArchTest, mirrors src/ layout
-game-design.md                    one-page summary of the design
+docs/game-design.md               one-page summary of the design
+docs/3d-resources.md              CC0 model, texture, HDRI and audio sources
 game-data/                        tuning/content data, schemas, tuning experiments
 .claude/                          milestone-based agent workflow (skills, retros, steering, handovers)
 ```
@@ -107,7 +108,7 @@ Mirrors `src/` layout project-for-project (`SlayIdleRepeat.Core.Tests`,
 
 Mutation testing is scoped to Core and Application — one config per project,
 `stryker-config.json` and `stryker-config.application.json` (`StrykerOutput/` for
-results). Commands, including the diff-only run, are in `README.md`.
+results). Commands, including the diff-only run, are in [`../README.md`](../README.md).
 
 ## Game data (`game-data/`)
 

@@ -1,5 +1,19 @@
 # Slay, Idle, Repeat
 
+## Documentation
+
+| | |
+|:---|:---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | the code layout — which folder a change belongs in, and why |
+| [`docs/game-design.md`](docs/game-design.md) | what the game *is* — pillars, loops, systems |
+| [`docs/3d-resources.md`](docs/3d-resources.md) | CC0 sources for models, textures, HDRIs and audio, and the licence care each one needs |
+
+Folder-local `README.md` files stay with the folder they document — [`game-data/`](game-data/README.md),
+[`infra/`](infra/README.md), [`assets/provenance/`](assets/provenance/README.md),
+[`game-data/tuning/experiments/`](game-data/tuning/experiments/README.md) and
+[`.github/workflows/`](.github/workflows/README.md). This file is the only root-level doc, because
+it is the one the repository's front page shows.
+
 ## Verification — one command
 
 Static analysis runs in the build (see below). The two measured stages — the CRAP score
