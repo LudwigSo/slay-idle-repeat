@@ -59,8 +59,8 @@
       "required": ["loading", "unavailable", "runLapsed", "nothingCleared"],
       "properties": {
         "loading": { "$ref": "#/$defs/locKey" },
-        "runLapsed": { "$ref": "#/$defs/locKey" },
         "unavailable": { "$ref": "#/$defs/locKey" },
+        "runLapsed": { "$ref": "#/$defs/locKey" },
         "nothingCleared": { "$ref": "#/$defs/locKey" }
       }
     }

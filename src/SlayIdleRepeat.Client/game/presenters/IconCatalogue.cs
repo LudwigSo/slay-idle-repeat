@@ -39,9 +39,8 @@ public enum HudIcon
 /// once, where a test can read it, is what lets a swapped pair be caught before it draws.
 /// </para>
 /// <para>
-/// Declared <c>partial</c> for the status glyphs: their half adds its own paths beside
-/// <see cref="Catalogued"/> and joins them into <see cref="All"/>, so the scene rule keeps one set
-/// to check against rather than one per icon family.
+/// Partial, so the status glyphs can arrive in a second file and fold their paths into
+/// <see cref="All"/> without this half being rewritten.
 /// </para>
 /// </remarks>
 public static partial class IconCatalogue

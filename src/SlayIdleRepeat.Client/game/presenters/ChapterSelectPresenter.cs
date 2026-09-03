@@ -174,9 +174,6 @@ public sealed class ChapterSelectPresenter
     private const string ConfirmActionKey = "loc.chapter_select.confirm.action";
     private const string RequiresClearBlockKey = "loc.chapter_select.requires_clear.block";
     private const string RequiresLegendLevelBlockKey = "loc.chapter_select.requires_legend_level.block";
-    private const string TierNormalKey = "loc.chapter_select.tier_normal.name";
-    private const string TierHeroicKey = "loc.chapter_select.tier_heroic.name";
-    private const string TierMythicKey = "loc.chapter_select.tier_mythic.name";
     private const string LoadingStatusKey = "loc.chapter_select.loading.status";
     private const string ProfileMissingStatusKey = "loc.chapter_select.profile_missing.status";
     private const string UnavailableStatusKey = "loc.chapter_select.unavailable.status";
@@ -186,12 +183,6 @@ public sealed class ChapterSelectPresenter
 
     /// <summary>The status line of a screen whose list is the answer: there is nothing left to say.</summary>
     private const string NothingLeftToSay = "";
-
-    /// <summary>Where the chapter documents sit in the content set.</summary>
-    private const string ChaptersDirectoryPrefix = "content/chapters/";
-
-    private const string ChapterIdMember = "id";
-    private const string ChapterDisplayNameMember = "displayName";
 
     /// <summary>The authored gating ladder, one rung per tier, keyed by the tier's own name.</summary>
     private const string ChapterGatingPointer = "tuning/progression.json#/chapterGating/";
@@ -252,7 +243,9 @@ public sealed class ChapterSelectPresenter
         _content = content;
         _player = player;
 
-        Chapters = ReadChapters(content, strings);
+        Chapters = ChapterDocuments.Read(content, strings)
+            .Select(chapter => new ChapterListing(chapter.ChapterId, chapter.ChapterName))
+            .ToArray();
         _authoredChapterIds = [.. Chapters.Select(c => c.ChapterId)];
     }
 
@@ -367,13 +360,8 @@ public sealed class ChapterSelectPresenter
     /// one.
     /// </remarks>
     /// <param name="tier">The tier to name.</param>
-    public string TierName(DifficultyTier tier) => tier switch
-    {
-        DifficultyTier.NORMAL => _strings.Resolve(TierNormalKey),
-        DifficultyTier.HEROIC => _strings.Resolve(TierHeroicKey),
-        DifficultyTier.MYTHIC => _strings.Resolve(TierMythicKey),
-        _ => tier.ToString(),
-    };
+    public string TierName(DifficultyTier tier) =>
+        TierNames.KeyOf(tier) is { } key ? _strings.Resolve(key) : tier.ToString();
 
     /// <summary>What the player may do with one (chapter, tier) pair.</summary>
     /// <param name="chapterId">The chapter asked about.</param>
@@ -515,37 +503,6 @@ public sealed class ChapterSelectPresenter
         ChapterSelectStage.ProfileMissing => ProfileMissingStatusKey,
         _ => UnavailableStatusKey,
     };
-
-    private static IReadOnlyList<ChapterListing> ReadChapters(
-        ContentSnapshot content, LocaleStringCatalogue strings)
-    {
-        var listings = new List<ChapterListing>();
-
-        foreach (var path in content.DocumentPaths)
-        {
-            if (!path.StartsWith(ChaptersDirectoryPrefix, StringComparison.Ordinal) ||
-                !content.TryGetDocument(path, out var document))
-            {
-                continue;
-            }
-
-            var root = document!.Root;
-
-            if (root.TryGetMember(ChapterIdMember, out var id) &&
-                id!.Kind == ContentValueKind.Number &&
-                root.TryGetMember(ChapterDisplayNameMember, out var displayName) &&
-                displayName!.Kind == ContentValueKind.Text)
-            {
-                listings.Add(new ChapterListing(id.AsInt32(), strings.Resolve(displayName.AsText())));
-            }
-        }
-
-        // The campaign's own order, not the content set's: document paths sort by file name, and a
-        // chapter renamed on disk would otherwise move in the picker.
-        listings.Sort((left, right) => left.ChapterId.CompareTo(right.ChapterId));
-
-        return listings;
-    }
 
     private IReadOnlyList<ChapterTierRequirement> UnmetRequirements(int chapterId, DifficultyTier tier)
     {

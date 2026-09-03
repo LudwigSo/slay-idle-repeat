@@ -338,9 +338,12 @@ public partial class Home : Node3D
             _gearButton.Pressed -= OnGearPressed;
         }
 
-        foreach (var surface in _heldSurfaces.Where(IsInstanceValid))
+        foreach (var surface in _heldSurfaces)
         {
-            surface.GuiInput -= OnTileInput;
+            if (IsInstanceValid(surface))
+            {
+                surface.GuiInput -= OnTileInput;
+            }
         }
 
         _heldSurfaces.Clear();
@@ -429,8 +432,10 @@ public partial class Home : Node3D
         // picker does with the same line and for the same reason: an empty label still claims a
         // full line of height, so a blank one is a sentence a player can see room for and cannot
         // read. Hiding it also hands the space back to the frame above the primary action.
-        Write(_statusLabel, presenter.StatusText);
-        Show(_statusLabel, presenter.StatusText.Length > 0);
+        var status = presenter.StatusText;
+
+        Write(_statusLabel, status);
+        Show(_statusLabel, status.Length > 0);
 
         _actionButton.Text = presenter.ActionText;
         Write(_gearButton, presenter.GearText);

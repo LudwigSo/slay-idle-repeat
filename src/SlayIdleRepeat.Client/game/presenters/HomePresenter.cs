@@ -97,25 +97,19 @@ public sealed class HomePresenter
     private const string NothingClearedStatusKey = "loc.home.nothing_cleared.status";
 
     /// <summary>
-    /// Captions the HUD borrows from the documents that own them. Named in the home document as well,
-    /// so retiring one fails the content load rather than rendering a key on this screen.
+    /// Captions the HUD borrows from the currency documents that own them (the tier names come
+    /// through <see cref="TierNames"/>). Named in the home document as well, so retiring one fails
+    /// the content load rather than rendering a key on this screen.
     /// </summary>
     private const string CrownsNameKey = "loc.currency.crowns.name";
     private const string SoulShardsNameKey = "loc.currency.soul_shards.name";
     private const string GoldNameKey = "loc.currency.gold.name";
-    private const string TierNormalKey = "loc.chapter_select.tier_normal.name";
-    private const string TierHeroicKey = "loc.chapter_select.tier_heroic.name";
-    private const string TierMythicKey = "loc.chapter_select.tier_mythic.name";
 
     /// <summary>The status line of a screen that has an action to offer: there is nothing left to say.</summary>
     private const string NothingLeftToSay = "";
 
     /// <summary>What a tile's text is when there is no value behind it — blank, never a zero.</summary>
     private const string NoValue = "";
-
-    private const string ClearJoin = " · ";
-
-    private const string OutOf = "/";
 
     private readonly IGameHost _gameHost;
     private readonly LocaleStringCatalogue _strings;
@@ -270,18 +264,18 @@ public sealed class HomePresenter
 
     /// <summary>The chapter name and tier of <see cref="HighestClear"/>, or the nothing-cleared line.</summary>
     public string HighestClearText => HighestClear is { } clear
-        ? clear.ChapterName + ClearJoin + TierName(clear.Tier)
+        ? $"{clear.ChapterName} · {TierName(clear.Tier)}"
         : _strings.Resolve(NothingClearedStatusKey);
 
     /// <summary>The stage the run stands in over the stages a chapter has, or blank when there is no run.</summary>
     public string RunStageText => RunProgress is { } progress
-        ? PlayerNumber.Full(progress.Stage) + OutOf + PlayerNumber.Full(ChapterProgressReadout.StageCount)
+        ? $"{PlayerNumber.Full(progress.Stage)}/{PlayerNumber.Full(ChapterProgressReadout.StageCount)}"
         : NoValue;
 
     /// <summary>The hero's hit points over the pool they are out of, both in full, or blank when there is no run.</summary>
     /// <remarks>Never shortened: a health readout of "10.0k/12.3k" hides the one number a player checks before continuing.</remarks>
     public string RunHitPointsText => RunProgress is { } progress
-        ? PlayerNumber.Full(progress.CurrentHp) + OutOf + PlayerNumber.Full(progress.MaxHp)
+        ? $"{PlayerNumber.Full(progress.CurrentHp)}/{PlayerNumber.Full(progress.MaxHp)}"
         : NoValue;
 
     /// <summary>
@@ -428,8 +422,8 @@ public sealed class HomePresenter
 
     /// <summary>
     /// Asks the source about the hero the player IS right now: inside the run being continued, or
-    /// the between-runs hero when there is nothing to continue — a lapsed run's drafted perks included,
-    /// since nobody will stand on that board again.
+    /// the between-runs hero when there is nothing to continue. A lapsed run counts as nothing to
+    /// continue, so its drafted perks are left out: nobody will stand on that board again.
     /// </summary>
     private void ReadPower(PlayerSnapshot player, RunSnapshot? run)
     {
@@ -451,12 +445,8 @@ public sealed class HomePresenter
         FullValuesRevealed ? PlayerNumber.Full(value) : PlayerNumber.Abbreviated(value);
 
     /// <summary>A tier's authored name — Chapter Select's, since the tile spells a clear the way the picker spelt the choice.</summary>
-    private string TierName(DifficultyTier tier) => _strings.Resolve(tier switch
-    {
-        DifficultyTier.NORMAL => TierNormalKey,
-        DifficultyTier.HEROIC => TierHeroicKey,
-        DifficultyTier.MYTHIC => TierMythicKey,
-        _ => throw new ArgumentOutOfRangeException(
-            nameof(tier), tier, "this tier has no authored name the progress tile can spell; add its key before a row can carry it."),
-    });
+    private string TierName(DifficultyTier tier) => TierNames.KeyOf(tier) is { } key
+        ? _strings.Resolve(key)
+        : throw new ArgumentOutOfRangeException(
+            nameof(tier), tier, "this tier has no authored name the progress tile can spell; add its key before a row can carry it.");
 }
