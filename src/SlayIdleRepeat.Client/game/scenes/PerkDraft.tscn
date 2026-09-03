@@ -1,19 +1,6 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/PerkDraft.cs" id="1_perk_draft"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ad_slot"]
-bg_color = Color(0, 0, 0, 0)
-border_width_left = 8
-border_width_top = 8
-border_width_right = 8
-border_width_bottom = 8
-border_color = Color(0.36, 0.38, 0.45, 1)
-corner_radius_top_left = 63
-corner_radius_top_right = 63
-corner_radius_bottom_right = 63
-corner_radius_bottom_left = 63
-corner_detail = 12
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_primary_rest"]
 content_margin_left = 40.0
@@ -83,74 +70,6 @@ border_width_top = 8
 border_width_right = 8
 border_width_bottom = 8
 border_color = Color(0.38, 0.4, 0.46, 1)
-corner_radius_top_left = 63
-corner_radius_top_right = 63
-corner_radius_bottom_right = 63
-corner_radius_bottom_left = 63
-corner_detail = 12
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_quiet_rest"]
-content_margin_left = 40.0
-content_margin_top = 24.0
-content_margin_right = 40.0
-content_margin_bottom = 24.0
-bg_color = Color(0, 0, 0, 0)
-border_width_left = 8
-border_width_top = 8
-border_width_right = 8
-border_width_bottom = 8
-border_color = Color(0.36, 0.38, 0.45, 1)
-corner_radius_top_left = 63
-corner_radius_top_right = 63
-corner_radius_bottom_right = 63
-corner_radius_bottom_left = 63
-corner_detail = 12
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_quiet_hover"]
-content_margin_left = 40.0
-content_margin_top = 24.0
-content_margin_right = 40.0
-content_margin_bottom = 24.0
-bg_color = Color(0.93, 0.93, 0.96, 0.06)
-border_width_left = 8
-border_width_top = 8
-border_width_right = 8
-border_width_bottom = 8
-border_color = Color(0.36, 0.38, 0.45, 1)
-corner_radius_top_left = 63
-corner_radius_top_right = 63
-corner_radius_bottom_right = 63
-corner_radius_bottom_left = 63
-corner_detail = 12
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_quiet_down"]
-content_margin_left = 40.0
-content_margin_top = 34.0
-content_margin_right = 40.0
-content_margin_bottom = 14.0
-bg_color = Color(0, 0, 0, 0.35)
-border_width_left = 8
-border_width_top = 8
-border_width_right = 8
-border_width_bottom = 8
-border_color = Color(0.55, 0.58, 0.68, 1)
-corner_radius_top_left = 63
-corner_radius_top_right = 63
-corner_radius_bottom_right = 63
-corner_radius_bottom_left = 63
-corner_detail = 12
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_quiet_off"]
-content_margin_left = 40.0
-content_margin_top = 24.0
-content_margin_right = 40.0
-content_margin_bottom = 24.0
-bg_color = Color(0, 0, 0, 0)
-border_width_left = 8
-border_width_top = 8
-border_width_right = 8
-border_width_bottom = 8
-border_color = Color(0.26, 0.27, 0.33, 1)
 corner_radius_top_left = 63
 corner_radius_top_right = 63
 corner_radius_bottom_right = 63
@@ -268,49 +187,6 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 24
 
-[node name="AdFourthOptionCard" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_ad_slot")
-
-[node name="AdFourthOptionBody" type="MarginContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/margin_left = 40
-theme_override_constants/margin_top = 40
-theme_override_constants/margin_right = 40
-theme_override_constants/margin_bottom = 40
-
-[node name="AdFourthOptionColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 16
-
-[node name="AdFourthOptionNameLabel" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody/AdFourthOptionColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 48
-autowrap_mode = 3
-
-[node name="AdFourthOptionBlockLabel" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody/AdFourthOptionColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
-theme_override_font_sizes/font_size = 36
-autowrap_mode = 3
-
-[node name="AdRerollButton" type="Button" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 144)
-layout_mode = 2
-theme_override_font_sizes/font_size = 40
-theme_override_styles/normal = SubResource("StyleBoxFlat_quiet_rest")
-theme_override_styles/hover = SubResource("StyleBoxFlat_quiet_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_quiet_down")
-theme_override_styles/disabled = SubResource("StyleBoxFlat_quiet_off")
-autowrap_mode = 3
-
 [node name="GuaranteeColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -322,13 +198,6 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
 theme_override_font_sizes/font_size = 32
-autowrap_mode = 3
-
-[node name="AdRerollBlockLabel" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/ScrollColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
-theme_override_font_sizes/font_size = 36
 autowrap_mode = 3
 
 [node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
@@ -384,13 +253,6 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_primary_rest")
 theme_override_styles/hover = SubResource("StyleBoxFlat_primary_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_primary_down")
 theme_override_styles/disabled = SubResource("StyleBoxFlat_primary_off")
-autowrap_mode = 3
-
-[node name="FreeRerollBlockLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
-theme_override_font_sizes/font_size = 36
 autowrap_mode = 3
 
 [node name="SkipRewardRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn"]

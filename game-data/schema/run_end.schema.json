@@ -105,18 +105,14 @@
       }
     },
     "block": {
-      "description": "🔒 One sentence per absence that has a reason, and they are three different reasons. `reviveNeedsPlus`: 02 §6 gives Plus an instant no-ad revive and the ad path needs CLAIM_AD_REWARD, deferred to M15-03 — so an unentitled player gets a reason rather than a dead button. `reviveSpent`: the run has used its one. `deathCostsRewards` names what the completion multiplier did, so the gap between the two figures above is explained rather than merely shown.",
+      "description": "🔒 One sentence per absence that has a reason, and they are two different reasons. `reviveSpent`: the run has used its one, so the player who finds no button is told why. `deathCostsRewards` names what the completion multiplier did, so the gap between the two figures above is explained rather than merely shown. There is no sentence for the unentitled player whose run the rules would still revive: the only route that would serve them is an ad the game cannot show, and a sentence about a route that is not built advertises a feature the game does not have — so they get no control and no sentence.",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "reviveNeedsPlus",
         "reviveSpent",
         "deathCostsRewards"
       ],
       "properties": {
-        "reviveNeedsPlus": {
-          "$ref": "#/$defs/locKey"
-        },
         "reviveSpent": {
           "$ref": "#/$defs/locKey"
         },

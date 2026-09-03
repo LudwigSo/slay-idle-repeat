@@ -48,6 +48,9 @@ public partial class AppRoot : Node3D
     /// <summary>The root's own layer, hidden the moment the first screen takes over.</summary>
     private const string UiLayerPath = "%Ui";
 
+    // Drawn before any content exists, so it cannot be a loc key; the ground colour is the boot continuity.
+    private const string NothingYetToSay = "";
+
     /// <summary>Cancelled when the root leaves the tree, so a half-finished open stops there.</summary>
     private readonly CancellationTokenSource _lifetime = new();
 
@@ -77,7 +80,7 @@ public partial class AppRoot : Node3D
     /// <inheritdoc/>
     public override void _Ready()
     {
-        Render("Composing…");
+        Render(NothingYetToSay);
 
         _ = ComposeAndStartAsync();
     }
@@ -151,7 +154,7 @@ public partial class AppRoot : Node3D
             {
                 AppRootPhase.Ready => $"Ready — profile {_presenter.PlayerId}",
                 AppRootPhase.Failed => $"Failed — {_presenter.FailureReason}",
-                _ => "Composing…",
+                _ => NothingYetToSay,
             });
 
             if (_presenter.Phase == AppRootPhase.Ready)
