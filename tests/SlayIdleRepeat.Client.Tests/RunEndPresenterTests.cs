@@ -75,8 +75,7 @@ public sealed class RunEndPresenterTests
         host.SubmitCallCount.ShouldBe(
             before,
             "a revive with no route was sent to the host. There is no command that can grant one for " +
-            "an unentitled player — CLAIM_AD_REWARD is deferred to M15-03 — and the screen offers no " +
-            "control for it.");
+            "an unentitled player, and the screen offers no control for it.");
     }
 
     /// <summary>…and an entitled player's revive does reach the host, as <c>REVIVE</c>.</summary>
@@ -180,12 +179,18 @@ public sealed class RunEndPresenterTests
     [Fact]
     public async Task An_unentitled_player_sees_no_revive_control_and_no_sentence()
     {
+        var entitled = Build(Finding(Dead()), ReviveArm.PlusInstant);
         var presenter = Build(Finding(Dead()), ReviveArm.NoReviveRouteResolved);
 
+        await entitled.StartAsync(CancellationToken.None);
         await presenter.StartAsync(CancellationToken.None);
 
+        entitled.ReviveAvailable.ShouldBeTrue(
+            "the premise: this same run IS offered a revive by the rules, so whatever the unentitled " +
+            "screen withholds below, it withholds because of the entitlement and not because there " +
+            "was nothing to revive.");
         presenter.Stage.ShouldBe(
-            RunEndStage.Tallied, "the premise: the run was read and the rules would accept a revive.");
+            RunEndStage.Tallied, "and the unentitled read settled, so the screen is drawing the tally.");
         presenter.ReviveAvailable.ShouldBeFalse(
             "and this player has no route to one, so the control is withheld.");
 
@@ -204,7 +209,9 @@ public sealed class RunEndPresenterTests
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.ReviveAvailable.ShouldBeFalse("the premise: this run has no revive left.");
+        presenter.Stage.ShouldBe(
+            RunEndStage.Tallied, "the premise: the run was read, so the missing revive is the run's doing.");
+        presenter.ReviveAvailable.ShouldBeFalse("and this run has no revive left.");
         presenter.ReviveBlockText.ShouldBe(
             RunDecisionContent.EnglishValueOf(RunDecisionContent.RunEndReviveSpentBlockKey),
             "an entitled player whose revive is gone is owed the reason, or the missing control reads " +

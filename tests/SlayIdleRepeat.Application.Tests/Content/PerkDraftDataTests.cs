@@ -150,6 +150,12 @@ public sealed class PerkDraftDataTests
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
+        snapshot.TryRead(EnglishStrings + RerollUnaffordableStatusKey, out _).ShouldBeTrue(
+            "the premise: the Gold reroll's own sentence is in the English locale, so the absences " +
+            "below are absences from a locale that is there, not from a locale that failed to load.");
+        snapshot.TryRead(GermanStrings + RerollUnaffordableStatusKey, out _).ShouldBeTrue(
+            "the premise: the Gold reroll's own sentence is in the German locale.");
+
         snapshot.TryRead(EnglishStrings + key, out _).ShouldBeFalse(
             $"'{key}' is still in the English locale. A key that survives there while the document " +
             "that named it is gone is an orphan the loader rejects, and one that survives in both " +

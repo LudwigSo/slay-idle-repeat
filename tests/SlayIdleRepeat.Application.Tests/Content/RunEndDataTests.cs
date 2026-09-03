@@ -12,6 +12,8 @@ public sealed class RunEndDataTests
 {
     private const string ReviveNeedsPlusBlockKey = "loc.run_end.revive_needs_plus.block";
 
+    private const string ReviveSpentBlockKey = "loc.run_end.revive_spent.block";
+
     private const string EnglishStrings = "loc/en.json#/strings/";
 
     private const string GermanStrings = "loc/de.json#/strings/";
@@ -20,6 +22,12 @@ public sealed class RunEndDataTests
     public void The_retired_revive_upsell_string_is_carried_by_neither_locale()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
+
+        snapshot.TryRead(EnglishStrings + ReviveSpentBlockKey, out _).ShouldBeTrue(
+            "the premise: the spent-revive sentence, the one this screen keeps, is in the English " +
+            "locale — so the absence below is an absence from a locale that is there.");
+        snapshot.TryRead(GermanStrings + ReviveSpentBlockKey, out _).ShouldBeTrue(
+            "the premise: the spent-revive sentence is in the German locale.");
 
         snapshot.TryRead(EnglishStrings + ReviveNeedsPlusBlockKey, out _).ShouldBeFalse(
             $"'{ReviveNeedsPlusBlockKey}' is still in the English locale. A key that survives there " +
