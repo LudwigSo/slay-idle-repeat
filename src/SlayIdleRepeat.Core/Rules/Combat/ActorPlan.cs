@@ -45,6 +45,14 @@ internal sealed record ActorPlan
     /// <summary>The combat-log id — <c>CombatActor.Hero</c>, <c>Pet(slot)</c> or <c>Enemy(index)</c>.</summary>
     public required byte LogId { get; init; }
 
+    /// <summary>
+    /// The content identity the composing door named this actor by — an archetype name, an elite id,
+    /// a boss script id, or <c>"HERO"</c> — or <see langword="null"/> when no door named one. Never
+    /// defaulted: a stat-block fight names nobody, and a plausible string here would be a body the
+    /// renderer dresses as something nobody composed.
+    /// </summary>
+    public string? Identity { get; init; }
+
     /// <summary>Which side.</summary>
     public required BattleSide Side { get; init; }
 

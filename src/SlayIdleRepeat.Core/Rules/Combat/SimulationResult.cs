@@ -15,10 +15,11 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// </param>
 /// <remarks>
 /// <para>
-/// Exactly these five fields — in particular there is no queue field for run effects: the queue is the
-/// <see cref="CombatEventType.RunEffectQueued"/> entries of <see cref="Log"/>, read in log order. A
-/// sixth field holding them would be a second copy of state the log already carries, and only one of
-/// the two would be inside <see cref="LogHash"/>.
+/// Exactly these five positional fields — in particular there is no queue field for run effects: the
+/// queue is the <see cref="CombatEventType.RunEffectQueued"/> entries of <see cref="Log"/>, read in
+/// log order. A sixth field holding them would be a second copy of state the log already carries, and
+/// only one of the two would be inside <see cref="LogHash"/>. <see cref="Roster"/> is the one
+/// non-positional member, and it is deliberately outside the hash — see its own remarks.
 /// </para>
 /// <para>
 /// <see cref="HeroHpRemaining"/> is <see cref="double"/> rather than <see cref="float"/> for the
@@ -32,4 +33,18 @@ public sealed record SimulationResult(
     int DurationTicks,
     double HeroHpRemaining,
     IReadOnlyList<CombatEvent> Log,
-    ulong LogHash);
+    ulong LogHash)
+{
+    /// <summary>
+    /// One <see cref="BattleRosterEntry"/> per actor ever admitted to the fight — summons included —
+    /// in actor index order, which is also the order of their <see cref="CombatEventType.ActorSpawned"/>
+    /// entries in <see cref="Log"/>.
+    /// </summary>
+    /// <remarks>
+    /// Outside <see cref="LogHash"/>, and a non-positional <c>init</c> property rather than a sixth
+    /// positional field: the hash is the replay's integrity check and the roster is the cast list a
+    /// renderer dresses that replay with, so a client and a server that agree on every event must keep
+    /// agreeing whether or not either of them carries the names.
+    /// </remarks>
+    public IReadOnlyList<BattleRosterEntry> Roster { get; init; } = [];
+}
