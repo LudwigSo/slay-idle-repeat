@@ -349,8 +349,29 @@ public partial class Home : Node3D
         _heldSurfaces.Clear();
 
         // Cleared here as well as on release: a hold timer already running belongs to the tree and
-        // fires whether this screen is still there or not.
+        // fires whether this screen is still there or not. The presenter's half is cleared with it,
+        // so a screen re-added later does not come back showing the figures a finger once held for.
         _holdingATile = false;
+        _presenter?.ConcealFullValues();
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// 🔒 <b>Hiding the screen ends the hold.</b> A tile held with one finger while another taps
+    /// START hands the screen over: <see cref="ScreenStage.Hide"/> hides the overlay, and a hidden
+    /// control never receives the release the gesture was waiting for. Left alone, the finger down
+    /// and the presenter's revealed state both survive the handover, and the next
+    /// <see cref="Resume"/> draws every tile in full with nobody holding anything. The visibility
+    /// change is the one event that does arrive, so the release is taken from it.
+    /// </remarks>
+    public override void _Notification(int what)
+    {
+        base._Notification(what);
+
+        if (what == NotificationVisibilityChanged && _holdingATile && !Visible)
+        {
+            HoldTile(pressed: false);
+        }
     }
 
     /// <remarks>

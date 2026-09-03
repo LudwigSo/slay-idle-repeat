@@ -106,6 +106,8 @@ horizontal_alignment = 2
 ; 468 each of the 952 a 1080 canvas has at the authored margins, less once a device reports a wider
 ; inset. Each tile stops the pointer so a long press on it reaches Home.cs; the icon and the
 ; containers inside it ignore the pointer so the press lands on the tile rather than on a child.
+; A value wraps rather than trims: the long press exists to show the exact figure, and a figure
+; cut to "12345…" reads as a smaller number than the one the rows hold.
 [node name="Tiles" type="GridContainer" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -145,7 +147,7 @@ mouse_filter = 2
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudValue"
-text_overrun_behavior = 3
+autowrap_mode = 3
 
 [node name="EnergyLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row/Text"]
 unique_name_in_owner = true
@@ -185,7 +187,7 @@ mouse_filter = 2
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudValue"
-text_overrun_behavior = 3
+autowrap_mode = 3
 
 [node name="EnergyReserveLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row/Text"]
 unique_name_in_owner = true
@@ -225,7 +227,7 @@ mouse_filter = 2
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudValue"
-text_overrun_behavior = 3
+autowrap_mode = 3
 
 [node name="CrownsLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row/Text"]
 unique_name_in_owner = true
@@ -265,7 +267,7 @@ mouse_filter = 2
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudValue"
-text_overrun_behavior = 3
+autowrap_mode = 3
 
 [node name="SoulShardsLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row/Text"]
 unique_name_in_owner = true
@@ -305,7 +307,7 @@ mouse_filter = 2
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudValue"
-text_overrun_behavior = 3
+autowrap_mode = 3
 
 [node name="PowerLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row/Text"]
 unique_name_in_owner = true
