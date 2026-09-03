@@ -130,9 +130,8 @@ public sealed record PerkDraftCard(
 /// explain an ad. And the free-reroll allowance the design describes — one per stage, accumulating,
 /// plus one granted by a skip — is not implemented at all: <c>REROLL_DRAFT</c> charges Gold on every
 /// call with no cap and no counter, <c>SKIP_DRAFT</c> grants no charge, and nothing persisted counts
-/// draft rerolls. So the reroll on offer shows its Gold price and the player's balance, and no number
-/// that exists nowhere is invented to sit beside it — a placeholder for a feature the game does not
-/// have is a control for nothing.
+/// draft rerolls. So the reroll on offer shows its Gold price and the player's balance, and nothing is
+/// drawn for a count or a control the game does not have.
 /// </para>
 /// <para>
 /// 🔒 <b>The three <c>DRAFT</c> luck-protection counters are shown, always.</b> <c>24</c> §1.1's
@@ -141,9 +140,9 @@ public sealed record PerkDraftCard(
 /// <c>N</c> in §4 on its class's own screen a store-policy requirement on both platforms. <c>DRAFT</c>
 /// is that class and S07 is that screen. 🔒 <b>These are not the free-reroll count.</b> That number
 /// does not exist anywhere, as the paragraph above says; these three do, they are on the run, they
-/// drive real forced options, and <c>DraftView.Guarantees</c> is where they
-/// and their authored rungs are read. Two of §4.7's five rules carry no counter and so get no row —
-/// the Sustain anti-brick is a state predicate and the Codex bias is a weight.
+/// drive real forced options, and <c>DraftView.Guarantees</c> is where they and their authored rungs
+/// are read. Two of §4.7's five rules carry no counter and so get no row — the Sustain anti-brick is a
+/// state predicate and the Codex bias is a weight.
 /// </para>
 /// <para>
 /// 🔒 <b>The counter rows carry captions and numerals, never a composed sentence.</b> The locale
@@ -306,11 +305,10 @@ public sealed class PerkDraftPresenter
     /// Why a row is showing its rung without a countdown, resolved — empty while all three are due.
     /// </summary>
     /// <remarks>
-    /// 🔒 A FOURTH absence on this screen, and it keeps its own sentence like the other three
-    /// (steering S2). It is not a deferred command and not an unbuilt mechanic: the upgrade famine is
-    /// built and live, and simply cannot be owed by a run that holds no perk below its top tier. A
-    /// player who read this as "waiting for a later milestone" would be misinformed in the one
-    /// direction this screen has already been careful about three times.
+    /// 🔒 The one absence on this screen that gets a sentence, because it is an absence in a mechanic
+    /// that is built: the upgrade famine is live, and simply cannot be owed by a run that holds no perk
+    /// below its top tier. A rung with no countdown and no reason would read as a counter that has
+    /// stopped working.
     /// </remarks>
     public string GuaranteeNotDueBlockText =>
         Guarantees.Any(g => !g.Live) ? _strings.Resolve(GuaranteeNotDueBlockKey) : NothingLeftToSay;

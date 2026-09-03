@@ -48,7 +48,9 @@ public partial class AppRoot : Node3D
     /// <summary>The root's own layer, hidden the moment the first screen takes over.</summary>
     private const string UiLayerPath = "%Ui";
 
-    // Drawn before any content exists, so it cannot be a loc key; the ground colour is the boot continuity.
+    /// <summary>
+    /// The status while there is no phase to report. Not a loc key, because no content exists yet.
+    /// </summary>
     private const string NothingYetToSay = "";
 
     /// <summary>Cancelled when the root leaves the tree, so a half-finished open stops there.</summary>
@@ -80,8 +82,6 @@ public partial class AppRoot : Node3D
     /// <inheritdoc/>
     public override void _Ready()
     {
-        Render(NothingYetToSay);
-
         _ = ComposeAndStartAsync();
     }
 
