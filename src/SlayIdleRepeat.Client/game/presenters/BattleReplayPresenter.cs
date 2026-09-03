@@ -2,6 +2,7 @@ using System.Globalization;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Combat;
@@ -105,13 +106,50 @@ public enum ReplayBurst
 
     /// <summary>An actor going down.</summary>
     DeathPuff = 3,
+
+    /// <summary>A ward granted.</summary>
+    Ward = 4,
+
+    /// <summary>A ward giving way.</summary>
+    WardBroken = 5,
+}
+
+/// <summary>Which body motion an event asks of its actor, if any.</summary>
+public enum ReplayMotion
+{
+    /// <summary>The actor stays as it was.</summary>
+    None = 0,
+
+    /// <summary>An attacker striking toward its defender.</summary>
+    Swing = 1,
+
+    /// <summary>A defender taking a blow.</summary>
+    Recoil = 2,
+
+    /// <summary>A defender a blow missed.</summary>
+    Dodge = 3,
+
+    /// <summary>A defender blocking.</summary>
+    Brace = 4,
+
+    /// <summary>A source winding up something it has announced.</summary>
+    WindUp = 5,
+
+    /// <summary>An actor going down.</summary>
+    Fall = 6,
+
+    /// <summary>An actor arriving on the stage.</summary>
+    Enter = 7,
 }
 
 /// <summary>
 /// One event of the log, read into what it asks the screen to draw.
 /// </summary>
 /// <param name="ActorId">The actor the drawing belongs to — the loser of the blow, or the pet that acted.</param>
+/// <param name="CounterpartId">The other actor of the exchange, or the no-actor slot when there is none.</param>
 /// <param name="Side">Which side of the stage that actor stands on.</param>
+/// <param name="Motion">Which body motion the actor performs, if any.</param>
+/// <param name="MotionSeconds">How long that motion is held, where the log states it.</param>
 /// <param name="Floater">Which floating number rises, if any.</param>
 /// <param name="FloaterAmount">The size of that number, always positive.</param>
 /// <param name="Burst">Which procedural burst fires, if any.</param>
@@ -132,7 +170,10 @@ public enum ReplayBurst
 /// </remarks>
 public readonly record struct ReplayCue(
     byte ActorId,
+    byte CounterpartId,
     ReplaySide Side,
+    ReplayMotion Motion,
+    double MotionSeconds,
     ReplayFloater Floater,
     double FloaterAmount,
     ReplayBurst Burst,
@@ -154,6 +195,10 @@ public readonly record struct ReplayCue(
 /// no other.
 /// </param>
 /// <param name="EndingHp">What it finished the fight with, or null when the log does not fix that.</param>
+/// <param name="Identity">The id the roster names this actor by, or null when no door named one.</param>
+/// <param name="IsElite">Whether the roster flags it as an elite.</param>
+/// <param name="IsBoss">Whether the roster flags it as the boss.</param>
+/// <param name="IsSummon">Whether the roster flags it as a summon admitted mid-fight.</param>
 /// <remarks>
 /// <para>
 /// 🔴 <b>The maximum is read off the log's own <c>ActorSpawned</c>, and nothing here derives or guesses
@@ -175,7 +220,16 @@ public readonly record struct ReplayCue(
 /// </para>
 /// </remarks>
 public sealed record ReplayActor(
-    byte ActorId, ReplaySide Side, int SideIndex, double? MaxHp, double? StartingHp, double? EndingHp);
+    byte ActorId,
+    ReplaySide Side,
+    int SideIndex,
+    double? MaxHp,
+    double? StartingHp,
+    double? EndingHp,
+    string? Identity,
+    bool IsElite,
+    bool IsBoss,
+    bool IsSummon);
 
 /// <summary>
 /// Drives the Battle Replay screen: what the pre-computed log shows, how fast it is shown, and the
@@ -400,6 +454,7 @@ public sealed class BattleReplayPresenter
     /// <summary>Builds the screen over the host, the strings, the prediction and the run.</summary>
     /// <param name="gameHost">The seam the run is read through and the result is submitted through.</param>
     /// <param name="strings">Key to display string, over the loaded content set.</param>
+    /// <param name="content">The loaded content set the run's chapter is read from.</param>
     /// <param name="simulations">What predicts the battle locally, or names why it cannot.</param>
     /// <param name="player">The profile this run belongs to.</param>
     /// <param name="run">The run whose battle is being watched.</param>
@@ -415,6 +470,7 @@ public sealed class BattleReplayPresenter
     public BattleReplayPresenter(
         IGameHost gameHost,
         LocaleStringCatalogue strings,
+        ContentSnapshot content,
         IBattleSimulationSource simulations,
         PlayerId player,
         RunId run,
@@ -423,6 +479,7 @@ public sealed class BattleReplayPresenter
     {
         ArgumentNullException.ThrowIfNull(gameHost);
         ArgumentNullException.ThrowIfNull(strings);
+        ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(simulations);
 
         _gameHost = gameHost;
@@ -454,6 +511,11 @@ public sealed class BattleReplayPresenter
 
     /// <summary>Whether the hero won, or null while no fight has been simulated.</summary>
     public bool? HeroWon { get; private set; }
+
+    /// <summary>
+    /// The run chapter's art set, without its <c>biome_</c> prefix, or null when the chapter authors none.
+    /// </summary>
+    public string? BiomeArtSet => null;
 
     /// <summary>How long the fight runs, in log ticks. Zero when there is no fight.</summary>
     public int TotalTicks { get; private set; }
@@ -1062,7 +1124,19 @@ public sealed class BattleReplayPresenter
         bool died = false,
         ushort? statusId = null,
         int stacks = 0) =>
-        new(actorId, SideOf(actorId), floater, amount, burst, health, died, statusId, stacks);
+        new(
+            actorId,
+            NoActorSlot,
+            SideOf(actorId),
+            ReplayMotion.None,
+            0,
+            floater,
+            amount,
+            burst,
+            health,
+            died,
+            statusId,
+            stacks);
 
     /// <summary>
     /// Moves one actor's health, held to the rounding the rules layer holds its own values to.
@@ -1248,7 +1322,17 @@ public sealed class BattleReplayPresenter
         var endingHp = anchoredEndingHp ??
             (startingHp is { } start ? Math.Round(start + moved, HealthDecimals) : null);
 
-        return new ReplayActor(slot, SideOf(slot), SideIndexOf(slot), maxHp, startingHp, endingHp);
+        return new ReplayActor(
+            slot,
+            SideOf(slot),
+            SideIndexOf(slot),
+            maxHp,
+            startingHp,
+            endingHp,
+            Identity: null,
+            IsElite: false,
+            IsBoss: false,
+            IsSummon: false);
     }
 
     /// <summary>
