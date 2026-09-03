@@ -29,7 +29,7 @@ tests/                            xUnit + Shouldly + NetArchTest, mirrors src/ l
 docs/game-design.md               one-page summary of the design
 docs/3d-resources.md              CC0 model, texture, HDRI and audio sources
 game-data/                        tuning/content data, schemas, tuning experiments
-.claude/                          milestone-based agent workflow (skills, retros, steering, handovers)
+.claude/                          the agent workflow (skills, commands, steering, retros)
 ```
 
 ## Core (`src/SlayIdleRepeat.Core/`)
@@ -73,8 +73,9 @@ matching `Ports` interface; don't leak adapter-specific types into Core/Applicat
 
 The Godot game app: `Composition/` is the composition root that wires adapters into ports
 at startup; `game/{net,presenters,scenes}` holds networking, presenters (UI-facing view
-logic), and Godot scenes. **Note:** `project.godot` here is currently an M0 placeholder
-stub, not the real editor project yet (tracker notes it's replaced in M7).
+logic), and Godot scenes. `project.godot` is hand-written and stays that way — the
+editor rewrites it on every save, so each setting carries the reason it exists next to
+it. The Android export is *not* configured there; that lives in the export spikes.
 
 **UI, scenes, presentation logic, client-side wiring → here.**
 
@@ -97,14 +98,16 @@ Server host process for multiplayer/guild/PvP features.
 
 ## Tests (`tests/`)
 
-Mirrors `src/` layout project-for-project (`SlayIdleRepeat.Core.Tests`,
-`Application.Tests`, `Contract.Tests` for shared adapter-port contract suites) plus:
+Six projects, mirroring `src/` — `Core.Tests`, `Application.Tests`, `Client.Tests`,
+`Server.Tests`, `Contract.Tests` (the shared per-port suite run against every real
+adapter implementation), and:
 
-- `SlayIdleRepeat.Architecture.Tests` — NetArchTest rules enforcing the dependency
+- `SlayIdleRepeat.Architecture.Tests` — NetArchTest/IL rules enforcing the dependency
   direction (Core must not depend on Godot/adapters); **this fails the build if the
-  layering is violated**, so re-run it after moving code between layers.
-- `AssetManifest.Tests`, `AssetPipeline.Tests`, `AssetPlaceholders.Tests`,
-  `AssetProvenance.Tests` — asset pipeline correctness.
+  layering is violated**, so re-run it after moving code between layers. It is one file,
+  `DependencyRuleTests.cs`, and it is deliberately narrow: it guards the project
+  references and the port catalogue, nothing else. Every other structural rule in this
+  document is upheld by review, not mechanically.
 
 Mutation testing is scoped to Core and Application — one config per project,
 `stryker-config.json` and `stryker-config.application.json` (`StrykerOutput/` for
@@ -119,15 +122,22 @@ validated against `schema/` by the content loader in
 
 ## Dev process (`.claude/`)
 
-Work happened milestone-by-milestone (M0–M18). Key references:
+Features are built one at a time by an agent pipeline. Key references:
 
-- `.claude/retros/STEERING.md` — binding rules distilled from past milestone retros;
-  **read before implementing anything non-trivial**.
-- `.claude/retros/M0.md`…`M3.md` — per-milestone retrospectives.
-- `.claude/skills/` — the agent pipeline (`feature-oneshot`, `kickoff-milestone`,
-  `milestone-review`, `tdd-write-tests`, `tdd-implement`, `review-*`).
-- `.claude/handovers/` and `.claude/.milestone-runs/M<N>/kickoff.md` — kickoff decisions
-  and handover notes per milestone.
+- `.claude/retros/STEERING.md` — binding rules distilled from past retrospectives;
+  **read before implementing anything non-trivial**. The rule that matters most: a test
+  that cannot fail is a defect, so every guard is proven to fail before it is trusted.
+- `.claude/skills/` — the pipeline itself. `feature-oneshot` is the conductor and runs
+  the rest end-to-end: `tdd-write-tests` → `tdd-implement` → `review-code-quality`,
+  `review-architecture-quality`, `review-test-quality`, `review-ui-quality`,
+  `review-ux-quality`, with `unit-testing` and `ui-design` as the shared conventions
+  those phases are judged against.
+- `.claude/commands/` — the slash commands that invoke them.
+- `.claude/retros/M0.md`…`M5.md` — retrospectives from the milestone-based phase the
+  project ran on earlier. Historical: the numbered milestones and their kickoff/handover
+  docs are gone, and only the lessons in `STEERING.md` are still binding.
+- `.claude/.feature-runs/<slug>/handover.md` — per-run state for a feature in flight
+  (gitignored, along with `.claude/.milestone-runs/` and `.claude/worktrees/`).
 
 ## CI / build
 
