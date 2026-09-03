@@ -354,6 +354,11 @@ public sealed class EnemiesDataTests
     // ------------------------------------------------------------------ 05 §6.4, the pools
 
     /// <summary>`05` §6.4's weight table, every cell of every row.</summary>
+    /// <remarks>
+    /// Chapter 1 departs from the table in one cell by ruling (2026-09-03): its LEECH weight is 0,
+    /// because the chapter ships no LEECH model (assets/GREENWOOD_VALE_CAST.md), and the five points
+    /// went to GRUNT so the row still sums to 100. Every other row is the table's.
+    /// </remarks>
     [Theory]
     [InlineData(1, 45, 20, 15, 10, 5, 5, 0, 0)]
     [InlineData(2, 25, 15, 10, 10, 5, 20, 15, 0)]
