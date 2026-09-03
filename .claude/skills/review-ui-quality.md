@@ -33,7 +33,7 @@ If you notice an out-of-scope problem, note it in a single line under "Out of sc
 
 ## How to review
 
-1. Determine the target. If the user named scenes, screens (by their S01–S38 name — see `game-design/13_UI_UX_SCREENS.md` §1; the second pass added S28–S29 Dungeons, S30–S32 Events, S33–S36 Guilds, S37 Inbox, S38 Feats, plus required new surfaces on *existing* screens in §1.1, e.g. the Settings "Odds & Guarantees" page and the board HUD consumable slot), or a diff, review exactly those. Otherwise ask which changes to review rather than scanning every screen.
+1. Determine the target. If the user named scenes, screens (by their scene name in `src/SlayIdleRepeat.Client/game/scenes/` — `Board`, `ChapterSelect`, `Campfire`, `BattleReplay`, … — the shipped list, not an aspirational one), or a diff, review exactly those. Otherwise ask which changes to review rather than scanning every screen.
 2. Read each target `.tscn` and its attached script fully, plus the theme resource(s) it draws from and any shared scene it instances, so you can reason about the real rendered result: node tree, anchors/margins/containers, exported theme overrides, and which states the script shows/hides.
 3. **There is no automated visual-preview tool available in this environment for a Godot scene** (unlike a web frontend's browser preview). Do the review by reasoning precisely from the `.tscn`/theme/script content against the checklist below — anchors and container nesting tell you the actual layout at different sizes; theme resource references tell you visual consistency. If you are running interactively and need to see the literal rendered result, ask the user to open the scene in the Godot editor and share a screenshot, or to describe what they see — don't guess where the reasoning is genuinely ambiguous.
 4. Check every item against the checklist below.
@@ -43,7 +43,7 @@ If you notice an out-of-scope problem, note it in a single line under "Out of sc
 
 ### Scene structure
 - Duplicated node subtrees that render the same visual pattern (a card, a stat row, a currency chip) — extract a reusable scene instead of a second hand-built copy.
-- Visual states (loading, error, empty, success, offline/reconnecting per `game-design/13_UI_UX_SCREENS.md` §11) each render something deliberate — a blank panel while loading, or an error with no styled feedback, is a finding.
+- Visual states (loading, error, empty, success, offline/reconnecting — the last handled by `ConnectionOverlay`) each render something deliberate — a blank panel while loading, or an error with no styled feedback, is a finding.
 - Nodes positioned by absolute pixel offsets instead of anchors/containers (`HBoxContainer`/`VBoxContainer`/`GridContainer`/`MarginContainer`) — this is the single most common way a Godot UI breaks across the aspect-ratio range this game targets (9:16 to 9:20). Flag it even if it happens to look fine at the one ratio you can reason through.
 - Visibility toggling that hides/shows via `visible` but leaves the invisible node still processing input or consuming layout space unexpectedly.
 
@@ -60,7 +60,7 @@ If you notice an out-of-scope problem, note it in a single line under "Out of sc
 - Alignment: cards, stat rows, and buttons line up on a common grid; ragged edges without reason are a finding.
 - Large numbers (gold, XP, damage) above 10k are abbreviated (`12.4k`, `3.1M`) with the full value available on long-press, and a currency icon sits adjacent to every currency number — a raw unabbreviated number in a place that can realistically exceed 10k is a finding.
 - Screen transitions are ≤300ms and skippable — a longer or unskippable transition is a finding.
-- Any surface granting a randomised reward shows its pity/guarantee counter as a plain sentence with a real number, and the Shop states chest class and current pity **before** purchase — counter visibility is a store-policy requirement for randomised rewards, not a nicety (24 §1.1, §9).
+- Any surface granting a randomised reward shows its pity/guarantee counter as a plain sentence with a real number, and the Shop states chest class and current pity **before** purchase — counter visibility is a store-policy requirement for randomised rewards and a stated design pillar (`docs/game-design.md`, "Luck protection": every floor is **always shown as a real number**), not a nicety.
 
 ### Responsiveness & safe area
 - The view holds up across the supported portrait range (9:16 through 9:20) — check anchors/containers resize sensibly rather than clipping or leaving dead space at the narrower or taller extreme.
