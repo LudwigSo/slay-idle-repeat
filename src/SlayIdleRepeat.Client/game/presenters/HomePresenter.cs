@@ -377,6 +377,12 @@ public sealed class HomePresenter
 
     private void Settle(OwnStateResult state)
     {
+        // Every read starts from "nothing to continue": this screen is re-read when a run ends, and
+        // a run panel left standing from the previous read would draw a finished run under START.
+        ContinuableRun = null;
+        RunGold = null;
+        RunProgress = null;
+
         if (state.Lookup != OwnStateLookup.Found || state.View is not { } view)
         {
             Decision = HomeContinueDecision.ProfileMissing;

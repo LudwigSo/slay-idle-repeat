@@ -797,6 +797,29 @@ public sealed class HomePresenterTests
     }
 
     /// <summary>
+    /// The screen is re-read when a run ends and Home comes back. The second read is what has to
+    /// take the run panel down.
+    /// </summary>
+    [Fact]
+    public async Task A_second_read_after_the_run_has_ended_clears_the_run_panel()
+    {
+        var host = RecordingGameHost
+            .Finding(PlayerRow(), OpenRunRow(gold: LongGold))
+            .ThenFinding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.Ended, gold: LongGold));
+        var presenter = Home(host);
+        await presenter.StartAsync(CancellationToken.None);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(HomeContinueDecision.StartNewRun, "the ended run is a run to start over");
+        presenter.RunProgress.ShouldBeNull(
+            "the panel is drawn whenever RunProgress is set, so a value left over from the first read " +
+            "puts a finished run's stage on a screen whose button now says START.");
+        presenter.RunGold.ShouldBeNull("the Gold of a run that has been paid out is nobody's balance now.");
+        presenter.ContinuableRun.ShouldBeNull("and there is no run to hand the board on the next press.");
+    }
+
+    /// <summary>
     /// 🔒 Both non-continuable decisions with a profile behind them, because <c>RunLapsed</c> still
     /// HAS a run row with a Gold balance in it — and that balance belongs to a run nobody can play.
     /// </summary>
