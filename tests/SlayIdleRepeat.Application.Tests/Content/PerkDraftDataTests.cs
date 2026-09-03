@@ -16,12 +16,9 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// and these cases are what stop it being quietly deleted or emptied.
 /// </para>
 /// <para>
-/// 🔴 The <c>block</c> group is the load-bearing one, and for a reason peculiar to this screen: the
-/// reroll control sits beside <b>three separate absences</b> that a player would otherwise read as
-/// one dead button. The ad reroll is an ad reward whose command is deferred; the fourth option is a
-/// second, differently-placed ad slot; and the free-reroll allowance the design describes is not
-/// implemented anywhere at all — the reroll is Gold-priced and uncapped. Three causes with three
-/// different resolutions, so three different sentences.
+/// 🔴 The screen once carried sentences for three features that are not built — an ad reroll, a
+/// fourth ad card, a free-reroll allowance. Those strings are retired rather than kept as
+/// placeholders, and the negative theory below is what stops them coming back through the locales.
 /// </para>
 /// <para>
 /// ⚠️ The member names below are the shape the document must be authored in, because the orphan
@@ -41,12 +38,6 @@ public sealed class PerkDraftDataTests
     private const string SkipActionKey = "loc.perk_draft.skip.action";
 
     private const string TitleNameKey = "loc.perk_draft.title.name";
-
-    private const string AdRerollBlockKey = "loc.perk_draft.ad_reroll_deferred.block";
-
-    private const string AdFourthOptionBlockKey = "loc.perk_draft.ad_fourth_option_deferred.block";
-
-    private const string FreeRerollBlockKey = "loc.perk_draft.free_reroll_unbuilt.block";
 
     private const string RerollUnaffordableStatusKey = "loc.perk_draft.reroll_unaffordable.status";
 
@@ -114,17 +105,12 @@ public sealed class PerkDraftDataTests
 
     [Theory]
     [InlineData(TitleNameKey)]
-    [InlineData("loc.perk_draft.ad_fourth_option.name")]
     [InlineData("loc.perk_draft.synergy.label")]
     [InlineData("loc.perk_draft.reroll_cost.label")]
     [InlineData("loc.perk_draft.skip_reward.label")]
     [InlineData("loc.perk_draft.upgrade.badge")]
     [InlineData("loc.perk_draft.reroll.action")]
-    [InlineData("loc.perk_draft.ad_reroll.action")]
     [InlineData(SkipActionKey)]
-    [InlineData(AdRerollBlockKey)]
-    [InlineData(AdFourthOptionBlockKey)]
-    [InlineData(FreeRerollBlockKey)]
     [InlineData("loc.perk_draft.loading.status")]
     [InlineData("loc.perk_draft.no_draft.status")]
     [InlineData("loc.perk_draft.run_missing.status")]
@@ -151,36 +137,26 @@ public sealed class PerkDraftDataTests
     }
 
     /// <summary>
-    /// 🔒 The four things that can be wrong with the reroll read as four different sentences, <b>as
-    /// authored</b>.
+    /// 🔒 The strings for the ad reroll, the fourth ad card and the free-reroll allowance are gone
+    /// from both locales — none of the three is built, and a sentence about one is a placeholder.
     /// </summary>
-    /// <remarks>
-    /// 🔴 Each has a different resolution, and on screen all four land on the same control. The ad
-    /// reroll waits on M15-03. The fourth-option ad slot waits on the same milestone but is a
-    /// different affordance in a different place. The free allowance the design describes was never
-    /// built at all. And an unaffordable reroll is not an absence — it is a price the player can go
-    /// and earn. Two of these reading the same sends a player to wait for a feature when they
-    /// should be earning Gold, or the reverse.
-    /// </remarks>
-    [Fact]
-    public void The_four_reasons_a_reroll_is_not_available_read_as_four_different_sentences()
+    [Theory]
+    [InlineData("loc.perk_draft.ad_fourth_option.name")]
+    [InlineData("loc.perk_draft.ad_reroll.action")]
+    [InlineData("loc.perk_draft.ad_reroll_deferred.block")]
+    [InlineData("loc.perk_draft.ad_fourth_option_deferred.block")]
+    [InlineData("loc.perk_draft.free_reroll_unbuilt.block")]
+    public void A_retired_placeholder_string_is_carried_by_neither_locale(string key)
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        string?[] sentences =
-        [
-            snapshot.ReadText(EnglishStrings + AdRerollBlockKey),
-            snapshot.ReadText(EnglishStrings + AdFourthOptionBlockKey),
-            snapshot.ReadText(EnglishStrings + FreeRerollBlockKey),
-            snapshot.ReadText(EnglishStrings + RerollUnaffordableStatusKey),
-        ];
-
-        sentences.Distinct(StringComparer.Ordinal).Count().ShouldBe(
-            sentences.Length,
-            "two of the four reroll sentences are AUTHORED the same, so a player meeting one of them " +
-            "is told about the other. The ad path is deferred, the fourth-option slot is a different " +
-            "deferred thing, the free allowance was never built, and an unaffordable reroll is a " +
-            $"price — four answers, not one: [{string.Join(" | ", sentences)}]");
+        snapshot.TryRead(EnglishStrings + key, out _).ShouldBeFalse(
+            $"'{key}' is still in the English locale. A key that survives there while the document " +
+            "that named it is gone is an orphan the loader rejects, and one that survives in both " +
+            "locales is a placeholder sentence the Perk Draft screen was told to stop drawing.");
+        snapshot.TryRead(GermanStrings + key, out _).ShouldBeFalse(
+            $"'{key}' is still in the German locale, so a translator is being paid for a sentence " +
+            "about a feature the game does not have.");
     }
 
     /// <summary>
