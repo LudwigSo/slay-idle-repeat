@@ -82,6 +82,40 @@ public sealed class BattleFramingTests
             1e-9);
     }
 
+    [Fact]
+    public void BoundsOf_spans_the_rest_points_across_the_floor_and_tops_out_at_the_tallest_plate_anchor()
+    {
+        var bounds = BattleFraming.BoundsOf(
+            [Footprint(-3, 0, height: 2.25), Footprint(3, -1.5f, height: 1.75), Footprint(3.5f, 1.5f, height: 4.5)],
+            plateClearance: 0.5);
+
+        bounds.ShouldBe(
+            new StageBounds(MinX: -3, MinY: 0, MinZ: -1.5, MaxX: 3.5, MaxY: 5, MaxZ: 1.5),
+            "the floor is the bottom, the tallest actor's head plus the clearance is the top, and the " +
+            "rest points bound the sides — a box taken off one actor or without the clearance would " +
+            "crop a plate.");
+    }
+
+    [Fact]
+    public void BoundsOf_leaves_an_actor_that_is_off_the_stage_out_of_the_box()
+    {
+        var bounds = BattleFraming.BoundsOf(
+            [Footprint(-2, 0, height: 2), Footprint(2, 0, height: 2), Footprint(6, 3, height: 8, present: false)],
+            plateClearance: 0.5);
+
+        bounds.ShouldBe(
+            new StageBounds(MinX: -2, MinY: 0, MinZ: 0, MaxX: 2, MaxY: 2.5, MaxZ: 0),
+            "a summon that has not entered yet would otherwise pull the camera back for an empty patch of floor.");
+    }
+
+    [Fact]
+    public void BoundsOf_answers_the_zero_box_for_a_stage_with_nobody_on_it() =>
+        BattleFraming.BoundsOf([Footprint(4, 4, height: 4, present: false)], plateClearance: 0.5)
+            .ShouldBe(default(StageBounds));
+
     private static StageBounds Box(double halfX, double height, double halfZ) =>
         new(-halfX, 0, -halfZ, halfX, height, halfZ);
+
+    private static StageFootprint Footprint(float x, float z, double height, bool present = true) =>
+        new(new StagePoint(x, z), height, present);
 }

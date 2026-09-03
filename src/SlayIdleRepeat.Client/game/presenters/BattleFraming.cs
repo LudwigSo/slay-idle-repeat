@@ -24,6 +24,12 @@ public sealed record BattleCameraMetrics(
 /// <param name="VerticalShift">How far up the camera's own up axis the framed point moves to sit in the free band.</param>
 public readonly record struct StageFrame(double Distance, double VerticalShift);
 
+/// <summary>One actor as the framing sees it: where it rests on the floor, how tall it stands, and whether it is on the stage.</summary>
+/// <param name="Rest">The actor's rest point, where the layout stood it.</param>
+/// <param name="Height">How tall the actor's model stands, so its plate anchor can be counted in.</param>
+/// <param name="Present">Whether the actor is on the stage at all; one that is not takes no room.</param>
+public readonly record struct StageFootprint(StagePoint Rest, double Height, bool Present);
+
 /// <summary>
 /// The arithmetic the battle camera frames by, on top of <see cref="BoardFraming"/>: the box's eight
 /// corners projected onto the yawed, pitched camera's right and up axes give the half-extents
@@ -32,6 +38,44 @@ public readonly record struct StageFrame(double Distance, double VerticalShift);
 /// </summary>
 public static class BattleFraming
 {
+    /// <summary>
+    /// The box the present actors stand inside: every rest point across the floor, from the floor up
+    /// to the plate anchor above the tallest of them. An empty stage is the zero box.
+    /// </summary>
+    /// <param name="footprints">Every actor on the roster, present or not.</param>
+    /// <param name="plateClearance">How far above an actor's head its plate anchor sits.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="footprints"/> is null.</exception>
+    public static StageBounds BoundsOf(IReadOnlyList<StageFootprint> footprints, double plateClearance)
+    {
+        ArgumentNullException.ThrowIfNull(footprints);
+
+        var bounds = default(StageBounds);
+        var first = true;
+
+        for (var index = 0; index < footprints.Count; index++)
+        {
+            var footprint = footprints[index];
+
+            if (!footprint.Present)
+            {
+                continue;
+            }
+
+            var x = (double)footprint.Rest.X;
+            var z = (double)footprint.Rest.Z;
+            var top = footprint.Height + plateClearance;
+
+            bounds = first
+                ? new StageBounds(x, 0d, z, x, top, z)
+                : new StageBounds(
+                    Math.Min(bounds.MinX, x), 0d, Math.Min(bounds.MinZ, z),
+                    Math.Max(bounds.MaxX, x), Math.Max(bounds.MaxY, top), Math.Max(bounds.MaxZ, z));
+            first = false;
+        }
+
+        return bounds;
+    }
+
     /// <summary>Frames a box for a camera of this field of view and aspect.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="camera"/> is null.</exception>
     public static StageFrame Frame(

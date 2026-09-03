@@ -41,37 +41,23 @@ public partial class BattleWorld : Node3D
     private float _pulseSwell;
 
     /// <summary>
-    /// The box the actors on the stage stand inside: every present actor's rest point across the
-    /// floor, and the plate anchor above the tallest of them.
+    /// The box the actors on the stage stand inside, as <see cref="BattleFraming.BoundsOf"/> draws it
+    /// over every rig's rest point, height and presence.
     /// </summary>
     public StageBounds StageBounds
     {
         get
         {
-            var bounds = default(StageBounds);
-            var first = true;
+            var footprints = new StageFootprint[_rigs.Count];
 
             for (var index = 0; index < _rigs.Count; index++)
             {
                 var rig = _rigs[index];
 
-                if (!rig.Shown)
-                {
-                    continue;
-                }
-
-                var rest = rig.Root.Position;
-                var top = rig.Height + _plateClearance;
-
-                bounds = first
-                    ? new StageBounds(rest.X, 0d, rest.Z, rest.X, top, rest.Z)
-                    : new StageBounds(
-                        Math.Min(bounds.MinX, rest.X), 0d, Math.Min(bounds.MinZ, rest.Z),
-                        Math.Max(bounds.MaxX, rest.X), Math.Max(bounds.MaxY, top), Math.Max(bounds.MaxZ, rest.Z));
-                first = false;
+                footprints[index] = new StageFootprint(rig.Rest, rig.Height, rig.Shown);
             }
 
-            return bounds;
+            return BattleFraming.BoundsOf(footprints, _plateClearance);
         }
     }
 
@@ -210,7 +196,7 @@ public partial class BattleWorld : Node3D
             height = enemy.Height;
         }
 
-        return new ActorRig(actor.ActorId, root, motion, facing, height);
+        return new ActorRig(actor.ActorId, root, motion, placement.Position, facing, height);
     }
 
     /// <summary>The catalogue's model for an actor, or null with the reason pushed.</summary>
@@ -296,14 +282,18 @@ public partial class BattleWorld : Node3D
         _rigById.Clear();
     }
 
-    /// <summary>One actor's three nodes and the two facts about it the pose needs.</summary>
-    private sealed class ActorRig(byte actorId, Node3D root, Node3D motion, Vector3 facing, float height)
+    /// <summary>One actor's three nodes and the few facts about it the pose and the framing need.</summary>
+    private sealed class ActorRig(
+        byte actorId, Node3D root, Node3D motion, StagePoint rest, Vector3 facing, float height)
     {
         internal byte ActorId { get; } = actorId;
 
         internal Node3D Root { get; } = root;
 
         internal Node3D Motion { get; } = motion;
+
+        /// <summary>Where the layout stood the actor, as the layout said it rather than read back off the node.</summary>
+        internal StagePoint Rest { get; } = rest;
 
         internal Vector3 Facing { get; } = facing;
 
