@@ -43,34 +43,6 @@ public partial class BoardWorld : Node3D
     private const string HeroRigPath = "HeroRig";
     private const string HeroPivotPath = "HeroRig/HeroPivot";
 
-    /// <summary>
-    /// How far <c>Hero.tscn</c>'s own origin sits above the hero's feet, in that scene's units.
-    /// </summary>
-    /// <remarks>
-    /// 🔴 <b>Measured, not chosen.</b> <c>Hero.tscn</c> drops its <c>Model</c> child to
-    /// <c>y = -1.72</c> at a scale of <c>1.32</c>, and <c>chr_hero_rogue.glb</c>'s own POSITION
-    /// accessor puts its lowest vertex at <c>y = -0.004</c> — the model's origin is at the feet, as
-    /// `15` §C1 requires. So the feet sit at <c>-1.72 + (-0.004 x 1.32) = -1.7253</c> below the
-    /// scene's origin, and lifting the hero by that much puts it standing on something rather than
-    /// buried to the waist in it.
-    /// <para>
-    /// That framing belongs to Home, which is the only other screen that instances the hero, and
-    /// <c>Hero.cs</c>'s own remarks make it part of the hero's contract — so it is countered here
-    /// rather than edited there. Moving it onto Home's own instance override is the cleaner fix and
-    /// is a change of its own, with its own visual regression to check.
-    /// </para>
-    /// </remarks>
-    private const float HeroOriginAboveFeet = 1.7253f;
-
-    /// <summary>
-    /// The yaw <c>Hero.tscn</c> bakes into its <c>Model</c> child, in degrees.
-    /// </summary>
-    /// <remarks>
-    /// Also Home's framing, and countered for the same reason. Read off the same transform: its X
-    /// basis is <c>(1.22388, 0, -0.49449)</c>, which at length 1.32 is a yaw of 22 degrees.
-    /// </remarks>
-    private const float HeroModelYawDegrees = 22f;
-
     /// <summary>The colour a node with a tile kind this build has no colour for is drawn in.</summary>
     private static readonly Color UnknownTileColour = new(0.24f, 0.25f, 0.30f);
 
@@ -247,9 +219,13 @@ public partial class BoardWorld : Node3D
     private Vector3 StandingPosition(BoardPoint centre) =>
         new(centre.X, centre.Y + (_puckHeight / 2f), centre.Z);
 
-    /// <summary>
-    /// Sizes the hero for the board and cancels the framing <c>Hero.tscn</c> carries for Home.
-    /// </summary>
+    /// <summary>Sizes the hero for the board.</summary>
+    /// <remarks>
+    /// Only a scale, because <c>Hero.tscn</c> is at identity — feet on its origin, unturned, at the
+    /// authored size. It used to bake Home's framing (a drop of 1.72, a 22-degree yaw, scale 1.32)
+    /// into its <c>Model</c> child, and this method had to measure and cancel all three; that
+    /// framing now lives on Home's own instance, where only Home pays for it.
+    /// </remarks>
     private void ScaleHero(float scale)
     {
         if (_heroPivot is not { } pivot)
@@ -258,8 +234,6 @@ public partial class BoardWorld : Node3D
         }
 
         pivot.Scale = new Vector3(scale, scale, scale);
-        pivot.Rotation = new Vector3(0f, Mathf.DegToRad(-HeroModelYawDegrees), 0f);
-        pivot.Position = new Vector3(0f, HeroOriginAboveFeet * scale, 0f);
     }
 
     /// <summary>

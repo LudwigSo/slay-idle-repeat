@@ -144,7 +144,7 @@ public sealed class ChaptersDataTests
     public void R34_refuses_a_chapter_enemy_pool_that_disagrees_with_enemies_json()
     {
         var source = RepoData.SourceWithEdit(
-            ChapterOne, "\"GRUNT\": 40, \"SWARM\": 20", "\"GRUNT\": 41, \"SWARM\": 20");
+            ChapterOne, "\"GRUNT\": 45, \"SWARM\": 20", "\"GRUNT\": 46, \"SWARM\": 20");
 
         var issues = ContentLoader.Load(source).Issues;
 

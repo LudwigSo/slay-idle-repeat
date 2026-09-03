@@ -355,7 +355,7 @@ public sealed class EnemiesDataTests
 
     /// <summary>`05` §6.4's weight table, every cell of every row.</summary>
     [Theory]
-    [InlineData(1, 40, 20, 15, 10, 5, 5, 5, 0)]
+    [InlineData(1, 45, 20, 15, 10, 5, 5, 0, 0)]
     [InlineData(2, 25, 15, 10, 10, 5, 20, 15, 0)]
     [InlineData(3, 20, 25, 15, 5, 10, 15, 5, 5)]
     [InlineData(4, 20, 10, 20, 10, 5, 20, 5, 10)]
@@ -383,13 +383,13 @@ public sealed class EnemiesDataTests
     }
 
     /// <summary>
-    /// 🔒 The two zeros, pinned by name and separately from the totals. `05` §6.4 states them as
+    /// 🔒 The authored zeros, pinned by name and separately from the totals. `05` §6.4 states them as
     /// intent — <em>"no 30%-crit spikes in the tutorial chapter"</em> and <em>"machines do not
     /// drink"</em> — and a row that moved five points from <c>GRUNT</c> to <c>REAVER</c> still sums
     /// to 100. A test that only checked the total would let either be edited away in silence.
     /// </summary>
     [Fact]
-    public void Chapter_1_has_no_REAVER_and_chapter_6_no_LEECH_because_05_section_6_4_says_so()
+    public void Chapter_1_has_no_REAVER_and_no_LEECH_and_chapter_6_no_LEECH()
     {
         var data = Data();
 
@@ -399,12 +399,16 @@ public sealed class EnemiesDataTests
         data.ReadInt32($"{Document}#/chapterPools/5/weights/LEECH")
             .ShouldBe(0, "05 §6.4 — machines do not drink");
 
+        data.ReadInt32($"{Document}#/chapterPools/0/weights/LEECH")
+            .ShouldBe(0, "chapter 1 fields only the archetypes it has a 3D model for; LEECH has none (assets/GREENWOOD_VALE_CAST.md)");
+
         // And the whole zero set is pinned, so this rule cannot pass by the table having collapsed —
         // and so that a NEW zero somewhere else has to be argued for rather than appearing.
-        // ⚠️ There are THREE, not two: 05 §6.4's shape-intent prose calls out Chapter 1's REAVER and
-        // Chapter 6's LEECH, but its table also gives Chapter 2 a REAVER weight of 0 and says nothing
-        // about it. Recorded here rather than quietly asserted away — the two prose zeros are pinned
-        // individually above; this is the complete set the table actually holds.
+        // ⚠️ There are FOUR: 05 §6.4's shape-intent prose calls out Chapter 1's REAVER and
+        // Chapter 6's LEECH; its table also gives Chapter 2 a REAVER weight of 0 and says nothing
+        // about it; and Chapter 1's LEECH went to 0 on 2026-09-03 because the chapter ships no LEECH
+        // model (the six modelled archetypes are the pool). Recorded here rather than quietly asserted
+        // away — the prose zeros are pinned individually above; this is the complete set the table holds.
         var zeros = new List<string>();
         for (var chapter = 1; chapter <= 8; chapter++)
         {
@@ -417,7 +421,7 @@ public sealed class EnemiesDataTests
             }
         }
 
-        zeros.ShouldBe(new[] { "ch1:REAVER", "ch2:REAVER", "ch6:LEECH" }, ignoreOrder: true);
+        zeros.ShouldBe(new[] { "ch1:REAVER", "ch1:LEECH", "ch2:REAVER", "ch6:LEECH" }, ignoreOrder: true);
     }
 
     /// <summary>`05` §6.2/§6.4 — each chapter's <c>elitePool</c> is exactly its two biome elites.</summary>
@@ -464,8 +468,8 @@ public sealed class EnemiesDataTests
     {
         var edited = RepoData.SourceWithEdit(
             Document,
-            "\"GRUNT\": 40, \"SWARM\": 20",
-            "\"GRUNT\": 41, \"SWARM\": 20");
+            "\"GRUNT\": 45, \"SWARM\": 20",
+            "\"GRUNT\": 46, \"SWARM\": 20");
 
         var issues = ContentLoader.Load(edited).Issues;
 

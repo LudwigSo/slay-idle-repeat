@@ -10,5 +10,8 @@ script = ExtResource("1_hero")
 LeftHandWeapon = ExtResource("3_sword")
 RightHandWeapon = ExtResource("4_dagger")
 
+; The model sits at identity: feet on the scene's origin, facing the way the glTF faces, at the
+; scale it was authored at — the same convention every Greenwood enemy model ships with. A screen
+; that wants the hero bigger, turned or dropped frames its OWN instance (Home.tscn does), so no
+; other screen has to cancel a framing it never asked for.
 [node name="Model" parent="." instance=ExtResource("2_model")]
-transform = Transform3D(1.22388, 0, -0.49449, 0, 1.32, 0, 0.49449, 0, 1.22388, 0, -1.72, 0)

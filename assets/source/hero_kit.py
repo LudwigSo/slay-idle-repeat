@@ -297,7 +297,12 @@ def painterly(name, col_a, col_b, rough, spread=0.14, big=5.0, grain=("noise", 1
     gn.inputs["Scale"].default_value = gscale
     if gtype == "voronoi":
         gn.feature = "F1"
-        gn.inputs["Smoothness"].default_value = 1.0
+        # Smoothness is only a socket on the smooth features, and which
+        # features carry it has moved between Blender releases -- ask rather
+        # than assume, or building a voronoi grain raises on a version that
+        # hides it behind F1.
+        if "Smoothness" in gn.inputs:
+            gn.inputs["Smoothness"].default_value = 1.0
         gout = gn.outputs["Distance"]
     else:
         gn.inputs["Detail"].default_value = 4.0

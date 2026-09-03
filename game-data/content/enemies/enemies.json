@@ -181,7 +181,7 @@
 
   "chapterPools": [
     { "chapter": 1,
-      "weights": { "GRUNT": 40, "SWARM": 20, "BRUTE": 15, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 5, "LEECH": 5, "REAVER": 0 },
+      "weights": { "GRUNT": 45, "SWARM": 20, "BRUTE": 15, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 5, "LEECH": 0, "REAVER": 0 },
       "elitePool": ["EL_THORN_SENTINEL", "EL_MOSSBACK_ALPHA"] },
     { "chapter": 2,
       "weights": { "GRUNT": 25, "SWARM": 15, "BRUTE": 10, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 20, "LEECH": 15, "REAVER": 0 },

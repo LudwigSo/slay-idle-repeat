@@ -27,8 +27,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
 mesh = SubResource("QuadMesh_ground")
 material_override = SubResource("StandardMaterial3D_ground")
 
+; Home's framing of the hero, and Home's alone: scale 1.32, a 22-degree turn toward the light and
+; a drop of 1.72 so the diorama sits in the lower half of the portrait frame. It used to be baked
+; into Hero.tscn's Model, where every other screen had to cancel it (see BoardWorld's history).
 [node name="Hero" parent="World" instance=ExtResource("2_hero")]
 unique_name_in_owner = true
+transform = Transform3D(1.22388, 0, -0.49449, 0, 1.32, 0, 0.49449, 0, 1.22388, 0, -1.72, 0)
 
 [node name="Ui" type="CanvasLayer" parent="."]
 unique_name_in_owner = true

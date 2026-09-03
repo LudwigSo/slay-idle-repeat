@@ -24,10 +24,12 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// nothing here needing to know what a sword is.
 /// </para>
 /// <para>
-/// ⚠️ <b>The sockets are inside the imported model, so they inherit its framing.</b> The scale and
-/// the turn that make the hero fit the home screen live on <c>Model</c>, above both sockets, which
-/// is why a weapon authored at the model's own scale lands at the right size without a second
-/// number anywhere. Reframing the hero reframes what it holds, which is the point.
+/// ⚠️ <b>The sockets are inside the imported model, so they inherit its framing.</b> This scene
+/// keeps <c>Model</c> at identity — feet on the origin, unturned, authored size, the convention
+/// every enemy model shares — and each screen frames its own instance (Home scales, turns and
+/// drops it; the board only scales it). A weapon authored at the model's own scale therefore
+/// lands at the right size on every screen without a second number anywhere, and reframing an
+/// instance reframes what it holds, which is the point.
 /// </para>
 /// <para>
 /// ⚠️ <b>Nothing here is metallic, and nothing in a weapon may be either.</b> The build lights 3D

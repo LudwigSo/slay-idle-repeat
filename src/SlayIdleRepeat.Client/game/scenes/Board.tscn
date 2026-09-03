@@ -73,9 +73,8 @@ fov = 60.0
 [node name="HeroRig" type="Node3D" parent="World"]
 visible = false
 
-; Carries the board's own scale and cancels the yaw and the drop Hero.tscn bakes in for Home —
-; see BoardWorld.HeroOriginAboveFeet. Written at build time, not authored here, because the
-; correction depends on the scale.
+; Carries the board's own scale for the hero — see BoardWorld.ScaleHero. Written at build time,
+; not authored here. Hero.tscn is at identity (feet on its origin), so nothing else is cancelled.
 [node name="HeroPivot" type="Node3D" parent="World/HeroRig"]
 
 [node name="Hero" parent="World/HeroRig/HeroPivot" instance=ExtResource("4_hero")]
