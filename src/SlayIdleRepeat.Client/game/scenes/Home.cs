@@ -466,6 +466,14 @@ public partial class Home : Node3D
         // screen that lost its purpose, while a disabled one under the status line reads as a
         // screen waiting, which is what it is.
         _actionButton.Disabled = !carried;
+
+        // The gear stock is the same profile read through another screen, so it waits on the same
+        // answer. Left live, it was the one control still lit on a screen whose status line says the
+        // profile could not be read — and it led to a second screen that could not read it either.
+        if (_gearButton is not null && IsInstanceValid(_gearButton))
+        {
+            _gearButton.Disabled = !carried;
+        }
     }
 
     private void RenderHeader(HomePresenter presenter)
