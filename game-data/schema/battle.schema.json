@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/battle.schema.json",
   "title": "content/battle/battle.json",
-  "description": "M7-06 — the loc keys the Battle Replay screen (S06) renders. What is fixed here is that the screen titles the fight, labels the two sides and the speed control, offers three speed settings and an always-available skip, names the three boss phases the band flashes, and carries one status line per state the replay can be in — including one per reason it can have nothing to animate. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. Three absences are load-bearing. There is no member for an enemy NAME or elite modifier, because enemy derivation and the chapter pools are internal to the rules assembly and nothing a client holds carries either — the banner names the actor by its role in the log instead of inventing a name. There is no member for a maximum-HP caption on a surviving enemy, because the log fixes a starting HP only for the hero and for actors that die, and a bar drawn against a guessed maximum is a bar that lies. And there is no member for a speed setting that persists across runs, because the Settings screen that would store it is unbuilt and this screen takes its opening speed as an argument rather than pretending to remember one.",
+  "description": "M7-06 — the loc keys the Battle Replay screen (S06) renders. What is fixed here is that the screen titles the fight, labels the two sides and the speed control, offers three speed settings and an always-available skip, names the three boss phases the band flashes, and carries one status line per state the replay can be in — including one per reason it can have nothing to animate. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. The enemyName group names the chapter 1 cast by the identity the fight's roster gives a slot, so the banner can read an authored name; a slot the roster leaves unnamed is captioned by its role in the log. Three absences are load-bearing. There is no member for an elite modifier, because the modifier table is internal to the rules assembly and nothing a client holds carries it. There is no member for a maximum-HP caption on a surviving enemy, because the log fixes a starting HP only for the hero and for actors that die, and a bar drawn against a guessed maximum is a bar that lies. And there is no member for a speed setting that persists across runs, because the Settings screen that would store it is unbuilt and this screen takes its opening speed as an argument rather than pretending to remember one.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "name", "label", "action", "phase", "status"],
+  "required": ["$schema", "_doc", "name", "label", "action", "phase", "status", "enemyName"],
   "$defs": {
     "locKey": {
       "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
@@ -78,6 +78,28 @@
         "victory": { "$ref": "#/$defs/locKey" },
         "defeat": { "$ref": "#/$defs/locKey" },
         "refused": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "enemyName": {
+      "description": "The authored name of every enemy the chapter 1 roster can put in a fight — the eight pool archetypes, the two elites and the boss — each under loc.enemy.<identity lower-cased>.name. The banner resolves that key straight from the identity the fight's roster gives a slot, so this group exists to name the strings rather than to be read: a key the locales carry and nothing names is an orphan, and an orphan fails the build. Required in full, so a member of the cast losing its name fails here rather than drawing its dotted key over the enemy's head.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grunt", "swarm", "brute", "skirmisher", "warden", "caster", "leech", "reaver",
+        "elThornSentinel", "elMossbackAlpha", "bossThornmaw"
+      ],
+      "properties": {
+        "grunt": { "$ref": "#/$defs/locKey" },
+        "swarm": { "$ref": "#/$defs/locKey" },
+        "brute": { "$ref": "#/$defs/locKey" },
+        "skirmisher": { "$ref": "#/$defs/locKey" },
+        "warden": { "$ref": "#/$defs/locKey" },
+        "caster": { "$ref": "#/$defs/locKey" },
+        "leech": { "$ref": "#/$defs/locKey" },
+        "reaver": { "$ref": "#/$defs/locKey" },
+        "elThornSentinel": { "$ref": "#/$defs/locKey" },
+        "elMossbackAlpha": { "$ref": "#/$defs/locKey" },
+        "bossThornmaw": { "$ref": "#/$defs/locKey" }
       }
     }
   }

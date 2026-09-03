@@ -105,6 +105,18 @@
     "loc.enemy_status.spore_cloud.name": "##TODO_DE## Spore Cloud",
     "loc.enemy_status.starfire.name": "##TODO_DE## Starfire",
 
+    "loc.enemy.grunt.name": "Distelraufbold",
+    "loc.enemy.swarm.name": "Eichelwicht",
+    "loc.enemy.brute.name": "Borkenwanst",
+    "loc.enemy.skirmisher.name": "Dornenschnitter",
+    "loc.enemy.warden.name": "Pilzbollwerk",
+    "loc.enemy.caster.name": "Sporenrufer",
+    "loc.enemy.leech.name": "Saftsauger",
+    "loc.enemy.reaver.name": "Dornenkralle",
+    "loc.enemy.el_thorn_sentinel.name": "Dornenwächter",
+    "loc.enemy.el_mossback_alpha.name": "Moosrücken-Alpha",
+    "loc.enemy.boss_thornmaw.name": "Dornmaul",
+
     "loc.elite_modifier.enraged.name": "##TODO_DE## Enraged",
     "loc.elite_modifier.armored.name": "##TODO_DE## Armored",
     "loc.elite_modifier.vampiric.name": "##TODO_DE## Vampiric",

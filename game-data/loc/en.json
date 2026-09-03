@@ -105,6 +105,18 @@
     "loc.enemy_status.spore_cloud.name": "Spore Cloud",
     "loc.enemy_status.starfire.name": "Starfire",
 
+    "loc.enemy.grunt.name": "Thistlekin Scrapper",
+    "loc.enemy.swarm.name": "Acornling",
+    "loc.enemy.brute.name": "Barkbelly",
+    "loc.enemy.skirmisher.name": "Bramble Cutter",
+    "loc.enemy.warden.name": "Toadstool Bulwark",
+    "loc.enemy.caster.name": "Sporecaller",
+    "loc.enemy.leech.name": "Sapsucker",
+    "loc.enemy.reaver.name": "Thornclaw",
+    "loc.enemy.el_thorn_sentinel.name": "Thorn Sentinel",
+    "loc.enemy.el_mossback_alpha.name": "Mossback Alpha",
+    "loc.enemy.boss_thornmaw.name": "Thornmaw",
+
     "loc.elite_modifier.enraged.name": "Enraged",
     "loc.elite_modifier.armored.name": "Armored",
     "loc.elite_modifier.vampiric.name": "Vampiric",
