@@ -1,0 +1,57 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/ActorPlate.cs" id="1_plate"]
+
+; The plate over one actor's head. Placed by BattleReplay at the actor's unprojected anchor with its
+; bottom centre on the anchor, so it hangs over the model whatever the camera does. ChipTemplate is
+; the hidden status chip every visible chip is a copy of: its square is authored here, once.
+[node name="ActorPlate" type="VBoxContainer"]
+script = ExtResource("1_plate")
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Name" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 36
+horizontal_alignment = 1
+
+[node name="HpBar" type="ProgressBar" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 22)
+layout_mode = 2
+size_flags_horizontal = 4
+show_percentage = false
+
+[node name="HpText" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 1
+
+[node name="Statuses" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="ChipTemplate" type="TextureRect" parent="Statuses"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Stacks" type="Label" parent="Statuses/ChipTemplate"]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.98, 0.94, 0.9, 1)
+theme_override_font_sizes/font_size = 22

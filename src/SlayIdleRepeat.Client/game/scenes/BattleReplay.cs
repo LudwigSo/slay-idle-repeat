@@ -6,65 +6,30 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 
 /// <summary>
 /// S06 — the battle replay a run's fights are watched on: a driving adapter over
-/// <see cref="BattleReplayPresenter"/>.
+/// <see cref="BattleReplayPresenter"/>, drawing the fight on a 3D stage.
 /// </summary>
 /// <remarks>
 /// <para>
-/// It draws what the presenter says and forwards two presses. No rules, no ports, no adapters, and
-/// no decision about the fight: how fast the log is consumed, where the playhead stands, which events
-/// this frame crossed, which boss phase is in force and whether the result has been confirmed are all
-/// the presenter's answers. What is left here is drawing them — and the drawing is the whole reason
-/// the split is worth keeping, because there is no scene test harness in this repository and anything
-/// decided in this file is decided where nothing can check it.
+/// It draws what the presenter says and forwards two presses. Which events this frame crossed, which
+/// boss phase is in force and whether the result has been confirmed are the presenter's answers; where
+/// each actor stands, how its body moves and how far back the camera sits are
+/// <see cref="BattleStageLayout"/>'s, <see cref="BattleChoreography"/>'s and
+/// <see cref="BattleFraming"/>'s. What is left here is applying a pose, unprojecting an anchor and
+/// picking a colour — decided where nothing can test it, and kept small for that reason.
 /// </para>
 /// <para>
-/// 🔒 <b>Every effect on this screen is procedural, and that is a ruling rather than a shortcut.</b>
-/// The hit sparks, the crit pop and the death puff are particle systems the engine already provides;
-/// the floating combat text is a pool of labels on tweens; the boss phase band is a coloured
-/// rectangle that fades in; the actors are rectangles with their role written under them. There is no
-/// sprite sheet, no atlas, no texture and no asset row anywhere in this screen, and none is coming
-/// from here.
+/// The plates over the actors' heads are canvas controls placed by unprojection every frame, so they
+/// keep the interface's own text rendering. The bursts and the floating numbers rise from the same
+/// anchors.
 /// </para>
 /// <para>
-/// 🔴 <b>There is no art at all, placeholder or otherwise, and no biome backdrop.</b> The design's
-/// three parallax layers need a backdrop that does not exist, so nothing parallaxes: the ground is
-/// one flat colour. Every type size, colour and gap in <c>BattleReplay.tscn</c> is a per-node
-/// override owed to M8-03's UI kit, chosen against the engine's default font, and has to be
-/// re-checked rather than re-applied when the real faces land. The layout itself is structural —
-/// anchors, containers and stretch ratios — so it holds its proportions across the whole supported
-/// aspect range, and every label autowraps inside a container so a larger text size reflows rather
-/// than clips.
+/// 🔒 Reduced motion is honoured in this file, not merely passed through: every body motion completes
+/// on its first frame, every burst is suppressed, and every tween is shortened to
+/// <see cref="ReducedMotionSeconds"/>.
 /// </para>
 /// <para>
-/// 🔒 <b>Reduced motion is honoured in this file, not merely passed through.</b> The presenter
-/// shortens the phase band's dwell; this half suppresses every particle burst and shortens every
-/// animation to a tenth of a second. Nothing here shakes the screen and nothing parallaxes, so those
-/// two clauses are satisfied by there being nothing to disable.
-/// </para>
-/// <para>
-/// 🔴 Three things this screen cannot name or draw, each named instead — see
-/// <see cref="TheResultScreensAreNotBuiltHere"/>,
-/// <see cref="AStatusEffectHasNoNameOrIconHere"/> and
-/// <see cref="LargeNumbersAreNotAbbreviatedHere"/>. There were four: the fourth was a surviving
-/// enemy's health bar, which had no denominator until the log started carrying one.
-/// </para>
-/// <para>
-/// 🔒 <b>The banner and the control row are fixed; everything between them scrolls.</b> The stage is
-/// floored at a height the two actor tokens fit inside, and the health readout sits in a scroll
-/// container, so the parts that grow without a bound — a bar for each of the seven actors a fight can
-/// field, under a stall sentence that runs past a hundred characters — take the scroll rather than
-/// the column. That is what keeps the skip on screen: it is an accessibility control before it is a
-/// convenience, and a column whose children outgrow it pushes its last child off the bottom edge
-/// instead of shrinking. The tight case is the narrow end of the supported range, 9:16, where the
-/// canvas is exactly as tall as it was designed; at 9:20 the stretch mode hands the extra room over
-/// as height and the stage and the readout share it by their stretch ratios.
-/// </para>
-/// <para>
-/// 🔒 <b>Nothing here reads the combat log.</b> The presenter hands over one
-/// <see cref="ReplayCue"/> per event that asks for anything — which actor, which side, which number
-/// in which kind, which burst, what the health now stands at, whether the actor went down, which
-/// status changed and by how many — and this file turns each of those into a colour, a particle
-/// system and a tween. The reading of the log used to live here, where nothing can test it.
+/// ⚠️ Every distance, timing and canvas number below is an export assigned in
+/// <c>BattleReplay.tscn</c>, under the banner that says why.
 /// </para>
 /// </remarks>
 public partial class BattleReplay : Node3D
@@ -72,18 +37,13 @@ public partial class BattleReplay : Node3D
     /// <summary>Where this scene lives, for the screens that instantiate it.</summary>
     public const string ScenePath = "res://game/scenes/BattleReplay.tscn";
 
-    /// <summary>
-    /// The one line a headless run's screen state is read off. Distinctive on purpose: a replay
-    /// resolved against a real run has to be greppable out of an engine log full of everything else,
-    /// the way the board's and the home screen's readouts already are.
-    /// </summary>
+    /// <summary>The one line a headless run's screen state is read off.</summary>
     private const string BattleMarker = "SIR_BATTLE_READY";
 
     /// <summary>
-    /// 🔴 Deliberately unbuilt, and named so it can be found. The death and revive screen and the run
-    /// results screen are later rows'. A fight that ends — won, lost, or skipped to its end — hands
-    /// control back to the board it was entered from, because that is the one destination this build
-    /// has; the design's result screen is not invented here.
+    /// 🔴 Deliberately unbuilt, and named so it can be found. A fight that ends — won, lost, or
+    /// skipped to its end — hands control back to the board it was entered from, because that is the
+    /// one destination this build has; the design's result screen is not invented here.
     /// </summary>
     private const string TheResultScreensAreNotBuiltHere =
         "The design shows a result screen after every battle, and a skipped battle is supposed to " +
@@ -93,112 +53,43 @@ public partial class BattleReplay : Node3D
         "log settled and the board re-reads the run it changed.";
 
     /// <summary>
-    /// 🔴 <b>Every actor gets a bar now, and the reason it took a rules-layer change to get one is
-    /// worth keeping.</b> This constant used to justify drawing no bar for an enemy that survived.
+    /// 🔴 Every actor's bar has a denominator because the log carries one, and it took a rules-layer
+    /// change to get it there. Kept because the same reasoning will look correct the next time a bar
+    /// wants a number the log does not carry, and the answer is the same: get it into the log.
     /// </summary>
-    /// <remarks>
-    /// It read: <em>"A health bar needs a starting value and the log carries none. The hero's follows
-    /// from the reported remaining health with every change the log records undone in reverse, and any
-    /// actor the log records a death for ended at zero, which anchors the same arithmetic. An enemy
-    /// still standing at the end anchors neither equation. A denominator invented here would draw a bar
-    /// wrong by exactly however far the guess was off, and a player watching a bar is reading the
-    /// fraction, not the number — so that actor is drawn with its name and no bar at all."</em>
-    /// <para>
-    /// Every sentence was true and the conclusion was still a broken screen: a hero that loses kills
-    /// nothing, so <em>no fight a player lost drew an enemy bar at all</em>, and the fight read as a
-    /// hero being beaten by something invulnerable. Refusing to invent the number was right; the missing
-    /// step was putting the real one in the log, which
-    /// <see cref="CombatEventType.ActorSpawned"/> now does. Kept as a note because the same reasoning
-    /// will look correct the next time a bar wants a number the log does not carry, and the answer is
-    /// the same: get it into the log.
-    /// </para>
-    /// </remarks>
     private const string EveryActorsBarNowHasADenominatorFromTheLog =
         "The log carries each actor's Max HP in an ActorSpawned event, so a bar's denominator is read " +
         "rather than derived and every actor has one from the tick it enters on.";
 
     /// <summary>
-    /// 🔴 Deliberately unnamed, and named so it can be found. A status arrives as an integer, and the
-    /// table that would turn it into a word or a picture never leaves the rules assembly.
-    /// </summary>
-    private const string AStatusEffectHasNoNameOrIconHere =
-        "The design puts status icons with their stack counts under each health bar. The stack count " +
-        "is real — the log carries it — and the identity is not: a status arrives as a bare integer, " +
-        "the enum behind it and every potency it implies are internal to the rules, and there is no " +
-        "icon set in this build for anything. So a status is drawn as a coloured chip with its " +
-        "number and its stack count on it, which claims exactly what is known.";
-
-    /// <summary>
-    /// 🔴 Deliberately not done, and named so it can be found. The design shortens any number past
-    /// ten thousand and gives the exact one back on a long press; no screen in this build does, and
-    /// this one does not become the first.
+    /// 🔴 Deliberately not done, and named so it can be found. Nothing in this build abbreviates a
+    /// number, and this screen does not become the first.
     /// </summary>
     private const string LargeNumbersAreNotAbbreviatedHere =
         "The design abbreviates a number past ten thousand and returns the exact value on a long " +
-        "press. Nothing in this build abbreviates anything — the board's gold and health, the home " +
-        "screen's energy and this screen's damage and health are all written out — so a shortening " +
-        "introduced on this one screen would be the only one, and the reading-back half needs a press " +
-        "handler on every number rather than a format. It belongs with the shared formatting M8-03's " +
-        "UI kit owes every screen at once, and until then a health readout stays honest by being " +
-        "long rather than by being rounded to a letter.";
+        "press. Nothing in this build abbreviates anything, so a shortening introduced on this one " +
+        "screen would be the only one, and the reading-back half needs a press handler on every " +
+        "number rather than a format. It belongs with the shared formatting the UI kit owes every " +
+        "screen at once.";
 
     /// <summary>
-    /// How long a finished fight is held on screen before control goes back to the board.
+    /// How many floating numbers can be in the air at once: a fixed pool cycled round, never a label
+    /// per event, because a fight at triple speed lands several events on one frame.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ This task's choice of number, from the design's victory pose. It is a pause rather than a
-    /// transition, so the three-hundred-millisecond ceiling on transitions does not bind it — and it
-    /// is skippable anyway, because the skip control stays live through it and closes the screen at
-    /// once.
-    /// </remarks>
-    private const double PoseSeconds = 0.8;
-
-    /// <summary>
-    /// What every animation on this screen is shortened to under reduced motion.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 An accessibility clause stated as one number, because the clause is one number: reduced
-    /// motion shortens every animation to this, the pose included.
-    /// </remarks>
-    private const double ReducedMotionSeconds = 0.1;
-
-    /// <summary>How long one floating combat number takes to rise and fade.</summary>
-    private const double FloatSeconds = 0.7;
-
-    /// <summary>And how long the boss phase band takes to arrive — inside the transition ceiling.</summary>
-    private const double BandFadeSeconds = 0.25;
-
-    /// <summary>How far a floating combat number rises, in canvas units.</summary>
-    private const float FloatRise = 220;
-
-    /// <summary>
-    /// How many floating numbers can be in the air at once.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 A fixed pool built once, cycled round, rather than a label created per event. Every frame
-    /// of this screen runs inside the engine's per-frame callback, and a fight at triple speed lands
-    /// several events on one frame: allocating and freeing a node per number is the one shape that
-    /// turns a ninety-second fight into a garbage-collection pause on a handset.
-    /// </remarks>
     private const int FloaterCount = 12;
 
-    /// <summary>How far apart consecutive floating numbers are fanned, so two never sit on top.</summary>
-    private const float FloatFanStep = 44;
-
-    private const string SafeAreaPath = "%SafeArea";
-    private const string TitleLabelPath = "%TitleLabel";
-    private const string OpponentLabelPath = "%OpponentLabel";
-    private const string StagePath = "%Stage";
-    private const string HeroTokenPath = "%HeroToken";
-    private const string HeroNamePath = "%HeroName";
-    private const string EnemyTokenPath = "%EnemyToken";
-    private const string EnemyNamePath = "%EnemyName";
-    private const string EffectsPath = "%Effects";
+    private const string WorldPath = "%World";
+    private const string CameraRigPath = "%CameraRig";
+    private const string CameraPath = "%Camera";
+    private const string PlatesPath = "%Plates";
     private const string HitSparksPath = "%HitSparks";
     private const string CritPopPath = "%CritPop";
     private const string DeathPuffPath = "%DeathPuff";
+    private const string WardMotesPath = "%WardMotes";
     private const string FloatingTextPath = "%FloatingText";
-    private const string BarsPath = "%Bars";
+    private const string SafeAreaPath = "%SafeArea";
+    private const string TitleLabelPath = "%TitleLabel";
+    private const string OpponentLabelPath = "%OpponentLabel";
     private const string StatusLabelPath = "%StatusLabel";
     private const string SpeedLabelPath = "%SpeedLabel";
     private const string SpeedButtonPath = "%SpeedButton";
@@ -206,89 +97,32 @@ public partial class BattleReplay : Node3D
     private const string PhaseBandPath = "%PhaseBand";
     private const string PhaseBandLabelPath = "%PhaseBandLabel";
 
-    /// <summary>The theme entry a control's own text size is written into.</summary>
     private const string FontSizeOverride = "font_size";
-
-    /// <summary>The theme entry one health bar's filled part is drawn from.</summary>
-    /// <remarks>
-    /// 🔒 The fill alone, rather than the whole control's modulation. Modulating a bar multiplies
-    /// its EMPTY track by the same tint, and the track is already a dark grey on a near-black
-    /// ground: the hero's blue takes it to within a hair of the ground itself, which erases the one
-    /// thing a health bar is read as — the fraction. Tinting the fill leaves the track where the
-    /// engine's own theme put it, and lets the tint be checked against the ground on its own.
-    /// </remarks>
-    private const string BarFillStyle = "fill";
-
-    /// <summary>The theme entry a label's own text colour is written into.</summary>
     private const string FontColourOverride = "font_color";
-
-    /// <summary>And the one a container's gap between its children is written into.</summary>
-    private const string SeparationConstant = "separation";
-
-    /// <summary>The property one floating number's rise is tweened along.</summary>
     private const string PositionProperty = "position";
-
-    /// <summary>And the one both the fade and the band's arrival are tweened along.</summary>
     private const string ModulateProperty = "modulate";
-
-    /// <summary>Separates a current health value from the value it started at.</summary>
-    private const string OverSeparator = " / ";
-
-    /// <summary>Introduces a status effect's own number, which is all this build knows it by.</summary>
-    private const string StatusPrefix = "#";
-
-    /// <summary>And how many of it are stacked.</summary>
-    private const string StackPrefix = " ×";
 
     /// <summary>What the readout writes where a value the screen has not settled would go.</summary>
     private const string NoValue = "none";
 
     /// <summary>
-    /// What stands beside an actor whose health the log never fixes.
+    /// What a floating number that GIVES an actor health is written with — the channel that is not
+    /// colour, so healing and harm stay apart without a palette.
     /// </summary>
-    /// <remarks>
-    /// 🔒 A dash rather than an empty space. The row is drawn either way, so leaving the number blank
-    /// draws a captioned actor with a gap where every other actor has a figure, which reads as a number
-    /// that failed to arrive rather than as one nothing knows. The dash says the same thing the missing
-    /// bar says, in the place a player is looking.
-    /// <para>
-    /// ⚠️ Unreachable for any fight the simulator produces, and kept anyway: every actor is now spawned
-    /// into the log with a Max HP — see <see cref="EveryActorsBarNowHasADenominatorFromTheLog"/> — so
-    /// the only actor without one is an actor some other event mentioned and no
-    /// <c>ActorSpawned</c> ever introduced. That is a malformed log, and a malformed log should read as
-    /// one rather than as an actor at full health.
-    /// </para>
-    /// </remarks>
-    private const string UnknownValue = "—";
-
-    /// <summary>What a floating number that GIVES an actor health is written with.</summary>
-    /// <remarks>
-    /// 🔒 <b>An accessibility clause rather than decoration, and it is why the sign is here at
-    /// all.</b> The design distinguishes the four kinds of floating number by colour — ordinary
-    /// damage plain, a critical one yellow, healing green, a damage-over-time tick purple — and a
-    /// critical hit carries a second channel already, because it is drawn larger. Healing did not:
-    /// a player who cannot separate green from white read the same bare number over the same actor
-    /// whether it had just been hurt or mended, which is the one distinction on this screen that
-    /// decides what the fight is doing. The sign is a second channel that needs no palette and no
-    /// translation — and it is the design's own, which writes a blow as a signed number. The three
-    /// colourblind palettes themselves are unbuilt and belong to the settings screen; this is what
-    /// keeps the screen readable without one.
-    /// </remarks>
     private const string GainSign = "+";
 
     /// <summary>And one that takes health away.</summary>
     private const string LossSign = "-";
 
-    /// <summary>What ordinary damage is drawn in.</summary>
+    /// <summary>How large an ordinary combat number is drawn.</summary>
+    private const int BodyTextSize = 52;
+
+    /// <summary>And a critical one, which the design draws larger as well as yellower.</summary>
+    private const int CritTextSize = 72;
+
     private static readonly Color HitTextColour = new(0.95f, 0.95f, 0.97f);
-
-    /// <summary>A critical hit, which is also drawn larger — the one number the design shouts.</summary>
     private static readonly Color CritTextColour = new(0.99f, 0.84f, 0.36f);
-
-    /// <summary>Healing.</summary>
     private static readonly Color HealTextColour = new(0.51f, 0.87f, 0.55f);
-
-    /// <summary>And a damage-over-time tick, which is neither a blow nor a heal.</summary>
     private static readonly Color DotTextColour = new(0.76f, 0.58f, 0.94f);
 
     /// <summary>A control with something to do.</summary>
@@ -297,69 +131,95 @@ public partial class BattleReplay : Node3D
     /// <summary>And one with nothing to do — the same quiet grey every caption is drawn in.</summary>
     private static readonly Color UnavailableColour = new(0.66f, 0.67f, 0.73f);
 
-    /// <summary>
-    /// What a line saying the fight cannot be shown is drawn in.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 The board's own amber, taken rather than chosen. Both screens have exactly one thing to
-    /// say when a run cannot go on — the board's is a roll it will not take, this one's is a fight
-    /// it cannot stage — and a player who has learnt what amber means on the screen every run is
-    /// played on should not have to learn it a second time here. It is the same value as the
-    /// board's block line, and the two are only two because there is no theme resource to hold one.
-    /// </remarks>
+    /// <summary>The board's own amber, for a fight this screen cannot stage.</summary>
     private static readonly Color BlockedColour = new(0.98f, 0.83f, 0.45f);
 
-    /// <summary>And one saying the rules layer turned the result down — the board's refusal colour.</summary>
+    /// <summary>And the board's refusal colour, for a result the rules layer turned down.</summary>
     private static readonly Color RefusedColour = new(0.94f, 0.62f, 0.58f);
 
-    /// <summary>An actor still in the fight.</summary>
     private static readonly Color StandingColour = new(1, 1, 1, 1);
-
-    /// <summary>And one the log has recorded a death for.</summary>
     private static readonly Color FallenColour = new(0.45f, 0.45f, 0.5f, 1);
 
-    /// <summary>The palette one status chip is tinted from, by its own number.</summary>
-    private static readonly Color[] StatusChipColours =
-    [
-        new(0.85f, 0.42f, 0.38f),
-        new(0.40f, 0.62f, 0.86f),
-        new(0.53f, 0.79f, 0.47f),
-        new(0.83f, 0.68f, 0.34f),
-        new(0.68f, 0.51f, 0.86f),
-        new(0.38f, 0.76f, 0.74f),
-    ];
+    /// <summary>The hero's side, painted onto its plates' bars.</summary>
+    private static readonly Color HeroTint = new(0.36f, 0.52f, 0.82f);
 
-    /// <summary>How large an ordinary combat number is drawn.</summary>
-    private const int BodyTextSize = 52;
+    /// <summary>And the enemies'.</summary>
+    private static readonly Color EnemyTint = new(0.72f, 0.34f, 0.36f);
 
-    /// <summary>And a critical one, which the design draws larger as well as yellower.</summary>
-    private const int CritTextSize = 72;
+    /// <summary>How far the hero and the first enemy each stand from the stage's centre.</summary>
+    [Export] public float HalfGap { get; set; } = 2.4f;
 
-    /// <summary>How large one status chip's number is drawn.</summary>
-    private const int ChipTextSize = 40;
+    /// <summary>The step along the stage between one enemy slot and the next.</summary>
+    [Export] public float EnemySpacing { get; set; } = 1.6f;
 
-    /// <summary>How large an actor's caption and its health readout are drawn.</summary>
-    private const int BarTextSize = 40;
+    /// <summary>How far back each step away from the centre slot pushes an enemy.</summary>
+    [Export] public float EnemyArcDepth { get; set; } = 0.45f;
 
-    /// <summary>
-    /// The gap between the parts of one thing — a health row's three lines, or a status chip's swatch
-    /// and its number.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ Written out rather than left to the engine's default of four, which is a default and not a
-    /// decision: four canvas units on a canvas a thousand and eighty wide is a hairline, and a bar
-    /// touching the caption above it reads as one smeared block.
-    /// </remarks>
-    private const int TightGap = 8;
+    /// <summary>A swing's whole duration.</summary>
+    [Export] public float SwingSeconds { get; set; } = 0.28f;
 
-    /// <summary>And the gap between two separate status chips, which have to read as two.</summary>
-    private const int ChipGap = 16;
+    /// <summary>How far a swing advances toward its counterpart at its peak.</summary>
+    [Export] public float SwingReach { get; set; } = 0.8f;
 
-    /// <summary>One status chip's square, in canvas units.</summary>
-    private static readonly Vector2 ChipSwatchSize = new(32, 32);
+    /// <summary>A recoil's whole duration.</summary>
+    [Export] public float RecoilSeconds { get; set; } = 0.22f;
 
-    /// <summary>How tall one actor's health bar is drawn.</summary>
-    private static readonly Vector2 BarSize = new(0, 28);
+    /// <summary>How far a recoil moves away from its striker at its peak.</summary>
+    [Export] public float RecoilDistance { get; set; } = 0.3f;
+
+    /// <summary>A dodge's whole duration.</summary>
+    [Export] public float DodgeSeconds { get; set; } = 0.3f;
+
+    /// <summary>How far a dodge steps aside at its peak.</summary>
+    [Export] public float DodgeSideStep { get; set; } = 0.6f;
+
+    /// <summary>A brace's whole duration.</summary>
+    [Export] public float BraceSeconds { get; set; } = 0.25f;
+
+    /// <summary>How much a brace squashes at its peak, as a fraction of height.</summary>
+    [Export] public float BraceSquash { get; set; } = 0.12f;
+
+    /// <summary>How long a fall takes to land.</summary>
+    [Export] public float FallSeconds { get; set; } = 0.6f;
+
+    /// <summary>How far a fallen actor has tipped over once it has landed.</summary>
+    [Export] public float FallTipDegrees { get; set; } = 80f;
+
+    /// <summary>How far a fallen actor has sunk once it has landed.</summary>
+    [Export] public float FallSink { get; set; } = 0.6f;
+
+    /// <summary>How long an entering actor takes to grow to full size.</summary>
+    [Export] public float EnterSeconds { get; set; } = 0.35f;
+
+    /// <summary>How far above an actor's head its plate hangs.</summary>
+    [Export] public float PlateClearance { get; set; } = 0.35f;
+
+    /// <summary>How long a pose is held: a wind-up the log states no seconds for, and the finished fight.</summary>
+    [Export] public float PoseHoldSeconds { get; set; } = 0.8f;
+
+    /// <summary>What every tween on this screen is shortened to under reduced motion.</summary>
+    [Export] public float ReducedMotionSeconds { get; set; } = 0.1f;
+
+    /// <summary>How long one floating combat number takes to rise and fade.</summary>
+    [Export] public float FloatSeconds { get; set; } = 0.7f;
+
+    /// <summary>How far a floating combat number rises, in canvas units.</summary>
+    [Export] public float FloatRise { get; set; } = 220f;
+
+    /// <summary>How far apart consecutive floating numbers are fanned, so two never sit on top.</summary>
+    [Export] public float FloatFanStep { get; set; } = 44f;
+
+    /// <summary>How long the boss phase band takes to arrive.</summary>
+    [Export] public float BandFadeSeconds { get; set; } = 0.25f;
+
+    /// <summary>How much a wind-up swells the actor at its peak, as a fraction of its size.</summary>
+    [Export] public float PulseSwell { get; set; } = 0.06f;
+
+    /// <summary>How far the hero's model is turned inside its rig to look across the stage.</summary>
+    [Export] public float HeroFacingYawDegrees { get; set; } = 180f;
+
+    /// <summary>How tall the hero stands, so its plate can sit above it.</summary>
+    [Export] public float HeroHeight { get; set; } = 2.22f;
 
     private BattleReplayPresenter? _presenter;
 
@@ -370,19 +230,19 @@ public partial class BattleReplay : Node3D
 
     private CancellationToken _lifetime;
 
-    private Label? _titleLabel;
-    private Label? _opponentLabel;
-    private Control? _stage;
-    private ColorRect? _heroToken;
-    private Label? _heroName;
-    private ColorRect? _enemyToken;
-    private Label? _enemyName;
-    private Control? _effects;
+    private BattleChoreography? _choreography;
+
+    private BattleWorld? _world;
+    private BattleCameraRig? _cameraRig;
+    private Camera3D? _camera;
+    private Control? _plates;
     private CpuParticles2D? _hitSparks;
     private CpuParticles2D? _critPop;
     private CpuParticles2D? _deathPuff;
+    private CpuParticles2D? _wardMotes;
     private Control? _floatingText;
-    private VBoxContainer? _bars;
+    private Label? _titleLabel;
+    private Label? _opponentLabel;
     private Label? _statusLabel;
     private Label? _speedLabel;
     private Button? _speedButton;
@@ -390,10 +250,13 @@ public partial class BattleReplay : Node3D
     private ColorRect? _phaseBand;
     private Label? _phaseBandLabel;
 
-    private readonly List<ActorBar> _rows = [];
+    private readonly List<ActorView> _views = [];
 
-    /// <summary>Slot to bar, so applying an event never searches the roster.</summary>
-    private readonly Dictionary<byte, ActorBar> _rowBySlot = new();
+    /// <summary>Slot to view, so applying a cue never searches the roster.</summary>
+    private readonly Dictionary<byte, ActorView> _viewBySlot = new();
+
+    /// <summary>One texture per status, loaded on the first chip that needs it.</summary>
+    private readonly Dictionary<ushort, Texture2D?> _statusIcons = new();
 
     private Label[] _floaters = [];
     private Tween?[] _floatTweens = [];
@@ -408,6 +271,9 @@ public partial class BattleReplay : Node3D
     /// <summary>Whether the band was up on the previous draw, so its arrival can be animated once.</summary>
     private bool _bandUp;
 
+    /// <summary>Whether an actor entered since the camera last framed the stage.</summary>
+    private bool _reframe;
+
     /// <summary>How long the finished fight has been held on screen.</summary>
     private double _posed;
 
@@ -417,7 +283,7 @@ public partial class BattleReplay : Node3D
 
     /// <summary>Takes the presenter the composition root built, the board to return to, and the token.</summary>
     /// <param name="presenter">Drives the replay.</param>
-    /// <param name="reducedMotion">Whether every burst is suppressed and every animation shortened.</param>
+    /// <param name="reducedMotion">Whether every burst is suppressed and every motion completes at once.</param>
     /// <param name="board">The screen the fight was entered from, which this one hands control back to.</param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
     /// <exception cref="ArgumentNullException">The presenter or the board is null.</exception>
@@ -436,21 +302,19 @@ public partial class BattleReplay : Node3D
     /// <inheritdoc/>
     public override void _Ready()
     {
-        // Resolved once. A scene-unique lookup is a string search of the owner's table each time it
-        // is asked, and this screen redraws on every frame of a ninety-second fight.
-        _titleLabel = GetNode<Label>(TitleLabelPath);
-        _opponentLabel = GetNode<Label>(OpponentLabelPath);
-        _stage = GetNode<Control>(StagePath);
-        _heroToken = GetNode<ColorRect>(HeroTokenPath);
-        _heroName = GetNode<Label>(HeroNamePath);
-        _enemyToken = GetNode<ColorRect>(EnemyTokenPath);
-        _enemyName = GetNode<Label>(EnemyNamePath);
-        _effects = GetNode<Control>(EffectsPath);
+        // Resolved once: a scene-unique lookup is a string search each time it is asked, and this
+        // screen redraws on every frame of a ninety-second fight.
+        _world = GetNode<BattleWorld>(WorldPath);
+        _cameraRig = GetNode<BattleCameraRig>(CameraRigPath);
+        _camera = GetNode<Camera3D>(CameraPath);
+        _plates = GetNode<Control>(PlatesPath);
         _hitSparks = GetNode<CpuParticles2D>(HitSparksPath);
         _critPop = GetNode<CpuParticles2D>(CritPopPath);
         _deathPuff = GetNode<CpuParticles2D>(DeathPuffPath);
+        _wardMotes = GetNode<CpuParticles2D>(WardMotesPath);
         _floatingText = GetNode<Control>(FloatingTextPath);
-        _bars = GetNode<VBoxContainer>(BarsPath);
+        _titleLabel = GetNode<Label>(TitleLabelPath);
+        _opponentLabel = GetNode<Label>(OpponentLabelPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
         _speedLabel = GetNode<Label>(SpeedLabelPath);
         _speedButton = GetNode<Button>(SpeedButtonPath);
@@ -461,16 +325,13 @@ public partial class BattleReplay : Node3D
         _speedButton.Pressed += OnSpeedPressed;
         _skipButton.Pressed += OnSkipPressed;
 
-        // Painted once, because nothing about which colour belongs to which state changes while the
-        // screen is up. It is painted at all because a Button draws its text by draw mode, and the
-        // engine's default for the disabled mode is a half-transparent grey no font_color reaches.
+        // A Button draws its text by draw mode, and the engine's default for the disabled mode is a
+        // half-transparent grey no font_color reaches.
         ButtonTextColours.ApplyTo(_speedButton, LiveColour, UnavailableColour);
         ButtonTextColours.ApplyTo(_skipButton, LiveColour, UnavailableColour);
 
-        // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
-        // does this on the way in, because every handover in this build leaves the outgoing screen
-        // in the tree — hidden, or freed only on the frame after — so two cameras and two overlays
-        // are alive at the moment this one becomes the visible screen.
+        _choreography = new BattleChoreography(Timings(), _reducedMotion);
+
         ScreenStage.Show(this);
 
         SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewport().GetVisibleRect().Size);
@@ -484,10 +345,9 @@ public partial class BattleReplay : Node3D
 
     /// <inheritdoc/>
     /// <remarks>
-    /// The matching half of the subscriptions in <c>_Ready</c>. The buttons are children and die with
-    /// this node either way, but this screen is the one in the build that is genuinely freed, and a
-    /// handler left connected across a node that is merely detached and re-added would fire twice —
-    /// and once is the whole contract of a skip.
+    /// The matching half of the subscriptions in <c>_Ready</c>: this screen is the one in the build
+    /// that is genuinely freed, and a handler left connected across a node that is merely detached and
+    /// re-added would fire twice — and once is the whole contract of a skip.
     /// </remarks>
     public override void _ExitTree()
     {
@@ -504,44 +364,42 @@ public partial class BattleReplay : Node3D
 
     /// <inheritdoc/>
     /// <remarks>
-    /// <para>
-    /// 🔒 Nothing about the replay is decided here. The frame's own elapsed time goes to the
-    /// presenter, which moves the playhead and hands back the events that were crossed; this half
-    /// draws them.
-    /// </para>
-    /// <para>
-    /// 🔒 The ordinary frame allocates nothing this file can avoid: no closure, no state machine, no
-    /// query, no node lookup and no string. The one allocation left is the task the presenter's own
-    /// asynchronous method returns, which is why the completed case is taken without awaiting it —
-    /// an await would add a state machine and a continuation to every frame of every fight to
-    /// resume something that had already finished.
-    /// </para>
+    /// 🔒 Nothing about the replay is decided here, and the ordinary frame allocates nothing this file
+    /// can avoid. The frame's elapsed time goes to the presenter, which moves the playhead and hands
+    /// back the cues that were crossed; the same time, at the same speed, goes to the choreography,
+    /// which keeps the bodies moving even while a submission is in flight.
     /// </remarks>
     /// <param name="delta">Seconds since the previous frame.</param>
     public override void _Process(double delta)
     {
-        if (_closing || _busy || _presenter is not { } presenter)
+        if (_closing || _presenter is not { } presenter || presenter.Readiness != BattleReadiness.Ready)
         {
             return;
         }
 
-        // Nothing to advance before the read answers, and nothing ever to advance when it answered
-        // with a reason there is no fight. A screen with no log still draws, still says why, and
-        // still offers the skip — it just has no playhead to move.
-        if (presenter.Readiness != BattleReadiness.Ready)
+        if (!_busy)
         {
-            return;
+            if (presenter.Complete)
+            {
+                HoldPose(delta);
+            }
+            else
+            {
+                Advance(delta, presenter);
+            }
         }
 
-        if (presenter.Complete)
+        if (!_closing)
         {
-            HoldPose(delta);
-
-            return;
+            Animate(delta, presenter);
         }
-
-        Advance(delta, presenter);
     }
+
+    private BattleMotionTimings Timings() =>
+        new(
+            SwingSeconds, SwingReach, RecoilSeconds, RecoilDistance, DodgeSeconds, DodgeSideStep,
+            BraceSeconds, BraceSquash, FallSeconds, FallTipDegrees, FallSink, EnterSeconds,
+            PoseHoldSeconds, ReducedMotionSeconds);
 
     /// <remarks>
     /// Nothing awaits this task, so its exceptions have nowhere to surface: the whole body is
@@ -565,7 +423,7 @@ public partial class BattleReplay : Node3D
             // engine runs the scene tree on may do that.
             await presenter.StartAsync(_lifetime);
 
-            BuildBars(presenter);
+            BuildStage(presenter);
             RenderCaptions();
             Render();
             Report(presenter);
@@ -595,9 +453,8 @@ public partial class BattleReplay : Node3D
         {
             Settle(presenter);
 
-            // Reported on the one frame that had something to report, and never on an ordinary one:
-            // a host that answers synchronously would otherwise close the battle without the line
-            // this screen is read off, and the readout is the only gate a headless run has.
+            // Reported on the one frame that had something to report: a host that answers
+            // synchronously would otherwise close the battle without the line this screen is read off.
             if (advancing.Result != BattleSubmission.NothingToSubmit)
             {
                 Report(presenter);
@@ -643,12 +500,32 @@ public partial class BattleReplay : Node3D
         Render();
     }
 
+    /// <summary>Moves every body on, poses it, and hangs every plate over it.</summary>
+    private void Animate(double delta, BattleReplayPresenter presenter)
+    {
+        if (_choreography is not { } choreography || _world is not { } world || _cameraRig is not { } rig)
+        {
+            return;
+        }
+
+        choreography.Advance(delta * (int)presenter.Speed);
+        world.Pose(choreography);
+
+        if (_reframe)
+        {
+            _reframe = false;
+            rig.Frames(world.StageBounds);
+        }
+
+        PlacePlates();
+    }
+
     /// <summary>Holds a finished fight on screen, then hands control back.</summary>
     private void HoldPose(double delta)
     {
         _posed += delta;
 
-        if (_posed >= (_reducedMotion ? ReducedMotionSeconds : PoseSeconds))
+        if (_posed >= (_reducedMotion ? ReducedMotionSeconds : PoseHoldSeconds))
         {
             Close();
         }
@@ -682,24 +559,16 @@ public partial class BattleReplay : Node3D
     /// <summary>Writes the captions that never change once their strings are resolved.</summary>
     private void RenderCaptions()
     {
-        if (_presenter is not { } presenter || _titleLabel is null || _heroName is null ||
-            _speedLabel is null || _skipButton is null || _opponentLabel is null ||
-            _enemyName is null)
+        if (_presenter is not { } presenter || _titleLabel is null || _opponentLabel is null ||
+            _speedLabel is null || _skipButton is null)
         {
             return;
         }
 
         _titleLabel.Text = presenter.Title;
-        _heroName.Text = presenter.HeroLabel;
+        _opponentLabel.Text = presenter.OpponentLabel;
         _speedLabel.Text = presenter.SpeedLabel;
         _skipButton.Text = presenter.SkipText;
-
-        // 🔴 By role and index rather than by name — no enemy name is reachable from a client, and
-        // the presenter is where that is decided and said.
-        var opponents = presenter.OpponentLabel;
-
-        _opponentLabel.Text = opponents;
-        _enemyName.Text = opponents;
     }
 
     /// <summary>Builds the pool of floating combat numbers, once, before any of them is needed.</summary>
@@ -731,134 +600,76 @@ public partial class BattleReplay : Node3D
     }
 
     /// <summary>
-    /// Builds one row per actor the log mentions, once, off a roster the fight does not change.
+    /// Stands the roster on the stage and hangs a plate over each actor, once, off a roster the fight
+    /// does not change. Every actor the fight ever mentions is in the log before the first frame.
     /// </summary>
-    /// <remarks>
-    /// 🔒 Every actor the log spawns gets a bar, scaled to the Max HP the log states — see
-    /// <see cref="EveryActorsBarNowHasADenominatorFromTheLog"/>. Built here rather than per frame
-    /// because the roster is settled by the read: every actor the fight ever mentions is in the log
-    /// before the first frame is drawn, summons included.
-    /// </remarks>
-    private void BuildBars(BattleReplayPresenter presenter)
+    private void BuildStage(BattleReplayPresenter presenter)
     {
-        if (_bars is not { } column)
+        if (_world is not { } world || _cameraRig is not { } rig || _plates is not { } plates ||
+            _choreography is not { } choreography || presenter.Actors.Count == 0)
         {
             return;
         }
 
-        // 🔒 One source of truth for which colour a side is. The tokens carry it in the scene file,
-        // and a bar tinted from a second copy of the same two colours here is a copy that drifts the
-        // first time either is adjusted.
-        var heroTint = _heroToken?.Color ?? StandingColour;
-        var enemyTint = _enemyToken?.Color ?? StandingColour;
+        world.Build(
+            presenter.Actors,
+            presenter.BiomeArtSet,
+            new BattleStageMetrics(HalfGap, EnemySpacing, EnemyArcDepth),
+            new ActorDressing(HeroFacingYawDegrees, HeroHeight, PlateClearance, PulseSwell));
 
-        // Two fills built once and shared by every row on a side, rather than one per bar: a fight
-        // can field seven actors and nothing about the two colours differs between rows.
-        var heroFill = FillOf(heroTint);
-        var enemyFill = FillOf(enemyTint);
+        var plateScene = GD.Load<PackedScene>(ActorPlate.ScenePath);
+
+        if (plateScene is null)
+        {
+            GD.PushError($"No actor plate could be loaded from '{ActorPlate.ScenePath}'; the fight plays unlabelled.");
+        }
 
         foreach (var actor in presenter.Actors)
         {
-            var row = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-
-            row.AddThemeConstantOverride(SeparationConstant, TightGap);
-
-            var captionRow = new HBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-
-            // 🔒 The wrapping half of the pair expands and the fixed half does not. An autowrapping
-            // label in a row with no expand flag is measured as one character wide, which collapses
-            // it to a sliver and pushes everything beside it off the far edge of the screen.
-            var caption = Caption(presenter.CaptionOf(actor.ActorId), UnavailableColour, wrapping: true);
-
-            caption.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-
-            var known = actor.MaxHp is not null;
-
-            var value = Caption(
-                known ? "" : UnknownValue, known ? LiveColour : UnavailableColour, wrapping: false);
-
-            value.HorizontalAlignment = HorizontalAlignment.Right;
-
-            captionRow.AddChild(caption);
-            captionRow.AddChild(value);
-
-            // 🔒 The maximum is the SCALE and the starting health is the FILL, and they are two
-            // different numbers for the hero: a run carries its health between fights, so a wounded
-            // hero opens part-way along a full-length bar. Scaling to the opening value instead would
-            // draw every actor at full and turn the hero's accumulated damage invisible — which is the
-            // one thing the bar is there to show.
-            var bar = new ProgressBar
+            // A summon is off the stage until the log's own Enter brings it on.
+            if (actor.IsSummon)
             {
-                CustomMinimumSize = BarSize,
-                ShowPercentage = false,
-                MaxValue = Math.Max(actor.MaxHp ?? 0, 1),
-                Value = actor.StartingHp ?? 0,
-                Visible = known,
-            };
+                choreography.SnapAbsent(actor.ActorId);
+            }
 
-            // Every actor's bar is stacked in one column here rather than split left and right the
-            // way the design draws two of them, because a fight can field seven. Tinting each to the
-            // side's own token is what puts the column back in touch with the stage — and it is
-            // never the only thing saying so, since the row is captioned and the sides are drawn
-            // where they stand. The FILL takes the tint, not the control: see BarFillStyle.
-            bar.AddThemeStyleboxOverride(
-                BarFillStyle, actor.Side == ReplaySide.Enemy ? enemyFill : heroFill);
+            if (plateScene?.Instantiate<ActorPlate>() is not { } plate)
+            {
+                continue;
+            }
 
-            var statuses = new HBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+            plate.Visible = false;
+            plates.AddChild(plate);
+            plate.Bind(
+                presenter.CaptionOf(actor.ActorId),
+                actor.MaxHp,
+                actor.StartingHp,
+                actor.Side == ReplaySide.Enemy ? EnemyTint : HeroTint);
 
-            statuses.AddThemeConstantOverride(SeparationConstant, ChipGap);
+            var view = new ActorView(actor.ActorId, plate, actor.StartingHp);
 
-            row.AddChild(captionRow);
-            row.AddChild(bar);
-            row.AddChild(statuses);
-
-            column.AddChild(row);
-
-            var tracked = new ActorBar(
-                actor.ActorId, value, bar, statuses, actor.MaxHp, actor.StartingHp);
-
-            _rows.Add(tracked);
-            _rowBySlot[actor.ActorId] = tracked;
+            _views.Add(view);
+            _viewBySlot[actor.ActorId] = view;
         }
-    }
 
-    /// <summary>One side's filled bar, in that side's own colour.</summary>
-    /// <remarks>
-    /// Flat and unrounded, so it is the engine's own bar in a different colour rather than a second
-    /// bar shape this screen alone draws. Both tints clear the three-to-one floor a non-text
-    /// element owes its background against the ground behind them; the token colours they are taken
-    /// from were chosen against that same ground.
-    /// </remarks>
-    private static StyleBoxFlat FillOf(Color tint) => new() { BgColor = tint };
-
-    private static Label Caption(string text, Color colour, bool wrapping)
-    {
-        var label = new Label
-        {
-            Text = text,
-            AutowrapMode = wrapping
-                ? TextServer.AutowrapMode.WordSmart
-                : TextServer.AutowrapMode.Off,
-        };
-
-        // A control built in code inherits the engine's default face, which is caption-sized on a
-        // canvas this wide. The sibling screens set the same override for the same reason.
-        label.AddThemeFontSizeOverride(FontSizeOverride, BarTextSize);
-        label.AddThemeColorOverride(FontColourOverride, colour);
-
-        return label;
+        world.Pose(choreography);
+        rig.Frames(world.StageBounds);
+        rig.Snap();
+        PlacePlates();
     }
 
     /// <summary>
-    /// Draws one instruction of the step the playhead has just crossed.
+    /// Draws one instruction of the step the playhead has just crossed: a motion, a bar, a chip, a
+    /// number and a burst — none of it decided here.
     /// </summary>
-    /// <remarks>
-    /// 🔒 Nothing is decided here. Which actor, which number, which kind of number, which burst, what
-    /// the health now stands at and whether the actor went down are all settled before this file sees
-    /// them; what is left is a colour, a size, a particle system and a tween.
-    /// </remarks>
     private void DrawCue(ReplayCue cue)
     {
+        _choreography?.Play(cue);
+
+        if (cue.Motion == ReplayMotion.Enter)
+        {
+            _reframe = true;
+        }
+
         if (cue.Health is { } health)
         {
             Spend(cue.ActorId, health);
@@ -871,23 +682,23 @@ public partial class BattleReplay : Node3D
 
         if (cue.Died)
         {
-            Fell(cue.Side);
+            Fell(cue.ActorId);
+        }
+
+        if (!AnchorOnCanvas(cue.ActorId, out var at))
+        {
+            return;
         }
 
         if (cue.Floater != ReplayFloater.None)
         {
-            Float(
-                cue.Side, cue.FloaterAmount, SignOf(cue.Floater), ColourOf(cue.Floater),
-                SizeOf(cue.Floater));
+            Float(at, cue.FloaterAmount, SignOf(cue.Floater), ColourOf(cue.Floater), SizeOf(cue.Floater));
         }
 
-        Burst(ParticlesFor(cue.Burst), PointOf(cue.Side));
+        Burst(ParticlesFor(cue.Burst), at);
     }
 
-    /// <remarks>
-    /// The design's palette, and the one place it is written: ordinary damage plain, a critical one
-    /// yellow, healing green, a damage-over-time tick purple.
-    /// </remarks>
+    /// <remarks>The design's palette: ordinary damage plain, a critical one yellow, healing green, a tick purple.</remarks>
     private static Color ColourOf(ReplayFloater floater) => floater switch
     {
         ReplayFloater.Crit => CritTextColour,
@@ -896,81 +707,69 @@ public partial class BattleReplay : Node3D
         _ => HitTextColour,
     };
 
-    /// <remarks>A critical hit is the one number the design draws larger as well as louder.</remarks>
     private static int SizeOf(ReplayFloater floater) =>
         floater == ReplayFloater.Crit ? CritTextSize : BodyTextSize;
 
-    /// <remarks>
-    /// 🔒 The channel that is not colour — see <see cref="GainSign"/>. Healing is the only kind that
-    /// gives health back; a blow, a critical blow and a tick of something burning all take it.
-    /// </remarks>
     private static string SignOf(ReplayFloater floater) =>
         floater == ReplayFloater.Heal ? GainSign : LossSign;
 
+    /// <remarks>A ward giving way scatters the same motes that granted it; nothing else in this build is a ward's.</remarks>
     private CpuParticles2D? ParticlesFor(ReplayBurst burst) => burst switch
     {
         ReplayBurst.HitSpark => _hitSparks,
         ReplayBurst.CritPop => _critPop,
         ReplayBurst.DeathPuff => _deathPuff,
+        ReplayBurst.Ward or ReplayBurst.WardBroken => _wardMotes,
         _ => null,
     };
 
     /// <summary>Puts an actor's health bar on the value the playhead has walked it to.</summary>
     private void Spend(byte slot, double health)
     {
-        if (!_rowBySlot.TryGetValue(slot, out var row) || row.Current is null)
+        if (!_viewBySlot.TryGetValue(slot, out var view) || view.Current is null)
         {
             return;
         }
 
-        row.Current = health;
-        row.Dirty = true;
+        view.Current = health;
+        view.Dirty = true;
     }
 
-    /// <summary>Greys the token of a side one of whose actors has just gone down.</summary>
-    private void Fell(ReplaySide side)
+    /// <summary>Greys the plate of an actor the log has just recorded going down.</summary>
+    private void Fell(byte slot)
     {
-        var token = side switch
+        if (_viewBySlot.TryGetValue(slot, out var view))
         {
-            ReplaySide.Hero => _heroToken,
-            ReplaySide.Enemy => _enemyToken,
-            _ => null,
-        };
-
-        if (token is not null)
-        {
-            token.Modulate = FallenColour;
+            view.Plate.Modulate = FallenColour;
         }
     }
 
     private void Stack(byte slot, ushort status, int stacks)
     {
-        if (!_rowBySlot.TryGetValue(slot, out var row))
+        if (!_viewBySlot.TryGetValue(slot, out var view))
         {
             return;
         }
 
         if (stacks <= 0)
         {
-            row.Stacks.Remove(status);
+            view.Stacks.Remove(status);
         }
         else
         {
-            row.Stacks[status] = stacks;
+            view.Stacks[status] = stacks;
         }
 
-        row.StatusesDirty = true;
+        view.StatusesDirty = true;
     }
 
     /// <summary>Puts one number in the air over the actor it happened to.</summary>
     /// <remarks>
     /// Fanned by a fixed step round the pool rather than scattered randomly: two numbers landing on
     /// one frame have to be readable as two, and a random offset in a scene is a second source of
-    /// randomness in a game whose every other one is seeded and reproducible. The fan is centred on
-    /// the actor rather than hung below it — a one-sided ladder puts the pool's last number half the
-    /// arena beneath the fight, over the health readout, and it puts it there every time round.
+    /// randomness in a game whose every other one is seeded and reproducible.
     /// </remarks>
-    private void Float(ReplaySide side, double amount, string sign, Color colour, int size)
+    private void Float(Vector2 from, double amount, string sign, Color colour, int size)
     {
         if (_floaters.Length == 0)
         {
@@ -990,11 +789,8 @@ public partial class BattleReplay : Node3D
         floater.AddThemeColorOverride(FontColourOverride, colour);
         floater.Modulate = StandingColour;
         floater.Visible = true;
-
-        var from = PointOf(side);
-
         floater.Position = new Vector2(
-            from.X, from.Y + ((index - (FloaterCount / 2)) * FloatFanStep));
+            from.X - (floater.Size.X / 2f), from.Y + ((index - (FloaterCount / 2)) * FloatFanStep));
 
         var seconds = _reducedMotion ? ReducedMotionSeconds : FloatSeconds;
 
@@ -1002,19 +798,13 @@ public partial class BattleReplay : Node3D
 
         tween.SetParallel(true);
         tween.TweenProperty(
-            floater, PositionProperty, new Vector2(floater.Position.X, floater.Position.Y - FloatRise),
-            seconds);
+            floater, PositionProperty, new Vector2(floater.Position.X, floater.Position.Y - FloatRise), seconds);
         tween.TweenProperty(floater, ModulateProperty, new Color(StandingColour, 0), seconds);
 
         _floatTweens[index] = tween;
     }
 
-    /// <summary>Fires one procedural burst, unless motion is reduced.</summary>
-    /// <remarks>
-    /// 🔒 The accessibility clause names particle bursts specifically, so this is where it is obeyed:
-    /// the systems stay in the scene and are simply never started, which keeps the reduced-motion
-    /// screen the same screen rather than a different one.
-    /// </remarks>
+    /// <summary>Fires one procedural burst, unless motion is reduced — the systems stay, and are never started.</summary>
     private void Burst(CpuParticles2D? particles, Vector2 at)
     {
         if (_reducedMotion || particles is null)
@@ -1026,25 +816,55 @@ public partial class BattleReplay : Node3D
         particles.Restart();
     }
 
-    /// <summary>Where on the stage an actor's effects happen — the hero's side, or the enemies'.</summary>
-    private Vector2 PointOf(ReplaySide side)
+    /// <summary>Hangs every plate over its actor, or hides it while the actor is off stage or behind the camera.</summary>
+    private void PlacePlates()
     {
-        if (_effects is not { } stage)
+        for (var index = 0; index < _views.Count; index++)
         {
-            return Vector2.Zero;
+            var view = _views[index];
+            var plate = view.Plate;
+
+            if (!AnchorOnCanvas(view.ActorId, out var anchor))
+            {
+                plate.Visible = false;
+
+                continue;
+            }
+
+            plate.Visible = true;
+            plate.Position = new Vector2(anchor.X - (plate.Size.X / 2f), anchor.Y - plate.Size.Y);
+        }
+    }
+
+    /// <summary>Where an actor's anchor lands on the canvas, or false when it has none or it is behind the camera.</summary>
+    /// <remarks>
+    /// Unprojection answers in the viewport's visible rect, and the overlay is laid out in the
+    /// canvas; the two are one and the same under the canvas_items stretch and differ under none, so
+    /// the step between them is taken through the viewport's own transforms rather than assumed.
+    /// </remarks>
+    private bool AnchorOnCanvas(byte actorId, out Vector2 canvas)
+    {
+        canvas = Vector2.Zero;
+
+        if (_world is not { } world || _camera is not { } camera || world.AnchorOf(actorId) is not { } anchor ||
+            camera.IsPositionBehind(anchor))
+        {
+            return false;
         }
 
-        var size = stage.Size;
+        var viewport = GetViewport();
+        var visible = viewport.GetVisibleRect().Size;
+        var window = (Vector2)GetWindow().Size;
+        var toWindow = new Vector2(
+            visible.X > 0f ? window.X / visible.X : 1f,
+            visible.Y > 0f ? window.Y / visible.Y : 1f);
 
-        return new Vector2(size.X * (side == ReplaySide.Enemy ? 0.75f : 0.25f), size.Y * 0.5f);
+        canvas = viewport.GetFinalTransform().AffineInverse() * (camera.UnprojectPosition(anchor) * toWindow);
+
+        return true;
     }
 
     /// <summary>Writes what has changed since the previous draw, and nothing that has not.</summary>
-    /// <remarks>
-    /// 🔒 Every write is behind a comparison because this runs on every frame of the fight. Formatting
-    /// a health readout that has not moved allocates a string sixty times a second to produce the
-    /// string that is already on screen.
-    /// </remarks>
     private void Render()
     {
         var presenter = _presenter;
@@ -1052,18 +872,10 @@ public partial class BattleReplay : Node3D
         // Validity before tree membership: asking a freed node whether it is inside the tree is
         // itself the crash, and this is the one screen in the build that genuinely frees itself.
         if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
-            _statusLabel is null || _speedButton is null || _skipButton is null ||
-            _phaseBand is null || _phaseBandLabel is null || _stage is null)
+            _statusLabel is null || _speedButton is null || _skipButton is null)
         {
             return;
         }
-
-        // 🔒 The arena is staged only when there is a fight to stage it for. Two captioned tokens
-        // facing each other under a sentence saying the fight cannot be shown is a screen claiming
-        // a fight is about to happen while it says the opposite — and the tokens are the largest
-        // thing on it, so the claim is the part a player reads first. A stall state is the banner,
-        // the reason, and the way out.
-        _stage.Visible = presenter.Readiness == BattleReadiness.Ready;
 
         var status = presenter.StatusText;
 
@@ -1071,15 +883,7 @@ public partial class BattleReplay : Node3D
         {
             _lastStatusText = status;
             _statusLabel.Text = status;
-
-            // Written with the sentence rather than beside it, because the sentence settles the
-            // class: every one of the three is its own string, so the text cannot change class
-            // without changing, and the colour cannot go stale behind it.
             _statusLabel.AddThemeColorOverride(FontColourOverride, StatusColourOf(presenter));
-
-            // Hidden rather than blanked once it has nothing to say, which is what every other screen
-            // in this build does with the same line: an empty label still claims a full line of
-            // height, so a blank one is a sentence a player can see room for and cannot read.
             _statusLabel.Visible = status.Length > 0;
         }
 
@@ -1091,20 +895,15 @@ public partial class BattleReplay : Node3D
             _speedButton.Text = speed;
         }
 
-        // 🔒 Never disabled, in any state. The skip is an accessibility clause rather than a
-        // convenience, and it is the only way off a screen whose fight never materialised.
+        // Never disabled, in any state: the skip is an accessibility clause and the only way off a
+        // screen whose fight never materialised.
         _skipButton.Disabled = !presenter.SkipAvailable;
 
         RenderBand(presenter);
-        RenderBars();
+        RenderPlates();
     }
 
     /// <summary>Which of the three things the status line can be saying it is saying now.</summary>
-    /// <remarks>
-    /// The line carries a result, a refusal and every reason there is no fight, and those are not
-    /// one kind of news. Drawn in one grey they read as one, and the two that stop a run read as the
-    /// quietest thing on the screen.
-    /// </remarks>
     private static Color StatusColourOf(BattleReplayPresenter presenter)
     {
         if (presenter.RulesRejection is not null)
@@ -1117,7 +916,7 @@ public partial class BattleReplay : Node3D
             : UnavailableColour;
     }
 
-    private string SpeedTextOf(BattleReplayPresenter presenter) => presenter.Speed switch
+    private static string SpeedTextOf(BattleReplayPresenter presenter) => presenter.Speed switch
     {
         BattleSpeed.Double => presenter.SpeedDoubleText,
         BattleSpeed.Triple => presenter.SpeedTripleText,
@@ -1157,87 +956,61 @@ public partial class BattleReplay : Node3D
             return;
         }
 
-        // The flash, and the one transition on this screen: well inside the ceiling on how long a
-        // transition may take, and gone by itself rather than waiting to be dismissed.
         band.Modulate = new Color(StandingColour, 0);
 
         CreateTween().TweenProperty(
-            band, ModulateProperty, StandingColour,
-            _reducedMotion ? ReducedMotionSeconds : BandFadeSeconds);
+            band, ModulateProperty, StandingColour, _reducedMotion ? ReducedMotionSeconds : BandFadeSeconds);
     }
 
-    private void RenderBars()
+    private void RenderPlates()
     {
-        for (var index = 0; index < _rows.Count; index++)
+        for (var index = 0; index < _views.Count; index++)
         {
-            var row = _rows[index];
+            var view = _views[index];
 
-            if (row.Dirty)
+            if (view.Dirty)
             {
-                row.Dirty = false;
+                view.Dirty = false;
 
-                if (row.Current is { } current && row.Maximum is { } maximum)
+                if (view.Current is { } current)
                 {
-                    row.Bar.Value = current;
-                    row.Value.Text =
-                        Math.Round(current).ToString("0", CultureInfo.InvariantCulture) +
-                        OverSeparator +
-                        Math.Round(maximum).ToString("0", CultureInfo.InvariantCulture);
+                    view.Plate.Spend(current);
                 }
             }
 
-            if (row.StatusesDirty)
+            if (view.StatusesDirty)
             {
-                row.StatusesDirty = false;
+                view.StatusesDirty = false;
 
-                RenderStatuses(row);
+                RenderStatuses(view);
             }
         }
     }
 
-    /// <remarks>
-    /// Rebuilt only when the ledger under it changed, which is on a status event and never on an
-    /// ordinary frame. 🔴 A chip carries the status's number and its stack count and nothing else —
-    /// see <see cref="AStatusEffectHasNoNameOrIconHere"/>.
-    /// </remarks>
-    private static void RenderStatuses(ActorBar row)
+    /// <remarks>Rebuilt only when the ledger under it changed, which is on a status event and never on an ordinary frame.</remarks>
+    private void RenderStatuses(ActorView view)
     {
-        foreach (var child in row.Statuses.GetChildren())
+        view.Plate.ClearStatuses();
+
+        foreach (var (status, stacks) in view.Stacks)
         {
-            row.Statuses.RemoveChild(child);
-            child.QueueFree();
+            view.Plate.AddStatus(IconOf(status), status, stacks);
+        }
+    }
+
+    /// <summary>The icon for a status, loaded once per status this fight; null for one the build has no icon for.</summary>
+    private Texture2D? IconOf(ushort status)
+    {
+        if (_statusIcons.TryGetValue(status, out var icon))
+        {
+            return icon;
         }
 
-        foreach (var (status, stacks) in row.Stacks)
-        {
-            var chip = new HBoxContainer();
+        icon = IconCatalogue.Status(status) is { } path ? GD.Load<Texture2D>(path) : null;
 
-            chip.AddThemeConstantOverride(SeparationConstant, TightGap);
+        _statusIcons[status] = icon;
 
-            chip.AddChild(new ColorRect
-            {
-                CustomMinimumSize = ChipSwatchSize,
-
-                // Shrunk to its own size and centred, because a control in a row fills that row's
-                // height by default: left alone the swatch stretches to whatever the number beside it
-                // measures and the chip stops reading as a chip.
-                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
-                Color = StatusChipColours[status % StatusChipColours.Length],
-            });
-
-            var label = new Label
-            {
-                Text = StatusPrefix + status.ToString(CultureInfo.InvariantCulture) +
-                       StackPrefix + stacks.ToString(CultureInfo.InvariantCulture),
-            };
-
-            label.AddThemeFontSizeOverride(FontSizeOverride, ChipTextSize);
-            label.AddThemeColorOverride(FontColourOverride, UnavailableColour);
-
-            chip.AddChild(label);
-
-            row.Statuses.AddChild(chip);
-        }
+        return icon;
     }
 
     private void OnSpeedPressed()
@@ -1248,10 +1021,9 @@ public partial class BattleReplay : Node3D
     }
 
     /// <remarks>
-    /// 🔒 The skip answers in every state, including the states with nothing to skip. A fight that
-    /// materialised is jumped to its end and confirmed; a fight that never did submits nothing at all
-    /// and the screen simply stands down, which is what makes this control a way out rather than a
-    /// convenience.
+    /// The skip answers in every state, including the states with nothing to skip: a fight that
+    /// materialised is jumped to its end and confirmed; one that never did submits nothing and the
+    /// screen stands down.
     /// </remarks>
     private void OnSkipPressed()
     {
@@ -1296,29 +1068,33 @@ public partial class BattleReplay : Node3D
 
     /// <remarks>
     /// A skipped fight emits none of the instructions it skipped, so the bars are re-read rather than
-    /// walked. Where they are read to is the presenter's answer, and it is the presenter's answer
-    /// precisely so that a fight watched to its end and one skipped to it cannot land on two
-    /// different numbers. An actor whose health the log never fixed is left alone, which is the same
-    /// answer it had all along.
+    /// walked and every actor the end leaves at nothing is laid down at once. Where the bars are read
+    /// to is the presenter's answer, so a fight watched to its end and one skipped to it cannot land
+    /// on two different numbers.
     /// </remarks>
     private void AnchorToEnd(BattleReplayPresenter presenter)
     {
-        for (var index = 0; index < _rows.Count; index++)
+        for (var index = 0; index < _views.Count; index++)
         {
-            var row = _rows[index];
+            var view = _views[index];
 
-            if (presenter.HealthOf(row.Slot) is { } ending)
+            if (presenter.HealthOf(view.ActorId) is not { } ending)
             {
-                row.Current = ending;
-                row.Dirty = true;
+                continue;
+            }
+
+            view.Current = ending;
+            view.Dirty = true;
+
+            if (ending <= 0d)
+            {
+                _choreography?.SnapFallen(view.ActorId);
+                Fell(view.ActorId);
             }
         }
     }
 
-    /// <summary>
-    /// Prints, on one greppable line, what this screen resolved against the run the build actually
-    /// shipped — including which half of the local prediction it got.
-    /// </summary>
+    /// <summary>Prints, on one greppable line, what this screen resolved against the run the build shipped.</summary>
     private void Report(BattleReplayPresenter presenter) =>
         GD.Print(
             $"{BattleMarker} readiness={Describe(presenter.Readiness)} " +
@@ -1331,64 +1107,31 @@ public partial class BattleReplay : Node3D
             $"phase={DescribePhase(presenter.CurrentBossPhase)} won={Describe(presenter.HeroWon)} " +
             $"rejection={Describe(presenter.RulesRejection)}");
 
-    /// <remarks>
-    /// Invariant, like every other number on the readout. The generic form below reaches
-    /// <c>ToString()</c>, which is the CURRENT culture for anything numeric — and a readout a grep
-    /// has to match cannot be one the device's locale gets a say in.
-    /// </remarks>
+    /// <remarks>Invariant, like every other number on the readout: a line a grep has to match cannot be one the locale gets a say in.</remarks>
     private static string DescribePhase(int? phase) =>
         phase?.ToString(CultureInfo.InvariantCulture) ?? NoValue;
 
     private static string Describe<T>(T? value) where T : struct => value?.ToString() ?? NoValue;
 
-    /// <summary>One actor's row of the health column, and the running state behind it.</summary>
+    /// <summary>One actor's plate, and the running state behind it.</summary>
     /// <remarks>
     /// A mutable holder rather than a record, because it is written to on every blow and the point of
-    /// it is to be written to in place: a fresh instance per event would allocate on the frames this
-    /// screen has least room to.
+    /// it is to be written to in place rather than allocated per event.
     /// </remarks>
-    private sealed class ActorBar(
-        byte slot,
-        Label value,
-        ProgressBar bar,
-        HBoxContainer statuses,
-        double? maxHp,
-        double? startingHp)
+    private sealed class ActorView(byte actorId, ActorPlate plate, double? startingHp)
     {
-        /// <summary>The slot the log identifies this actor by, which the presenter is asked about it by.</summary>
-        internal byte Slot { get; } = slot;
+        internal byte ActorId { get; } = actorId;
 
-        /// <summary>The readout beside the bar.</summary>
-        internal Label Value { get; } = value;
+        internal ActorPlate Plate { get; } = plate;
 
-        /// <summary>The bar itself, hidden outright when the log spawns no actor on this slot.</summary>
-        internal ProgressBar Bar { get; } = bar;
-
-        /// <summary>The row of status chips under the bar.</summary>
-        internal HBoxContainer Statuses { get; } = statuses;
-
-        /// <summary>
-        /// The maximum the bar is scaled to and the readout is written over, or null when the log
-        /// spawns no actor on this slot.
-        /// </summary>
-        /// <remarks>
-        /// 🔒 The MAXIMUM, not the opening health. The readout stands beside a bar and has to agree
-        /// with it — a "current / opening" pair beside a bar scaled to the maximum reads as a bar that
-        /// is drawn wrong, and for a hero carrying damage in from an earlier fight the two denominators
-        /// are genuinely different numbers.
-        /// </remarks>
-        internal double? Maximum { get; } = maxHp;
-
-        /// <summary>Where the playhead has walked this actor's health to.</summary>
+        /// <summary>Where the playhead has walked this actor's health to; null when the log never fixes it.</summary>
         internal double? Current { get; set; } = startingHp;
 
         /// <summary>What is on this actor now, by status number.</summary>
         internal Dictionary<ushort, int> Stacks { get; } = new();
 
-        /// <summary>Whether the health readout has moved since it was last drawn.</summary>
         internal bool Dirty { get; set; } = true;
 
-        /// <summary>And whether the status ledger has.</summary>
         internal bool StatusesDirty { get; set; }
     }
 }
