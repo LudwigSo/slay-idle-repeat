@@ -34,9 +34,14 @@ public sealed record StagePlacement(byte ActorId, StagePoint Position, StageFaci
 /// </summary>
 /// <remarks>
 /// The slot order is fixed so an actor that arrives mid-fight takes the next slot and moves nobody.
+/// The hero's side is the enemies' arc mirrored in X: the hero holds its centre slot and each pet
+/// takes the next one, so two pets stand in two places without a second set of distances.
 /// </remarks>
 public static class BattleStageLayout
 {
+    private const int HeroArcSlot = 0;
+    private const int FirstPetArcSlot = 1;
+
     /// <summary>Places every actor, one placement each, in the order the actors are given.</summary>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
     public static IReadOnlyList<StagePlacement> Place(
@@ -45,6 +50,48 @@ public static class BattleStageLayout
         ArgumentNullException.ThrowIfNull(actors);
         ArgumentNullException.ThrowIfNull(metrics);
 
-        return Array.Empty<StagePlacement>();
+        var placements = new StagePlacement[actors.Count];
+        var nextEnemyArcSlot = 0;
+        var nextPetArcSlot = FirstPetArcSlot;
+
+        for (var index = 0; index < actors.Count; index++)
+        {
+            var actor = actors[index];
+
+            placements[index] = actor.Side switch
+            {
+                ReplaySide.Hero => OnHeroSide(actor.ActorId, HeroArcSlot, metrics),
+                ReplaySide.Enemy => OnEnemySide(actor.ActorId, nextEnemyArcSlot++, metrics),
+                _ => OnHeroSide(actor.ActorId, nextPetArcSlot++, metrics),
+            };
+        }
+
+        return placements;
+    }
+
+    private static StagePlacement OnEnemySide(byte actorId, int arcSlot, BattleStageMetrics metrics)
+    {
+        var (back, z) = ArcOffset(arcSlot, metrics);
+
+        return new StagePlacement(actorId, new StagePoint(metrics.HalfGap + back, z), StageFacing.NegativeX);
+    }
+
+    private static StagePlacement OnHeroSide(byte actorId, int arcSlot, BattleStageMetrics metrics)
+    {
+        var (back, z) = ArcOffset(arcSlot, metrics);
+
+        return new StagePlacement(actorId, new StagePoint(-metrics.HalfGap - back, z), StageFacing.PositiveX);
+    }
+
+    /// <summary>
+    /// Where an arc slot sits relative to the arc's front centre: slot 0 is the centre, then the slots
+    /// alternate −Z, +Z at one step, −Z, +Z at two steps, and so on, each step further back.
+    /// </summary>
+    private static (float Back, float Z) ArcOffset(int arcSlot, BattleStageMetrics metrics)
+    {
+        var steps = (arcSlot + 1) / 2;
+        var sign = arcSlot % 2 == 1 ? -1 : 1;
+
+        return (steps * metrics.ArcDepth, sign * steps * metrics.EnemySpacing);
     }
 }

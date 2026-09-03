@@ -38,10 +38,36 @@ public static class BattleFraming
         StageBounds bounds, BattleCameraMetrics camera, double verticalFovDegrees, double aspect)
     {
         ArgumentNullException.ThrowIfNull(camera);
-        _ = bounds;
-        _ = verticalFovDegrees;
-        _ = aspect;
 
-        return default;
+        var yaw = double.DegreesToRadians(camera.YawDegrees);
+        var pitch = double.DegreesToRadians(camera.PitchDegrees);
+
+        var right = new Axis(Math.Cos(yaw), 0d, -Math.Sin(yaw));
+        var up = new Axis(-Math.Sin(pitch) * Math.Sin(yaw), Math.Cos(pitch), -Math.Sin(pitch) * Math.Cos(yaw));
+
+        var halfSize = new Axis(
+            (bounds.MaxX - bounds.MinX) / 2d,
+            (bounds.MaxY - bounds.MinY) / 2d,
+            (bounds.MaxZ - bounds.MinZ) / 2d);
+
+        var distance = BoardFraming.DistanceThatFits(
+            HalfExtentAlong(right, halfSize),
+            HalfExtentAlong(up, halfSize),
+            verticalFovDegrees,
+            aspect,
+            camera.Margin);
+        var verticalShift = BoardFraming.VerticalShiftFor(
+            camera.UsableBandTop, camera.UsableBandBottom, distance, verticalFovDegrees);
+
+        return new StageFrame(distance, verticalShift);
     }
+
+    /// <summary>
+    /// How far the box's corners reach along an axis, either side of its centre. Of the eight, the
+    /// corner whose signs match the axis's reaches furthest, and its projection is this sum.
+    /// </summary>
+    private static double HalfExtentAlong(Axis axis, Axis halfSize) =>
+        (Math.Abs(axis.X) * halfSize.X) + (Math.Abs(axis.Y) * halfSize.Y) + (Math.Abs(axis.Z) * halfSize.Z);
+
+    private readonly record struct Axis(double X, double Y, double Z);
 }

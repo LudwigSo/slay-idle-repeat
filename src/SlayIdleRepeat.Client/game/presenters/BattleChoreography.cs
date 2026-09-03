@@ -67,6 +67,14 @@ public readonly record struct ActorPose(
 /// </remarks>
 public sealed class BattleChoreography
 {
+    private static readonly ActorPose Rest = new(
+        Advance: 0d, Toward: null, SideStep: 0d, Squash: 0d, Lift: 0d, TipDegrees: 0d, Sink: 0d,
+        Scale: 1d, Pulse: 0d, Fallen: false, Present: true);
+
+    private readonly BattleMotionTimings _timings;
+    private readonly bool _reducedMotion;
+    private readonly Dictionary<byte, ActorState> _actors = new();
+
     /// <summary>Creates a playhead.</summary>
     /// <param name="timings">How long each motion takes and how far it goes.</param>
     /// <param name="reducedMotion">When true, every motion completes on its first advance.</param>
@@ -74,30 +82,185 @@ public sealed class BattleChoreography
     public BattleChoreography(BattleMotionTimings timings, bool reducedMotion = false)
     {
         ArgumentNullException.ThrowIfNull(timings);
-        _ = reducedMotion;
+
+        _timings = timings;
+        _reducedMotion = reducedMotion;
     }
 
     /// <summary>Whether any motion is still in flight.</summary>
-    public bool InProgress => false;
+    public bool InProgress
+    {
+        get
+        {
+            foreach (var actor in _actors.Values)
+            {
+                if (actor.Motion != ReplayMotion.None)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 
     /// <summary>Starts the motion a cue asks for, if it asks for one. A cue with no motion changes nothing.</summary>
-    public void Play(ReplayCue cue) => _ = cue;
+    public void Play(ReplayCue cue)
+    {
+        if (cue.Motion == ReplayMotion.None)
+        {
+            return;
+        }
+
+        var actor = StateOf(cue.ActorId);
+
+        if (actor.Fallen)
+        {
+            return;
+        }
+
+        actor.Motion = cue.Motion;
+        actor.Counterpart = cue.CounterpartId;
+        actor.Elapsed = 0d;
+        actor.Seconds = SecondsOf(cue.Motion, cue.MotionSeconds);
+        actor.Fallen = cue.Motion == ReplayMotion.Fall;
+        actor.Present |= cue.Motion == ReplayMotion.Enter;
+    }
 
     /// <summary>Moves every motion in flight on. A negative or non-finite delta moves nothing.</summary>
     /// <param name="deltaSeconds">Seconds since the last advance, already scaled by the replay speed.</param>
-    public void Advance(double deltaSeconds) => _ = deltaSeconds;
+    public void Advance(double deltaSeconds)
+    {
+        if (!double.IsFinite(deltaSeconds) || deltaSeconds <= 0d)
+        {
+            return;
+        }
+
+        foreach (var actor in _actors.Values)
+        {
+            if (actor.Motion == ReplayMotion.None)
+            {
+                continue;
+            }
+
+            actor.Elapsed = _reducedMotion ? actor.Seconds : actor.Elapsed + deltaSeconds;
+
+            if (actor.Elapsed >= actor.Seconds)
+            {
+                actor.Motion = ReplayMotion.None;
+            }
+        }
+    }
 
     /// <summary>How an actor is drawn now. An actor nothing has moved stands at rest.</summary>
     public ActorPose PoseOf(byte actorId)
     {
-        _ = actorId;
+        if (!_actors.TryGetValue(actorId, out var actor))
+        {
+            return Rest;
+        }
 
-        return default;
+        if (actor.Fallen)
+        {
+            var landed = actor.Motion == ReplayMotion.Fall ? actor.Progress : 1d;
+
+            return Rest with
+            {
+                TipDegrees = landed * _timings.FallTipDegrees,
+                Sink = landed * _timings.FallSink,
+                Fallen = true,
+            };
+        }
+
+        return PoseInFlight(actor) with { Present = actor.Present };
     }
 
     /// <summary>Lays an actor down at once, in the pose a fall ends in, with nothing in flight.</summary>
-    public void SnapFallen(byte actorId) => _ = actorId;
+    public void SnapFallen(byte actorId)
+    {
+        var actor = StateOf(actorId);
+
+        actor.Motion = ReplayMotion.None;
+        actor.Fallen = true;
+    }
 
     /// <summary>Takes an actor off the stage until an Enter brings it on.</summary>
-    public void SnapAbsent(byte actorId) => _ = actorId;
+    public void SnapAbsent(byte actorId)
+    {
+        var actor = StateOf(actorId);
+
+        actor.Motion = ReplayMotion.None;
+        actor.Present = false;
+    }
+
+    private ActorPose PoseInFlight(ActorState actor)
+    {
+        var progress = actor.Progress;
+
+        return actor.Motion switch
+        {
+            ReplayMotion.Swing => Rest with
+            {
+                Advance = _timings.SwingReach * PeakAtMidpoint(progress),
+                Toward = actor.Counterpart,
+            },
+            ReplayMotion.Recoil => Rest with
+            {
+                Advance = -_timings.RecoilDistance * PeakAtMidpoint(progress),
+                Toward = actor.Counterpart,
+            },
+            ReplayMotion.Dodge => Rest with
+            {
+                SideStep = _timings.DodgeSideStep * PeakAtMidpoint(progress),
+                Toward = actor.Counterpart,
+            },
+            ReplayMotion.Brace => Rest with { Squash = _timings.BraceSquash * PeakAtMidpoint(progress) },
+            ReplayMotion.WindUp => Rest with { Pulse = PeakAtMidpoint(progress) },
+            ReplayMotion.Enter => Rest with { Scale = progress },
+            _ => Rest,
+        };
+    }
+
+    private double SecondsOf(ReplayMotion motion, double cueSeconds) => motion switch
+    {
+        ReplayMotion.Swing => _timings.SwingSeconds,
+        ReplayMotion.Recoil => _timings.RecoilSeconds,
+        ReplayMotion.Dodge => _timings.DodgeSeconds,
+        ReplayMotion.Brace => _timings.BraceSeconds,
+        ReplayMotion.WindUp => cueSeconds > 0d ? cueSeconds : _timings.PoseHoldSeconds,
+        ReplayMotion.Fall => _timings.FallSeconds,
+        ReplayMotion.Enter => _timings.EnterSeconds,
+        _ => 0d,
+    };
+
+    private ActorState StateOf(byte actorId)
+    {
+        if (!_actors.TryGetValue(actorId, out var actor))
+        {
+            actor = new ActorState();
+            _actors[actorId] = actor;
+        }
+
+        return actor;
+    }
+
+    /// <summary>A half sine: 0 at the start, 1 at the midpoint, 0 again at the end.</summary>
+    private static double PeakAtMidpoint(double progress) => Math.Sin(Math.PI * progress);
+
+    private sealed class ActorState
+    {
+        public ReplayMotion Motion { get; set; }
+
+        public byte Counterpart { get; set; }
+
+        public double Elapsed { get; set; }
+
+        public double Seconds { get; set; }
+
+        public bool Fallen { get; set; }
+
+        public bool Present { get; set; } = true;
+
+        public double Progress => Seconds > 0d ? Math.Clamp(Elapsed / Seconds, 0d, 1d) : 1d;
+    }
 }
