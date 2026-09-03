@@ -129,6 +129,7 @@ internal static class EncounterFight
             new()
             {
                 Id = "HERO",
+                Identity = "HERO",
                 Index = 0,
                 LogId = CombatActor.Hero,
                 Side = BattleSide.HERO,
@@ -148,6 +149,7 @@ internal static class EncounterFight
             var power = enemyPowers[i];
 
             EnemyArchetype archetype;
+            string identity;
 
             if (isElite)
             {
@@ -160,12 +162,13 @@ internal static class EncounterFight
 
                 var eliteId = rng.WeightedPick(identities);
 
-                archetype = enemies.EliteIdentities.TryGetValue(eliteId, out var identity)
-                    ? identity
+                archetype = enemies.EliteIdentities.TryGetValue(eliteId, out var baseArchetype)
+                    ? baseArchetype
                     : throw new KeyNotFoundException(
                         $"chapter {chapter}'s elite identities name '{eliteId}', which has no row " +
                         "under content/enemies/enemies.json#/elites/identities. `05` §6.2's chapter " +
                         "pool and identity table have to name the same ids.");
+                identity = eliteId;
 
                 power = EnemyDerivation.ElitePower(power, enemies.ElitePowerMultiplier);
 
@@ -175,6 +178,7 @@ internal static class EncounterFight
             else
             {
                 archetype = pool.Draw(rng);
+                identity = archetype.ToString();
             }
 
             var row = enemies.Archetype(archetype);
@@ -183,6 +187,7 @@ internal static class EncounterFight
             actors.Add(new ActorPlan
             {
                 Id = $"ENEMY_{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
+                Identity = identity,
                 Index = CombatActor.FirstEnemy + i,
                 LogId = CombatActor.Enemy(i),
                 Side = BattleSide.ENEMY,

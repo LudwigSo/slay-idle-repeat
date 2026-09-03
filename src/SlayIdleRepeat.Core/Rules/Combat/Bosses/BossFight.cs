@@ -114,6 +114,7 @@ internal static class BossFight
         var heroPlan = new ActorPlan
         {
             Id = "HERO",
+            Identity = "HERO",
             Index = 0,
             LogId = CombatActor.Hero,
             Side = BattleSide.HERO,

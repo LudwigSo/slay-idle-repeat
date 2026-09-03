@@ -70,7 +70,8 @@ internal sealed class BossSummonSource : ISummonSource
 
         RequirePowerFractionInBand(sourceEffectId);
 
-        var row = _catalogue.Archetype(ArchetypeOf(archetype, sourceEffectId));
+        var summoned = ArchetypeOf(archetype, sourceEffectId);
+        var row = _catalogue.Archetype(summoned);
 
         // Rounded at the accumulation point: floating-point multiplication carries binary residue
         // that would otherwise propagate into every derived term.
@@ -79,6 +80,7 @@ internal sealed class BossSummonSource : ISummonSource
         return new ActorPlan
         {
             Id = $"{summoner.Id}#ADD#{archetype}",
+            Identity = summoned.ToString(),
             Index = 0,
             LogId = 0,
             Side = BattleSide.ENEMY,
