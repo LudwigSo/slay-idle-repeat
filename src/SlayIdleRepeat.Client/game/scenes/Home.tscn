@@ -1,7 +1,16 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/Home.cs" id="1_home"]
 [ext_resource type="PackedScene" path="res://game/scenes/Hero.tscn" id="2_hero"]
+[ext_resource type="Theme" path="res://game/theme/SlayTheme.tres" id="3_theme"]
+[ext_resource type="Texture2D" uid="uid://cb62ullengl9h" path="res://game/art/icons/hud_energy.svg" id="4_energy"]
+[ext_resource type="Texture2D" uid="uid://cuiclihrei01f" path="res://game/art/icons/hud_energy_reserve.svg" id="5_energy_reserve"]
+[ext_resource type="Texture2D" uid="uid://cqqm5ue38r4ba" path="res://game/art/icons/hud_crowns.svg" id="6_crowns"]
+[ext_resource type="Texture2D" uid="uid://cmj2t5ue0ocnf" path="res://game/art/icons/hud_soul_shards.svg" id="7_soul_shards"]
+[ext_resource type="Texture2D" uid="uid://c9fdlk9c8coav" path="res://game/art/icons/hud_power.svg" id="8_power"]
+[ext_resource type="Texture2D" uid="uid://cohg8jd2o298d" path="res://game/art/icons/hud_chapter.svg" id="9_chapter"]
+[ext_resource type="Texture2D" uid="uid://c349dril6hdok" path="res://game/art/icons/hud_hp.svg" id="10_hp"]
+[ext_resource type="Texture2D" uid="uid://cjpn42toohmdq" path="res://game/art/icons/hud_gold.svg" id="11_gold"]
 
 [sub_resource type="QuadMesh" id="QuadMesh_ground"]
 size = Vector2(24, 42)
@@ -28,21 +37,25 @@ mesh = SubResource("QuadMesh_ground")
 material_override = SubResource("StandardMaterial3D_ground")
 
 ; Home's framing of the hero, and Home's alone: scale 1.32, a 22-degree turn toward the light and
-; a drop of 1.72 so the diorama sits in the lower half of the portrait frame. It used to be baked
-; into Hero.tscn's Model, where every other screen had to cancel it (see BoardWorld's history).
+; a drop of 2.0 so the diorama sits in the lower half of the portrait frame, below the tile band
+; the HUD now puts across the upper half. It used to be baked into Hero.tscn's Model, where every
+; other screen had to cancel it (see BoardWorld's history).
 [node name="Hero" parent="World" instance=ExtResource("2_hero")]
 unique_name_in_owner = true
-transform = Transform3D(1.22388, 0, -0.49449, 0, 1.32, 0, 0.49449, 0, 1.22388, 0, -1.72, 0)
+transform = Transform3D(1.22388, 0, -0.49449, 0, 1.32, 0, 0.49449, 0, 1.22388, 0, -2, 0)
 
 [node name="Ui" type="CanvasLayer" parent="."]
 unique_name_in_owner = true
 
+; The shared theme is assigned once, here, on the root of the overlay: every control below inherits
+; it, and each names a type variation rather than carrying colours and sizes of its own.
 [node name="Screen" type="Control" parent="Ui"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("3_theme")
 
 [node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
 unique_name_in_owner = true
@@ -68,8 +81,7 @@ theme_override_constants/separation = 24
 [node name="DisplayNameLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Header"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 72
+theme_type_variation = &"HudTitle"
 autowrap_mode = 3
 
 [node name="LegendLevelRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Header"]
@@ -80,58 +92,345 @@ theme_override_constants/separation = 24
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 48
+theme_type_variation = &"HudCaption"
 autowrap_mode = 3
 
 [node name="LegendLevelValue" type="Label" parent="Ui/Screen/SafeArea/Column/Header/LegendLevelRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 48
+theme_type_variation = &"HudValue"
 horizontal_alignment = 2
 
-[node name="Energy" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
+; The tile band: two columns of 468 with a 16 gutter is the 952 the safe area leaves of a 1080
+; canvas. Each tile stops the pointer so a long press on it reaches Home.cs; the icon and the
+; containers inside it ignore the pointer so the press lands on the tile rather than on a child.
+[node name="Tiles" type="GridContainer" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
+columns = 2
 
-[node name="EnergyRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Energy"]
-layout_mode = 2
-theme_override_constants/separation = 24
-
-[node name="EnergyLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Energy/EnergyRow"]
+[node name="EnergyTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(468, 168)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 48
-autowrap_mode = 3
+mouse_filter = 0
+theme_type_variation = &"HudTile"
 
-[node name="EnergyValue" type="Label" parent="Ui/Screen/SafeArea/Column/Energy/EnergyRow"]
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("4_energy")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="EnergyValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row/Text"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 48
+theme_type_variation = &"HudValue"
+text_overrun_behavior = 3
+
+[node name="EnergyLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="ReserveTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(468, 168)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+theme_type_variation = &"HudTile"
+
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("5_energy_reserve")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="EnergyReserveValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudValue"
+text_overrun_behavior = 3
+
+[node name="EnergyReserveLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="CrownsTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(468, 168)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+theme_type_variation = &"HudTile"
+
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("6_crowns")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="CrownsValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudValue"
+text_overrun_behavior = 3
+
+[node name="CrownsLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="SoulShardsTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(468, 168)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+theme_type_variation = &"HudTile"
+
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("7_soul_shards")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="SoulShardsValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudValue"
+text_overrun_behavior = 3
+
+[node name="SoulShardsLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="PowerTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(468, 168)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+theme_type_variation = &"HudTile"
+
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("8_power")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="PowerValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudValue"
+text_overrun_behavior = 3
+
+[node name="PowerLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="ProgressTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(468, 168)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+theme_type_variation = &"HudTile"
+
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("9_chapter")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="HighestClearValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudValue"
+text_overrun_behavior = 3
+
+[node name="ProgressLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+; The run panel: one compact row for the run there is to go back to, and hidden when there is none.
+[node name="RunPanel" type="PanelContainer" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 168)
+layout_mode = 2
+mouse_filter = 0
+theme_type_variation = &"HudTile"
+
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="ChapterIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("9_chapter")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Chapter" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="RunChapterValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Chapter"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudValue"
+text_overrun_behavior = 3
+
+[node name="StageRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Chapter"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="StageLabel" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Chapter/StageRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudCaption"
+
+[node name="RunStageValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Chapter/StageRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudCaption"
+
+[node name="HpIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("10_hp")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="RunHitPointsValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"HudCaption"
+
+[node name="GoldIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("11_gold")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Gold" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel/Row"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="RunGoldValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Gold"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudValue"
 horizontal_alignment = 2
 
-[node name="EnergyReserveRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Energy"]
-layout_mode = 2
-theme_override_constants/separation = 24
-
-[node name="EnergyReserveLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Energy/EnergyReserveRow"]
+[node name="GoldLabel" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Row/Gold"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 48
-autowrap_mode = 3
-
-[node name="EnergyReserveValue" type="Label" parent="Ui/Screen/SafeArea/Column/Energy/EnergyReserveRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 48
+theme_type_variation = &"HudCaption"
 horizontal_alignment = 2
 
 [node name="StatusFrame" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
@@ -143,8 +442,7 @@ alignment = 2
 [node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column/StatusFrame"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 48
+theme_type_variation = &"HudCaption"
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -152,12 +450,12 @@ autowrap_mode = 3
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
-theme_override_font_sizes/font_size = 52
+theme_type_variation = &"PrimaryButton"
 autowrap_mode = 3
 
 [node name="GearButton" type="Button" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
-theme_override_font_sizes/font_size = 48
+theme_type_variation = &"QuietButton"
 autowrap_mode = 3

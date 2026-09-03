@@ -11,18 +11,22 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// </summary>
 /// <remarks>
 /// <para>
-/// It renders what the presenter says and forwards one press. No rules, no ports, no adapters: the
-/// boot screen composes both presenters and hands them over, and this half owns only the things
-/// that genuinely need the engine — the safe-area query, the drawn ground, the button, and the
-/// handover to the picker.
+/// It renders what the presenter says and forwards one press and one hold. No rules, no ports, no
+/// adapters: the boot screen composes both presenters and hands them over, and this half owns only
+/// the things that genuinely need the engine — the safe-area query, the drawn ground, the buttons,
+/// the long-press gesture and the handover to the picker.
 /// </para>
 /// <para>
-/// 🔒 <b>Minimal, and the emptiness is the design.</b> A name, a Legend Level, the two Energy
-/// amounts the profile literally carries, and one primary action. There is no Energy denominator,
-/// no regeneration countdown, no Legend-XP bar and no run cost, because the presenter exposes none
-/// of them and could not without copying a formula the rules already own. Daily quests, ad widgets,
-/// chest pity, event and guild cards, the inbox, the account-link banner and the bottom navigation
-/// belong to later milestones and are absent rather than stubbed.
+/// 🔒 <b>A HUD of tiles, and every tile is a number the rows literally hold.</b> Under the name and
+/// the Legend Level sit six tiles — Energy, Reserve, Crowns, Soul Shards, Power and the furthest
+/// chapter cleared — each an icon, a value and a caption, and below them a run panel that appears
+/// only while there is a run to go back to: its chapter and stage, the hero's hit points and its Gold.
+/// A long press on any tile shows the exact figures; letting go puts the shortened ones back. There is
+/// still no Energy maximum or denominator, no regeneration countdown, no Legend-XP percentage and no
+/// run cost, because the presenter exposes none of them and could not without copying a formula the
+/// rules already own. Daily quests, ad widgets, chest pity, event and guild cards, the inbox, the
+/// account-link banner and the bottom navigation belong to later milestones and are absent rather
+/// than stubbed.
 /// </para>
 /// <para>
 /// ⚠️ <b>The hero diorama is a modelled rogue, and it is still not a RULED asset.</b>
@@ -66,13 +70,12 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// keeping it off the screens. What this screen owns of the 3D world is its content and its framing.
 /// </para>
 /// <para>
-/// ⚠️ Every type size, colour and gap in <c>Home.tscn</c> is a per-node override, because the
-/// shared theme resource and the display faces it will carry do not exist yet — they are M8-03's,
-/// and these overrides are debt owed to it rather than a naming scheme of this screen's own. The
-/// sizes were chosen against the engine's default font, so they have to be re-checked — not merely
-/// re-applied — when the real faces land. The layout itself is structural: containers and stretch
-/// ratios, so it holds its proportions across the whole supported aspect range without an override
-/// taking part. There is no art here at all, placeholder or otherwise.
+/// 🔒 <b>The shared theme exists now, and this screen consumes it.</b> <c>SlayTheme.tres</c> is
+/// assigned once, on the root of the overlay, and every control in <c>Home.tscn</c> names a type
+/// variation from it — the tiles, the values, the captions, the title and both buttons — rather than
+/// carrying a colour, a size or a stylebox of its own. What the scene still states per node is
+/// layout: margins, gutters and minimum sizes. The fonts are still the engine's default face, so the
+/// sizes the theme carries were chosen against it and have to be re-checked when the real faces land.
 /// </para>
 /// <para>
 /// Both primary actions now reach a screen: START opens the picker, and CONTINUE opens the board
@@ -103,9 +106,16 @@ public partial class Home : Node3D
     /// </summary>
     private const string HomeMarker = "SIR_HOME_READY";
 
+    /// <summary>
+    /// How long a tile is held before its numbers show in full. The same length the perk draft's
+    /// readouts use, because it is the same gesture asking the same question of a different number.
+    /// </summary>
+    private const double LongPressSeconds = 0.4;
+
     private const string SafeAreaPath = "%SafeArea";
     private const string HeaderPath = "%Header";
-    private const string EnergyPath = "%Energy";
+    private const string TilesPath = "%Tiles";
+    private const string RunPanelPath = "%RunPanel";
     private const string DisplayNameLabelPath = "%DisplayNameLabel";
     private const string LegendLevelLabelPath = "%LegendLevelLabel";
     private const string LegendLevelValuePath = "%LegendLevelValue";
@@ -113,28 +123,30 @@ public partial class Home : Node3D
     private const string EnergyValuePath = "%EnergyValue";
     private const string EnergyReserveLabelPath = "%EnergyReserveLabel";
     private const string EnergyReserveValuePath = "%EnergyReserveValue";
+    private const string CrownsLabelPath = "%CrownsLabel";
+    private const string CrownsValuePath = "%CrownsValue";
+    private const string SoulShardsLabelPath = "%SoulShardsLabel";
+    private const string SoulShardsValuePath = "%SoulShardsValue";
+    private const string PowerLabelPath = "%PowerLabel";
+    private const string PowerValuePath = "%PowerValue";
+    private const string ProgressLabelPath = "%ProgressLabel";
+    private const string HighestClearValuePath = "%HighestClearValue";
+    private const string RunChapterValuePath = "%RunChapterValue";
+    private const string StageLabelPath = "%StageLabel";
+    private const string RunStageValuePath = "%RunStageValue";
+    private const string RunHitPointsValuePath = "%RunHitPointsValue";
+    private const string GoldLabelPath = "%GoldLabel";
+    private const string RunGoldValuePath = "%RunGoldValue";
     private const string StatusLabelPath = "%StatusLabel";
     private const string ActionButtonPath = "%ActionButton";
     private const string GearButtonPath = "%GearButton";
 
-    /// <summary>The primary action while there is a run to start or one to go back to.</summary>
-    /// <remarks>
-    /// The same colour the name and the two Energy amounts above it are authored in, because it is
-    /// the same statement: this is a thing the screen currently has to say.
-    /// </remarks>
-    private static readonly Color LiveColour = new(0.93f, 0.93f, 0.96f);
-
-    /// <summary>
-    /// And while there is not — the palette's quiet secondary, the same grey the captions beside
-    /// each number and the status line above the button are drawn in.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 Unavailable, not refused. The two states this screen disables its action in are a profile
-    /// that has not been read and one that could not be, and neither of them is a no: the status
-    /// line says which it is in words, and the button quietens rather than colouring itself against
-    /// the player.
-    /// </remarks>
-    private static readonly Color UnavailableColour = new(0.66f, 0.67f, 0.73f);
+    /// <summary>The surfaces a long press is read off: the six tiles and the run panel.</summary>
+    private static readonly string[] HeldSurfacePaths =
+    [
+        "%EnergyTile", "%ReserveTile", "%CrownsTile", "%SoulShardsTile", "%PowerTile", "%ProgressTile",
+        RunPanelPath,
+    ];
 
     private HomePresenter? _presenter;
     private ChapterSelectPresenter? _picker;
@@ -144,7 +156,8 @@ public partial class Home : Node3D
     private CancellationToken _lifetime;
 
     private Control? _header;
-    private Control? _energy;
+    private Control? _tiles;
+    private Control? _runPanel;
     private Label? _displayNameLabel;
     private Label? _legendLevelLabel;
     private Label? _legendLevelValue;
@@ -152,9 +165,28 @@ public partial class Home : Node3D
     private Label? _energyValue;
     private Label? _energyReserveLabel;
     private Label? _energyReserveValue;
+    private Label? _crownsLabel;
+    private Label? _crownsValue;
+    private Label? _soulShardsLabel;
+    private Label? _soulShardsValue;
+    private Label? _powerLabel;
+    private Label? _powerValue;
+    private Label? _progressLabel;
+    private Label? _highestClearValue;
+    private Label? _runChapterValue;
+    private Label? _stageLabel;
+    private Label? _runStageValue;
+    private Label? _runHitPointsValue;
+    private Label? _goldLabel;
+    private Label? _runGoldValue;
     private Label? _statusLabel;
     private Button? _actionButton;
     private Button? _gearButton;
+
+    private readonly List<Control> _heldSurfaces = [];
+
+    /// <summary>Whether a finger is down on a tile — the one fact the hold timer checks when it fires.</summary>
+    private bool _holdingATile;
 
     /// <summary>
     /// Takes both presenters the composition root built, and the token the app shuts down through.
@@ -171,6 +203,7 @@ public partial class Home : Node3D
     /// resumes is not known until the profile read answers — and because the picker it hands on
     /// needs the same factory for the run its own confirm starts.
     /// </param>
+    /// <param name="gear">Builds the Inventory screen the gear button opens.</param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public void Drive(
@@ -234,7 +267,8 @@ public partial class Home : Node3D
         // Resolved once. A scene-unique lookup is a string search of the owner's table each time it
         // is asked, and this screen redraws whenever the read behind it moves.
         _header = GetNode<Control>(HeaderPath);
-        _energy = GetNode<Control>(EnergyPath);
+        _tiles = GetNode<Control>(TilesPath);
+        _runPanel = GetNode<Control>(RunPanelPath);
         _displayNameLabel = GetNode<Label>(DisplayNameLabelPath);
         _legendLevelLabel = GetNode<Label>(LegendLevelLabelPath);
         _legendLevelValue = GetNode<Label>(LegendLevelValuePath);
@@ -242,20 +276,37 @@ public partial class Home : Node3D
         _energyValue = GetNode<Label>(EnergyValuePath);
         _energyReserveLabel = GetNode<Label>(EnergyReserveLabelPath);
         _energyReserveValue = GetNode<Label>(EnergyReserveValuePath);
+        _crownsLabel = GetNode<Label>(CrownsLabelPath);
+        _crownsValue = GetNode<Label>(CrownsValuePath);
+        _soulShardsLabel = GetNode<Label>(SoulShardsLabelPath);
+        _soulShardsValue = GetNode<Label>(SoulShardsValuePath);
+        _powerLabel = GetNode<Label>(PowerLabelPath);
+        _powerValue = GetNode<Label>(PowerValuePath);
+        _progressLabel = GetNode<Label>(ProgressLabelPath);
+        _highestClearValue = GetNode<Label>(HighestClearValuePath);
+        _runChapterValue = GetNode<Label>(RunChapterValuePath);
+        _stageLabel = GetNode<Label>(StageLabelPath);
+        _runStageValue = GetNode<Label>(RunStageValuePath);
+        _runHitPointsValue = GetNode<Label>(RunHitPointsValuePath);
+        _goldLabel = GetNode<Label>(GoldLabelPath);
+        _runGoldValue = GetNode<Label>(RunGoldValuePath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
         _actionButton = GetNode<Button>(ActionButtonPath);
+        _gearButton = GetNode<Button>(GearButtonPath);
 
         _actionButton.Pressed += OnActionPressed;
-        _gearButton = GetNode<Button>(GearButtonPath);
         _gearButton.Pressed += OnGearPressed;
 
-        // Painted once, because nothing about which colour belongs to which state changes while the
-        // screen is up. It is painted at all because a button reached none of these colours on its
-        // own: the sibling labels carry theirs in the scene file, but a Button draws its text by
-        // draw mode and the mode this control spends two of its four decisions in — disabled — has
-        // an engine default of half-transparent grey that no override of font_color reaches.
-        ButtonTextColours.ApplyTo(_actionButton, LiveColour, UnavailableColour);
-        ButtonTextColours.ApplyTo(_gearButton, LiveColour, UnavailableColour);
+        // The tiles and the run panel answer a hold rather than a press. Each stops the pointer in
+        // the scene file for it; a panel that let the pointer through would leave the exact figures
+        // unreachable with nothing red anywhere.
+        foreach (var path in HeldSurfacePaths)
+        {
+            var surface = GetNode<Control>(path);
+
+            surface.GuiInput += OnTileInput;
+            _heldSurfaces.Add(surface);
+        }
 
         // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
         // does this on the way in, because every handover in this build leaves the outgoing screen
@@ -271,21 +322,32 @@ public partial class Home : Node3D
 
     /// <inheritdoc/>
     /// <remarks>
-    /// The matching half of the subscription in <c>_Ready</c>. The button is a child and dies with
-    /// this node either way, but a handler left connected across a scene that is merely detached
-    /// and re-added would fire twice, and once is the whole contract of a primary action.
+    /// The matching half of the subscriptions in <c>_Ready</c>. The controls are children and die
+    /// with this node either way, but a handler left connected across a scene that is merely
+    /// detached and re-added would fire twice, and once is the whole contract of a primary action.
     /// </remarks>
     public override void _ExitTree()
     {
-        if (_actionButton is not null)
+        if (_actionButton is not null && IsInstanceValid(_actionButton))
         {
             _actionButton.Pressed -= OnActionPressed;
-
-            if (_gearButton is not null && IsInstanceValid(_gearButton))
-            {
-                _gearButton.Pressed -= OnGearPressed;
-            }
         }
+
+        if (_gearButton is not null && IsInstanceValid(_gearButton))
+        {
+            _gearButton.Pressed -= OnGearPressed;
+        }
+
+        foreach (var surface in _heldSurfaces.Where(IsInstanceValid))
+        {
+            surface.GuiInput -= OnTileInput;
+        }
+
+        _heldSurfaces.Clear();
+
+        // Cleared here as well as on release: a hold timer already running belongs to the tree and
+        // fires whether this screen is still there or not.
+        _holdingATile = false;
     }
 
     /// <remarks>
@@ -331,14 +393,7 @@ public partial class Home : Node3D
 
         // Validity before tree membership: asking a freed node whether it is inside the tree is
         // itself the crash, and a shutdown during a slow read is the ordinary case on a handset.
-        // Every node this writes to is checked, not just the one: a scene-unique name that no
-        // longer resolves leaves a null behind, and a null-forgiving operator over it would turn a
-        // renamed node into a crash here instead of a blank label.
-        if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
-            _header is null || _energy is null ||
-            _displayNameLabel is null || _legendLevelLabel is null || _legendLevelValue is null ||
-            _energyLabel is null || _energyValue is null || _energyReserveLabel is null ||
-            _energyReserveValue is null || _statusLabel is null || _actionButton is null)
+        if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() || _actionButton is null)
         {
             return;
         }
@@ -354,36 +409,31 @@ public partial class Home : Node3D
         var carried = presenter.ProfileCarried;
 
         // 🔒 The profile's numbers are drawn only when there ARE numbers. Before the read answers,
-        // and in the two states where it never will, the name is empty and the Legend Level, the
-        // Energy and the Reserve are all still the zero an unset int carries — and "Energy 0" told
-        // to a player who has plenty is not a placeholder, it is a plausible value in a hole, which
-        // is the one thing this codebase refuses to put on a screen anywhere else. The block leaves
-        // instead, the status line below says which of the three states this is, and nothing is
-        // invented. Two of those states never end, so this is not a flicker on the way to the
-        // truth: it is what the screen looks like for as long as it is up.
-        _header.Visible = carried;
-        _energy.Visible = carried;
+        // and in the two states where it never will, the name is empty and every amount is still the
+        // zero an unset value carries — and "Energy 0" told to a player who has plenty is not a
+        // placeholder, it is a plausible value in a hole, which is the one thing this codebase
+        // refuses to put on a screen anywhere else. The header and the tiles leave instead, the
+        // status line below says which of the three states this is, and nothing is invented. Two of
+        // those states never end, so this is not a flicker on the way to the truth: it is what the
+        // screen looks like for as long as it is up. The run panel has one more condition: a run to
+        // go back to.
+        Show(_header, carried);
+        Show(_tiles, carried);
+        Show(_runPanel, carried && presenter.RunProgress is not null);
 
-        _displayNameLabel.Text = presenter.DisplayName;
-        _legendLevelLabel.Text = presenter.LegendLevelLabel;
-        _legendLevelValue.Text = presenter.LegendLevel.ToString(CultureInfo.InvariantCulture);
-        _energyLabel.Text = presenter.EnergyLabel;
-        _energyValue.Text = presenter.Energy.ToString(CultureInfo.InvariantCulture);
-        _energyReserveLabel.Text = presenter.EnergyReserveLabel;
-        _energyReserveValue.Text = presenter.EnergyReserve.ToString(CultureInfo.InvariantCulture);
+        RenderHeader(presenter);
+        RenderTiles(presenter);
+        RenderRunPanel(presenter);
+
         // Hidden rather than blanked once there is nothing left to say, which is the same thing the
         // picker does with the same line and for the same reason: an empty label still claims a
         // full line of height, so a blank one is a sentence a player can see room for and cannot
         // read. Hiding it also hands the space back to the frame above the primary action.
-        _statusLabel.Text = presenter.StatusText;
-        _statusLabel.Visible = _statusLabel.Text.Length > 0;
+        Write(_statusLabel, presenter.StatusText);
+        Show(_statusLabel, presenter.StatusText.Length > 0);
 
         _actionButton.Text = presenter.ActionText;
-
-        if (_gearButton is { } gear)
-        {
-            gear.Text = presenter.GearText;
-        }
+        Write(_gearButton, presenter.GearText);
 
         // A read that has not answered, or that answered with no profile, leaves an action with
         // nothing to do. Disabled rather than hidden: a primary action that vanishes reads as a
@@ -392,10 +442,141 @@ public partial class Home : Node3D
         _actionButton.Disabled = !carried;
     }
 
+    private void RenderHeader(HomePresenter presenter)
+    {
+        Write(_displayNameLabel, presenter.DisplayName);
+        Write(_legendLevelLabel, presenter.LegendLevelLabel);
+        Write(_legendLevelValue, presenter.LegendLevel.ToString(CultureInfo.InvariantCulture));
+    }
+
     /// <remarks>
-    /// The two live decisions go different ways, and only one of them has anywhere to go. Every
-    /// other decision leaves the button disabled, so this cannot be reached from them.
+    /// Each value is the presenter's text, never a number formatted here: which form a number takes —
+    /// shortened or in full, blank or spelt — is the presenter's answer, and the power tile in
+    /// particular stays empty rather than reading "0" when there is no reading behind it.
     /// </remarks>
+    private void RenderTiles(HomePresenter presenter)
+    {
+        Write(_energyValue, presenter.EnergyText);
+        Write(_energyLabel, presenter.EnergyLabel);
+        Write(_energyReserveValue, presenter.EnergyReserveText);
+        Write(_energyReserveLabel, presenter.EnergyReserveLabel);
+        Write(_crownsValue, presenter.CrownsText);
+        Write(_crownsLabel, presenter.CrownsLabel);
+        Write(_soulShardsValue, presenter.SoulShardsText);
+        Write(_soulShardsLabel, presenter.SoulShardsLabel);
+        Write(_powerValue, presenter.PowerText);
+        Write(_powerLabel, presenter.PowerLabel);
+        Write(_highestClearValue, presenter.HighestClearText);
+        Write(_progressLabel, presenter.ProgressLabel);
+    }
+
+    private void RenderRunPanel(HomePresenter presenter)
+    {
+        Write(_runChapterValue, presenter.RunProgress?.ChapterName ?? "");
+        Write(_stageLabel, presenter.StageLabel);
+        Write(_runStageValue, presenter.RunStageText);
+        Write(_runHitPointsValue, presenter.RunHitPointsText);
+        Write(_runGoldValue, presenter.RunGoldText);
+        Write(_goldLabel, presenter.GoldLabel);
+    }
+
+    /// <summary>
+    /// Writes one control's text, or nothing when the control is not there to write into.
+    /// </summary>
+    /// <remarks>
+    /// A scene-unique name that no longer resolves leaves a null behind, and a null-forgiving operator
+    /// over it would turn a renamed node into a crash here instead of a blank label. Every write goes
+    /// through this so the check is stated once.
+    /// </remarks>
+    private static void Write(Label? label, string text)
+    {
+        if (label is not null && IsInstanceValid(label))
+        {
+            label.Text = text;
+        }
+    }
+
+    private static void Write(Button? button, string text)
+    {
+        if (button is not null && IsInstanceValid(button))
+        {
+            button.Text = text;
+        }
+    }
+
+    private static void Show(Control? control, bool visible)
+    {
+        if (control is not null && IsInstanceValid(control))
+        {
+            control.Visible = visible;
+        }
+    }
+
+    /// <summary>
+    /// A tile held down shows its exact figures; letting go puts the shortened ones back.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Only the gesture is here. Which form each number takes is the presenter's answer, so what
+    /// this file decides is the single fact an engine event carries — whether the finger is down —
+    /// and nothing about how a number is written.
+    /// </remarks>
+    /// <param name="event">The input one of the tiles received.</param>
+    private void OnTileInput(InputEvent @event)
+    {
+        switch (@event)
+        {
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left } mouse:
+                HoldTile(mouse.Pressed);
+                break;
+
+            case InputEventScreenTouch touch:
+                HoldTile(touch.Pressed);
+                break;
+        }
+    }
+
+    private void HoldTile(bool pressed)
+    {
+        _holdingATile = pressed;
+
+        if (!pressed)
+        {
+            _presenter?.ConcealFullValues();
+            Render();
+
+            return;
+        }
+
+        // The tree's timer rather than a node of this screen's own: it is one shot, it is created on
+        // the press and it is gone after it, so a timer node would be a permanent child kept for a
+        // gesture most players never make.
+        var hold = GetTree()?.CreateTimer(LongPressSeconds);
+
+        if (hold is null)
+        {
+            GD.PushError("A home tile was held while the screen was outside the tree.");
+
+            return;
+        }
+
+        hold.Timeout += OnHoldElapsed;
+    }
+
+    /// <remarks>
+    /// The flag is read FIRST, and it is cleared on teardown as well as on release: this timer
+    /// belongs to the tree and fires whether or not the screen that asked for it is still there.
+    /// </remarks>
+    private void OnHoldElapsed()
+    {
+        if (!_holdingATile || !IsInstanceValid(this) || _presenter is not { } presenter)
+        {
+            return;
+        }
+
+        presenter.RevealFullValues();
+        Render();
+    }
+
     /// <summary>Opens S16, the gear stock and the equip path.</summary>
     /// <remarks>
     /// 🔒 <b>Between runs is the only place this belongs, and Home is where a player already is.</b>
@@ -415,6 +596,10 @@ public partial class Home : Node3D
         _ = InventoryHandover.Show(this, compose(), _lifetime);
     }
 
+    /// <remarks>
+    /// The two live decisions go different ways, and only one of them has anywhere to go. Every
+    /// other decision leaves the button disabled, so this cannot be reached from them.
+    /// </remarks>
     private void OnActionPressed()
     {
         var presenter = _presenter;
@@ -536,15 +721,20 @@ public partial class Home : Node3D
     /// </summary>
     /// <remarks>
     /// One line rather than two, because a launch produces exactly one of each and the interesting
-    /// claim spans both: that composition, the content load, the profile read and the gating
-    /// evaluation all ran, in the engine, against real authored data. The picker's half is
+    /// claim spans both: that composition, the content load, the profile read, the power reading and
+    /// the gating evaluation all ran, in the engine, against real authored data. The picker's half is
     /// described by the picker's own file so the format lives beside the screen it is about.
     /// </remarks>
     private static void Report(HomePresenter home, ChapterSelectPresenter picker)
     {
+        var power = home.Power?.ToString(CultureInfo.InvariantCulture) ?? "";
+
         GD.Print(
             $"{HomeMarker} decision={home.Decision} legend_level={home.LegendLevel} " +
             $"energy={home.Energy} reserve={home.EnergyReserve} " +
+            $"crowns={home.Crowns} soul_shards={home.SoulShards} " +
+            $"power={power} power_standing={home.PowerStanding} " +
+            $"highest_clear={home.HighestClearText} run_stage={home.RunStageText} " +
             $"chapters={picker.Chapters.Count} picker_stage={picker.Stage} " +
             $"verdicts=[{ChapterSelect.Describe(picker)}]");
     }
