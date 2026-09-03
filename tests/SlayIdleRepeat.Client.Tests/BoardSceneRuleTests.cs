@@ -40,7 +40,7 @@ public sealed class BoardSceneRuleTests
     [Fact]
     public void The_board_still_offers_a_scene_unique_Camera3D_for_the_handover_to_claim()
     {
-        var camera = Node(BoardScene, "Camera").ShouldNotBeNull(
+        var camera = SceneText.Node(BoardScene, "Camera").ShouldNotBeNull(
             "Board.tscn declares no node named 'Camera'. ScreenStage.Show looks it up by the unique " +
             "name '%Camera' and pushes an error when it resolves to nothing.");
 
@@ -60,7 +60,7 @@ public sealed class BoardSceneRuleTests
     [Fact]
     public void The_board_still_offers_a_scene_unique_Ui_layer_for_the_handover_to_show()
     {
-        var ui = Node(BoardScene, "Ui").ShouldNotBeNull();
+        var ui = SceneText.Node(BoardScene, "Ui").ShouldNotBeNull();
 
         ui.Header.ShouldContain("type=\"CanvasLayer\"", Case.Sensitive);
         ui.Body.ShouldContain(
@@ -85,7 +85,7 @@ public sealed class BoardSceneRuleTests
     [InlineData("DirectionalLight3D")]
     [InlineData("OmniLight3D")]
     public void The_board_declares_no_node_of_a_kind_only_AppRoot_may_own(string type) =>
-        Read(BoardScene).ShouldNotContain(
+        SceneText.Read(BoardScene).ShouldNotContain(
             $"type=\"{type}\"",
             Case.Sensitive,
             $"Board.tscn declares a {type}. AppRoot owns the one environment a viewport can have and " +
@@ -103,15 +103,15 @@ public sealed class BoardSceneRuleTests
     [Fact]
     public void The_tile_template_still_carries_the_gate_mark_by_name()
     {
-        Node(TileScene, "Gate").ShouldNotBeNull(
+        SceneText.Node(TileScene, "Gate").ShouldNotBeNull(
             "BoardTile.tscn has no 'Gate' child, so no node can be marked as one the run may not " +
             "walk past.");
 
-        Node(TileScene, "Puck").ShouldNotBeNull(
+        SceneText.Node(TileScene, "Puck").ShouldNotBeNull(
             "BoardTile.tscn has no 'Puck' child, so there is no mesh to draw a node of the board " +
             "with and the whole board comes up empty.");
 
-        Node(SegmentScene, "Ribbon").ShouldNotBeNull(
+        SceneText.Node(SegmentScene, "Ribbon").ShouldNotBeNull(
             "BoardPathSegment.tscn has no 'Ribbon' child, so the tiles would be drawn with nothing " +
             "joining them and the board would read as a scatter rather than as a track.");
     }
@@ -129,7 +129,7 @@ public sealed class BoardSceneRuleTests
     [InlineData(TileScene)]
     [InlineData(SegmentScene)]
     public void No_material_the_board_draws_is_metallic(string scene) =>
-        Read(scene).ShouldNotContain(
+        SceneText.Read(scene).ShouldNotContain(
             "metallic",
             Case.Insensitive,
             $"{scene} authors a metallic property. Nothing in this build reflects anything — no " +
@@ -148,68 +148,11 @@ public sealed class BoardSceneRuleTests
     /// </remarks>
     [Fact]
     public void The_board_carries_no_backdrop_plane_of_its_own() =>
-        Read(BoardScene).ShouldNotContain(
+        SceneText.Read(BoardScene).ShouldNotContain(
             "QuadMesh",
             Case.Sensitive,
             "Board.tscn has a quad in it again. A backdrop plane at a fixed distance is left behind " +
             "the moment the camera moves; BoardTileGateContrastTests measures the board's backdrop " +
             "on AppRoot for that reason, and a second one here would put a colour on the screen that " +
             "nothing measures.");
-
-    // ----------------------------------------------------------------------------------------
-    // Reading a scene as the text file it is.
-    // ----------------------------------------------------------------------------------------
-
-    /// <summary>
-    /// The one node of a scene with this name, or <c>null</c> when the scene holds none or several.
-    /// </summary>
-    /// <remarks>
-    /// Null for "several" as well as for "none" on purpose: every case here asks about a node that
-    /// must be unique, and two nodes sharing a name is the state in which a scene-unique lookup
-    /// resolves to whichever the engine reached first.
-    /// </remarks>
-    private static SceneNode? Node(string relativePath, string name)
-    {
-        var nodes = new List<SceneNode>();
-        SceneNode? current = null;
-
-        foreach (var line in Read(relativePath).Split('\n').Select(line => line.Trim()))
-        {
-            if (line.StartsWith('['))
-            {
-                current = line.StartsWith("[node ", StringComparison.Ordinal) &&
-                          line.Contains($"name=\"{name}\"", StringComparison.Ordinal)
-                    ? new SceneNode(line)
-                    : null;
-
-                if (current is not null)
-                {
-                    nodes.Add(current);
-                }
-
-                continue;
-            }
-
-            current?.Body.Add(line);
-        }
-
-        return nodes.Count == 1 ? nodes[0] : null;
-    }
-
-    private static string Read(string relativePath)
-    {
-        var path = Path.Combine(RepoPaths.RepositoryRoot, relativePath);
-
-        return File.Exists(path)
-            ? File.ReadAllText(path)
-            : throw new FileNotFoundException(
-                $"No '{relativePath}' under '{RepoPaths.RepositoryRoot}'. These cases read the " +
-                "checkout's own scene files, so a missing one is not a passing case.",
-                path);
-    }
-
-    private sealed record SceneNode(string Header)
-    {
-        internal List<string> Body { get; } = [];
-    }
 }
