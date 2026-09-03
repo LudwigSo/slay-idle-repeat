@@ -26,12 +26,18 @@ public sealed class HomeSceneRuleTests
 
     private const string Theme = "src/SlayIdleRepeat.Client/game/theme/SlayTheme.tres";
 
-    private const string ThemeFileName = "SlayTheme.tres";
+    /// <summary>The transform an instance carries when nothing frames it.</summary>
+    private const string Identity = "Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)";
 
     private const string StyleOverride = "theme_override_styles/";
 
     private static readonly Regex Texture2DResource = new(
         @"^\[ext_resource type=""Texture2D"".*?path=""(?<path>res://[^""]+)""",
+        RegexOptions.Multiline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    private static readonly Regex ThemeResource = new(
+        @"^\[ext_resource type=""Theme"".*?path=""res://game/theme/SlayTheme\.tres""",
         RegexOptions.Multiline | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
@@ -49,7 +55,7 @@ public sealed class HomeSceneRuleTests
     [Fact]
     public void The_home_still_offers_a_scene_unique_Camera3D_for_the_handover_to_claim()
     {
-        var camera = Node(HomeScene, "Camera").ShouldNotBeNull(
+        var camera = SceneText.Node(HomeScene, "Camera").ShouldNotBeNull(
             "Home.tscn declares no single node named 'Camera'. ScreenStage.Show looks it up by the " +
             "unique name '%Camera' and pushes an error when it resolves to nothing.");
 
@@ -62,7 +68,7 @@ public sealed class HomeSceneRuleTests
     [Fact]
     public void The_home_still_offers_a_scene_unique_Ui_layer_for_the_handover_to_show()
     {
-        var ui = Node(HomeScene, "Ui").ShouldNotBeNull();
+        var ui = SceneText.Node(HomeScene, "Ui").ShouldNotBeNull();
 
         ui.Header.ShouldContain("type=\"CanvasLayer\"", Case.Sensitive);
         ui.Body.ShouldContain(
@@ -76,7 +82,7 @@ public sealed class HomeSceneRuleTests
     [InlineData("DirectionalLight3D")]
     [InlineData("OmniLight3D")]
     public void The_home_declares_no_node_of_a_kind_only_AppRoot_may_own(string type) =>
-        Read(HomeScene).ShouldNotContain(
+        SceneText.Read(HomeScene).ShouldNotContain(
             $"type=\"{type}\"",
             Case.Sensitive,
             $"Home.tscn declares a {type}. AppRoot owns the one environment a viewport can have and " +
@@ -93,7 +99,7 @@ public sealed class HomeSceneRuleTests
     [Fact]
     public void The_hero_diorama_keeps_its_framing_on_the_instance()
     {
-        var hero = Node(HomeScene, "Hero").ShouldNotBeNull(
+        var hero = SceneText.Node(HomeScene, "Hero").ShouldNotBeNull(
             "Home.tscn declares no single node named 'Hero', so there is no diorama to frame.");
 
         hero.Header.ShouldContain(
@@ -105,11 +111,15 @@ public sealed class HomeSceneRuleTests
             line => line.StartsWith("transform = ", StringComparison.Ordinal),
             "the framing override is a transform on THIS node. Without it the instance sits at " +
             "identity, which is what Hero.tscn was put at precisely so that Home would carry this.");
+        hero.Body.ShouldNotContain(
+            $"transform = {Identity}",
+            "an override that is itself the identity frames nothing: the diorama sits at the origin " +
+            "exactly as it would with no override at all.");
     }
 
     [Fact]
     public void The_home_keeps_its_backdrop_plane() =>
-        Read(HomeScene).ShouldContain(
+        SceneText.Read(HomeScene).ShouldContain(
             "QuadMesh",
             Case.Sensitive,
             "Home's camera does not move, so the backdrop plane behind the diorama stays where it is " +
@@ -120,7 +130,7 @@ public sealed class HomeSceneRuleTests
 
     [Fact]
     public void No_node_overrides_a_stylebox_the_theme_owns() =>
-        Read(HomeScene).ShouldNotContain(
+        SceneText.Read(HomeScene).ShouldNotContain(
             StyleOverride,
             Case.Sensitive,
             "a per-node stylebox is a second copy of a tile's look, and it wins over the theme " +
@@ -128,18 +138,24 @@ public sealed class HomeSceneRuleTests
             "look. The theme owns every stylebox; the scene names a type variation.");
 
     [Fact]
-    public void The_scene_draws_through_the_shared_theme() =>
-        Read(HomeScene).ShouldContain(
-            ThemeFileName,
+    public void The_scene_draws_through_the_shared_theme()
+    {
+        var scene = SceneText.Read(HomeScene);
+
+        ThemeResource.IsMatch(scene).ShouldBeTrue(
+            "no Theme ext_resource names SlayTheme.tres, so every type variation the scene uses " +
+            "resolves against the engine default theme and draws as a plain grey control.");
+        scene.ShouldContain(
+            "theme = ExtResource(",
             Case.Sensitive,
-            "no theme resource is loaded, so every type variation the scene names resolves against " +
-            "the engine default theme and draws as a plain grey control.");
+            "a theme loaded and assigned to no node is a theme nothing draws through.");
+    }
 
     [Fact]
     public void Every_type_variation_the_scene_uses_is_declared_by_the_theme()
     {
-        var used = TypeVariation.Matches(Read(HomeScene)).Select(m => m.Groups["name"].Value).Distinct().ToArray();
-        var theme = Read(Theme);
+        var used = TypeVariation.Matches(SceneText.Read(HomeScene)).Select(m => m.Groups["name"].Value).Distinct().ToArray();
+        var theme = SceneText.Read(Theme);
 
         used.ShouldNotBeEmpty(
             "the scene names no type variation at all, so the HUD is drawn as bare controls and the " +
@@ -159,7 +175,7 @@ public sealed class HomeSceneRuleTests
     [InlineData("PrimaryButton")]
     [InlineData("QuietButton")]
     public void The_theme_declares_each_variation_the_hud_is_built_from(string variation) =>
-        Read(Theme).ShouldContain(
+        SceneText.Read(Theme).ShouldContain(
             $"{variation}/base_type",
             Case.Sensitive,
             $"SlayTheme.tres declares no '{variation}' variation. A scene naming it draws the base " +
@@ -170,7 +186,7 @@ public sealed class HomeSceneRuleTests
     [Fact]
     public void Every_texture_the_scene_loads_is_a_catalogued_icon()
     {
-        var loaded = Texture2DResource.Matches(Read(HomeScene)).Select(m => m.Groups["path"].Value).ToArray();
+        var loaded = Texture2DResource.Matches(SceneText.Read(HomeScene)).Select(m => m.Groups["path"].Value).ToArray();
 
         loaded.ShouldNotBeEmpty(
             "the scene loads no Texture2D at all, so the tiles have no icons and the rule below is " +
@@ -179,57 +195,5 @@ public sealed class HomeSceneRuleTests
             path => IconCatalogue.All.Contains(path),
             "a texture path the catalogue does not list is one IconCatalogueTests does not check: " +
             "no grid, no scale, no flatness rule. Add the icon to the catalogue, then to the scene.");
-    }
-
-    // ----------------------------------------------------------------------------------------
-    // Reading a scene as the text file it is — the same helpers BoardSceneRuleTests uses.
-    // ----------------------------------------------------------------------------------------
-
-    /// <summary>
-    /// The one node of a scene with this name, or <c>null</c> when the scene holds none or several.
-    /// </summary>
-    private static SceneNode? Node(string relativePath, string name)
-    {
-        var nodes = new List<SceneNode>();
-        SceneNode? current = null;
-
-        foreach (var line in Read(relativePath).Split('\n').Select(line => line.Trim()))
-        {
-            if (line.StartsWith('['))
-            {
-                current = line.StartsWith("[node ", StringComparison.Ordinal) &&
-                          line.Contains($"name=\"{name}\"", StringComparison.Ordinal)
-                    ? new SceneNode(line)
-                    : null;
-
-                if (current is not null)
-                {
-                    nodes.Add(current);
-                }
-
-                continue;
-            }
-
-            current?.Body.Add(line);
-        }
-
-        return nodes.Count == 1 ? nodes[0] : null;
-    }
-
-    private static string Read(string relativePath)
-    {
-        var path = Path.Combine(RepoPaths.RepositoryRoot, relativePath);
-
-        return File.Exists(path)
-            ? File.ReadAllText(path)
-            : throw new FileNotFoundException(
-                $"No '{relativePath}' under '{RepoPaths.RepositoryRoot}'. These cases read the " +
-                "checkout's own scene and theme files, so a missing one is not a passing case.",
-                path);
-    }
-
-    private sealed record SceneNode(string Header)
-    {
-        internal List<string> Body { get; } = [];
     }
 }

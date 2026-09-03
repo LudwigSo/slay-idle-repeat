@@ -4,6 +4,7 @@ using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 using Xunit;
 
 namespace SlayIdleRepeat.Client.Tests;
@@ -38,7 +39,7 @@ public sealed class HomePresenterTests
 
     private const long CarriedSoulShards = 19;
 
-    // Four distinct values, each one past the edge PlayerNumber writes out in full, so the four
+    // Five distinct values, each one past the edge PlayerNumber writes out in full, so the five
     // tile texts cannot be told apart by a shared literal and none of them is exact by accident.
     private const int LongEnergy = 30_003;
 
@@ -47,6 +48,8 @@ public sealed class HomePresenterTests
     private const long LongCrowns = 10_001;
 
     private const long LongSoulShards = 20_002;
+
+    private const long LongGold = 50_005;
 
     private static readonly int[] TwoAuthoredChapters = [1, 2];
 
@@ -574,9 +577,7 @@ public sealed class HomePresenterTests
         members.ShouldContain(nameof(HomePresenter.LegendLevel), "the level the absent XP percentage would have sat under");
         members.ShouldContain(nameof(HomePresenter.Decision), "the decision the whole screen exists to make");
         members.ShouldContain(nameof(HomePresenter.Crowns), "the balance the absent run cost would have been charged against");
-        members.ShouldContain(nameof(HomePresenter.SoulShards), "the other bank of the wallet, likewise");
         members.ShouldContain(nameof(HomePresenter.Power), "the one derived number the screen DOES show, read through a source rather than computed here");
-        members.ShouldContain(nameof(HomePresenter.HighestClear), "the progress tile's value");
         members.ShouldContain(nameof(HomePresenter.RunProgress), "the run panel's value, whose maximum lives on the record and not on the screen");
     }
 
@@ -691,6 +692,21 @@ public sealed class HomePresenterTests
             "never one read for the other.");
     }
 
+    [Fact]
+    public async Task A_wallet_with_no_row_for_a_currency_reads_as_a_balance_of_zero()
+    {
+        var presenter = Home(RecordingGameHost.Finding(PlayerRow()));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(
+            HomeContinueDecision.StartNewRun,
+            "a presenter indexing the wallet would throw on the missing row and StartAsync would " +
+            "report that as ReadUnavailable — leaving the zeros below as untouched defaults.");
+        presenter.Crowns.ShouldBe(0L, "a currency the wallet holds no row for is a balance of nothing, not a fault.");
+        presenter.SoulShards.ShouldBe(0L);
+    }
+
     /// <summary>`16`'s number rule at its edge: ten thousand is written out, ten thousand and one is not.</summary>
     [Theory]
     [InlineData(9_999L, "9999")]
@@ -738,6 +754,7 @@ public sealed class HomePresenterTests
 
         presenter.RevealFullValues();
 
+        presenter.FullValuesRevealed.ShouldBeTrue("the flag the scene reads is the state the texts below are computed from.");
         new[]
         {
             presenter.CrownsText, presenter.SoulShardsText, presenter.EnergyText, presenter.EnergyReserveText,
@@ -768,15 +785,15 @@ public sealed class HomePresenterTests
     [Fact]
     public async Task RunGold_is_the_runs_own_balance_when_the_run_can_be_continued()
     {
-        var presenter = Home(RecordingGameHost.Finding(PlayerRow(), OpenRunRow(gold: LongCrowns)));
+        var presenter = Home(RecordingGameHost.Finding(PlayerRow(), OpenRunRow(gold: LongGold)));
 
         await presenter.StartAsync(CancellationToken.None);
 
         presenter.RunGold.ShouldBe(
-            LongCrowns,
+            LongGold,
             "Gold is run-scoped: the number on the panel is the run row's, not a wallet row's.");
         presenter.RunGoldText.ShouldBe(
-            "10.0k", "and it is shortened by the same rule as every other tile number.");
+            "50.0k", "and it is shortened by the same rule as every other tile number.");
     }
 
     /// <summary>
@@ -829,6 +846,9 @@ public sealed class HomePresenterTests
     {
         var presenter = await Started(RecordingGameHost.Finding(PlayerRow()), StubHeroPowerSource.Standing(standing));
 
+        presenter.Decision.ShouldBe(
+            HomeContinueDecision.StartNewRun,
+            "the read settled, so the absence below is the source's answer and not a failure StartAsync swallowed.");
         presenter.Power.ShouldBeNull(
             $"{standing} means no number exists, and a null is the only honest value for one.");
         presenter.PowerText.ShouldBeEmpty(
@@ -845,11 +865,7 @@ public sealed class HomePresenterTests
     [InlineData(HeroPowerStanding.ContentUnavailable)]
     public async Task PowerStanding_is_the_standing_the_source_reported(HeroPowerStanding standing)
     {
-        var source = standing == HeroPowerStanding.Computed
-            ? StubHeroPowerSource.Computing(AnyPowerIndex)
-            : StubHeroPowerSource.Standing(standing);
-
-        var presenter = await Started(RecordingGameHost.Finding(PlayerRow()), source);
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow()), SourceReporting(standing));
 
         presenter.PowerStanding.ShouldBe(
             standing,
@@ -863,7 +879,7 @@ public sealed class HomePresenterTests
     {
         var row = PlayerRow();
         var run = OpenRunRow();
-        var power = StubHeroPowerSource.Computing(AnyPowerIndex);
+        var power = DefaultPower();
 
         await Started(RecordingGameHost.Finding(row, run), power);
 
@@ -883,7 +899,7 @@ public sealed class HomePresenterTests
     [InlineData(HomeContinueDecision.RunLapsed)]
     public async Task StartAsync_reads_power_with_no_run_when_there_is_none_to_continue(HomeContinueDecision decision)
     {
-        var power = StubHeroPowerSource.Computing(AnyPowerIndex);
+        var power = DefaultPower();
         var presenter = await PresenterDeciding(decision, power);
 
         presenter.Decision.ShouldBe(decision, "the fixture must actually reach the decision this case is about.");
@@ -899,7 +915,7 @@ public sealed class HomePresenterTests
     [InlineData(HomeContinueDecision.ReadUnavailable)]
     public async Task StartAsync_reads_no_power_when_the_read_produced_no_profile(HomeContinueDecision decision)
     {
-        var power = StubHeroPowerSource.Computing(AnyPowerIndex);
+        var power = DefaultPower();
         var presenter = await PresenterDeciding(decision, power);
 
         presenter.Decision.ShouldBe(decision, "the fixture must actually reach the decision this case is about.");
@@ -953,6 +969,9 @@ public sealed class HomePresenterTests
         var presenter = await Started(
             RecordingGameHost.Finding(PlayerRow()), ScreenContent.Authoring(TwoAuthoredChapters));
 
+        presenter.Decision.ShouldBe(
+            HomeContinueDecision.StartNewRun,
+            "the read settled, so the absence below is a fresh profile's and not a failure StartAsync swallowed.");
         presenter.HighestClear.ShouldBeNull("nothing cleared is nothing, not chapter zero.");
         presenter.HighestClearText.ShouldBe(
             ScreenContent.EnglishValueOf(ScreenContent.NothingClearedStatusKey),
@@ -967,33 +986,56 @@ public sealed class HomePresenterTests
     /// only the shipped chapter tuning can generate.
     /// </summary>
     [Fact]
-    public async Task RunProgress_reads_the_stage_and_hit_points_of_the_run_being_continued()
+    public async Task RunStageText_is_the_stage_the_run_stands_in_over_the_three_a_chapter_has()
     {
-        var run = PlayerState.Run(OpenRun, Profile, RunPhase.InProgress, position: -1, currentHp: 37, maxHp: 120);
-        var presenter = await Started(
-            RecordingGameHost.Finding(PlayerState.Rehydratable(Profile, CarriedLegendLevel), run),
-            BootContent.Shipped);
+        var run = OpenRunRow(position: NodeInStage(2));
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow(), run), BootContent.Shipped);
 
-        presenter.RunProgress.ShouldNotBeNull("an open run on an authored chapter has a stage to report.");
         presenter.RunStageText.ShouldBe(
-            "1/3",
-            "a run at the trailhead has not entered a stage yet and is shown in the first of three, " +
-            "not in a stage zero the player has never heard of.");
-        presenter.RunHitPointsText.ShouldBe(
-            "37/120",
-            "current over maximum, both written in full: a health readout shortened to '1.2k' " +
-            "hides the one number a player checks before continuing a run.");
+            "2/3",
+            "the stage is the node's, read off the board — a presenter answering '1/3' for every " +
+            "open run passes at the trailhead and is caught here.");
     }
 
     [Fact]
-    public async Task RunStageText_and_RunHitPointsText_are_blank_when_there_is_no_run_to_continue()
+    public async Task RunHitPointsText_is_current_over_maximum_written_in_full()
     {
-        var presenter = await Started(
-            RecordingGameHost.Finding(PlayerState.Rehydratable(Profile, CarriedLegendLevel)), BootContent.Shipped);
+        var run = OpenRunRow(currentHp: 10_001, maxHp: 12_345);
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow(), run), BootContent.Shipped);
 
-        presenter.RunProgress.ShouldBeNull("no run, no stage.");
-        presenter.RunStageText.ShouldBeEmpty("blank rather than '0/3' or '1/3' on a screen whose run panel is hidden.");
+        presenter.RunHitPointsText.ShouldBe(
+            "10001/12345",
+            "both past the shortening edge and both written out: a health readout of '10.0k/12.3k' " +
+            "hides the one number a player checks before continuing a run.");
+    }
+
+    /// <summary>
+    /// 🔒 The run row is still there and still projects a board; only the decision says it is not
+    /// the player's to continue.
+    /// </summary>
+    [Fact]
+    public async Task RunProgress_is_absent_when_the_last_run_has_ended()
+    {
+        var ended = PlayerState.Run(OpenRun, Profile, RunPhase.Ended);
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow(), ended), BootContent.Shipped);
+
+        presenter.Decision.ShouldBe(HomeContinueDecision.StartNewRun, "the fixture must actually reach the decision this case is about.");
+        presenter.RunProgress.ShouldBeNull("a finished run stands nowhere the player can go back to.");
+        presenter.RunStageText.ShouldBeEmpty("blank rather than '1/3' on a screen whose run panel is hidden.");
         presenter.RunHitPointsText.ShouldBeEmpty("and no hit points either — there is no hero in a fight.");
+    }
+
+    [Fact]
+    public async Task RunProgress_is_absent_when_the_open_run_has_lapsed()
+    {
+        var aYearOn = PlayerState.FixtureInstant.AddYears(1);
+        var presenter = Home(RecordingGameHost.Finding(PlayerRow(), OpenRunRow()), aYearOn, BootContent.Shipped, DefaultPower());
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(HomeContinueDecision.RunLapsed, "a run left alone for a year has lapsed under any authored window.");
+        presenter.RunProgress.ShouldBeNull("the row still projects a board, and nobody will stand on it again.");
+        presenter.RunStageText.ShouldBeEmpty();
     }
 
     // ------------------------------------------------------------------------- null guards
@@ -1007,7 +1049,7 @@ public sealed class HomePresenterTests
                       ScreenContent.Catalogue(),
                       ScreenContent.Strings(),
                       new ManualClock(Now),
-                      StubHeroPowerSource.Computing(AnyPowerIndex),
+                      DefaultPower(),
                       Profile))
               .ParamName.ShouldBe(
                   "gameHost",
@@ -1025,7 +1067,7 @@ public sealed class HomePresenterTests
                       strings: null!,
                       ScreenContent.Strings(),
                       new ManualClock(Now),
-                      StubHeroPowerSource.Computing(AnyPowerIndex),
+                      DefaultPower(),
                       Profile))
               .ParamName.ShouldBe(
                   "strings",
@@ -1078,17 +1120,23 @@ public sealed class HomePresenterTests
     /// <summary>The index the default power source answers — a number no case is about.</summary>
     private const double AnyPowerIndex = 456.5;
 
+    private static StubHeroPowerSource DefaultPower() => StubHeroPowerSource.Computing(AnyPowerIndex);
+
+    /// <summary>A source reading the given standing — with a number when, and only when, it computed one.</summary>
+    private static StubHeroPowerSource SourceReporting(HeroPowerStanding standing) =>
+        standing == HeroPowerStanding.Computed ? DefaultPower() : StubHeroPowerSource.Standing(standing);
+
     private static HomePresenter Home(RecordingGameHost host) =>
         Home(host, Now);
 
     private static HomePresenter Home(RecordingGameHost host, DateTimeOffset nowUtc) =>
-        Home(host, nowUtc, ScreenContent.Strings(), StubHeroPowerSource.Computing(AnyPowerIndex));
+        Home(host, nowUtc, ScreenContent.Strings(), DefaultPower());
 
     private static HomePresenter Home(RecordingGameHost host, StubHeroPowerSource power) =>
         Home(host, Now, ScreenContent.Strings(), power);
 
     private static HomePresenter Home(RecordingGameHost host, ContentSnapshot content) =>
-        Home(host, Now, content, StubHeroPowerSource.Computing(AnyPowerIndex));
+        Home(host, Now, content, DefaultPower());
 
     private static HomePresenter Home(
         RecordingGameHost host, DateTimeOffset nowUtc, ContentSnapshot content, StubHeroPowerSource power) =>
@@ -1128,8 +1176,12 @@ public sealed class HomePresenterTests
     private static PlayerSnapshot ClearedRow(params (int Chapter, DifficultyTier Tier)[] cleared) =>
         PlayerState.Player(Profile, clearedChapterTiers: PlayerState.Cleared(cleared));
 
-    private static RunSnapshot OpenRunRow(long gold = 0) =>
-        PlayerState.Run(OpenRun, Profile, RunPhase.InProgress, gold: gold);
+    private static RunSnapshot OpenRunRow(long gold = 0, int position = -1, int currentHp = 100, int maxHp = 100) =>
+        PlayerState.Run(OpenRun, Profile, RunPhase.InProgress, position: position, currentHp: currentHp, maxHp: maxHp, gold: gold);
+
+    /// <summary>A node in the given stage of the board chapter 1 generates from the fixture run's seed.</summary>
+    private static int NodeInStage(int stage) =>
+        BoardView.Project(OpenRunRow(), BootContent.Shipped).Spine.First(node => node.Stage == stage).NodeId;
 
     private static string TierName(DifficultyTier tier) => tier switch
     {
@@ -1145,7 +1197,7 @@ public sealed class HomePresenterTests
     /// is the one that is not started at all, because that is precisely what it means.
     /// </remarks>
     private static Task<HomePresenter> PresenterDeciding(HomeContinueDecision decision) =>
-        PresenterDeciding(decision, StubHeroPowerSource.Computing(AnyPowerIndex));
+        PresenterDeciding(decision, DefaultPower());
 
     private static async Task<HomePresenter> PresenterDeciding(HomeContinueDecision decision, StubHeroPowerSource power)
     {

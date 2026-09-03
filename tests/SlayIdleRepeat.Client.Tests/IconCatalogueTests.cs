@@ -74,6 +74,15 @@ public sealed class IconCatalogueTests
 
     [Theory]
     [MemberData(nameof(EveryIcon))]
+    public void PathOf_names_a_path_under_the_resource_scheme(HudIcon icon) =>
+        IconCatalogue.PathOf(icon).ShouldStartWith(
+            ResourceScheme,
+            Case.Sensitive,
+            "the scene loads a texture by a res:// path and nothing else; a bare file name is a " +
+            "texture the engine never finds.");
+
+    [Theory]
+    [MemberData(nameof(EveryIcon))]
     public void PathOf_names_a_file_the_checkout_holds(HudIcon icon) =>
         File.Exists(OnDisk(IconCatalogue.PathOf(icon))).ShouldBeTrue(
             $"'{IconCatalogue.PathOf(icon)}' is a path with no file behind it. The engine loads a " +
@@ -137,26 +146,15 @@ public sealed class IconCatalogueTests
             "texture is catalogued — for an icon that IS.");
 
     [Fact]
-    public void All_lists_at_least_the_eight_hud_icons() =>
-        IconCatalogue.All.Count.ShouldBeGreaterThanOrEqualTo(
-            Enum.GetValues<HudIcon>().Length,
-            "eight HUD icons at least, and a later lane's status half on top — never fewer than the " +
-            "HUD alone declares. A list shorter than the enum has dropped one, and the theory above " +
-            "says which.");
-
-    [Fact]
     public void All_holds_no_path_twice() =>
         IconCatalogue.All.ShouldBeUnique(
-            "a path listed twice is two enum members mapped to one file, and one of the two tiles is " +
-            "drawing the other's glyph.");
+            "All is the set of textures the Home scene may load, and a path in it twice is a row that " +
+            "was pasted rather than authored — the copy standing where the icon meant to be added is not.");
 
-    private static string OnDisk(string resourcePath)
-    {
-        resourcePath.ShouldStartWith(
-            ResourceScheme,
-            Case.Sensitive,
-            "every icon path is a res:// path, which is the only kind the scene can load.");
-
-        return Path.Combine(RepoPaths.RepositoryRoot, ClientProject, resourcePath[ResourceScheme.Length..]);
-    }
+    private static string OnDisk(string resourcePath) =>
+        resourcePath.StartsWith(ResourceScheme, StringComparison.Ordinal)
+            ? Path.Combine(RepoPaths.RepositoryRoot, ClientProject, resourcePath[ResourceScheme.Length..])
+            : throw new ArgumentException(
+                $"'{resourcePath}' is not a res:// path, so there is no place on disk to look for it.",
+                nameof(resourcePath));
 }

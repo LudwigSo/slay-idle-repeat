@@ -84,6 +84,26 @@ public sealed class HeroPowerReadoutTests
     }
 
     /// <summary>
+    /// 🔒 Inside a run the hero wears what the run froze at its start, not what the profile wears
+    /// now. The fixture run froze an empty loadout; the blade went on afterwards.
+    /// </summary>
+    [Fact]
+    public void Read_composes_a_hero_inside_a_run_over_the_loadout_the_run_froze()
+    {
+        var armed = WearingABlade(PlayerState.Rehydratable(Profile, legendLevel: 40));
+        var bareHandedRun = PlayerState.Run(new RunId("RUN_power_3c88"), Profile, RunPhase.InProgress);
+
+        var betweenRuns = Readout().Read(armed, run: null).PowerIndex.ShouldNotBeNull();
+        var insideRun = Readout().Read(armed, bareHandedRun).PowerIndex.ShouldNotBeNull();
+
+        insideRun.ShouldBeLessThan(
+            betweenRuns,
+            "the run's own loadout holds no weapon, so the hero fighting it has none. A readout " +
+            "handed a run and composing over the profile's loadout anyway reports one number for " +
+            "both, and the tile flatters a hero mid-run.");
+    }
+
+    /// <summary>
     /// The shipped content set with the power model taken out — every other document intact, so the
     /// hero still composes and the failure is the calculator's read and nothing earlier.
     /// </summary>

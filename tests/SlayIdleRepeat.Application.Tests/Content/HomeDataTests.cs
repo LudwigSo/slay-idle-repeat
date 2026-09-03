@@ -115,10 +115,9 @@ public sealed class HomeDataTests
     }
 
     /// <summary>
-    /// 🔒 The captions the HUD borrows from elsewhere, named under the home document's own
-    /// <c>label</c> member. The orphan rule cannot catch these: each key is already named by the
-    /// document that owns it, so a home document that dropped one still loads — and the presenter
-    /// reading <c>label/crowns</c> would find nothing.
+    /// 🔒 The captions the HUD borrows from other screens' documents, declared under the home
+    /// document's own <c>label</c> member. The orphan rule cannot miss them — each key is named by
+    /// the document that owns it — so this is the only place Home's dependence on them is stated.
     /// </summary>
     [Theory]
     [InlineData("crowns", "loc.currency.crowns.name")]
@@ -133,9 +132,10 @@ public sealed class HomeDataTests
 
         snapshot.ReadText($"{HomeDocument}#/label/{member}").ShouldBe(
             key,
-            $"the HUD's '{member}' tile is captioned with a string another document already owns, " +
-            "and the home document has to say WHICH one: a caption authored twice under two keys is " +
-            "translated twice and drifts on the first edit to either.");
+            $"the HUD's '{member}' tile is captioned with a string another document owns, and the " +
+            "home document is where Home declares that it depends on it: retire or rename the key and " +
+            "this reference fails the content load, where the presenter's literal key would render " +
+            "as itself on the screen instead.");
     }
 
     /// <summary>
