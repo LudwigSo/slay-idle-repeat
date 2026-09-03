@@ -399,7 +399,7 @@ public partial class BattleReplay : Node3D
         new(
             SwingSeconds, SwingReach, RecoilSeconds, RecoilDistance, DodgeSeconds, DodgeSideStep,
             BraceSeconds, BraceSquash, FallSeconds, FallTipDegrees, FallSink, EnterSeconds,
-            PoseHoldSeconds, ReducedMotionSeconds);
+            PoseHoldSeconds);
 
     /// <remarks>
     /// Nothing awaits this task, so its exceptions have nowhere to surface: the whole body is
@@ -1086,28 +1086,35 @@ public partial class BattleReplay : Node3D
 
     /// <remarks>
     /// A skipped fight emits none of the instructions it skipped, so the bars are re-read rather than
-    /// walked and every actor the end leaves at nothing is laid down at once. Where the bars are read
-    /// to is the presenter's answer, so a fight watched to its end and one skipped to it cannot land
-    /// on two different numbers.
+    /// walked, every actor the end leaves at nothing is laid down at once, and every other actor is
+    /// stood on the stage — a summon whose Enter was skipped past included, or it would stay off the
+    /// stage while a summon that died lies on it. Where the bars are read to is the presenter's
+    /// answer, so a fight watched to its end and one skipped to it cannot land on two different
+    /// numbers.
     /// </remarks>
     private void AnchorToEnd(BattleReplayPresenter presenter)
     {
-        for (var index = 0; index < _views.Count; index++)
+        foreach (var actor in presenter.Actors)
         {
-            var view = _views[index];
-
-            if (presenter.HealthOf(view.ActorId) is not { } ending)
+            if (presenter.HealthOf(actor.ActorId) is not { } ending)
             {
                 continue;
             }
 
-            view.Current = ending;
-            view.Dirty = true;
+            if (_viewBySlot.TryGetValue(actor.ActorId, out var view))
+            {
+                view.Current = ending;
+                view.Dirty = true;
+            }
 
             if (ending <= 0d)
             {
-                _choreography?.SnapFallen(view.ActorId);
-                Fell(view.ActorId);
+                _choreography?.SnapFallen(actor.ActorId);
+                Fell(actor.ActorId);
+            }
+            else
+            {
+                _choreography?.SnapPresent(actor.ActorId);
             }
         }
     }

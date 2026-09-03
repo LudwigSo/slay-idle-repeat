@@ -14,7 +14,6 @@ namespace SlayIdleRepeat.Client.Game.Presenters;
 /// <param name="FallSink">How far a fallen actor has sunk once it has landed.</param>
 /// <param name="EnterSeconds">How long an entering actor takes to grow to full size.</param>
 /// <param name="PoseHoldSeconds">How long a wind-up pulses when its cue states no seconds.</param>
-/// <param name="ReducedMotionSeconds">The scene's own duration for what it still animates under reduced motion.</param>
 public sealed record BattleMotionTimings(
     double SwingSeconds,
     double SwingReach,
@@ -28,8 +27,7 @@ public sealed record BattleMotionTimings(
     double FallTipDegrees,
     double FallSink,
     double EnterSeconds,
-    double PoseHoldSeconds,
-    double ReducedMotionSeconds);
+    double PoseHoldSeconds);
 
 /// <summary>How one actor is drawn this frame, relative to where the layout stands it.</summary>
 /// <param name="Advance">Displacement toward <paramref name="Toward"/>; negative is away from it.</param>
@@ -191,6 +189,23 @@ public sealed class BattleChoreography
 
         actor.Motion = ReplayMotion.None;
         actor.Present = false;
+    }
+
+    /// <summary>
+    /// Puts an actor on the stage at full size at once, with no grow-in. An actor already there is
+    /// left as it is, in flight or fallen alike.
+    /// </summary>
+    public void SnapPresent(byte actorId)
+    {
+        var actor = StateOf(actorId);
+
+        if (actor.Present)
+        {
+            return;
+        }
+
+        actor.Motion = ReplayMotion.None;
+        actor.Present = true;
     }
 
     private ActorPose PoseInFlight(ActorState actor)

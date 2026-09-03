@@ -18,7 +18,7 @@ public sealed class BattleChoreographyTests
         DodgeSeconds: 0.3, DodgeSideStep: 0.7,
         BraceSeconds: 0.5, BraceSquash: 0.2,
         FallSeconds: 1.0, FallTipDegrees: 70, FallSink: 0.4,
-        EnterSeconds: 0.6, PoseHoldSeconds: 0.9, ReducedMotionSeconds: 0.05);
+        EnterSeconds: 0.6, PoseHoldSeconds: 0.9);
 
     [Fact]
     public void PoseOf_an_actor_nothing_has_moved_is_standing_at_rest()
@@ -341,6 +341,51 @@ public sealed class BattleChoreographyTests
 
         pose.Present.ShouldBeTrue();
         pose.Scale.ShouldBe(1d, 1e-9);
+    }
+
+    [Fact]
+    public void SnapPresent_brings_an_absent_actor_on_stage_at_full_size_at_once()
+    {
+        var choreography = new BattleChoreography(Timings);
+
+        choreography.SnapAbsent(Summon);
+        choreography.SnapPresent(Summon);
+
+        choreography.PoseOf(Summon).ShouldBe(Rest, "no grow-in: the summon stands at full size straight away.");
+        choreography.InProgress.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void SnapPresent_leaves_a_fallen_actor_lying_there()
+    {
+        var choreography = new BattleChoreography(Timings);
+
+        choreography.SnapAbsent(Summon);
+        choreography.SnapFallen(Summon);
+        choreography.SnapPresent(Summon);
+
+        var pose = choreography.PoseOf(Summon);
+
+        pose.Fallen.ShouldBeTrue("standing an actor up is not the same as raising the dead.");
+        pose.Present.ShouldBeTrue();
+        pose.TipDegrees.ShouldBe(Timings.FallTipDegrees, 1e-9);
+        pose.Sink.ShouldBe(Timings.FallSink, 1e-9);
+    }
+
+    [Fact]
+    public void SnapPresent_on_a_present_actor_changes_nothing()
+    {
+        var choreography = new BattleChoreography(Timings);
+
+        choreography.Play(Cue(Hero, ReplayMotion.Swing, Enemy));
+        choreography.Advance(Timings.SwingSeconds / 2);
+        var before = choreography.PoseOf(Hero);
+
+        choreography.SnapPresent(Hero);
+
+        before.Advance.ShouldBeGreaterThan(0d, "the swing is still in flight, so there is something to lose.");
+        ShouldMatch(choreography.PoseOf(Hero), before);
+        choreography.InProgress.ShouldBeTrue();
     }
 
     private static readonly ActorPose Rest = new(
