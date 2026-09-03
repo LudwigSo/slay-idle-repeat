@@ -451,7 +451,7 @@ public partial class Home : Node3D
     {
         Write(_displayNameLabel, presenter.DisplayName);
         Write(_legendLevelLabel, presenter.LegendLevelLabel);
-        Write(_legendLevelValue, presenter.LegendLevel.ToString(CultureInfo.InvariantCulture));
+        Write(_legendLevelValue, presenter.LegendLevelText);
     }
 
     /// <remarks>
@@ -477,7 +477,7 @@ public partial class Home : Node3D
 
     private void RenderRunPanel(HomePresenter presenter)
     {
-        Write(_runChapterValue, presenter.RunProgress?.ChapterName ?? "");
+        Write(_runChapterValue, presenter.RunChapterText);
         Write(_stageLabel, presenter.StageLabel);
         Write(_runStageValue, presenter.RunStageText);
         Write(_runHitPointsValue, presenter.RunHitPointsText);

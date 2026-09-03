@@ -246,6 +246,9 @@ public sealed class HomePresenter
     /// <summary><see cref="Energy"/> as a player reads it.</summary>
     public string EnergyText => Number(Energy);
 
+    /// <summary><see cref="LegendLevel"/> as a player reads it — always in full, since a level is never shortened.</summary>
+    public string LegendLevelText => PlayerNumber.Full(LegendLevel);
+
     /// <summary><see cref="EnergyReserve"/> as a player reads it.</summary>
     public string EnergyReserveText => Number(EnergyReserve);
 
@@ -266,6 +269,9 @@ public sealed class HomePresenter
     public string HighestClearText => HighestClear is { } clear
         ? $"{clear.ChapterName} · {TierName(clear.Tier)}"
         : _strings.Resolve(NothingClearedStatusKey);
+
+    /// <summary>The name of the chapter the run being continued is in, or blank when there is no run.</summary>
+    public string RunChapterText => RunProgress is { } progress ? progress.ChapterName : NoValue;
 
     /// <summary>The stage the run stands in over the stages a chapter has, or blank when there is no run.</summary>
     public string RunStageText => RunProgress is { } progress
