@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/home.schema.json",
   "title": "content/home/home.json",
-  "description": "M7-04 — the loc keys the Home screen (S03) renders. What is fixed here is that the screen shows a Legend Level label, an Energy label, an Energy Reserve label, one primary action caption per run decision, and one status line per state the screen can be in while it has nothing to act on — and that every one of them is a key rather than a literal (X-04). Every value is a loc key, so ContentInvariants.CheckLocaleKeyReferences resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed: there is no member for an Energy maximum, a regeneration countdown, a Legend-XP percentage or a run Energy cost, because those are functions of tuning that only Core can evaluate and a slot here would invite a second copy of the formula.",
+  "description": "M7-04 — the loc keys the Home screen (S03) renders. What is fixed here is that the screen shows a Legend Level label, an Energy label, an Energy Reserve label, the HUD tiles' captions (Crowns, Soul Shards, Gold, Power, Progress, Stage, and the three tier names the progress tile spells a clear with), one primary action caption per run decision, one status line per state the screen can be in while it has nothing to act on, and the line a progress tile shows before anything is cleared — and that every one of them is a key rather than a literal (X-04). The currency and tier captions are keys other documents own; they are named here as well so that Home's dependence on them is a reference the loader checks rather than a literal in a presenter. Every value is a loc key, so ContentInvariants.CheckLocaleKeyReferences resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed: there is no member for an Energy maximum, a regeneration countdown, a Legend-XP percentage or a run Energy cost, because those are functions of tuning that only Core can evaluate and a slot here would invite a second copy of the formula.",
   "type": "object",
   "additionalProperties": false,
   "required": ["$schema", "_doc", "label", "action", "status"],
@@ -17,14 +17,28 @@
     "$schema": { "type": "string" },
     "_doc": { "type": "string", "minLength": 1 },
     "label": {
-      "description": "The captions beside the header values the player snapshot carries. Energy and Energy Reserve are two separate banks and are labelled separately: one caption over both would read as a single pool, which is not what the state says.",
+      "description": "The captions beside the header values the player snapshot carries, and the HUD tiles' captions. Energy and Energy Reserve are two separate banks and are labelled separately: one caption over both would read as a single pool, which is not what the state says. crowns, soulShards and gold name the currency names, and tierNormal, tierHeroic and tierMythic name Chapter Select's tier names: keys those documents own, declared here because the HUD renders them and a dependency the loader cannot see is one a retired key breaks silently.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["legendLevel", "energy", "energyReserve"],
+      "required": [
+        "legendLevel", "energy", "energyReserve",
+        "crowns", "soulShards", "gold",
+        "power", "progress", "stage",
+        "tierNormal", "tierHeroic", "tierMythic"
+      ],
       "properties": {
         "legendLevel": { "$ref": "#/$defs/locKey" },
         "energy": { "$ref": "#/$defs/locKey" },
-        "energyReserve": { "$ref": "#/$defs/locKey" }
+        "energyReserve": { "$ref": "#/$defs/locKey" },
+        "crowns": { "$ref": "#/$defs/locKey" },
+        "soulShards": { "$ref": "#/$defs/locKey" },
+        "gold": { "$ref": "#/$defs/locKey" },
+        "power": { "$ref": "#/$defs/locKey" },
+        "progress": { "$ref": "#/$defs/locKey" },
+        "stage": { "$ref": "#/$defs/locKey" },
+        "tierNormal": { "$ref": "#/$defs/locKey" },
+        "tierHeroic": { "$ref": "#/$defs/locKey" },
+        "tierMythic": { "$ref": "#/$defs/locKey" }
       }
     },
     "action": {
@@ -39,14 +53,15 @@
       }
     },
     "status": {
-      "description": "The line shown while the screen has no decision to offer. Two: the read has not answered yet, and the read said there is no such profile. The CAUSE beyond that is carried in code as a named state so it can be logged and told apart, while what a player is shown stays one honest sentence.",
+      "description": "The line shown while the screen has no decision to offer — the read has not answered yet, the read said there is no such profile, the run the player left has lapsed — and the one line a tile shows in place of a value: nothingCleared is what the progress tile says on a profile that has cleared no chapter. The CAUSE beyond that is carried in code as a named state so it can be logged and told apart, while what a player is shown stays one honest sentence.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["loading", "unavailable", "runLapsed"],
+      "required": ["loading", "unavailable", "runLapsed", "nothingCleared"],
       "properties": {
         "loading": { "$ref": "#/$defs/locKey" },
         "runLapsed": { "$ref": "#/$defs/locKey" },
-        "unavailable": { "$ref": "#/$defs/locKey" }
+        "unavailable": { "$ref": "#/$defs/locKey" },
+        "nothingCleared": { "$ref": "#/$defs/locKey" }
       }
     }
   }
