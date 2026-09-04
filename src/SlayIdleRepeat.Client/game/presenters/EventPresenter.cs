@@ -184,6 +184,9 @@ public sealed class EventPresenter
     /// <summary>What separates a price's amount from the currency it is charged in.</summary>
     private const string AmountAndCurrency = " ";
 
+    /// <summary>What a signed result row puts in front of a movement that added something.</summary>
+    private const string Gained = "+";
+
     /// <summary>The tile kind an event is, as the run reports it.</summary>
     /// <remarks>
     /// 🔒 Read off the rules layer's own enum and NOT transcribed: the numbering is public, so a
@@ -262,6 +265,18 @@ public sealed class EventPresenter
     /// <summary>What the resolved choice moved, signed. Empty when nothing observable happened.</summary>
     public IReadOnlyList<EventResultLine> ResultLines { get; private set; } = [];
 
+    /// <summary>
+    /// Whether the result rows are showing their exact values rather than their shortened ones.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The state lives here rather than in the scene, because "which form is on the page" is the
+    /// half of this rule that can be proven. The gesture that sets it is the scene's — a long press is
+    /// an engine event — but what a long press MEANS to a number is decided where a test can read it,
+    /// and a screen that shortened what a card paid with no way back to the exact figure would be
+    /// rounding the only record of what the choice cost.
+    /// </remarks>
+    public bool FullValuesRevealed { get; private set; }
+
     /// <summary>The screen's heading, resolved.</summary>
     public string Title => _strings.Resolve(TitleNameKey);
 
@@ -311,6 +326,22 @@ public sealed class EventPresenter
     public string RejectionText => HostFaulted
         ? _strings.Resolve(HostUnavailableStatusKey)
         : RulesRejection is null ? NothingLeftToSay : _strings.Resolve(RefusedStatusKey);
+
+    /// <summary>One movement as a player reads it: signed, and shortened unless it is being held.</summary>
+    /// <remarks>
+    /// 🔒 The sign is the row's whole meaning: a card that takes forty Gold and one that gives forty
+    /// read identically without it, and both are outcomes the same option can have. A negative number
+    /// prints its own sign, so only the positive case needs one written.
+    /// </remarks>
+    /// <param name="delta">What the row moved.</param>
+    public string DeltaText(long delta) =>
+        delta > 0 ? Gained + Readout(delta) : Readout(delta);
+
+    /// <summary>Shows the exact value of every result row — a long press is holding one.</summary>
+    public void RevealFullValues() => FullValuesRevealed = true;
+
+    /// <summary>And puts the shortened form back, which is what the press ending means.</summary>
+    public void ConcealFullValues() => FullValuesRevealed = false;
 
     /// <summary>Reads the run, and draws the card itself when the tile has none.</summary>
     /// <param name="ct">Cancellation.</param>
@@ -535,6 +566,10 @@ public sealed class EventPresenter
             Stage = EventStage.CardUnavailable;
         }
     }
+
+    /// <summary>Whichever form of a number this screen is currently showing.</summary>
+    private string Readout(long value) =>
+        FullValuesRevealed ? PlayerNumber.Full(value) : PlayerNumber.Abbreviated(value);
 
     /// <summary>Drops the card, so no arm can draw prose or options belonging to another state.</summary>
     private void Forget()

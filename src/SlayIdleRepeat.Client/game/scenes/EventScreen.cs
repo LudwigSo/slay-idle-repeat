@@ -35,9 +35,12 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// replace the sentence naming the price with one naming nothing.
 /// </para>
 /// <para>
-/// ⚠️ Every type size, colour, corner and outline in <c>EventScreen.tscn</c> and
-/// <c>EventOptionCard.tscn</c> is a per-node override, because the shared theme resource does not
-/// exist yet — the same interim <c>Campfire.tscn</c> is in, to be re-checked rather than re-applied.
+/// ⚠️ <b>The screen's chrome names <c>SlayTheme.tres</c>; the card's own prose does not.</b> The
+/// title and the continue action are the theme's <c>HudTitle</c> and <c>PrimaryButton</c>, and the
+/// result panel is its <c>HudTile</c>, because the theme carries those exactly. The card's title,
+/// body, status and rejection sizes stay per-node overrides: the theme is a HUD vocabulary, it holds
+/// no entry for a body of authored prose, and a variation invented here that no other screen uses
+/// would be worse than the override it replaced.
 /// </para>
 /// <para>
 /// 🔴 <b>A read that could not answer has nowhere to send the player</b>, exactly as on the campfire:
@@ -56,10 +59,22 @@ public partial class EventScreen : Node3D
     /// <summary>Where the per-option card lives, instantiated once per option the card offers.</summary>
     private const string OptionCardScenePath = "res://game/scenes/EventOptionCard.tscn";
 
+    /// <summary>And where one line of the result panel lives, instantiated once per movement.</summary>
+    /// <remarks>
+    /// 🔒 A scene rather than a <c>Label</c> built here. A row is a caption and a number that have to
+    /// line up down a column and be drawn in two different weights, which one label holding both and
+    /// two spaces between them cannot do — and every size in it is then written where the rest of
+    /// this screen's sizes are written.
+    /// </remarks>
+    private const string ResultRowScenePath = "res://game/scenes/EventResultRow.tscn";
+
     private const string OptionLabelPath = "Body/Column/OptionLabel";
     private const string OptionCostLabelPath = "Body/Column/CostLabel";
     private const string OptionBlockLabelPath = "Body/Column/BlockLabel";
     private const string OptionPressButtonPath = "PressButton";
+
+    private const string RowCaptionLabelPath = "CaptionLabel";
+    private const string RowValueLabelPath = "ValueLabel";
 
     private const string SafeAreaPath = "%SafeArea";
     private const string TitleLabelPath = "%TitleLabel";
@@ -67,6 +82,10 @@ public partial class EventScreen : Node3D
     private const string CardBodyPath = "%CardBody";
     private const string OptionColumnPath = "%OptionColumn";
     private const string ResultPanelPath = "%ResultPanel";
+    private const string ResultHeadingPath = "%ResultHeading";
+    private const string RunRowsPath = "%RunRows";
+    private const string WalletHeadingPath = "%WalletHeading";
+    private const string WalletRowsPath = "%WalletRows";
     private const string StatusLabelPath = "%StatusLabel";
     private const string RejectionLabelPath = "%RejectionLabel";
     private const string ContinueButtonPath = "%ContinueButton";
@@ -74,28 +93,33 @@ public partial class EventScreen : Node3D
     /// <summary>The panel entry an option card's whole face — fill, outline, corners, shadow — takes.</summary>
     private const string PanelStyleOverride = "panel";
 
-    /// <summary>The theme entry a label's own text colour is written into.</summary>
-    private const string FontColourOverride = "font_color";
-
-    /// <summary>And the one its own type size goes into.</summary>
+    /// <summary>
+    /// How long a number has to be held before its exact value replaces its shortened one.
+    /// </summary>
     /// <remarks>
-    /// A control built in code inherits the engine's default face, which is caption-sized on a
-    /// canvas this wide — the same override every sibling screen sets on a row it builds itself.
+    /// The same length <c>PerkDraft</c> and <c>Home</c> read a hold at, and for the same reason: long
+    /// enough that a tap is never read as a hold, short enough that a player who wants the exact
+    /// figure is not made to wait for it.
     /// </remarks>
-    private const string FontSizeOverride = "font_size";
+    private const double LongPressSeconds = 0.4;
 
-    /// <summary>What a result row and its group heading are drawn at.</summary>
-    private const int ResultTextSize = 44;
-
-    /// <summary>What a signed result row puts in front of a movement that added something.</summary>
-    /// <remarks>
-    /// 🔒 The sign is the row's whole meaning: a card that takes forty Gold and one that gives forty
-    /// read identically without it, and both are outcomes the same option can have. A negative number
-    /// prints its own sign, so only the positive case needs one written.
-    /// </remarks>
-    private const string Gained = "+";
-
+    /// <summary>What separates a price's caption from the price itself.</summary>
     private const string RowCaptionAndValue = "  ";
+
+    /// <summary>
+    /// The outline an option that cannot be taken is drawn with, against eight for one that can.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The second channel, so "cannot be taken" is never read off colour alone.</b> An
+    /// unaffordable card is thinner in the frame and flat on the page as well as darker in the face,
+    /// and it carries the sentence naming the price in words — frame weight, depth and wording, none
+    /// of which a colour-blind player has to separate by hue. Colour alone would be exactly the
+    /// signalling this game's accessibility rule refuses.
+    /// </remarks>
+    private const int UnavailableOutlineWidth = 4;
+
+    /// <summary>And what its lift off the page is taken down to — nothing.</summary>
+    private const int UnavailableShadowSize = 0;
 
     /// <summary>A control with something to do.</summary>
     private static readonly Color LiveColour = new(0.93f, 0.93f, 0.96f);
@@ -114,12 +138,6 @@ public partial class EventScreen : Node3D
     /// <summary>The outline that goes with it, which is what still reads the card as a card.</summary>
     private static readonly Color UnavailableOutlineColour = new(0.26f, 0.27f, 0.33f);
 
-    /// <summary>What a result row's caption is drawn in.</summary>
-    private static readonly Color ResultCaptionColour = new(0.66f, 0.67f, 0.73f);
-
-    /// <summary>And its number, which is the part the eye is looking for.</summary>
-    private static readonly Color ResultValueColour = new(0.93f, 0.93f, 0.96f);
-
     private EventPresenter? _presenter;
     private Board? _board;
     private CancellationToken _lifetime;
@@ -128,7 +146,11 @@ public partial class EventScreen : Node3D
     private Label? _cardTitle;
     private Label? _cardBody;
     private VBoxContainer? _optionColumn;
-    private VBoxContainer? _resultPanel;
+    private PanelContainer? _resultPanel;
+    private Label? _resultHeading;
+    private VBoxContainer? _runRows;
+    private Label? _walletHeading;
+    private VBoxContainer? _walletRows;
     private Label? _statusLabel;
     private Label? _rejectionLabel;
     private Button? _continueButton;
@@ -151,8 +173,23 @@ public partial class EventScreen : Node3D
     /// <summary>The result list the panel was last built from, by reference. Same reason.</summary>
     private IReadOnlyList<EventResultLine>? _drawnResultFrom;
 
+    /// <summary>
+    /// Each drawn result row's number, with the movement it is written from. Held because the same
+    /// row is written twice — shortened, and exact while a finger is on it — off one build.
+    /// </summary>
+    private readonly List<(Label Value, long Delta)> _resultValues = [];
+
     /// <summary>Whether a submission is in flight, so a second press cannot start another.</summary>
     private bool _busy;
+
+    /// <summary>Whether one of the result numbers is being held right now.</summary>
+    /// <remarks>
+    /// 🔒 Read by the hold timer when it elapses, and cleared on teardown and on a rebuild as well as
+    /// on release. A timer created by the tree outlives the node that asked for it, so this flag is
+    /// what stops a hold started just before the screen closed from reaching a presenter nobody is
+    /// looking at.
+    /// </remarks>
+    private bool _holdingANumber;
 
     /// <summary>Takes the presenter, the board to hand back to, and the app's shutdown token.</summary>
     /// <param name="presenter">Drives this screen.</param>
@@ -178,7 +215,11 @@ public partial class EventScreen : Node3D
         _cardTitle = GetNode<Label>(CardTitlePath);
         _cardBody = GetNode<Label>(CardBodyPath);
         _optionColumn = GetNode<VBoxContainer>(OptionColumnPath);
-        _resultPanel = GetNode<VBoxContainer>(ResultPanelPath);
+        _resultPanel = GetNode<PanelContainer>(ResultPanelPath);
+        _resultHeading = GetNode<Label>(ResultHeadingPath);
+        _runRows = GetNode<VBoxContainer>(RunRowsPath);
+        _walletHeading = GetNode<Label>(WalletHeadingPath);
+        _walletRows = GetNode<VBoxContainer>(WalletRowsPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
         _rejectionLabel = GetNode<Label>(RejectionLabelPath);
         _continueButton = GetNode<Button>(ContinueButtonPath);
@@ -217,6 +258,10 @@ public partial class EventScreen : Node3D
         {
             button.Pressed -= OnContinuePressed;
         }
+
+        // Cleared here as well as on release: a hold timer already running belongs to the tree and
+        // fires whether this screen is still there or not.
+        _holdingANumber = false;
     }
 
     /// <remarks>
@@ -260,7 +305,8 @@ public partial class EventScreen : Node3D
         // Every node this writes to is checked, not just the one.
         if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
             _titleLabel is null || _cardTitle is null || _cardBody is null ||
-            _optionColumn is null || _resultPanel is null ||
+            _optionColumn is null || _resultPanel is null || _resultHeading is null ||
+            _runRows is null || _walletHeading is null || _walletRows is null ||
             _statusLabel is null || _rejectionLabel is null || _continueButton is null)
         {
             return;
@@ -403,13 +449,20 @@ public partial class EventScreen : Node3D
         return card;
     }
 
-    /// <summary>Draws a card that cannot be pressed down into the ground, face and outline only.</summary>
+    /// <summary>Draws a card that cannot be pressed down into the ground and flat against it.</summary>
     /// <remarks>
+    /// <para>
     /// 🔒 Duplicated off the card's OWN authored face rather than built here, so an unpressable card
-    /// differs from its sibling in exactly two properties and every other number describing a card
-    /// stays written down in the scene. Reversible, because every reason a card cannot be pressed
-    /// drives it — an unaffordable price for the life of the screen, and a command in flight for a
-    /// moment.
+    /// differs from its sibling in four properties and every other number describing a card stays
+    /// written down in the scene. Reversible, because every reason a card cannot be pressed drives
+    /// it — an unaffordable price for the life of the screen, and a command in flight for a moment.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>Two of the four are not colour.</b> The frame thins and the lift goes, so the card that
+    /// cannot be taken differs from the one that can in weight and in depth as well as in hue — and
+    /// the sentence naming the price is on the card besides. An option marked by hue alone is the one
+    /// thing this game's colour rule names outright.
+    /// </para>
     /// </remarks>
     private static void DrawFace(PanelContainer card, bool pressable)
     {
@@ -433,6 +486,8 @@ public partial class EventScreen : Node3D
 
         dimmed.BgColor = UnavailableFaceColour;
         dimmed.BorderColor = UnavailableOutlineColour;
+        dimmed.SetBorderWidthAll(UnavailableOutlineWidth);
+        dimmed.ShadowSize = UnavailableShadowSize;
 
         card.AddThemeStyleboxOverride(PanelStyleOverride, dimmed);
     }
@@ -445,90 +500,162 @@ public partial class EventScreen : Node3D
     /// </remarks>
     private void RenderResult(EventPresenter presenter)
     {
-        if (_resultPanel is not { } panel)
+        if (_resultPanel is not { } panel || _resultHeading is not { } heading ||
+            _runRows is not { } runRows || _walletHeading is not { } walletHeading ||
+            _walletRows is not { } walletRows)
         {
             return;
         }
 
         panel.Visible = presenter.ResultLines.Count > 0;
+        heading.Text = presenter.ResultLabel;
+        walletHeading.Text = presenter.WalletLabel;
 
-        if (ReferenceEquals(_drawnResultFrom, presenter.ResultLines))
+        if (!ReferenceEquals(_drawnResultFrom, presenter.ResultLines))
         {
-            return;
+            _drawnResultFrom = presenter.ResultLines;
+
+            BuildResult(presenter, runRows, walletHeading, walletRows);
         }
 
-        _drawnResultFrom = presenter.ResultLines;
+        // Written every render rather than once at build time: which form a number is in is the
+        // presenter's answer to whether a finger is on it, and that comes and goes while the rows stay.
+        foreach (var (value, delta) in _resultValues)
+        {
+            if (IsInstanceValid(value))
+            {
+                value.Text = presenter.DeltaText(delta);
+            }
+        }
+    }
 
-        Clear(panel);
+    /// <summary>Fills the two row lists from the movements, and hides the wallet half if it is empty.</summary>
+    private void BuildResult(
+        EventPresenter presenter, VBoxContainer runRows, Label walletHeading, VBoxContainer walletRows)
+    {
+        // A hold whose row is about to be freed can never send its release, so the reveal it asked
+        // for would stay on a number nobody is touching.
+        _holdingANumber = false;
+        presenter.ConcealFullValues();
+
+        _resultValues.Clear();
+        Clear(runRows);
+        Clear(walletRows);
+
+        walletHeading.Visible = false;
 
         if (presenter.ResultLines.Count == 0)
         {
             return;
         }
 
-        panel.AddChild(Heading(presenter.ResultLabel));
+        var rowScene = GD.Load<PackedScene>(ResultRowScenePath);
+
+        if (rowScene is null)
+        {
+            // Load answers null rather than throwing when the resource is missing or its import
+            // cannot be read, so an unnamed null reference is all a caller gets unless it says so.
+            GD.PushError($"The event result row could not be loaded from '{ResultRowScenePath}'.");
+
+            return;
+        }
 
         foreach (var line in presenter.ResultLines)
         {
             if (line.FromWallet)
             {
-                continue;
+                walletHeading.Visible = true;
+                walletRows.AddChild(Row(rowScene, line));
             }
-
-            panel.AddChild(Row(line));
-        }
-
-        var wallet = false;
-
-        foreach (var line in presenter.ResultLines)
-        {
-            if (!line.FromWallet)
+            else
             {
-                continue;
+                runRows.AddChild(Row(rowScene, line));
             }
-
-            if (!wallet)
-            {
-                panel.AddChild(Heading(presenter.WalletLabel));
-                wallet = true;
-            }
-
-            panel.AddChild(Row(line));
         }
-    }
-
-    /// <summary>One heading of the result panel.</summary>
-    private static Label Heading(string text)
-    {
-        var heading = new Label
-        {
-            Text = text,
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-        };
-
-        heading.AddThemeColorOverride(FontColourOverride, ResultCaptionColour);
-        heading.AddThemeFontSizeOverride(FontSizeOverride, ResultTextSize);
-
-        return heading;
     }
 
     /// <summary>One row of the result panel: a caption, and the signed number beside it.</summary>
-    private static Label Row(EventResultLine line)
+    private HBoxContainer Row(PackedScene rowScene, EventResultLine line)
     {
-        var value = line.Delta > 0
-            ? Gained + PlayerNumber.Abbreviated(line.Delta)
-            : PlayerNumber.Abbreviated(line.Delta);
+        var row = rowScene.Instantiate<HBoxContainer>();
 
-        var row = new Label
-        {
-            Text = line.Label + RowCaptionAndValue + value,
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-        };
+        row.GetNode<Label>(RowCaptionLabelPath).Text = line.Label;
 
-        row.AddThemeColorOverride(FontColourOverride, ResultValueColour);
-        row.AddThemeFontSizeOverride(FontSizeOverride, ResultTextSize);
+        var value = row.GetNode<Label>(RowValueLabelPath);
+
+        // The exact figure is what a hold on this number asks for, so the number is where the
+        // gesture is read. The handler dies with the row it is on, exactly as an option's press does.
+        value.GuiInput += OnValueInput;
+
+        _resultValues.Add((value, line.Delta));
 
         return row;
+    }
+
+    /// <summary>
+    /// A number held down shows its exact value; letting go puts the shortened one back.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Only the gesture is here. Which form each number takes is the presenter's answer, so what
+    /// this file decides is the single fact an engine event carries — whether the finger is down —
+    /// and nothing about how a number is written.
+    /// </remarks>
+    /// <param name="event">The input one of the result numbers received.</param>
+    private void OnValueInput(InputEvent @event)
+    {
+        switch (@event)
+        {
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left } mouse:
+                HoldNumber(mouse.Pressed);
+                break;
+
+            case InputEventScreenTouch touch:
+                HoldNumber(touch.Pressed);
+                break;
+        }
+    }
+
+    private void HoldNumber(bool pressed)
+    {
+        _holdingANumber = pressed;
+
+        if (!pressed)
+        {
+            _presenter?.ConcealFullValues();
+            Render();
+
+            return;
+        }
+
+        // The tree's timer rather than a node of this screen's own: it is one shot, it is created on
+        // the press and it is gone after it, so a timer node would be a permanent child kept for a
+        // gesture most players never make.
+        var hold = GetTree()?.CreateTimer(LongPressSeconds);
+
+        if (hold is null)
+        {
+            GD.PushError("An event result number was held while the screen was outside the tree.");
+
+            return;
+        }
+
+        hold.Timeout += OnHoldElapsed;
+    }
+
+    /// <remarks>
+    /// The flag is read FIRST, and it is cleared on teardown and on a rebuild as well as on release:
+    /// this timer belongs to the tree and fires whether or not the screen that asked for it is still
+    /// there.
+    /// </remarks>
+    private void OnHoldElapsed()
+    {
+        if (!_holdingANumber || !IsInstanceValid(this) || _presenter is not { } presenter)
+        {
+            return;
+        }
+
+        presenter.RevealFullValues();
+        Render();
     }
 
     /// <summary>Empties a container now, rather than at the end of the frame.</summary>
