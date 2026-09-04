@@ -1,4 +1,4 @@
-﻿using SlayIdleRepeat.Application.Ports.Client;
+using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
@@ -681,11 +681,11 @@ public sealed class BoardPresenter
     /// </remarks>
     public string BlockText => RollBlock switch
     {
-        // 🔴 A FIFTH sentence, and it is the one that admits a gap rather than naming a state. Two
-        // of the fourteen tile kinds have no screen in this build, and "resolve this tile before
-        // rolling again" told a player standing on one to do something no control on the screen
-        // could do. The sentence says the screen is missing and what the skip will do instead, so
-        // the tile reads as a hole in the build rather than as a control the player cannot find.
+        // 🔴 A FIFTH sentence, and it is the one that admits a gap rather than naming a state. One
+        // tile kind has no screen in this build, and "resolve this tile before rolling again" told
+        // a player standing on it to do something no control on the screen could do. The sentence
+        // says the screen is missing and what the skip will do instead, so the tile reads as a hole
+        // in the build rather than as a control the player cannot find.
         BoardRollBlock.TilePending when PendingTileHasNoScreen =>
             _strings.Resolve(UnbuiltScreenStatusKey),
 
@@ -883,6 +883,38 @@ public sealed class BoardPresenter
         PendingTile is { } tile && UnbuiltTileScreens.HasNoScreen(tile.Kind);
 
     /// <summary>
+    /// Whether the pending tile is one whose own screen submits the tile's FIRST command as well as
+    /// its last, so this board has nothing legal to send for it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The Event tile, and it is the one tile this board must not acknowledge.</b> Every other
+    /// tile that opens a screen — the shop, the campfire, the shrine — is acknowledged by
+    /// <c>RESOLVE_TILE</c> and picked up by its screen afterwards, so a press that sends it is the
+    /// step the screen is waiting for. On an event tile <c>RESOLVE_TILE</c> is not an acknowledgement
+    /// at all: it is the DRAW, and <see cref="EventPresenter"/> submits that itself as its opening
+    /// command. A board that sent it would spend the card's draw out of sight of the player who is
+    /// about to choose on it, leave the tile pending exactly as it found it — so the press reads as
+    /// having done nothing — and make the NEXT press a bare <c>ILLEGAL_STATE</c> refusal, because a
+    /// drawn card may not be re-drawn and no sentence on this screen says why.
+    /// </para>
+    /// <para>
+    /// ⚠️ It is reachable, which is why it is a state rather than an assertion: the handover is
+    /// latched on having HAPPENED, so a scene that could not load — or a screen that hands back with
+    /// the tile still pending — leaves this board on screen with its own control live over an event
+    /// tile. Refusing is the honest answer there. The next read attempts the handover again, and
+    /// <see cref="AbandonOffered"/> is ungated in the meantime.
+    /// </para>
+    /// <para>
+    /// The Minigame tile belongs here too the day its screen lands and
+    /// <see cref="UnbuiltTileScreens"/> goes: today it is that placeholder's, and being skipped
+    /// through the tile's real command is what keeps the rest of a run reachable.
+    /// </para>
+    /// </remarks>
+    private bool PendingTileDrawsOnItsOwnScreen =>
+        PendingTile is { Kind: EventPresenter.EventTileKind };
+
+    /// <summary>
     /// Acts on the tile the run is standing on, with the command that tile is actually left by.
     /// </summary>
     /// <remarks>
@@ -901,6 +933,13 @@ public sealed class BoardPresenter
     /// already opens the replay screen on. Nothing new was needed downstream — only the command that
     /// gets a run into a fight.
     /// </para>
+    /// <para>
+    /// 🔒 <b>And one arm submits nothing at all</b>, for the reason
+    /// <see cref="PendingTileDrawsOnItsOwnScreen"/> states: an event tile's <c>RESOLVE_TILE</c> is
+    /// the card's draw rather than an acknowledgement, and drawing it here would spend it where
+    /// nobody can see it. Refused explicitly rather than left to fall into the ordinary arm, which
+    /// is what it did.
+    /// </para>
     /// </remarks>
     /// <param name="ct">Cancellation.</param>
     public async Task<BoardSubmission> ResolvePendingTileAsync(CancellationToken ct)
@@ -915,6 +954,11 @@ public sealed class BoardPresenter
         if (PendingTileOpensAFight)
         {
             return await SubmitAsync(new StartBattleCommand(), ct).ConfigureAwait(false);
+        }
+
+        if (PendingTileDrawsOnItsOwnScreen)
+        {
+            return BoardSubmission.RefusedNotAvailable;
         }
 
         return PendingTileHasNoScreen

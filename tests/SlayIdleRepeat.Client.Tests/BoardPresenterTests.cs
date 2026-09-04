@@ -40,6 +40,15 @@ public sealed class BoardPresenterTests
     /// </remarks>
     private const int MinigameTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Minigame;
 
+    /// <summary>An Event tile — the one kind this board must submit NOTHING for.</summary>
+    /// <remarks>
+    /// 🔒 Read off the rules layer's enum rather than off <c>EventPresenter.EventTileKind</c>, which
+    /// is the constant the branch under test reads: taken from the same place, the case would agree
+    /// with the production code about which number an event is even when both were wrong, and the
+    /// number is exactly what the case is about.
+    /// </remarks>
+    private const int EventTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Event;
+
     /// <summary>
     /// A mini-boss tile — the node a move may not carry past, and a FIGHT tile.
     /// </summary>
@@ -545,6 +554,73 @@ public sealed class BoardPresenterTests
         host.SubmitCallCount.ShouldBe(1, "a minigame needs no acknowledgement first.");
         presenter.PendingTile.ShouldBeNull();
         presenter.RollBlock.ShouldBe(BoardRollBlock.None);
+    }
+
+    // ---- the tile that draws on its own screen -------------------------------------------------
+
+    /// <summary>
+    /// 🔴 <b>The board sends an event tile NOTHING, and that is a decision rather than an
+    /// oversight.</b> <c>RESOLVE_TILE</c> on an event tile is not the acknowledgement it is on a
+    /// shop or a campfire — it is the card's DRAW, and the event screen submits that itself as its
+    /// opening command. A board that sent it would spend the draw out of sight of the player who is
+    /// about to choose on it, leave the tile pending exactly as it found it so the press reads as
+    /// having done nothing, and make the NEXT press a bare <c>ILLEGAL_STATE</c> refusal, because a
+    /// drawn card may not be re-drawn and no sentence on this screen says why.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ The state is reachable rather than theoretical: the handover onto the event screen is
+    /// latched on having HAPPENED, so a scene that could not load — or a screen that hands back with
+    /// the tile still pending — leaves this board on screen with its own control live over an event
+    /// tile.
+    /// </remarks>
+    [Fact]
+    public async Task An_event_tile_is_refused_rather_than_drawn_on_by_the_board()
+    {
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTileHasNoScreen.ShouldBeFalse(
+            "the event screen is built: this tile is a destination, not a placeholder's subject.");
+        presenter.PendingTileOpensAFight.ShouldBeFalse("an event card is not a fight.");
+
+        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
+            .ShouldBe(BoardSubmission.RefusedNotAvailable);
+
+        host.SubmitCallCount.ShouldBe(
+            0,
+            "the press submitted a command. RESOLVE_TILE on an event tile draws the card and leaves " +
+            "the tile pending, so the board would have spent the screen's own opening command and " +
+            "shown the player nothing for it.");
+
+        presenter.PendingTile.ShouldNotBeNull(
+            "nothing was submitted, so the tile the run is standing on has not moved.");
+
+        presenter.RollBlock.ShouldBe(BoardRollBlock.TilePending);
+    }
+
+    /// <summary>
+    /// 🔒 And it reads as an ORDINARY pending tile while it is refused, not as a missing screen:
+    /// the screen exists, the board simply is not the surface that opens it.
+    /// </summary>
+    [Fact]
+    public async Task An_event_tile_names_the_ordinary_block_rather_than_the_missing_screen()
+    {
+        var presenter = Build(RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.BlockText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.BlockedTileStatusKey));
+        presenter.ResolveText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.ResolveActionKey));
+
+        // 🔒 Still abandonable, which is the ungated exit every unresolved tile keeps.
+        presenter.AbandonOffered.ShouldBeTrue();
     }
 
     /// <summary>
