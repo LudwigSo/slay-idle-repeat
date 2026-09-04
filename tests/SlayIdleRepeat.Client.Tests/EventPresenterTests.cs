@@ -768,15 +768,199 @@ public sealed class EventPresenterTests
             "heard about it.");
     }
 
+    // ---- the way out ------------------------------------------------------------------------------
+
+    /// <summary>
+    /// 🔴 <b>No state this screen settles in leaves the player with nothing to press.</b>
+    /// </summary>
+    /// <remarks>
+    /// The screen is opened by the board's routing table in the middle of a run, and in each of
+    /// these three states it draws no options at all — so the one control it carries is the only
+    /// thing on it. Gated on <c>CanLeave</c>, that control was drawn out of use here, and the run
+    /// could then be left only by killing the application. Two of the three say what the run is
+    /// doing and the board can route on it; the third says the content set cannot describe a card
+    /// the run really drew, and the board is where giving the run up is offered.
+    /// </remarks>
+    [Fact]
+    public async Task Every_settled_state_that_cannot_be_acted_on_still_offers_the_way_back()
+    {
+        var missing = Build(RecordingGameHost.Reading(
+            new OwnStateResult(OwnStateLookup.NoSuchRun, View: null)));
+
+        var elsewhere = Build(RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(
+                Run, Player, RunPhase.InProgress,
+                pendingTileKind: EnemyTileKind, pendingTileLinearIndex: 2, pendingTileStage: 1)));
+
+        var undescribable = Build(
+            RecordingGameHost.Finding(AnyPlayer(), AtAnEvent(EventContent.FreeCard)),
+            EventContent.Strings());
+
+        await missing.StartAsync(CancellationToken.None);
+        await elsewhere.StartAsync(CancellationToken.None);
+        await undescribable.StartAsync(CancellationToken.None);
+
+        missing.Exit.ShouldBe(EventExit.ToTheBoard, "there is no run here to stand on.");
+        elsewhere.Exit.ShouldBe(
+            EventExit.ToTheBoard,
+            "the run holds a DIFFERENT pending tile, so this screen cannot clear it and the board " +
+            "is what routes the run to the screen that can. CanLeave is false on exactly this row, " +
+            "which is what used to strand it.");
+        elsewhere.CanLeave.ShouldBeFalse(
+            "the tile is still pending — the way out here is not the tile having cleared, which is " +
+            "the whole reason the control needed a second reason to be live.");
+        undescribable.Exit.ShouldBe(
+            EventExit.ToTheBoard,
+            "a card this content set cannot build is a run that cannot go on, and abandoning it is " +
+            "offered on the board rather than here.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>A read that never answered asks again, and does NOT hand back.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The difference is not cosmetic. This state knows nothing about the run, so handing back
+    /// would give the board an event tile it has already latched a handover for — which it refuses
+    /// as halted, leaving a live board whose own control has nothing legal to send for that tile.
+    /// Asking again settles this screen on whatever the run actually says.
+    /// </remarks>
+    [Fact]
+    public async Task A_read_that_never_answered_is_asked_again_rather_than_handed_back()
+    {
+        var presenter = Build(RecordingGameHost.FaultingItsRead(new TimeoutException("no answer")));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Stage.ShouldBe(EventStage.ReadUnavailable);
+        presenter.Exit.ShouldBe(
+            EventExit.ReadAgain,
+            "the press is the retry. Handing back on a read this screen never got an answer to " +
+            "would hand the board a decision it has latched, and the board's own press cannot " +
+            "resolve an event tile.");
+    }
+
+    /// <summary>
+    /// 🔒 A card still being chosen on offers no way out, and a spent one offers the ordinary one.
+    /// </summary>
+    /// <remarks>
+    /// The first half is the guard: leaving mid-card abandons a tile that is still pending, and the
+    /// board would send the player straight back here.
+    /// </remarks>
+    [Fact]
+    public async Task A_card_still_on_the_screen_is_the_one_state_with_no_way_out()
+    {
+        var host = RecordingGameHost
+            .Finding(AnyPlayer(), AtAnEvent(EventContent.ThreeOptionCard))
+            .AcceptingInto(OffTheTile());
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Stage.ShouldBe(EventStage.Choosing);
+        presenter.Exit.ShouldBe(
+            EventExit.Nowhere,
+            "the choice is still the player's to make, and a screen that could be left here would " +
+            "leave the tile pending behind it.");
+
+        (await presenter.ChooseAsync(0, CancellationToken.None)).ShouldBe(EventSubmission.Submitted);
+
+        presenter.Exit.ShouldBe(
+            EventExit.ToTheBoard, "the tile has cleared, which is the ordinary way off this screen.");
+    }
+
+    // ---- what a press looks like while it is out --------------------------------------------------
+
+    /// <summary>
+    /// 🔴 <b>The option waiting on the host is NAMED while it waits.</b>
+    /// </summary>
+    /// <remarks>
+    /// A submission is a round trip, and the only thing the screen changes while one is out is that
+    /// nothing on it can be pressed — which on a card of three options looks exactly like all three
+    /// having become unaffordable. Naming the one that was pressed is what lets the screen draw the
+    /// wait as an answer being fetched for THAT option rather than as the card going dead.
+    /// </remarks>
+    [Fact]
+    public async Task The_option_a_press_is_waiting_on_is_named_only_while_it_is_waiting()
+    {
+        var host = RecordingGameHost
+            .Finding(AnyPlayer(), AtAnEvent(EventContent.ThreeOptionCard))
+            .AcceptingInto(OffTheTile())
+            .PausingItsCommands();
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.ChoiceInFlight.ShouldBe(
+            EventPresenter.NoChoiceInFlight,
+            "nothing has been pressed, so no card may be drawn as the one being answered. The draw " +
+            "itself is not a choice and names none.");
+
+        var chosen = presenter.ChooseAsync(ThirdOptionIndex, CancellationToken.None);
+
+        presenter.ChoiceInFlight.ShouldBe(
+            ThirdOptionIndex,
+            "the third option is outstanding at this line, and it is the third that has to be named " +
+            "— a screen answering with the first would light the wrong card.");
+
+        host.ReleaseSubmissions();
+
+        (await chosen).ShouldBe(EventSubmission.Submitted);
+
+        presenter.ChoiceInFlight.ShouldBe(
+            EventPresenter.NoChoiceInFlight,
+            "the answer arrived, so nothing is waiting any more.");
+    }
+
+    /// <summary>
+    /// 🔒 "Nothing happened" is asked as its own question, because it is drawn as a RESULT.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 It is the commonest ending this build has, and the screen draws it inside the result panel
+    /// rather than on the line that also carries "your run could not be read". A screen that could
+    /// not tell the two apart drew the ordinary ending of an event exactly like the game breaking.
+    /// </remarks>
+    [Fact]
+    public async Task A_card_that_moved_nothing_is_told_apart_from_one_that_moved_something()
+    {
+        var moved = RecordingGameHost
+            .Finding(AnyPlayer(), AtAnEvent(EventContent.FreeCard, gold: 100, currentHp: 40))
+            .AcceptingInto(OffTheTile(gold: 140, currentHp: 40));
+
+        var still = RecordingGameHost
+            .Finding(AnyPlayer(), AtAnEvent(EventContent.FreeCard, gold: 100, currentHp: 40))
+            .AcceptingInto(OffTheTile(gold: 100, currentHp: 40));
+
+        var afterAMovement = Build(moved);
+        var afterNothing = Build(still);
+
+        await afterAMovement.StartAsync(CancellationToken.None);
+        await afterAMovement.ChooseAsync(0, CancellationToken.None);
+
+        await afterNothing.StartAsync(CancellationToken.None);
+        await afterNothing.ChooseAsync(0, CancellationToken.None);
+
+        afterAMovement.NothingHappened.ShouldBeFalse(
+            "forty Gold moved, so the panel has a row to draw and the sentence would be a lie.");
+        afterNothing.NothingHappened.ShouldBeTrue(
+            "the card was spent and moved nothing observable, which is what the panel then says in " +
+            "words rather than leaving itself empty.");
+        afterNothing.CanLeave.ShouldBeTrue(
+            "an outcome the build cannot apply still cleared the tile.");
+    }
+
     // ---- the vocabulary ---------------------------------------------------------------------------
 
     /// <summary>
-    /// 🔒 Neither of this screen's enums has a zero member, so a default-initialised field can never
+    /// 🔒 None of this screen's enums has a zero member, so a default-initialised field can never
     /// read as a real state.
     /// </summary>
     [Theory]
     [InlineData(typeof(EventStage))]
     [InlineData(typeof(EventSubmission))]
+    [InlineData(typeof(EventExit))]
     public void No_state_this_screen_reports_is_the_default_value_of_its_own_type(Type vocabulary)
     {
         Enum.IsDefined(vocabulary, 0).ShouldBeFalse(

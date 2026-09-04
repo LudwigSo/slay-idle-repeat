@@ -45,9 +45,12 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// came out smaller than the rows they head and in the same white as the amounts.
 /// </para>
 /// <para>
-/// 🔴 <b>A read that could not answer has nowhere to send the player</b>, exactly as on the campfire:
-/// that state is <em>offline, read-only</em> rather than terminal, the pill and the toast that belong
-/// to it are drawn globally by <c>ConnectionOverlay</c>, and no back caption is invented here.
+/// 🔴 <b>A read that could not answer is <em>offline, read-only</em> rather than terminal</b> — the
+/// pill and the toast that belong to it are drawn globally by <c>ConnectionOverlay</c>, and no back
+/// caption is invented here. What this screen adds is that the one control it has stays live and
+/// asks again, because a state with a sentence and nothing to press is a run that can only be left
+/// by killing the application. <see cref="EventPresenter.Exit"/> holds which states leave and which
+/// re-read, and why.
 /// </para>
 /// </remarks>
 public partial class EventScreen : Node3D
@@ -85,6 +88,7 @@ public partial class EventScreen : Node3D
     private const string OptionColumnPath = "%OptionColumn";
     private const string ResultPanelPath = "%ResultPanel";
     private const string ResultHeadingPath = "%ResultHeading";
+    private const string NothingLabelPath = "%NothingLabel";
     private const string RunRowsPath = "%RunRows";
     private const string WalletHeadingPath = "%WalletHeading";
     private const string WalletRowsPath = "%WalletRows";
@@ -150,6 +154,7 @@ public partial class EventScreen : Node3D
     private VBoxContainer? _optionColumn;
     private PanelContainer? _resultPanel;
     private Label? _resultHeading;
+    private Label? _nothingLabel;
     private VBoxContainer? _runRows;
     private Label? _walletHeading;
     private VBoxContainer? _walletRows;
@@ -168,7 +173,8 @@ public partial class EventScreen : Node3D
     /// stylebox override are ONE slot on a <c>Control</c>, so a live card cannot be drawn by
     /// clearing the override — that clears the authored face itself.
     /// </remarks>
-    private readonly List<(Button Press, PanelContainer Card, StyleBoxFlat? Face, bool Available)>
+    private readonly List<(
+        Button Press, PanelContainer Card, StyleBoxFlat? Face, bool Available, int ChoiceIndex)>
         _optionButtons = [];
 
     /// <summary>The option list the column was last built from, by reference.</summary>
@@ -226,6 +232,7 @@ public partial class EventScreen : Node3D
         _optionColumn = GetNode<VBoxContainer>(OptionColumnPath);
         _resultPanel = GetNode<PanelContainer>(ResultPanelPath);
         _resultHeading = GetNode<Label>(ResultHeadingPath);
+        _nothingLabel = GetNode<Label>(NothingLabelPath);
         _runRows = GetNode<VBoxContainer>(RunRowsPath);
         _walletHeading = GetNode<Label>(WalletHeadingPath);
         _walletRows = GetNode<VBoxContainer>(WalletRowsPath);
@@ -339,14 +346,22 @@ public partial class EventScreen : Node3D
         RenderResult(presenter);
 
         _continueButton.Text = presenter.ContinueText;
-        _continueButton.Disabled = _busy || !presenter.CanLeave;
+
+        // 🔴 Live in every state this screen can settle in except the one where a card is waiting to
+        // be chosen on. Gated on CanLeave alone it was drawn out of use on four states that draw no
+        // options either — a faulted read, a missing run, a run standing elsewhere and a card the
+        // content set cannot describe — which left the player mid-run on a screen with a sentence
+        // and nothing to press.
+        _continueButton.Disabled = _busy || presenter.Exit == EventExit.Nowhere;
 
         // Hidden rather than blanked once they have nothing to say: an empty label still claims a
         // full line of height, so a blank one is a sentence a player can see room for and cannot
         // read. They are two lines because they answer two different questions — what state the
-        // screen is in, and what the game said about the last command.
+        // screen is in, and what the game said about the last command. The one sentence that is NOT
+        // about the screen's state is the resolved card that moved nothing, and that one is drawn
+        // inside the result panel instead of here.
         _statusLabel.Text = presenter.StatusText;
-        _statusLabel.Visible = _statusLabel.Text.Length > 0;
+        _statusLabel.Visible = _statusLabel.Text.Length > 0 && !presenter.NothingHappened;
 
         _rejectionLabel.Text = presenter.RejectionText;
         _rejectionLabel.Visible = _rejectionLabel.Text.Length > 0;
@@ -367,7 +382,9 @@ public partial class EventScreen : Node3D
             _drawnOptionsFrom = presenter.Options;
         }
 
-        foreach (var (press, card, face, available) in _optionButtons)
+        var waitingOn = presenter.ChoiceInFlight;
+
+        foreach (var (press, card, face, available, choiceIndex) in _optionButtons)
         {
             // Validity asked of both, not one: they are two engine objects and a teardown can have
             // freed either while this loop is running.
@@ -380,10 +397,16 @@ public partial class EventScreen : Node3D
 
             press.Disabled = !pressable;
 
-            // 🔒 Drawn every render rather than once at build time, which is the whole point: the
-            // in-flight case comes and goes while the card stays, so a face applied once could only
-            // ever describe the permanent case.
-            DrawFace(card, face, pressable);
+            // 🔴 The card the answer is being fetched FOR keeps its face while it waits, and only
+            // the others recede. Every card receding together is exactly what an all-unaffordable
+            // card looks like, so a press followed by that alone tells a player their tap made the
+            // whole screen unusable rather than that it landed. This one stays lit and unpressable:
+            // it is the option being answered, and it is the only thing on screen that moved.
+            //
+            // 🔒 Drawn every render rather than once at build time, which is the whole point: both
+            // this and the in-flight case come and go while the card stays, so a face applied once
+            // could only ever describe the permanent case.
+            DrawFace(card, face, pressable || choiceIndex == waitingOn);
         }
     }
 
@@ -464,7 +487,7 @@ public partial class EventScreen : Node3D
 
         press.Pressed += () => OnOptionPressed(choiceIndex);
 
-        _optionButtons.Add((press, card, face, offered.Available));
+        _optionButtons.Add((press, card, face, offered.Available, choiceIndex));
 
         // Drawn here as well as in RenderOptions so a card is never in the tree for a frame looking
         // live when it is not: the build runs before the render loop that follows it.
@@ -540,13 +563,21 @@ public partial class EventScreen : Node3D
     private void RenderResult(EventPresenter presenter)
     {
         if (_resultPanel is not { } panel || _resultHeading is not { } heading ||
-            _runRows is not { } runRows || _walletHeading is not { } walletHeading ||
-            _walletRows is not { } walletRows)
+            _nothingLabel is not { } nothing || _runRows is not { } runRows ||
+            _walletHeading is not { } walletHeading || _walletRows is not { } walletRows)
         {
             return;
         }
 
-        panel.Visible = presenter.ResultLines.Count > 0;
+        // 🔴 The panel is drawn for a card that moved NOTHING too, with the sentence inside it. That
+        // outcome is the commonest one this build has, and the line saying so used to be the same
+        // node, the same size and the same grey as "your run could not be read" — so the ordinary
+        // ending of an event was drawn exactly like the game having broken. Under this panel's own
+        // heading it is an answer to "what happened", which is what it is.
+        nothing.Text = presenter.NothingHappened ? presenter.StatusText : "";
+        nothing.Visible = presenter.NothingHappened;
+
+        panel.Visible = presenter.ResultLines.Count > 0 || presenter.NothingHappened;
         heading.Text = presenter.ResultLabel;
         walletHeading.Text = presenter.WalletLabel;
 
@@ -716,11 +747,70 @@ public partial class EventScreen : Node3D
         _ = SubmitAsync(presenter => presenter.ChooseAsync(choiceIndex, _lifetime));
 
     /// <remarks>
-    /// 🔒 Continue only ever hands back, and only once the presenter says the tile has cleared: the
-    /// board's decision latch logs "halted" if this same decision re-opens with the tile still
-    /// pending, so a screen that returned early would be sent straight back here.
+    /// <para>
+    /// 🔒 The press does what the presenter says this state's way out is, and the presenter states
+    /// at length why each state has the one it has. Ordinarily that is handing back once the tile
+    /// has cleared: the board's decision latch logs "halted" if this same decision re-opens with the
+    /// tile still pending, so a screen that returned mid-card would be sent straight back here.
+    /// </para>
+    /// <para>
+    /// 🔴 The other arm is the read that never answered, which is asked again rather than handed
+    /// back — this screen would be handing the board a tile it has already latched. Both arms are
+    /// the same control and the same caption, because both are the one thing left to do here.
+    /// </para>
     /// </remarks>
-    private void OnContinuePressed() => LeaveIfTheTileHasCleared();
+    private void OnContinuePressed()
+    {
+        switch (_presenter?.Exit)
+        {
+            case EventExit.ToTheBoard:
+                LeaveForTheBoard();
+                break;
+
+            case EventExit.ReadAgain:
+                _ = ReadAgainAsync();
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    /// <summary>Reads the run again, for a screen whose first read never came back.</summary>
+    /// <remarks>
+    /// Nothing awaits this task, so the whole body is guarded — and it takes the same latch a
+    /// submission does, so a second press while the read is out cannot start a second one.
+    /// </remarks>
+    private async Task ReadAgainAsync()
+    {
+        if (_busy || _presenter is not { } presenter)
+        {
+            return;
+        }
+
+        _busy = true;
+
+        // Drawn before the await as well as after it: taking the control out of use is the only
+        // thing on screen that says the press landed at all, because the sentence above it cannot
+        // change until the read answers.
+        Render();
+
+        try
+        {
+            await presenter.StartAsync(_lifetime);
+
+            Report(presenter);
+        }
+        catch (Exception failure)
+        {
+            GD.PushError($"An event read failed: {failure}");
+        }
+        finally
+        {
+            _busy = false;
+            Render();
+        }
+    }
 
     /// <remarks>
     /// Every control is taken out of use for the whole round trip and put back once, on one path. A
@@ -756,15 +846,17 @@ public partial class EventScreen : Node3D
         }
     }
 
-    /// <summary>Hands back to the board once the run no longer stands on the tile.</summary>
+    /// <summary>Hands back to the board, for a screen that has nothing left to do here.</summary>
     /// <remarks>
-    /// 🔒 Read off the run the command answered with, never off which option was pressed:
+    /// 🔒 Read off the run the last answer carried, never off which option was pressed:
     /// <c>EVENT_CHOOSE</c> clears the tile as its last step whatever the outcome was, and that is the
-    /// rules layer's answer to give. A run that could not be read at all stays here and says so.
+    /// rules layer's answer to give. The other way through here is a state this screen cannot act in
+    /// at all, where the board is the only surface left holding an offer — the presenter's
+    /// <see cref="EventPresenter.Exit"/> is what tells those two from a card still being chosen on.
     /// </remarks>
-    private void LeaveIfTheTileHasCleared()
+    private void LeaveForTheBoard()
     {
-        if (_presenter is not { CanLeave: true } || _board is not { } board ||
+        if (_presenter is not { Exit: EventExit.ToTheBoard } || _board is not { } board ||
             !IsInstanceValid(this) || !IsInsideTree())
         {
             return;

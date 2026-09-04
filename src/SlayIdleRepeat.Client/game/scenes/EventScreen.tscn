@@ -79,12 +79,19 @@ size_flags_vertical = 3
 size_flags_stretch_ratio = 1.0
 horizontal_scroll_mode = 0
 
+; Bottom-aligned inside the scroll, exactly as Campfire.tscn's MiddleColumn is, and for the reason
+; that matters on a handset: the option cards ARE the primary action here, and a card that fits with
+; room to spare — every shipped one does, and the tallest portrait this game supports has the most
+; room — would otherwise sit at the top of the frame with the slack beneath it and the choice out of
+; a thumb's reach. Hanging the card off the bottom puts the options directly above the continue
+; control, where the hand already is. Nothing moves when the card is taller than the frame.
 [node name="CardColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 mouse_filter = 2
 theme_override_constants/separation = 24
+alignment = 2
 
 [node name="CardTitle" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn"]
 unique_name_in_owner = true
@@ -132,6 +139,19 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 48
+autowrap_mode = 3
+
+; The commonest outcome this build has, drawn where an outcome belongs. Most authored effects are
+; UNSUPPORTED, so a spent card that moved nothing is the ordinary ending — and it used to be written
+; on the status line below, in the same node, size and grey as "your run could not be read". Under
+; this panel's heading it reads as the answer to "what happened" rather than as the game breaking,
+; so it takes the rows' own live colour rather than the quiet one.
+[node name="NothingLabel" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel/ResultBody"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 44
 autowrap_mode = 3
 
 [node name="RunRows" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel/ResultBody"]

@@ -56,6 +56,39 @@ public enum EventSubmission
     HostUnavailable = 4,
 }
 
+/// <summary>What the one control this screen carries does when it is pressed.</summary>
+/// <remarks>
+/// 🔴 <b>Every state this screen can settle in answers this with something other than nothing,
+/// except the one where the player has a card to choose on.</b> A screen whose only control is
+/// drawn out of use is a screen with no way off it — and this one is opened by a routing table
+/// mid-run, so a state it cannot act in was a run that could only be left by killing the
+/// application.
+/// </remarks>
+public enum EventExit
+{
+    /// <summary>
+    /// Nothing, and the control is drawn out of use. The card is on the screen and the choice is
+    /// still the player's to make, so leaving now would abandon a tile that is still pending.
+    /// </summary>
+    Nowhere = 1,
+
+    /// <summary>
+    /// 🔒 Reads the run again, in place. The state this answers is a read that never came back at
+    /// all, so this screen does not know what tile the run is standing on — and handing back to a
+    /// board that finds the event tile still pending would trip its decision latch and leave the
+    /// player on a board whose own control has nothing to send either. Asking again is the one move
+    /// that recovers a dropped answer without spending the way out on it.
+    /// </summary>
+    ReadAgain = 2,
+
+    /// <summary>
+    /// Hands back to the board, which re-reads the run and routes it wherever it now belongs. Either
+    /// the tile has cleared, or this screen was opened on a state it cannot act in and the board is
+    /// the only surface still carrying an offer.
+    /// </summary>
+    ToTheBoard = 3,
+}
+
 /// <summary>One option of the drawn card as the screen draws it.</summary>
 /// <param name="ChoiceIndex">What <c>EVENT_CHOOSE</c> carries for it — the option's authored position.</param>
 /// <param name="Label">The option's caption, verbatim English as the card authors it.</param>
@@ -187,6 +220,14 @@ public sealed class EventPresenter
     /// <summary>What a signed result row puts in front of a movement that added something.</summary>
     private const string Gained = "+";
 
+    /// <summary>What <see cref="ChoiceInFlight"/> reads when no option is waiting on the host.</summary>
+    /// <remarks>
+    /// Negative rather than zero, because zero is the first option's own index — a sentinel a card
+    /// can also mean is a sentinel that marks the first option as in flight from the moment the
+    /// screen opens.
+    /// </remarks>
+    public const int NoChoiceInFlight = -1;
+
     /// <summary>The tile kind an event is, as the run reports it.</summary>
     /// <remarks>
     /// 🔒 Read off the rules layer's own enum and NOT transcribed: the numbering is public, so a
@@ -250,6 +291,16 @@ public sealed class EventPresenter
     /// </remarks>
     public bool CanLeave { get; private set; }
 
+    /// <summary>Which option is waiting on the host, or <see cref="NoChoiceInFlight"/> for none.</summary>
+    /// <remarks>
+    /// 🔴 <b>What tells the player their press landed.</b> A submission is a round trip, and the
+    /// only thing this screen changes while one is out is that nothing on it can be pressed — which
+    /// on a card of three options is indistinguishable from all three having become unaffordable.
+    /// Naming the one that was pressed is what makes the wait read as an answer being fetched for
+    /// THAT option rather than as the screen going dead under the finger.
+    /// </remarks>
+    public int ChoiceInFlight { get; private set; } = NoChoiceInFlight;
+
     /// <summary>The drawn card's id, for the log. Empty until one is drawn.</summary>
     public string CardId { get; private set; } = "";
 
@@ -276,6 +327,49 @@ public sealed class EventPresenter
     /// rounding the only record of what the choice cost.
     /// </remarks>
     public bool FullValuesRevealed { get; private set; }
+
+    /// <summary>Whether the choice was accepted and moved nothing a player can see.</summary>
+    /// <remarks>
+    /// 🔴 <b>The commonest thing this screen has to report, and it is a RESULT.</b> Most authored
+    /// outcomes are <c>UNSUPPORTED</c> in this build, so a spent card that moved nothing is the
+    /// ordinary ending rather than the odd one. It is asked as its own question so the screen can
+    /// draw it where a result belongs — under the result panel's own heading, in the frame every
+    /// other outcome is drawn in — instead of leaving it to the line that also carries "your run
+    /// could not be read". Drawn there it reads as a card that did nothing; drawn beside the
+    /// failures it reads as the game having broken.
+    /// </remarks>
+    public bool NothingHappened => Stage == EventStage.Resolved && ResultLines.Count == 0;
+
+    /// <summary>What the one control this screen carries does when it is pressed.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>No state this screen settles in is a locked door.</b> <see cref="CanLeave"/> is the
+    /// ordinary way off — the tile has cleared and the board is next. Every other settled state is
+    /// one this screen cannot act in at all: the run was not found, the run is standing somewhere
+    /// else, the content set cannot describe the card that was drawn, or the read never answered.
+    /// In each of those the card list is empty, so the control is the only thing on screen, and
+    /// gating it on <see cref="CanLeave"/> alone left the player looking at a sentence with nothing
+    /// to press. Mid-run, that is the one thing this game's connection rule forbids outright.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The read that never answered goes back to the READ, not to the board.</b> The other
+    /// three know what the run is doing and the board can route on it — a different pending tile
+    /// opens the screen that tile belongs to, and a run that is gone is the board's own state to
+    /// report. A read that faulted knows nothing: hand back on it and the board re-reads, finds the
+    /// event tile still pending, and hands to the decision it has already latched — which it refuses
+    /// as halted, leaving a live board whose own control has nothing legal to send. Asking again
+    /// costs one press and settles this screen on whatever the run really says.
+    /// </para>
+    /// </remarks>
+    public EventExit Exit => CanLeave
+        ? EventExit.ToTheBoard
+        : Stage switch
+        {
+            EventStage.ReadUnavailable => EventExit.ReadAgain,
+            EventStage.RunMissing or EventStage.NotAtAnEvent or EventStage.CardUnavailable =>
+                EventExit.ToTheBoard,
+            _ => EventExit.Nowhere,
+        };
 
     /// <summary>The screen's heading, resolved.</summary>
     public string Title => _strings.Resolve(TitleNameKey);
@@ -308,7 +402,7 @@ public sealed class EventPresenter
         EventStage.NotYetRead => _strings.Resolve(LoadingStatusKey),
         EventStage.Drawing => _strings.Resolve(DrawingStatusKey),
         EventStage.Choosing => NothingLeftToSay,
-        EventStage.Resolved => ResultLines.Count == 0
+        EventStage.Resolved => NothingHappened
             ? _strings.Resolve(NothingHappenedStatusKey)
             : NothingLeftToSay,
         EventStage.NotAtAnEvent => _strings.Resolve(NotAtAnEventStatusKey),
@@ -370,7 +464,7 @@ public sealed class EventPresenter
             return;
         }
 
-        _ = await SubmitAsync(new ResolveTileCommand(), aChoiceWasSpent: false, ct)
+        _ = await SubmitAsync(new ResolveTileCommand(), NoChoiceInFlight, ct)
             .ConfigureAwait(false);
     }
 
@@ -400,7 +494,7 @@ public sealed class EventPresenter
         }
 
         return await SubmitAsync(
-                new EventChooseCommand(chosen.ChoiceIndex), aChoiceWasSpent: true, ct)
+                new EventChooseCommand(chosen.ChoiceIndex), chosen.ChoiceIndex, ct)
             .ConfigureAwait(false);
     }
 
@@ -417,7 +511,7 @@ public sealed class EventPresenter
     /// </para>
     /// </remarks>
     private async Task<EventSubmission> SubmitAsync(
-        GameCommand command, bool aChoiceWasSpent, CancellationToken ct)
+        GameCommand command, int choiceInFlight, CancellationToken ct)
     {
         if (_submissionInFlight)
         {
@@ -425,8 +519,13 @@ public sealed class EventPresenter
         }
 
         _submissionInFlight = true;
+
+        // Named at the same moment the latch is taken, so the option the screen draws as waiting is
+        // the one the command actually carries — a press refused by the latch names nothing.
+        ChoiceInFlight = choiceInFlight;
         HostFaulted = false;
 
+        var aChoiceWasSpent = choiceInFlight != NoChoiceInFlight;
         var before = _snapshot;
 
         try
@@ -467,6 +566,7 @@ public sealed class EventPresenter
             // Released on completion: a choice that never answered spent nothing and left the tile
             // pending, so the retry has to be able to reach the host.
             _submissionInFlight = false;
+            ChoiceInFlight = NoChoiceInFlight;
         }
     }
 

@@ -134,6 +134,7 @@ public sealed class EventSceneRuleTests
     [InlineData("OptionColumn")]
     [InlineData("ResultPanel")]
     [InlineData("ResultHeading")]
+    [InlineData("NothingLabel")]
     [InlineData("RunRows")]
     [InlineData("WalletHeading")]
     [InlineData("WalletRows")]
