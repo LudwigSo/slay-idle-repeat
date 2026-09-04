@@ -1,0 +1,57 @@
+{
+  "$schema": "../../schema/minigame.schema.json",
+  "_doc": "The strings the Minigame tile screen shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. ⚠️ The directory is `minigame/` (singular), matching the `loc.minigame.*` prefix the screen resolves. `tuning/minigames.json` is a different document one letter away, holding the timing bar's presentation numbers under `schema/minigames.schema.json`; the pairing row in ContentLayout is what keeps the two from resolving into each other. 🔒 The `outcome` group carries one caption per authored outcome token in `tuning/currencies.json#/minigameRewards`, keyed as `loc.minigame.<token lower-cased>.outcome`. The derivation is the contract, checked from both ends, so a fourteenth reward row is a content edit rather than a code edit. 🔒 `name` and `rule` are authored for all FOUR minigames although only three have a screen: the rules layer accepts a submission for Rune Recall and its outcome tokens are in the reward table, so leaving it unnamed would make the one arm still reachable through the rules layer the one arm with no words. Deliberately absent: any currency caption. The reward rows list Gold, Crowns, Beast Feed and Enhance Stones, and all eight currencies are already named by tuning/currencies.json through its own loc.currency.<snake>.name keys — a second copy here would be free to drift out of step with the wallet it describes. Also absent: any reward AMOUNT and any guarantee ORDINAL, because both are read from the tuning set at render time and a translated string carrying either would be a tunable transcribed into thirty locales.",
+  "name": {
+    "title": "loc.minigame.title.name",
+    "chestPick": "loc.minigame.chest_pick.name",
+    "timingBar": "loc.minigame.timing_bar.name",
+    "diceDuel": "loc.minigame.dice_duel.name",
+    "memoryRune": "loc.minigame.memory_rune.name"
+  },
+  "rule": {
+    "chestPick": "loc.minigame.chest_pick.rule",
+    "timingBar": "loc.minigame.timing_bar.rule",
+    "diceDuel": "loc.minigame.dice_duel.rule",
+    "memoryRune": "loc.minigame.memory_rune.rule"
+  },
+  "label": {
+    "rewards": "loc.minigame.rewards.label",
+    "hits": "loc.minigame.hits.label",
+    "strikesLeft": "loc.minigame.strikes_left.label",
+    "guarantee": "loc.minigame.guarantee.label",
+    "result": "loc.minigame.result.label"
+  },
+  "action": {
+    "strike": "loc.minigame.strike.action",
+    "step": "loc.minigame.step.action",
+    "pickChest": "loc.minigame.pick_chest.action",
+    "roll": "loc.minigame.roll.action",
+    "continue": "loc.minigame.continue.action"
+  },
+  "outcome": {
+    "bronze": "loc.minigame.bronze.outcome",
+    "silver": "loc.minigame.silver.outcome",
+    "gold": "loc.minigame.gold.outcome",
+    "hits0": "loc.minigame.hits_0.outcome",
+    "hits1": "loc.minigame.hits_1.outcome",
+    "hits2": "loc.minigame.hits_2.outcome",
+    "hits3": "loc.minigame.hits_3.outcome",
+    "loss": "loc.minigame.loss.outcome",
+    "win21": "loc.minigame.win_2_1.outcome",
+    "win20": "loc.minigame.win_2_0.outcome",
+    "failRound1": "loc.minigame.fail_round_1.outcome",
+    "round1Only": "loc.minigame.round_1_only.outcome",
+    "bothRounds": "loc.minigame.both_rounds.outcome"
+  },
+  "status": {
+    "loading": "loc.minigame.loading.status",
+    "playing": "loc.minigame.playing.status",
+    "runMissing": "loc.minigame.run_missing.status",
+    "notAtAMinigame": "loc.minigame.not_at_a_minigame.status",
+    "readUnavailable": "loc.minigame.read_unavailable.status",
+    "rulesUnavailable": "loc.minigame.rules_unavailable.status",
+    "alreadyResolved": "loc.minigame.already_resolved.status",
+    "refused": "loc.minigame.refused.status",
+    "hostUnavailable": "loc.minigame.host_unavailable.status"
+  }
+}

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace SlayIdleRepeat.Core.Events;
@@ -37,24 +38,54 @@ public sealed record MinigameResolved(int Sequence, string MinigameId, int Tier,
     /// property initialiser, so <c>event with { MinigameId = "" }</c> would otherwise produce an
     /// unattributable resolution through a validated type.
     /// </remarks>
-    public string MinigameId { get; } = Unbuilt(MinigameId);
+    public string MinigameId { get; } = RequireMinigameId(MinigameId);
 
     /// <summary>The authored outcome token. Never null, empty or whitespace.</summary>
-    public string Outcome { get; } = Unbuilt(Outcome);
+    /// <remarks>Get-only for the reason <see cref="MinigameId"/> is.</remarks>
+    public string Outcome { get; } = RequireOutcome(Outcome);
 
-    /// <summary>Renders this event with the invariant culture.</summary>
+    /// <summary>Renders this event with <see cref="CultureInfo.InvariantCulture"/>.</summary>
     /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
     /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="builder"/> is null.</exception>
-    protected override bool PrintMembers(StringBuilder builder) =>
-        throw new NotImplementedException(NotBuiltYet);
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        base.PrintMembers(builder);
 
-    /// <summary>Stands in for the blank-string guards until they are written.</summary>
-    /// <param name="value">The candidate the guard would have checked.</param>
-    private static string Unbuilt(string value) =>
-        throw new NotImplementedException(NotBuiltYet + " Offered: '" + value + "'.");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(MinigameId)} = {MinigameId}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Tier)} = {Tier}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Outcome)} = {Outcome}");
 
-    private const string NotBuiltYet =
-        "MinigameResolved is a signature-only stub: its guards, its invariant-culture PrintMembers " +
-        "and the MINIGAME_SUBMIT emission land together with the tests written against them.";
+        return true;
+    }
+
+    /// <summary>The guard behind <see cref="MinigameId"/>. Throws rather than substituting a placeholder.</summary>
+    /// <param name="minigameId">The candidate id.</param>
+    /// <returns>The id, unchanged and untrimmed.</returns>
+    /// <exception cref="ArgumentException">The id is null, empty or whitespace.</exception>
+    private static string RequireMinigameId(string minigameId) =>
+        string.IsNullOrWhiteSpace(minigameId)
+            ? throw new ArgumentException(BlankMinigameId, nameof(MinigameId))
+            : minigameId;
+
+    /// <summary>The guard behind <see cref="Outcome"/>.</summary>
+    /// <param name="outcome">The candidate token.</param>
+    /// <returns>The token, unchanged and untrimmed.</returns>
+    /// <exception cref="ArgumentException">The token is null, empty or whitespace.</exception>
+    private static string RequireOutcome(string outcome) =>
+        string.IsNullOrWhiteSpace(outcome)
+            ? throw new ArgumentException(BlankOutcome, nameof(Outcome))
+            : outcome;
+
+    private const string BlankMinigameId =
+        "A MINIGAME_SUBMIT resolution names the minigame it resolved. The id is the command's own " +
+        "and the catalogue has already accepted it by the time this event is raised, so a blank one " +
+        "is a handler that lost the catalogue rather than a client that sent nothing — and a screen " +
+        "keyed on the id it opened would ignore the only answer it is ever given.";
+
+    private const string BlankOutcome =
+        "A resolution names the authored outcome token of the tier it paid. The token is read out of " +
+        "the reward table beside the tier, because the tier alone is an index a content edit can " +
+        "reorder; a blank one is a handler that lost the reward table, and it leaves the results " +
+        "panel with a tier number and no words for it.";
 }

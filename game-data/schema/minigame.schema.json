@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/minigame.schema.json",
+  "title": "content/minigame/minigame.json",
+  "description": "The loc keys the Minigame tile screen (03 §6) renders. What is fixed here is that the screen heads itself, names and explains all four minigames, captions the reward ladder and the chest guarantee, offers one control per arm plus the way off the tile, captions every authored outcome token, and carries one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. ⚠️ The name is one letter from schema/minigames.schema.json, which governs the timing bar's presentation NUMBERS — a different document with a different shape. What is deliberately absent and load-bearing: there is no member for a currency name, because tuning/currencies.json already names all eight through its own keys and a second document claiming them would be free to drift out of step with the wallet it describes; there is no member carrying a reward AMOUNT, because every figure on the ladder is a chapter-scaled tunable read at render time; and there is no member carrying the guarantee's ordinal, because that is authored in tuning/luck.json and read through the rules layer, which is also the only thing allowed to state the ordinal arithmetic.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "_doc",
+    "name",
+    "rule",
+    "label",
+    "action",
+    "outcome",
+    "status"
+  ],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "_doc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "description": "The screen's own heading and one name per minigame. 🔒 All FOUR are required although only three have a screen: MINIGAME_SUBMIT accepts the fourth and its outcome tokens are in the reward table, so an unnamed fourth arm is the one arm still reachable through the rules layer with no words for itself.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "chestPick",
+        "timingBar",
+        "diceDuel",
+        "memoryRune"
+      ],
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/locKey"
+        },
+        "chestPick": {
+          "$ref": "#/$defs/locKey"
+        },
+        "timingBar": {
+          "$ref": "#/$defs/locKey"
+        },
+        "diceDuel": {
+          "$ref": "#/$defs/locKey"
+        },
+        "memoryRune": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "rule": {
+      "description": "One sentence per minigame saying how it is played, for the same four arms the names cover. A minigame whose rule is unwritten is one a player has to lose once to learn.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chestPick",
+        "timingBar",
+        "diceDuel",
+        "memoryRune"
+      ],
+      "properties": {
+        "chestPick": {
+          "$ref": "#/$defs/locKey"
+        },
+        "timingBar": {
+          "$ref": "#/$defs/locKey"
+        },
+        "diceDuel": {
+          "$ref": "#/$defs/locKey"
+        },
+        "memoryRune": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "label": {
+      "description": "The captions over the reward ladder, the timing bar's two live counters, the chest guarantee's countdown line, and the panel that says what was actually paid.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rewards",
+        "hits",
+        "strikesLeft",
+        "guarantee",
+        "result"
+      ],
+      "properties": {
+        "rewards": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hits": {
+          "$ref": "#/$defs/locKey"
+        },
+        "strikesLeft": {
+          "$ref": "#/$defs/locKey"
+        },
+        "guarantee": {
+          "description": "The chest pick's countdown line. 🔒 The caption carries no number: how many picks have been stood and which one is forced are read from the profile's counter and the guarantee rule at render time, and a caption stating either would be a rule transcribed into every locale.",
+          "$ref": "#/$defs/locKey"
+        },
+        "result": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "action": {
+      "description": "One control per arm — strike the anvil, pick a chest, roll the duel — plus `step`, which exists only under reduced motion, where the cursor does not sweep and has to be advanced by hand; plus `continue`, the way off the tile once the game has resolved and the only control on the screen at that point.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strike",
+        "step",
+        "pickChest",
+        "roll",
+        "continue"
+      ],
+      "properties": {
+        "strike": {
+          "$ref": "#/$defs/locKey"
+        },
+        "step": {
+          "$ref": "#/$defs/locKey"
+        },
+        "pickChest": {
+          "$ref": "#/$defs/locKey"
+        },
+        "roll": {
+          "$ref": "#/$defs/locKey"
+        },
+        "continue": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "outcome": {
+      "description": "🔒 One caption per outcome token authored in tuning/currencies.json#/minigameRewards, keyed as loc.minigame.<token lower-cased>.outcome. The member names are the tokens in camelCase; the KEYS are what carry the derivation, and MinigameOutcomeKeyAgreementTests pins it from both ends — a token with no caption shows the player the token itself, and a caption with no token is a string translated everywhere and rendered nowhere that no orphan rule can see. Thirteen today: three chests, four hit counts, three duel results and three rune rounds.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bronze",
+        "silver",
+        "gold",
+        "hits0",
+        "hits1",
+        "hits2",
+        "hits3",
+        "loss",
+        "win21",
+        "win20",
+        "failRound1",
+        "round1Only",
+        "bothRounds"
+      ],
+      "properties": {
+        "bronze": {
+          "$ref": "#/$defs/locKey"
+        },
+        "silver": {
+          "$ref": "#/$defs/locKey"
+        },
+        "gold": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hits0": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hits1": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hits2": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hits3": {
+          "$ref": "#/$defs/locKey"
+        },
+        "loss": {
+          "$ref": "#/$defs/locKey"
+        },
+        "win21": {
+          "$ref": "#/$defs/locKey"
+        },
+        "win20": {
+          "$ref": "#/$defs/locKey"
+        },
+        "failRound1": {
+          "$ref": "#/$defs/locKey"
+        },
+        "round1Only": {
+          "$ref": "#/$defs/locKey"
+        },
+        "bothRounds": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "status": {
+      "description": "One line per state the read can be in, plus the answers a submission can come back with. `notAtAMinigame` is separated from `runMissing` because a screen opened on the wrong tile is not a run that has gone; `alreadyResolved` from both, because a tile already played is a legality answer rather than a failure; `rulesUnavailable` because a content set that cannot describe the game is a different fact again from one that could not be read at all; `refused` and `hostUnavailable` because a refusal is an answer about the game and a fault is the game not answering.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading",
+        "playing",
+        "runMissing",
+        "notAtAMinigame",
+        "readUnavailable",
+        "rulesUnavailable",
+        "alreadyResolved",
+        "refused",
+        "hostUnavailable"
+      ],
+      "properties": {
+        "loading": {
+          "$ref": "#/$defs/locKey"
+        },
+        "playing": {
+          "$ref": "#/$defs/locKey"
+        },
+        "runMissing": {
+          "$ref": "#/$defs/locKey"
+        },
+        "notAtAMinigame": {
+          "$ref": "#/$defs/locKey"
+        },
+        "readUnavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "rulesUnavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "alreadyResolved": {
+          "$ref": "#/$defs/locKey"
+        },
+        "refused": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hostUnavailable": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    }
+  }
+}

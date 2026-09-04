@@ -136,6 +136,13 @@ public static class ContentLayout
             // screen takes the one name none of the other three could be mistaken for.
             [ContentDirectory + "event_screen/"] = SchemaDirectory + "event_screen" + SchemaSuffix,
 
+            // The Minigame tile screen's string slots — the easy case above, with a sharper edge
+            // than usual: schema/minigames.schema.json exists one letter away and governs the timing
+            // bar's presentation numbers, an unrelated shape. The stem rule answers correctly for
+            // the single minigame.json here and would start demanding a schema per file the day a
+            // second one lands, which is when one letter is easiest to get wrong.
+            [ContentDirectory + "minigame/"] = SchemaDirectory + "minigame" + SchemaSuffix,
+
             // The authored inbox templates. Not the easy case above for long: ops copy grows by
             // document — one per incident class — and the day the second lands the stem rule would
             // start demanding a schema per template file.

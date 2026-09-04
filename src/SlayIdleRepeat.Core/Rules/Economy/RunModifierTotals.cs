@@ -115,6 +115,36 @@ internal static class RunModifierTotals
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is negative.</exception>
     internal static long ScaleGoldIncome(Run run, ContentSnapshot content, long amount)
     {
+        ArgumentNullException.ThrowIfNull(run);
+
+        return ScaleGoldIncome(run.ShrineBuffs, run.Curses, content, amount);
+    }
+
+    /// <summary>
+    /// The same scaling, over the two lists rather than the aggregate — the form a projection built
+    /// from a persisted row can call.
+    /// </summary>
+    /// <remarks>
+    /// Both overloads exist for the reason the two <see cref="PctAdd(Run, ContentSnapshot, StatId)"/>
+    /// overloads do, and the consequence here is sharper: a screen that previews a minigame's reward
+    /// ladder holds a <c>RunSnapshot</c> and cannot construct a <c>Run</c>, so without this it would
+    /// have to show the reward table's own figure — which is not what a run carrying a Gold buff or a
+    /// Gold curse is about to be paid. The aggregate overload delegates here rather than restating the
+    /// arithmetic, so the preview and the payout are one number by construction.
+    /// </remarks>
+    /// <param name="shrineBuffs">The shrine buff ids taken this run.</param>
+    /// <param name="curses">The curse ids active on this run.</param>
+    /// <param name="content">The version-stamped snapshot.</param>
+    /// <param name="amount">The unscaled income. Never negative.</param>
+    /// <returns>What the run actually receives, never below zero.</returns>
+    /// <exception cref="ArgumentNullException">A reference argument is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is negative.</exception>
+    internal static long ScaleGoldIncome(
+        IReadOnlyList<string> shrineBuffs,
+        IReadOnlyList<string> curses,
+        ContentSnapshot content,
+        long amount)
+    {
         ArgumentOutOfRangeException.ThrowIfNegative(amount);
 
         if (amount == 0)
@@ -122,7 +152,7 @@ internal static class RunModifierTotals
             return 0;
         }
 
-        var pct = PctAdd(run, content, StatId.GOLD_PCT);
+        var pct = PctAdd(shrineBuffs, curses, content, StatId.GOLD_PCT);
 
         if (pct == 0.0)
         {

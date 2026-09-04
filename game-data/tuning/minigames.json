@@ -1,0 +1,11 @@
+{
+  "$schema": "../schema/minigames.schema.json",
+  "_doc": "The timing-bar minigame's presentation numbers — how fast its cursor sweeps, how wide the scoring window is, and how far one keypress moves the cursor when the sweep is turned off for reduced motion. 🔴 NOT A BALANCE FILE, and this sentence is the exemption three tuning-file count pins lean on: 21 §3.1 catalogues sixteen balance documents and this is not one of them. Nothing here is adjudicated by the rules layer — MINIGAME_SUBMIT validates a claimed outcome tier and reads none of these values — so they decide how the game FEELS to play and nothing about what it pays. No design document authors any of them; they were chosen so the bar is winnable by a steady hand and, at the reduced-motion step, by a patient one. They live under tuning/ rather than in C# because they are numbers a designer retunes, and a retunable number in code is a number nobody retunes. ⚠️ `strikes` is the one value another document has an opinion about: a game of N strikes ends on one of N + 1 hit counts and the hit count IS the outcome tier, so it has to agree with the MG_TIMING_BAR row count in tuning/currencies.json. ⚠️ There is no `_status` member, unlike the sixteen balance files: its three values (transcribed / partial / skeleton) each describe how faithfully a document reproduces the design section that owns it, and no section owns this one.",
+  "timingBar": {
+    "_doc": "Strike the Anvil (03 §6.2). The player gets `strikes` presses at a cursor sweeping the bar out and back once every `sweepSeconds`; a press scores when the cursor is within `hitWindowHalfWidth` of the bar's centre, measured as a fraction of the bar. Under reduced motion the cursor does not sweep at all and each press of the step control advances it by `reducedMotionStepFraction` instead, which is authored below the half-width on purpose — a step wider than the window would let a player step straight over it and never land inside, leaving the accessible arm of this game unwinnable while the timed one is not.",
+    "strikes": 3,
+    "sweepSeconds": 1.2,
+    "hitWindowHalfWidth": 0.08,
+    "reducedMotionStepFraction": 0.05
+  }
+}

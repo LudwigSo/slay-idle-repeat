@@ -214,7 +214,12 @@ public sealed class MinigameSubmitTests
             state, new MinigameSubmitCommand(MinigameCatalogue.TimingBar, 0), Worlds.Context);
 
         result.Accepted.ShouldBeTrue();
-        result.Events.Count.ShouldBe(1, "only GOLD moved on this row.");
+        result.Events.OfType<CurrencyChanged>().Count().ShouldBe(
+            1,
+            "only GOLD moved on this row. Counted over the currency movements rather than over the " +
+            "whole list, because an accepted submission also announces WHICH outcome it resolved to " +
+            "— a count over everything would turn that announcement into a failure here and would " +
+            "stop meaning 'one currency moved' the day any other event joins it.");
         result.Events.OfType<CurrencyChanged>().Single().Id.ShouldBe(CurrencyId.GOLD);
         result.NewState.Player.BalanceOf(CurrencyId.CROWNS).ShouldBe(0L);
         result.NewState.Player.BalanceOf(CurrencyId.BEAST_FEED).ShouldBe(0L);

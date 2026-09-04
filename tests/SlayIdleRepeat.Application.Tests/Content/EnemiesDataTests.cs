@@ -43,7 +43,12 @@ public sealed class EnemiesDataTests
 
         snapshot.DocumentPaths
             .Count(p => p.StartsWith("tuning/", StringComparison.Ordinal))
-            .ShouldBe(16, "doc 21's catalogue names exactly sixteen tuning files; enemies.json is not a seventeenth");
+            .ShouldBe(
+                17,
+                "doc 21's catalogue names exactly sixteen BALANCE files and enemies.json is not one " +
+                "of them, which is why it lives under content/. The seventeenth document under " +
+                "tuning/ is minigames.json, which is not a balance file either — it holds the " +
+                "timing bar's presentation numbers, and its own _doc says so");
     }
 
     /// <summary>

@@ -6,7 +6,7 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// The validator against the real <c>game-data</c>: 16 tuning files, 21 schemas, two
+/// The validator against the real <c>game-data</c>: 17 tuning files, 21 schemas, two
 /// locales and 96 deliberate <c>null</c>s.
 /// </summary>
 /// <remarks>
@@ -36,7 +36,11 @@ public sealed partial class RealDataSetTests
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
         snapshot.DocumentPaths
-            .Count(p => p.StartsWith("tuning/", StringComparison.Ordinal)).ShouldBe(16, "21 §3.1 catalogues exactly sixteen tuning files");
+            .Count(p => p.StartsWith("tuning/", StringComparison.Ordinal)).ShouldBe(
+                17,
+                "21 §3.1 catalogues exactly sixteen BALANCE files, and tuning/minigames.json is the " +
+                "one document under tuning/ that is not one of them: it holds the timing bar's " +
+                "presentation numbers, which the rules layer never reads, and its own _doc says so");
     }
 
     [Fact]

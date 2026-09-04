@@ -27,7 +27,12 @@ public sealed class CombatCapsDataTests
 
         snapshot.DocumentPaths
             .Count(p => p.StartsWith("tuning/", StringComparison.Ordinal))
-            .ShouldBe(16, "21 §3.1 catalogues exactly sixteen tuning files; combat_caps.json is not a seventeenth");
+            .ShouldBe(
+                17,
+                "21 §3.1 catalogues exactly sixteen BALANCE files and combat_caps.json is not one " +
+                "of them, which is why it lives under content/. The seventeenth document under " +
+                "tuning/ is minigames.json, which is not a balance file either — it holds the " +
+                "timing bar's presentation numbers, and its own _doc says so");
     }
 
     [Theory]
