@@ -120,6 +120,9 @@ public partial class BattleReplay : Node3D
     /// <summary>And a critical one, which the design draws larger as well as yellower.</summary>
     private const int CritTextSize = 72;
 
+    /// <summary>And a tick of something lingering, drawn smaller so it is told from a blow by more than its colour.</summary>
+    private const int DotTextSize = 44;
+
     private static readonly Color HitTextColour = new(0.95f, 0.95f, 0.97f);
     private static readonly Color CritTextColour = new(0.99f, 0.84f, 0.36f);
     private static readonly Color HealTextColour = new(0.51f, 0.87f, 0.55f);
@@ -523,6 +526,12 @@ public partial class BattleReplay : Node3D
         {
             _reframe = false;
             rig.Frames(world.StageBounds);
+
+            // A re-framing is a camera glide, and under reduced motion it arrives at once like every other motion here.
+            if (_reducedMotion)
+            {
+                rig.Snap();
+            }
         }
 
         PlacePlates();
@@ -715,8 +724,12 @@ public partial class BattleReplay : Node3D
         _ => HitTextColour,
     };
 
-    private static int SizeOf(ReplayFloater floater) =>
-        floater == ReplayFloater.Crit ? CritTextSize : BodyTextSize;
+    private static int SizeOf(ReplayFloater floater) => floater switch
+    {
+        ReplayFloater.Crit => CritTextSize,
+        ReplayFloater.DamageOverTime => DotTextSize,
+        _ => BodyTextSize,
+    };
 
     private static string SignOf(ReplayFloater floater) =>
         floater == ReplayFloater.Heal ? GainSign : LossSign;

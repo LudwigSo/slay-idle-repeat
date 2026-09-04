@@ -33,6 +33,9 @@ public partial class Enemy : Node3D
     /// <summary>How far the model is turned about the vertical to look along the rig's −Z.</summary>
     [Export] public float ModelYawDegrees { get; set; } = 180f;
 
+    /// <summary>The colour every engine paints a missing asset in, so the capsule reads as an absence at a glance.</summary>
+    private static readonly Color PlaceholderColour = new(1f, 0f, 1f);
+
     /// <summary>How tall the dressed model stands, so a plate can sit above it.</summary>
     public float Height { get; private set; }
 
@@ -76,7 +79,11 @@ public partial class Enemy : Node3D
 
         var capsule = new CapsuleMesh
         {
-            Material = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded },
+            Material = new StandardMaterial3D
+            {
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                AlbedoColor = PlaceholderColour,
+            },
         };
 
         Height = capsule.Height;
