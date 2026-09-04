@@ -185,8 +185,11 @@ public partial class BattleReplay : Node3D
     /// <summary>How far a fallen actor has tipped over once it has landed.</summary>
     [Export] public float FallTipDegrees { get; set; } = 80f;
 
-    /// <summary>How far a fallen actor has sunk once it has landed.</summary>
-    [Export] public float FallSink { get; set; } = 0.6f;
+    /// <summary>
+    /// How far a fallen actor has sunk once it has landed, as a fraction of its own height, so a
+    /// small enemy does not vanish under the floor where a boss would barely settle.
+    /// </summary>
+    [Export] public float FallSink { get; set; } = 0.15f;
 
     /// <summary>How long an entering actor takes to grow to full size.</summary>
     [Export] public float EnterSeconds { get; set; } = 0.35f;

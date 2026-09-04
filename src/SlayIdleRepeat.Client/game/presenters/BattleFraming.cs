@@ -31,10 +31,11 @@ public readonly record struct StageFrame(double Distance, double VerticalShift);
 public readonly record struct StageFootprint(StagePoint Rest, double Height, bool Present);
 
 /// <summary>
-/// The arithmetic the battle camera frames by, on top of <see cref="BoardFraming"/>: the box's eight
-/// corners projected onto the yawed, pitched camera's right and up axes give the half-extents
-/// <see cref="BoardFraming.DistanceThatFits"/> solves for, and the band lift is
-/// <see cref="BoardFraming.VerticalShiftFor"/> at that distance.
+/// The arithmetic the battle camera frames by, on top of <see cref="BoardFraming"/>: each of the box's
+/// eight corners, projected onto the yawed, pitched camera's right and up axes, is fitted by
+/// <see cref="BoardFraming.DistanceThatFits"/> at its own depth along the camera's forward axis, the
+/// furthest-back answer wins, and the band lift is <see cref="BoardFraming.VerticalShiftFor"/> at
+/// that distance.
 /// </summary>
 public static class BattleFraming
 {
@@ -88,30 +89,43 @@ public static class BattleFraming
 
         var right = new Axis(Math.Cos(yaw), 0d, -Math.Sin(yaw));
         var up = new Axis(-Math.Sin(pitch) * Math.Sin(yaw), Math.Cos(pitch), -Math.Sin(pitch) * Math.Cos(yaw));
+        var forward = new Axis(-Math.Cos(pitch) * Math.Sin(yaw), -Math.Sin(pitch), -Math.Cos(pitch) * Math.Cos(yaw));
 
         var halfSize = new Axis(
             (bounds.MaxX - bounds.MinX) / 2d,
             (bounds.MaxY - bounds.MinY) / 2d,
             (bounds.MaxZ - bounds.MinZ) / 2d);
 
-        var distance = BoardFraming.DistanceThatFits(
-            HalfExtentAlong(right, halfSize),
-            HalfExtentAlong(up, halfSize),
-            verticalFovDegrees,
-            aspect,
-            camera.Margin);
+        // A corner nearer the camera than the box's centre sits where the frustum is narrower, so
+        // each is fitted at its own depth: the distance the centre needs for that corner's
+        // projection, pulled forward by how much nearer the corner is. Whichever corner asks for
+        // the most wins, even if every corner asks for a negative distance.
+        var distance = double.NegativeInfinity;
+
+        for (var corner = 0; corner < 8; corner++)
+        {
+            var offset = new Axis(
+                (corner & 1) == 0 ? -halfSize.X : halfSize.X,
+                (corner & 2) == 0 ? -halfSize.Y : halfSize.Y,
+                (corner & 4) == 0 ? -halfSize.Z : halfSize.Z);
+
+            var fromCentre = BoardFraming.DistanceThatFits(
+                Math.Abs(Dot(offset, right)),
+                Math.Abs(Dot(offset, up)),
+                verticalFovDegrees,
+                aspect,
+                camera.Margin);
+
+            distance = Math.Max(distance, fromCentre - Dot(offset, forward));
+        }
+
         var verticalShift = BoardFraming.VerticalShiftFor(
             camera.UsableBandTop, camera.UsableBandBottom, distance, verticalFovDegrees);
 
         return new StageFrame(distance, verticalShift);
     }
 
-    /// <summary>
-    /// How far the box's corners reach along an axis, either side of its centre. Of the eight, the
-    /// corner whose signs match the axis's reaches furthest, and its projection is this sum.
-    /// </summary>
-    private static double HalfExtentAlong(Axis axis, Axis halfSize) =>
-        (Math.Abs(axis.X) * halfSize.X) + (Math.Abs(axis.Y) * halfSize.Y) + (Math.Abs(axis.Z) * halfSize.Z);
+    private static double Dot(Axis a, Axis b) => (a.X * b.X) + (a.Y * b.Y) + (a.Z * b.Z);
 
     private readonly record struct Axis(double X, double Y, double Z);
 }

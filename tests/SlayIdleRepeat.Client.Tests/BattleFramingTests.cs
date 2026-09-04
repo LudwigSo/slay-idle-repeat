@@ -14,7 +14,7 @@ public sealed class BattleFramingTests
         YawDegrees: -28, PitchDegrees: 16, Margin: 1.2, UsableBandTop: 0.2, UsableBandBottom: 0.6, HalfLife: 0.3);
 
     [Fact]
-    public void Frame_fits_the_eight_corners_projected_onto_the_yawed_cameras_right_and_up()
+    public void Frame_fits_each_of_the_eight_corners_at_its_own_depth_behind_the_yawed_camera()
     {
         const double halfX = 4d;
         const double height = 2d;
@@ -22,18 +22,36 @@ public sealed class BattleFramingTests
 
         var frame = BattleFraming.Frame(Box(halfX, height, halfZ), Camera, Fov, PortraitAspect);
 
-        var yaw = double.DegreesToRadians(Math.Abs(Camera.YawDegrees));
-        var pitch = double.DegreesToRadians(Camera.PitchDegrees);
+        var (right, up, forward) = Axes(Camera);
+        var expected = double.NegativeInfinity;
 
-        // right = (cos yaw, 0, −sin yaw); up = (−sin pitch·sin yaw, cos pitch, −sin pitch·cos yaw).
-        // The half-extent of a box's corners along an axis is the sum of |axis| times each half-size.
-        var halfWidth = (halfX * Math.Cos(yaw)) + (halfZ * Math.Sin(yaw));
-        var halfHeight = (halfX * Math.Sin(pitch) * Math.Sin(yaw))
-                         + (height / 2 * Math.Cos(pitch))
-                         + (halfZ * Math.Sin(pitch) * Math.Cos(yaw));
+        // Each corner needs the centre-based fit for its own projection, less its depth beyond the
+        // centre along the camera's forward axis; the corner that asks for the most sets the distance.
+        foreach (var corner in Corners(halfX, height / 2, halfZ))
+        {
+            var fromCentre = BoardFraming.DistanceThatFits(
+                Math.Abs(Dot(corner, right)), Math.Abs(Dot(corner, up)), Fov, PortraitAspect, Camera.Margin);
 
+            expected = Math.Max(expected, fromCentre - Dot(corner, forward));
+        }
+
+        frame.Distance.ShouldBe(expected, 1e-9);
+    }
+
+    [Fact]
+    public void Frame_straight_on_and_level_sits_half_the_stages_depth_behind_the_centre_based_fit()
+    {
+        const double halfX = 4d;
+        const double height = 2d;
+        const double halfZ = 1d;
+
+        var frame = BattleFraming.Frame(
+            Box(halfX, height, halfZ), Camera with { YawDegrees = 0, PitchDegrees = 0 }, Fov, PortraitAspect);
+
+        // Straight on, the camera at +Z looks along −Z: the four corners on the box's +Z face are
+        // halfZ nearer than the centre and share its projection, so they push the camera back by halfZ.
         frame.Distance.ShouldBe(
-            BoardFraming.DistanceThatFits(halfWidth, halfHeight, Fov, PortraitAspect, Camera.Margin),
+            BoardFraming.DistanceThatFits(halfX, height / 2, Fov, PortraitAspect, Camera.Margin) + halfZ,
             1e-9);
     }
 
@@ -56,19 +74,76 @@ public sealed class BattleFramingTests
     }
 
     [Fact]
-    public void Frame_lets_a_stages_depth_widen_the_picture_only_through_the_yaw()
+    public void Frame_lets_a_stages_depth_widen_the_picture_through_the_yaw()
     {
-        var deep = Box(halfX: 1, height: 1, halfZ: 4);
+        const double halfX = 1d;
+        const double height = 1d;
+        const double halfZ = 4d;
+        var deep = Box(halfX, height, halfZ);
 
         var straightOn = BattleFraming.Frame(deep, Camera with { YawDegrees = 0 }, Fov, PortraitAspect);
         var yawed = BattleFraming.Frame(deep, Camera, Fov, PortraitAspect);
 
-        var yaw = double.DegreesToRadians(Math.Abs(Camera.YawDegrees));
+        var (right, up, forward) = Axes(Camera);
+        var expected = double.NegativeInfinity;
 
-        // Width governs both in portrait: the projected half-width is 1 straight on and
-        // cos yaw + 4·sin yaw (≈ 2.76 at 28°) yawed, so the yawed camera sits that much further back.
+        foreach (var corner in Corners(halfX, height / 2, halfZ))
+        {
+            var fromCentre = BoardFraming.DistanceThatFits(
+                Math.Abs(Dot(corner, right)), Math.Abs(Dot(corner, up)), Fov, PortraitAspect, Camera.Margin);
+
+            expected = Math.Max(expected, fromCentre - Dot(corner, forward));
+        }
+
+        // Straight on, the depth only brings the near face closer; yawed, it also spreads the
+        // corners across the frame, and the camera sits well further back for it.
         straightOn.Distance.ShouldBeGreaterThan(0d);
-        yawed.Distance.ShouldBe(straightOn.Distance * (Math.Cos(yaw) + (4 * Math.Sin(yaw))), 1e-6);
+        yawed.Distance.ShouldBeGreaterThan(straightOn.Distance);
+        yawed.Distance.ShouldBe(expected, 1e-9);
+    }
+
+    [Fact]
+    public void Frame_sits_the_camera_back_far_enough_for_the_corner_nearest_to_it()
+    {
+        // The shipped one-on-one: the hero at x −2.4 and the enemy at x +2.4, the hero's 2.22 plus
+        // the 0.35 plate clearance on top, the rest points 0.3 either side of the centre line.
+        const double halfX = 2.4;
+        const double height = 2.57;
+        const double halfZ = 0.3;
+        var shipped = Camera with { Margin = 1.15 };
+
+        var frame = BattleFraming.Frame(Box(halfX, height, halfZ), shipped, Fov, PortraitAspect);
+
+        var (right, up, forward) = Axes(shipped);
+        var tanVertical = Math.Tan(double.DegreesToRadians(Fov) / 2);
+        var tanHorizontal = PortraitAspect * tanVertical;
+
+        foreach (var corner in Corners(halfX, height / 2, halfZ))
+        {
+            var reach = frame.Distance + Dot(corner, forward);
+
+            Math.Abs(Dot(corner, right)).ShouldBeLessThanOrEqualTo(
+                (tanHorizontal * reach / shipped.Margin) + 1e-9,
+                $"the corner at {corner} must sit inside the frustum's width with the margin applied.");
+            Math.Abs(Dot(corner, up)).ShouldBeLessThanOrEqualTo(
+                (tanVertical * reach / shipped.Margin) + 1e-9,
+                $"the corner at {corner} must sit inside the frustum's height with the margin applied.");
+        }
+
+        // Negative control: the centre-based fit — every corner treated as if it stood at the
+        // centre's depth — leaves the corner nearest the camera outside the frustum. The camera is
+        // on the hero's side, above and in front of the stage, so that is the hero's top front corner.
+        var centreBased = BoardFraming.DistanceThatFits(
+            (halfX * Math.Abs(right.X)) + (halfZ * Math.Abs(right.Z)),
+            (halfX * Math.Abs(up.X)) + (height / 2 * Math.Abs(up.Y)) + (halfZ * Math.Abs(up.Z)),
+            Fov, PortraitAspect, shipped.Margin);
+        var nearest = new Axis(-halfX, height / 2, halfZ);
+
+        Dot(nearest, forward).ShouldBeLessThan(0d, "the hero's top front corner is nearer than the centre.");
+        Math.Abs(Dot(nearest, right)).ShouldBeGreaterThan(
+            tanHorizontal * (centreBased + Dot(nearest, forward)) / shipped.Margin,
+            "the centre-based fit would crop the hero, which is the defect this case discriminates.");
+        frame.Distance.ShouldBeGreaterThan(centreBased);
     }
 
     [Fact]
@@ -115,6 +190,39 @@ public sealed class BattleFramingTests
 
     private static StageBounds Box(double halfX, double height, double halfZ) =>
         new(-halfX, 0, -halfZ, halfX, height, halfZ);
+
+    // The rig yaws about Y, the pitch node pitches about X, and the camera sits at +Z on the pitch
+    // node looking along −Z: right = (cos yaw, 0, −sin yaw), up = (−sin pitch·sin yaw, cos pitch,
+    // −sin pitch·cos yaw), forward = (−cos pitch·sin yaw, −sin pitch, −cos pitch·cos yaw).
+    private static (Axis Right, Axis Up, Axis Forward) Axes(BattleCameraMetrics camera)
+    {
+        var yaw = double.DegreesToRadians(camera.YawDegrees);
+        var pitch = double.DegreesToRadians(camera.PitchDegrees);
+
+        return (
+            new Axis(Math.Cos(yaw), 0, -Math.Sin(yaw)),
+            new Axis(-Math.Sin(pitch) * Math.Sin(yaw), Math.Cos(pitch), -Math.Sin(pitch) * Math.Cos(yaw)),
+            new Axis(-Math.Cos(pitch) * Math.Sin(yaw), -Math.Sin(pitch), -Math.Cos(pitch) * Math.Cos(yaw)));
+    }
+
+    /// <summary>The eight corners of a box centred on the origin, as offsets from its centre.</summary>
+    private static IEnumerable<Axis> Corners(double halfX, double halfY, double halfZ)
+    {
+        foreach (var x in new[] { -halfX, halfX })
+        {
+            foreach (var y in new[] { -halfY, halfY })
+            {
+                foreach (var z in new[] { -halfZ, halfZ })
+                {
+                    yield return new Axis(x, y, z);
+                }
+            }
+        }
+    }
+
+    private static double Dot(Axis a, Axis b) => (a.X * b.X) + (a.Y * b.Y) + (a.Z * b.Z);
+
+    private readonly record struct Axis(double X, double Y, double Z);
 
     private static StageFootprint Footprint(float x, float z, double height, bool present = true) =>
         new(new StagePoint(x, z), height, present);

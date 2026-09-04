@@ -242,7 +242,7 @@ public partial class BattleWorld : Node3D
 
         var offset = (toward * (float)pose.Advance) +
                      (side * (float)pose.SideStep) +
-                     (Vector3.Up * (float)(pose.Lift - pose.Sink));
+                     (Vector3.Up * (float)(pose.Lift - (pose.Sink * rig.Height)));
 
         rig.Motion.Position = rig.ToLocal * offset;
 
