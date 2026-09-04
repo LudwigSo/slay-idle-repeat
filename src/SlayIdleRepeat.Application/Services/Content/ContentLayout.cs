@@ -92,9 +92,10 @@ public static class ContentLayout
             // a one-letter difference.
             [ContentDirectory + "perks/"] = SchemaDirectory + "perk" + SchemaSuffix,
 
-            // The one row where the naming hazard above is three-way: board_events.schema.json
-            // (this row), event.schema.json (the live-ops event package) and events.schema.json
-            // (the framework-wide tuning file) differ by a letter and a word.
+            // The one row where the naming hazard above is FOUR-way: board_events.schema.json (this
+            // row), event.schema.json (the live-ops event package), events.schema.json (the
+            // framework-wide tuning file) and event_screen.schema.json (the Event tile screen's own
+            // string slots, below) differ by a letter and a word.
             [ContentDirectory + "board_events/"] = SchemaDirectory + "board_events" + SchemaSuffix,
 
             // The name-filter word lists, one file per language. This row is REQUIRED rather than
@@ -129,6 +130,11 @@ public static class ContentLayout
             // The Campfire / Shrine screen's string slots — one document serving two arms, and
             // splitting the shrine's half out is the tidy-up this row keeps buildable.
             [ContentDirectory + "campfire/"] = SchemaDirectory + "campfire" + SchemaSuffix,
+
+            // The Event tile screen's string slots. The directory is event_screen/ rather than
+            // event/ because of the four-way hazard named on the board_events/ row above — the
+            // screen takes the one name none of the other three could be mistaken for.
+            [ContentDirectory + "event_screen/"] = SchemaDirectory + "event_screen" + SchemaSuffix,
 
             // The authored inbox templates. Not the easy case above for long: ops copy grows by
             // document — one per incident class — and the day the second lands the stem rule would

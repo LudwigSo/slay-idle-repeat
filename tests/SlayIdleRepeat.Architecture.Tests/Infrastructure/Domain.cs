@@ -302,6 +302,22 @@ internal static class Domain
     /// stays inside <c>Core</c>, because the caller on the far side of this seam writes response bodies
     /// and log lines.
     /// </para>
+    /// <para>
+    /// 🔒 <b>The tile-screens pass adds <c>EventCardView</c> (with <c>EventOptionView</c>).</b> It
+    /// closes the hole <c>ShrineView</c> and <c>ShopView</c> closed for their own tiles, from the
+    /// other direction: the card is already DRAWN and persisted on the run, so a screen without an
+    /// entry point would have to reach the card catalogue itself — and <c>EventCard</c>,
+    /// <c>EventOption</c> and the whole six-op effect vocabulary are <c>internal</c>, so the only
+    /// ways left were widening them or transcribing thirty cards into the client. What leaves is the
+    /// prose, the options in the order <c>EVENT_CHOOSE</c> numbers them, and each option's price.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>And what deliberately does NOT leave is the odds.</b> <c>EventOutcome</c>,
+    /// <c>EventEffect</c> and <c>EventTileResolver</c> stay <c>internal</c>: the view names no
+    /// branch and no weight, because a player who could read them before choosing would be playing
+    /// a different game from the one the card's prose describes. That is a design boundary this
+    /// list happens to record rather than an encapsulation convenience.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[]
     {
@@ -334,6 +350,8 @@ internal static class Domain
         "RunEndCounterKind",
         "ShopView",
         "ShopSlotRow",
+        "EventCardView",
+        "EventOptionView",
         "HeroNames",
         "HeroNameDecision",
         "RunExpiry",
