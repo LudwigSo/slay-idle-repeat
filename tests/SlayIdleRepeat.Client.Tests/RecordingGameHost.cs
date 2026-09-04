@@ -72,10 +72,12 @@ internal sealed class RecordingGameHost : IGameHost
 
     /// <summary>Every command submitted, in the order they were.</summary>
     /// <remarks>
-    /// 🔒 Kept alongside <see cref="SubmitCommand"/> rather than instead of it. One press can submit
-    /// more than one command — the board's skip of an unbuilt tile screen draws an event card and
-    /// then spends it — and "the last command was EVENT_CHOOSE" cannot tell that apart from a press
-    /// that skipped the draw altogether, which is the version the rules layer refuses.
+    /// 🔒 Kept alongside <see cref="SubmitCommand"/> rather than instead of it. One screen can
+    /// submit more than one command off a single opening — <c>EventPresenter</c> draws the card
+    /// itself and then spends it — and "the last command was EVENT_CHOOSE" cannot tell that apart
+    /// from a screen that skipped the draw altogether, which is the version the rules layer refuses.
+    /// It is also the only thing that can see a draw submitted TWICE, since a screen that drew twice
+    /// settles on exactly the same card.
     /// </remarks>
     internal IReadOnlyList<GameCommand> SubmittedCommands => _submitted;
 
@@ -181,10 +183,10 @@ internal sealed class RecordingGameHost : IGameHost
     /// </summary>
     /// <remarks>
     /// 🔒 A moving store on the SUBMIT side, and <see cref="ThenFinding"/>'s exact counterpart: a
-    /// press that submits two commands in sequence — the board's skip of an unbuilt tile screen is
-    /// one — decides the second from the run the first came back with, and a host that answered both
-    /// alike would satisfy a screen that read the moved run and a screen that never did. Left unset,
-    /// every acceptance answers alike and nothing about the existing cases changes.
+    /// screen that submits two commands in sequence — <c>EventPresenter</c>'s draw and then its
+    /// choice — decides the second from the run the first came back with, and a host that answered
+    /// both alike would satisfy a screen that read the moved run and a screen that never did. Left
+    /// unset, every acceptance answers alike and nothing about the existing cases changes.
     /// </remarks>
     /// <param name="run">The row the second and later commands hand back.</param>
     internal RecordingGameHost ThenAcceptingInto(RunSnapshot run)
