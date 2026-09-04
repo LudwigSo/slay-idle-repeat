@@ -1,19 +1,37 @@
+using Shouldly;
+
 namespace SlayIdleRepeat.Client.Tests;
 
-/// <summary>
-/// Reads a scene or a theme as the text file it is — no engine, no Node, no scene harness.
-/// </summary>
+/// <summary>Reads a <c>.tscn</c> as the text file it is: no engine, no Node, no scene harness.</summary>
 internal static class SceneText
 {
+    /// <summary>The whole scene file. A missing file is a failing case, never a passing one.</summary>
+    internal static string Read(string relativePath)
+    {
+        var path = Path.Combine(RepoPaths.RepositoryRoot, relativePath);
+
+        File.Exists(path).ShouldBeTrue(
+            $"No '{relativePath}' under '{RepoPaths.RepositoryRoot}'. These cases read the " +
+            "checkout's own scene files, so a missing one is not a passing case.");
+
+        return File.ReadAllText(path);
+    }
+
     /// <summary>
-    /// The one node of a scene with this name, or <c>null</c> when the scene holds none or several.
+    /// The one node of a scene with this name, or <c>null</c> when the scene holds none or several —
+    /// two nodes sharing a name is the state in which a scene-unique lookup resolves to either.
     /// </summary>
-    /// <remarks>
-    /// Null for "several" as well as for "none" on purpose: every rule asking for a node asks about
-    /// one that must be unique, and two nodes sharing a name is the state in which a scene-unique
-    /// lookup resolves to whichever the engine reached first.
-    /// </remarks>
     internal static SceneNode? Node(string relativePath, string name)
+    {
+        var nodes = Nodes(relativePath)
+            .Where(node => node.Header.Contains($"name=\"{name}\"", StringComparison.Ordinal))
+            .ToList();
+
+        return nodes.Count == 1 ? nodes[0] : null;
+    }
+
+    /// <summary>Every node of a scene, in file order, each with the property lines under its header.</summary>
+    internal static IReadOnlyList<SceneNode> Nodes(string relativePath)
     {
         var nodes = new List<SceneNode>();
         SceneNode? current = null;
@@ -22,10 +40,7 @@ internal static class SceneText
         {
             if (line.StartsWith('['))
             {
-                current = line.StartsWith("[node ", StringComparison.Ordinal) &&
-                          line.Contains($"name=\"{name}\"", StringComparison.Ordinal)
-                    ? new SceneNode(line)
-                    : null;
+                current = line.StartsWith("[node ", StringComparison.Ordinal) ? new SceneNode(line) : null;
 
                 if (current is not null)
                 {
@@ -38,24 +53,11 @@ internal static class SceneText
             current?.Body.Add(line);
         }
 
-        return nodes.Count == 1 ? nodes[0] : null;
-    }
-
-    /// <summary>The file's text. A file the checkout does not hold throws — it is not a passing case.</summary>
-    internal static string Read(string relativePath)
-    {
-        var path = Path.Combine(RepoPaths.RepositoryRoot, relativePath);
-
-        return File.Exists(path)
-            ? File.ReadAllText(path)
-            : throw new FileNotFoundException(
-                $"No '{relativePath}' under '{RepoPaths.RepositoryRoot}'. These cases read the " +
-                "checkout's own scene and theme files, so a missing one is not a passing case.",
-                path);
+        return nodes;
     }
 }
 
-/// <summary>One <c>[node ...]</c> header and the trimmed property lines under it.</summary>
+/// <summary>One <c>[node …]</c> block of a scene: its header line and the property lines under it.</summary>
 internal sealed record SceneNode(string Header)
 {
     internal List<string> Body { get; } = [];

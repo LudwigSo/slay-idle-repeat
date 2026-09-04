@@ -81,6 +81,7 @@ public static class BattleComposition
             new BattleReplayPresenter(
                 composed.Client.GameHost,
                 strings,
+                content,
                 new LocalBattleSimulation(content),
                 player,
                 run,

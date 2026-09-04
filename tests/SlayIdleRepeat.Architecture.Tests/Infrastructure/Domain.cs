@@ -308,6 +308,7 @@ internal static class Domain
         "CombatSimulator",
         "PowerCalculator",
         "SimulationResult",
+        "BattleRosterEntry",
         "CombatEvent",
         "CombatEventType",
         "ActorStats",

@@ -2,6 +2,7 @@ using System.Globalization;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Combat;
@@ -105,13 +106,50 @@ public enum ReplayBurst
 
     /// <summary>An actor going down.</summary>
     DeathPuff = 3,
+
+    /// <summary>A ward granted.</summary>
+    Ward = 4,
+
+    /// <summary>A ward giving way.</summary>
+    WardBroken = 5,
+}
+
+/// <summary>Which body motion an event asks of its actor, if any.</summary>
+public enum ReplayMotion
+{
+    /// <summary>The actor stays as it was.</summary>
+    None = 0,
+
+    /// <summary>An attacker striking toward its defender.</summary>
+    Swing = 1,
+
+    /// <summary>A defender taking a blow.</summary>
+    Recoil = 2,
+
+    /// <summary>A defender a blow missed.</summary>
+    Dodge = 3,
+
+    /// <summary>A defender blocking.</summary>
+    Brace = 4,
+
+    /// <summary>A source winding up something it has announced.</summary>
+    WindUp = 5,
+
+    /// <summary>An actor going down.</summary>
+    Fall = 6,
+
+    /// <summary>An actor arriving on the stage.</summary>
+    Enter = 7,
 }
 
 /// <summary>
 /// One event of the log, read into what it asks the screen to draw.
 /// </summary>
 /// <param name="ActorId">The actor the drawing belongs to — the loser of the blow, or the pet that acted.</param>
+/// <param name="CounterpartId">The other actor of the exchange, or the no-actor slot when there is none.</param>
 /// <param name="Side">Which side of the stage that actor stands on.</param>
+/// <param name="Motion">Which body motion the actor performs, if any.</param>
+/// <param name="MotionSeconds">How long that motion is held, where the log states it.</param>
 /// <param name="Floater">Which floating number rises, if any.</param>
 /// <param name="FloaterAmount">The size of that number, always positive.</param>
 /// <param name="Burst">Which procedural burst fires, if any.</param>
@@ -132,7 +170,10 @@ public enum ReplayBurst
 /// </remarks>
 public readonly record struct ReplayCue(
     byte ActorId,
+    byte CounterpartId,
     ReplaySide Side,
+    ReplayMotion Motion,
+    double MotionSeconds,
     ReplayFloater Floater,
     double FloaterAmount,
     ReplayBurst Burst,
@@ -154,6 +195,10 @@ public readonly record struct ReplayCue(
 /// no other.
 /// </param>
 /// <param name="EndingHp">What it finished the fight with, or null when the log does not fix that.</param>
+/// <param name="Identity">The id the roster names this actor by, or null when no door named one.</param>
+/// <param name="IsElite">Whether the roster flags it as an elite.</param>
+/// <param name="IsBoss">Whether the roster flags it as the boss.</param>
+/// <param name="IsSummon">Whether the roster flags it as a summon admitted mid-fight.</param>
 /// <remarks>
 /// <para>
 /// 🔴 <b>The maximum is read off the log's own <c>ActorSpawned</c>, and nothing here derives or guesses
@@ -175,7 +220,16 @@ public readonly record struct ReplayCue(
 /// </para>
 /// </remarks>
 public sealed record ReplayActor(
-    byte ActorId, ReplaySide Side, int SideIndex, double? MaxHp, double? StartingHp, double? EndingHp);
+    byte ActorId,
+    ReplaySide Side,
+    int SideIndex,
+    double? MaxHp,
+    double? StartingHp,
+    double? EndingHp,
+    string? Identity,
+    bool IsElite,
+    bool IsBoss,
+    bool IsSummon);
 
 /// <summary>
 /// Drives the Battle Replay screen: what the pre-computed log shows, how fast it is shown, and the
@@ -200,8 +254,8 @@ public sealed record ReplayActor(
 /// store that will own it has a seam to arrive at.
 /// </para>
 /// <para>
-/// 🔴 Enemy names are unreachable — see <see cref="TheEnemysNameIsNotReachableHere"/> — so the
-/// banner names an actor by its role.
+/// An enemy is named by the identity the fight's roster gives its slot, resolved through the enemy
+/// name strings; a slot the roster leaves unnamed is captioned by its role and index instead.
 /// </para>
 /// </remarks>
 public sealed class BattleReplayPresenter
@@ -218,18 +272,6 @@ public sealed class BattleReplayPresenter
         "field, no local store and no command that carries one. Writing a store here would put the " +
         "settings screen's first decision in a battle screen, so the opening speed is a constructor " +
         "argument instead: the seam the store arrives at, with nothing invented behind it.";
-
-    /// <summary>
-    /// 🔴 Deliberately unread, and named so it can be found. Nothing a client holds carries an
-    /// enemy's name, so the banner names the actor by its role and index.
-    /// </summary>
-    private const string TheEnemysNameIsNotReachableHere =
-        "The design's banner reads an enemy's name and its elite modifier. Neither is reachable: " +
-        "enemy derivation, the chapter's enemy pools and the elite modifier table are all internal " +
-        "to the rules assembly, and the log identifies an actor by a slot number and nothing else. " +
-        "What the slot number does fix is the actor's ROLE — the hero, a pet, an enemy by index — " +
-        "so that is what the banner says. A name invented here would be a different enemy from the " +
-        "one the server settled the fight against.";
 
     /// <summary>
     /// The simulator's fixed tick rate, transcribed.
@@ -281,6 +323,19 @@ public sealed class BattleReplayPresenter
     /// <summary>The rounding every accumulated health value is held to, as the rules layer holds it.</summary>
     private const int HealthDecimals = 4;
 
+    /// <summary>Where the chapter documents sit, so the run's own chapter can be found.</summary>
+    private const string ChaptersDirectoryPrefix = "content/chapters/";
+
+    private const string ChapterIdMember = "id";
+    private const string BiomeArtSetMember = "biomeArtSet";
+
+    /// <summary>What every authored art set starts with, and what the art manifest keys it without.</summary>
+    private const string BiomeArtSetPrefix = "biome_";
+
+    /// <summary>Wraps a roster identity, lower-cased, into the key its authored name lives under.</summary>
+    private const string EnemyNameKeyPrefix = "loc.enemy.";
+    private const string EnemyNameKeySuffix = ".name";
+
     private const string TitleNameKey = "loc.battle.title.name";
     private const string HeroLabelKey = "loc.battle.hero.label";
     private const string EnemyLabelKey = "loc.battle.enemy.label";
@@ -320,6 +375,7 @@ public sealed class BattleReplayPresenter
 
     private readonly IGameHost _gameHost;
     private readonly LocaleStringCatalogue _strings;
+    private readonly ContentSnapshot _content;
     private readonly IBattleSimulationSource _simulations;
     private readonly PlayerId _player;
     private readonly RunId _run;
@@ -400,6 +456,7 @@ public sealed class BattleReplayPresenter
     /// <summary>Builds the screen over the host, the strings, the prediction and the run.</summary>
     /// <param name="gameHost">The seam the run is read through and the result is submitted through.</param>
     /// <param name="strings">Key to display string, over the loaded content set.</param>
+    /// <param name="content">The loaded content set the run's chapter is read from.</param>
     /// <param name="simulations">What predicts the battle locally, or names why it cannot.</param>
     /// <param name="player">The profile this run belongs to.</param>
     /// <param name="run">The run whose battle is being watched.</param>
@@ -415,6 +472,7 @@ public sealed class BattleReplayPresenter
     public BattleReplayPresenter(
         IGameHost gameHost,
         LocaleStringCatalogue strings,
+        ContentSnapshot content,
         IBattleSimulationSource simulations,
         PlayerId player,
         RunId run,
@@ -423,10 +481,12 @@ public sealed class BattleReplayPresenter
     {
         ArgumentNullException.ThrowIfNull(gameHost);
         ArgumentNullException.ThrowIfNull(strings);
+        ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(simulations);
 
         _gameHost = gameHost;
         _strings = strings;
+        _content = content;
         _simulations = simulations;
         _player = player;
         _run = run;
@@ -454,6 +514,11 @@ public sealed class BattleReplayPresenter
 
     /// <summary>Whether the hero won, or null while no fight has been simulated.</summary>
     public bool? HeroWon { get; private set; }
+
+    /// <summary>
+    /// The run chapter's art set, without its <c>biome_</c> prefix, or null when the chapter authors none.
+    /// </summary>
+    public string? BiomeArtSet { get; private set; }
 
     /// <summary>How long the fight runs, in log ticks. Zero when there is no fight.</summary>
     public int TotalTicks { get; private set; }
@@ -525,29 +590,25 @@ public sealed class BattleReplayPresenter
     /// The banner over the fight, naming every opponent in it.
     /// </summary>
     /// <remarks>
-    /// 🔴 By role and index rather than by name — see <see cref="TheEnemysNameIsNotReachableHere"/>.
-    /// A fight whose roster is not settled yet falls back to the side's own caption, so the banner is
+    /// By authored name where the roster names an enemy and by role and index where it does not. A
+    /// fight whose roster is not settled yet falls back to the side's own caption, so the banner is
     /// never blank.
     /// </remarks>
     public string OpponentLabel
     {
         get
         {
-            var named = "";
+            var named = new List<string>();
 
             foreach (var actor in Actors)
             {
-                if (actor.Side != ReplaySide.Enemy)
+                if (actor.Side == ReplaySide.Enemy)
                 {
-                    continue;
+                    named.Add(CaptionOf(actor.ActorId));
                 }
-
-                named = named.Length == 0
-                    ? CaptionOf(actor.ActorId)
-                    : named + OpponentJoin + CaptionOf(actor.ActorId);
             }
 
-            return named.Length > 0 ? named : EnemyLabel;
+            return named.Count > 0 ? string.Join(OpponentJoin, named) : EnemyLabel;
         }
     }
 
@@ -741,12 +802,14 @@ public sealed class BattleReplayPresenter
         };
 
     /// <summary>
-    /// Names one actor by the side its slot puts it on and which one of that side it is.
+    /// Names one actor: an enemy by the name authored for the identity its roster entry gives it,
+    /// and everything else by the side its slot puts it on and which one of that side it is.
     /// </summary>
     /// <remarks>
     /// 🔴 The hero's own caption carries no index — there is only ever one — and a pet borrows the
-    /// hero's side, see <see cref="APetHasNoCaptionOfItsOwn"/>. Both halves come out of the content
-    /// set, so a caption a player reads is a caption a translator was paid for.
+    /// hero's side, see <see cref="APetHasNoCaptionOfItsOwn"/>. Every half comes out of the content
+    /// set, so a caption a player reads is a caption a translator was paid for; an identity nobody
+    /// has authored a name for reads as its own key, which the catalogue falls back to.
     /// </remarks>
     /// <param name="actorId">The slot the log identifies the actor by.</param>
     public string CaptionOf(byte actorId)
@@ -756,6 +819,11 @@ public sealed class BattleReplayPresenter
         if (side == ReplaySide.Hero)
         {
             return HeroLabel;
+        }
+
+        if (side == ReplaySide.Enemy && IdentityOf(actorId) is { } identity)
+        {
+            return _strings.Resolve(EnemyNameKeyFor(identity));
         }
 
         var caption = side == ReplaySide.Enemy ? EnemyLabel : HeroLabel;
@@ -784,6 +852,23 @@ public sealed class BattleReplayPresenter
         ReplaySide.Pet => actorId,
         _ => actorId - FirstEnemySlot + 1,
     };
+
+    /// <summary>The identity the roster gives a slot, or null when it gave none.</summary>
+    private string? IdentityOf(byte actorId)
+    {
+        foreach (var actor in Actors)
+        {
+            if (actor.ActorId == actorId)
+            {
+                return actor.Identity;
+            }
+        }
+
+        return null;
+    }
+
+    private static string EnemyNameKeyFor(string identity) =>
+        EnemyNameKeyPrefix + identity.ToLowerInvariant() + EnemyNameKeySuffix;
 
     /// <summary>How many log ticks the phase band stays up for, at the dwell in force.</summary>
     private int PhaseBandTicks =>
@@ -822,6 +907,8 @@ public sealed class BattleReplayPresenter
             Readiness = BattleReadiness.NoRun;
             return;
         }
+
+        ReadBiomeArtSet(run.ChapterId);
 
         var attempt = _simulations.Simulate(view.Player, run);
 
@@ -909,71 +996,60 @@ public sealed class BattleReplayPresenter
     /// <remarks>
     /// 🔒 Sized by <see cref="Draws"/> and filled by <see cref="CueFor"/>, which is why the two are
     /// written next to each other: one array, exactly as long as the number of events that ask for
-    /// anything, on the frames that crossed one. Every other event still walks past here, because the
-    /// attack that opens a sequence draws nothing and yet is the thing that clears a stale critical
-    /// announcement.
+    /// anything, on the frames that crossed one. Every event is offered to <see cref="Opened"/> before
+    /// it is read, because an attack both swings its attacker and clears a stale critical announcement.
     /// </remarks>
     private IReadOnlyList<ReplayCue> CuesFor(CombatEvent[] crossed, int drawn)
     {
-        if (drawn == 0)
-        {
-            foreach (var entry in crossed)
-            {
-                Opened(entry);
-            }
-
-            return [];
-        }
-
         var cues = new ReplayCue[drawn];
         var next = 0;
 
         foreach (var entry in crossed)
         {
+            Opened(entry);
+
             if (Draws(entry.Type))
             {
                 cues[next++] = CueFor(entry);
-            }
-            else
-            {
-                Opened(entry);
             }
         }
 
         return cues;
     }
 
-    /// <summary>Which events ask the screen to draw something at all.</summary>
-    private static bool Draws(CombatEventType type) => type switch
-    {
-        CombatEventType.Crit => true,
-        CombatEventType.Hit => true,
-        CombatEventType.Heal => true,
-        CombatEventType.StatusTick => true,
-        CombatEventType.StatusApplied => true,
-        CombatEventType.StatusExpired => true,
-        CombatEventType.PetAbility => true,
-        CombatEventType.ActorDeath => true,
-        _ => false,
-    };
+    /// <summary>
+    /// Which events ask the screen to draw something at all: everything that happens to an actor,
+    /// and none of what happens to the fight itself.
+    /// </summary>
+    private static bool Draws(CombatEventType type) =>
+        type is not (CombatEventType.BattleStart or CombatEventType.BattleEnd or
+                     CombatEventType.RunEffectQueued or CombatEventType.PhaseChange);
 
-    /// <summary>And what one of them asks for.</summary>
+    /// <summary>And what one of them asks for. An event with no reading here asks for nothing.</summary>
     private ReplayCue CueFor(CombatEvent entry) => entry.Type switch
     {
+        CombatEventType.Attack => Swung(entry),
         CombatEventType.Crit => Announced(entry),
         CombatEventType.Hit => Struck(entry),
+        CombatEventType.Miss => Evaded(entry),
+        CombatEventType.Block => Braced(entry),
+        CombatEventType.Telegraph => WoundUp(entry),
+        CombatEventType.Shield => Warded(entry, ReplayBurst.Ward),
+        CombatEventType.WardBroken => Warded(entry, ReplayBurst.WardBroken),
+        CombatEventType.ActorSpawned => Entered(entry),
         CombatEventType.Heal => Mended(entry),
         CombatEventType.StatusTick => Ticked(entry),
         CombatEventType.StatusApplied => Stacked(entry, (int)Math.Round(entry.Value)),
         CombatEventType.StatusExpired => Stacked(entry, 0),
         CombatEventType.PetAbility => Acted(entry),
-        _ => Slain(entry),
+        CombatEventType.ActorDeath => Slain(entry),
+        _ => Cue(entry.TargetId),
     };
 
     /// <remarks>
-    /// 🔒 The one thing an event that draws nothing still does: an attack opens a new sequence, so an
-    /// announcement left over from the previous one — a critical blow a ward swallowed whole, or one
-    /// that missed — dies here rather than colouring the next number gold.
+    /// 🔒 An attack opens a new sequence, so an announcement left over from the previous one — a
+    /// critical blow a ward swallowed whole, or one that missed — dies here rather than colouring the
+    /// next number gold. Run for every event, before that event's own cue is read.
     /// </remarks>
     private void Opened(CombatEvent entry)
     {
@@ -983,11 +1059,15 @@ public sealed class BattleReplayPresenter
         }
     }
 
+    /// <remarks>The one event drawn over the actor who acted and aimed at the one it acted on.</remarks>
+    private static ReplayCue Swung(CombatEvent entry) =>
+        Cue(entry.SourceId, entry.TargetId, ReplayMotion.Swing);
+
     private ReplayCue Announced(CombatEvent entry)
     {
         _critPending = true;
 
-        return Cue(entry.TargetId, burst: ReplayBurst.CritPop);
+        return Cue(entry.TargetId, entry.SourceId, burst: ReplayBurst.CritPop);
     }
 
     /// <remarks>The value is the health actually lost, after whatever a ward absorbed.</remarks>
@@ -999,11 +1079,35 @@ public sealed class BattleReplayPresenter
 
         return Cue(
             entry.TargetId,
+            entry.SourceId,
+            ReplayMotion.Recoil,
             floater: critical ? ReplayFloater.Crit : ReplayFloater.Hit,
             amount: entry.Value,
             burst: ReplayBurst.HitSpark,
             health: Move(entry.TargetId, -entry.Value));
     }
+
+    /// <remarks>A miss moves no health, and says so with null rather than with the unchanged value.</remarks>
+    private static ReplayCue Evaded(CombatEvent entry) =>
+        Cue(entry.TargetId, entry.SourceId, ReplayMotion.Dodge);
+
+    private static ReplayCue Braced(CombatEvent entry) =>
+        Cue(entry.TargetId, entry.SourceId, ReplayMotion.Brace);
+
+    /// <remarks>The value is the lead in seconds, and the wind-up fills exactly that lead.</remarks>
+    private static ReplayCue WoundUp(CombatEvent entry) =>
+        Cue(entry.SourceId, entry.TargetId, ReplayMotion.WindUp, motionSeconds: entry.Value);
+
+    /// <remarks>Over the actor carrying the ward, which is the event's target.</remarks>
+    private static ReplayCue Warded(CombatEvent entry, ReplayBurst burst) =>
+        Cue(entry.TargetId, entry.SourceId, burst: burst);
+
+    /// <remarks>
+    /// The entrance carries the health the actor opens on rather than the maximum the spawn states:
+    /// the two differ for the hero, which enters on the health its run persisted.
+    /// </remarks>
+    private ReplayCue Entered(CombatEvent entry) =>
+        Cue(entry.TargetId, motion: ReplayMotion.Enter, health: _health.GetValueOrDefault(entry.TargetId));
 
     /// <remarks>The value is what was actually restored, with any overheal already excluded.</remarks>
     private ReplayCue Mended(CombatEvent entry) =>
@@ -1033,7 +1137,13 @@ public sealed class BattleReplayPresenter
 
     /// <remarks>The event's target is the actor that died; its source is whatever killed it.</remarks>
     private ReplayCue Slain(CombatEvent entry) =>
-        Cue(entry.TargetId, burst: ReplayBurst.DeathPuff, health: Fell(entry.TargetId), died: true);
+        Cue(
+            entry.TargetId,
+            entry.SourceId,
+            ReplayMotion.Fall,
+            burst: ReplayBurst.DeathPuff,
+            health: Fell(entry.TargetId),
+            died: true);
 
     /// <summary>Takes an actor the log records a death for down to nothing.</summary>
     /// <remarks>
@@ -1053,8 +1163,11 @@ public sealed class BattleReplayPresenter
         return 0;
     }
 
-    private ReplayCue Cue(
+    private static ReplayCue Cue(
         byte actorId,
+        byte counterpartId = NoActorSlot,
+        ReplayMotion motion = ReplayMotion.None,
+        double motionSeconds = 0,
         ReplayFloater floater = ReplayFloater.None,
         double amount = 0,
         ReplayBurst burst = ReplayBurst.None,
@@ -1062,7 +1175,19 @@ public sealed class BattleReplayPresenter
         bool died = false,
         ushort? statusId = null,
         int stacks = 0) =>
-        new(actorId, SideOf(actorId), floater, amount, burst, health, died, statusId, stacks);
+        new(
+            actorId,
+            counterpartId,
+            SideOf(actorId),
+            motion,
+            motionSeconds,
+            floater,
+            amount,
+            burst,
+            health,
+            died,
+            statusId,
+            stacks);
 
     /// <summary>
     /// Moves one actor's health, held to the rounding the rules layer holds its own values to.
@@ -1169,7 +1294,8 @@ public sealed class BattleReplayPresenter
     /// <remarks>
     /// 🔒 One pass over the log settles all four numbers: which actors are in the fight, what each was
     /// spawned with, how far its health moved in total, and which of them died. See
-    /// <see cref="ReplayActor"/> for which of them each end of a bar is taken from.
+    /// <see cref="ReplayActor"/> for which of them each end of a bar is taken from. The roster is read
+    /// beside it for who each slot is; a slot it does not list is nobody in particular.
     /// </remarks>
     private static IReadOnlyList<ReplayActor> ActorsIn(SimulationResult fight)
     {
@@ -1177,6 +1303,12 @@ public sealed class BattleReplayPresenter
         var spawned = new Dictionary<byte, double>();
         var moved = new Dictionary<byte, double>();
         var slain = new HashSet<byte>();
+        var named = new Dictionary<byte, BattleRosterEntry>();
+
+        foreach (var entry in fight.Roster)
+        {
+            named.TryAdd(entry.ActorId, entry);
+        }
 
         foreach (var entry in fight.Log)
         {
@@ -1223,7 +1355,8 @@ public sealed class BattleReplayPresenter
                 slot,
                 spawned.TryGetValue(slot, out var maxHp) ? maxHp : null,
                 EndingHpOf(slot, fight, slain),
-                moved.GetValueOrDefault(slot)))
+                moved.GetValueOrDefault(slot),
+                named.GetValueOrDefault(slot)))
         ];
     }
 
@@ -1237,7 +1370,8 @@ public sealed class BattleReplayPresenter
     /// answer for that reason: it is right about every actor that opens full and wrong about the one
     /// that does not.
     /// </remarks>
-    private static ReplayActor Bar(byte slot, double? maxHp, double? anchoredEndingHp, double moved)
+    private static ReplayActor Bar(
+        byte slot, double? maxHp, double? anchoredEndingHp, double moved, BattleRosterEntry? named)
     {
         var startingHp = anchoredEndingHp is { } anchored
             ? Math.Round(anchored - moved, HealthDecimals)
@@ -1248,7 +1382,59 @@ public sealed class BattleReplayPresenter
         var endingHp = anchoredEndingHp ??
             (startingHp is { } start ? Math.Round(start + moved, HealthDecimals) : null);
 
-        return new ReplayActor(slot, SideOf(slot), SideIndexOf(slot), maxHp, startingHp, endingHp);
+        return new ReplayActor(
+            slot,
+            SideOf(slot),
+            SideIndexOf(slot),
+            maxHp,
+            startingHp,
+            endingHp,
+            named?.Identity,
+            named?.IsElite ?? false,
+            named?.IsBoss ?? false,
+            named?.IsSummon ?? false);
+    }
+
+    /// <summary>
+    /// Reads the run chapter's art set, without its prefix, into <see cref="BiomeArtSet"/>; null when
+    /// the chapter authors none or the content set does not carry the chapter.
+    /// </summary>
+    private void ReadBiomeArtSet(int chapterId)
+    {
+        foreach (var path in _content.DocumentPaths)
+        {
+            if (!path.StartsWith(ChaptersDirectoryPrefix, StringComparison.Ordinal) ||
+                !_content.TryGetDocument(path, out var document) ||
+                document is null)
+            {
+                continue;
+            }
+
+            var root = document.Root;
+
+            if (!root.TryGetMember(ChapterIdMember, out var id) ||
+                id is not { Kind: ContentValueKind.Number } ||
+                id.AsInt32() != chapterId)
+            {
+                continue;
+            }
+
+            BiomeArtSet = root.TryGetMember(BiomeArtSetMember, out var artSet) &&
+                          artSet is { Kind: ContentValueKind.Text }
+                ? WithoutBiomePrefix(artSet.AsText())
+                : null;
+
+            return;
+        }
+    }
+
+    private static string? WithoutBiomePrefix(string artSet)
+    {
+        var stripped = artSet.StartsWith(BiomeArtSetPrefix, StringComparison.Ordinal)
+            ? artSet[BiomeArtSetPrefix.Length..]
+            : artSet;
+
+        return stripped.Length > 0 ? stripped : null;
     }
 
     /// <summary>

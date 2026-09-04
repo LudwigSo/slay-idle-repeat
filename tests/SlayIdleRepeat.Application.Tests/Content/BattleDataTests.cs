@@ -125,6 +125,68 @@ public sealed class BattleDataTests
     }
 
     /// <summary>
+    /// The eleven greenwood rows of the art manifest — the eight pool archetypes, the two elites and
+    /// the boss — each with the name key the replay's caption resolves for it.
+    /// </summary>
+    public static TheoryData<string> GreenwoodEnemyNameKeys =>
+    [
+        "loc.enemy.grunt.name",
+        "loc.enemy.swarm.name",
+        "loc.enemy.brute.name",
+        "loc.enemy.skirmisher.name",
+        "loc.enemy.warden.name",
+        "loc.enemy.caster.name",
+        "loc.enemy.leech.name",
+        "loc.enemy.reaver.name",
+        "loc.enemy.el_thorn_sentinel.name",
+        "loc.enemy.el_mossback_alpha.name",
+        "loc.enemy.boss_thornmaw.name",
+    ];
+
+    [Theory]
+    [MemberData(nameof(GreenwoodEnemyNameKeys))]
+    public void Every_greenwood_enemy_the_replay_can_name_is_carried_by_both_locales(string key)
+    {
+        var snapshot = ContentLoader.Load(RepoData.Source()).Require();
+
+        snapshot.IsAuthorised(EnglishStrings + key).ShouldBeTrue(
+            $"'{key}' is what the Battle Replay banner resolves for an enemy the roster names, and " +
+            "the catalogue falls back to the key itself — so a missing row is this dotted identifier " +
+            "over the enemy's head in every fight it appears in.");
+        snapshot.ReadText(EnglishStrings + key).ShouldNotBeNullOrWhiteSpace(
+            "and a blank row is a banner with a hole in it rather than a name.");
+        snapshot.IsAuthorised(GermanStrings + key).ShouldBeTrue(
+            "X-04 requires every user-facing string to be a key in EN and DE from day one, and an " +
+            "enemy's name is the one string a German player reads on every fight.");
+        snapshot.ReadText(GermanStrings + key).ShouldNotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
+    /// 🔒 The German names are authored, not copied: stated on the boss, as 'different from EN and
+    /// not the untranslated placeholder' rather than as any particular wording.
+    /// </summary>
+    [Fact]
+    public void The_boss_is_named_in_German_rather_than_carrying_its_English_name_across()
+    {
+        const string bossNameKey = "loc.enemy.boss_thornmaw.name";
+        var snapshot = ContentLoader.Load(RepoData.Source()).Require();
+
+        snapshot.IsAuthorised(GermanStrings + bossNameKey).ShouldBeTrue(
+            "the boss's name has to exist in German before it can differ from the English one.");
+
+        var german = snapshot.ReadText(GermanStrings + bossNameKey);
+
+        german.ShouldNotBe(
+            snapshot.ReadText(EnglishStrings + bossNameKey),
+            "the chapter boss is the one enemy every player of chapter 1 meets by name, and its " +
+            "German name is authored rather than the English one copied across.");
+        german.ShouldNotContain(
+            "##TODO_DE##",
+            Case.Sensitive,
+            "and it is a translation, not the untranslated placeholder the other DE rows still carry.");
+    }
+
+    /// <summary>
     /// 🔒 The four stall sentences differ from one another <b>as authored</b> — the claim the client
     /// suite makes about the screen, restated here over the content the loader actually validates.
     /// </summary>

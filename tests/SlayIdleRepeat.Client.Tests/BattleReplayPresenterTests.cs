@@ -1407,7 +1407,10 @@ public sealed class BattleReplayPresenterTests
 
         await presenter.AdvanceAsync(0.5, CancellationToken.None);
 
-        presenter.StepCues.Select(cue => cue.Burst).ShouldBe(
+        presenter.StepCues
+                 .Where(cue => cue.Burst != ReplayBurst.None)
+                 .Select(cue => cue.Burst)
+                 .ShouldBe(
             [ReplayBurst.CritPop, ReplayBurst.HitSpark],
             "the two are one blow told in two events, and a screen that reordered them would " +
             "pop the announcement after the number it was announcing.");
@@ -1492,6 +1495,10 @@ public sealed class BattleReplayPresenterTests
             "a bar with a sliver left under an actor the log has just killed is the one " +
             "thing on this screen a player can prove wrong by looking at it.");
         fell.Burst.ShouldBe(ReplayBurst.DeathPuff);
+        fell.Motion.ShouldBe(
+            ReplayMotion.Fall,
+            "and the body goes down with the bar: a puff over an actor still standing in its idle " +
+            "pose is a death the 3D stage never shows.");
     }
 
     /// <summary>🔒 A status arrives with a STACK COUNT rather than a potency, and leaves with none.</summary>
@@ -1515,30 +1522,50 @@ public sealed class BattleReplayPresenterTests
     }
 
     /// <summary>
-    /// 🔒 The negative control: most of the log asks the screen to draw nothing whatever.
+    /// 🔒 The negative control: the four events that belong to the fight rather than to an actor
+    /// ask the screen to draw nothing whatever.
     /// </summary>
     /// <remarks>
     /// 🔴 The events are still crossed and still handed over — a screen that dropped them would lose
-    /// the opening of every fight — but none of them puts a number in the air or fires a burst. A
-    /// projection that emitted something for each of these would spray the screen with numbers for a
-    /// telegraph, a queued run effect and the fight's own end.
+    /// the opening of every fight — but none of them moves an actor, puts a number in the air or
+    /// fires a burst.
     /// </remarks>
     [Fact]
     public async Task The_events_that_ask_for_no_drawing_produce_no_instruction_at_all()
+    {
+        var presenter = await Playing(SilentFight());
+
+        await presenter.AdvanceAsync(CueFightSeconds, CancellationToken.None);
+
+        presenter.StepEvents.Count.ShouldBe(
+            SilentFightEventCount,
+            "every one of them still has to be crossed, or this case is stating the emptiness " +
+            "of a step that consumed nothing rather than the quietness of a step that consumed a lot.");
+        presenter.StepCues.ShouldBeEmpty(
+            "an opening, a phase change, a queued run effect and the fight's own end are things " +
+            "that happened to the FIGHT and to nobody in it. A screen drawing one for each would " +
+            "move an actor on a tick where nothing touched one.");
+    }
+
+    /// <summary>
+    /// 🔒 Its other half: the events that only move an actor put no number in the air.
+    /// </summary>
+    [Fact]
+    public async Task The_events_that_only_move_an_actor_put_no_number_in_the_air()
     {
         var presenter = await Playing(QuietFight());
 
         await presenter.AdvanceAsync(CueFightSeconds, CancellationToken.None);
 
-        presenter.StepEvents.Count.ShouldBe(
-            QuietFightEventCount,
-            "every one of them still has to be crossed, or this case is stating the emptiness " +
-            "of a step that consumed nothing rather than the quietness of a step that consumed a lot.");
-        presenter.StepCues.ShouldBeEmpty(
-            "an opening, an attack, a miss, a block, a broken ward, a ward granted, a phase " +
-            "change, a telegraph, a queued run effect and the fight's own end are all things that " +
-            "happened and none of them is a number over an actor's head. A screen drawing one for " +
-            "each would put ten floating numbers on a tick where nothing was hit.");
+        presenter.StepCues.Count.ShouldBe(
+            QuietFightMotionCount,
+            "two attacks, a miss, a block, a broken ward, a ward granted and a telegraph each " +
+            "move somebody on the stage, so each is an instruction — and a count that fell short " +
+            "is a motion the stage never saw.");
+        presenter.StepCues.ShouldAllBe(
+            cue => cue.Floater == ReplayFloater.None,
+            "and not one of them is a number over an actor's head: nothing was hit, healed or " +
+            "burned, so a floater here is a number for damage that was never dealt.");
     }
 
     // ---- 🔒 one reading of the actor roster, and it is this one ---------------------------------
@@ -1621,6 +1648,273 @@ public sealed class BattleReplayPresenterTests
             "cannot read.");
     }
 
+    // ---- 🔒 what each event asks the stage to do with the bodies on it --------------------------
+
+    [Fact]
+    public async Task An_attack_swings_its_attacker_toward_the_defender()
+    {
+        var cues = await CuesAfterTheOpening(
+            Staged(At(10, CombatEventType.Attack, HeroSlot, FirstEnemySlot)));
+
+        var swing = cues.ShouldHaveSingleItem();
+
+        swing.Motion.ShouldBe(
+            ReplayMotion.Swing,
+            "an attack is the one event that moves the actor who ACTED rather than the one it " +
+            "happened to, and a stage on which nobody swings is a stage on which blows arrive from " +
+            "nowhere.");
+        swing.ActorId.ShouldBe(
+            HeroSlot,
+            "the swing belongs to the attacker, which is the event's source — every other cue on " +
+            "this screen is drawn over the target, so a reading that kept that habit here would " +
+            "swing the defender.");
+        swing.Side.ShouldBe(ReplaySide.Hero, "and it is drawn on the attacker's side of the stage.");
+        swing.CounterpartId.ShouldBe(
+            FirstEnemySlot,
+            "the defender is where the swing is aimed. A counterpart that named the attacker's own " +
+            "slot would turn every blow in the game into a swing at nothing.");
+    }
+
+    [Fact]
+    public async Task A_blow_recoils_the_actor_it_landed_on_and_names_its_striker()
+    {
+        var cues = await CuesAfterTheOpening(
+            Staged(At(10, CombatEventType.Hit, SecondEnemySlot, HeroSlot, value: 7)));
+
+        var recoil = cues.ShouldHaveSingleItem();
+
+        recoil.Motion.ShouldBe(ReplayMotion.Recoil, "a blow that lands moves the body it landed on.");
+        recoil.ActorId.ShouldBe(HeroSlot, "which is the event's target, exactly as the number is.");
+        recoil.CounterpartId.ShouldBe(
+            SecondEnemySlot,
+            "and the recoil is away from the striker — the SECOND enemy here, so a counterpart " +
+            "filled from the first enemy slot or from the attacker's own fails rather than passing on " +
+            "a fixture that happened to agree.");
+        recoil.Floater.ShouldBe(
+            ReplayFloater.Hit, "the number a blow already drew is still drawn beside the motion.");
+    }
+
+    [Fact]
+    public async Task A_miss_makes_the_defender_dodge_and_moves_no_health()
+    {
+        var cues = await CuesAfterTheOpening(
+            Staged(At(10, CombatEventType.Miss, HeroSlot, FirstEnemySlot)));
+
+        var dodge = cues.ShouldHaveSingleItem();
+
+        dodge.Motion.ShouldBe(ReplayMotion.Dodge, "a miss is the defender getting out of the way.");
+        dodge.ActorId.ShouldBe(
+            FirstEnemySlot,
+            "so it belongs to the event's target — the one who dodged — not to the attacker who " +
+            "swung and missed.");
+        dodge.CounterpartId.ShouldBe(HeroSlot, "and it is away from whoever swung.");
+        dodge.Health.ShouldBeNull(
+            "nothing landed. The enemy was spawned with a maximum, so a projection that moved its " +
+            "bar by nothing would still report a number here — a miss moves no health and says so " +
+            "with null rather than with the unchanged value.");
+        dodge.Floater.ShouldBe(ReplayFloater.None, "and no number rises for damage that was never dealt.");
+    }
+
+    [Fact]
+    public async Task A_block_braces_the_defender_against_its_striker()
+    {
+        var cues = await CuesAfterTheOpening(
+            Staged(At(10, CombatEventType.Block, FirstEnemySlot, HeroSlot)));
+
+        var brace = cues.ShouldHaveSingleItem();
+
+        brace.Motion.ShouldBe(ReplayMotion.Brace, "a block is the defender taking the blow on purpose.");
+        brace.ActorId.ShouldBe(HeroSlot, "which is the event's target, the one who blocked.");
+        brace.CounterpartId.ShouldBe(
+            FirstEnemySlot, "braced toward the striker, or the shield faces the wrong way.");
+    }
+
+    /// <summary>The lead is the log's own number, in seconds, and 1.25 is chosen so a hard-coded second fails.</summary>
+    [Fact]
+    public async Task A_telegraph_winds_its_source_up_for_exactly_the_seconds_the_log_states()
+    {
+        var cues = await CuesAfterTheOpening(
+            Staged(At(10, CombatEventType.Telegraph, FirstEnemySlot, HeroSlot, value: 1.25)));
+
+        var windUp = cues.ShouldHaveSingleItem();
+
+        windUp.Motion.ShouldBe(ReplayMotion.WindUp, "a telegraph is the announcer visibly preparing something.");
+        windUp.ActorId.ShouldBe(
+            FirstEnemySlot,
+            "so it belongs to the event's SOURCE — the boss winding up — rather than to the hero it " +
+            "is aimed at, which is the one event besides an attack and a pet's ability drawn over the " +
+            "actor who acted.");
+        windUp.MotionSeconds.ShouldBe(
+            1.25,
+            "the log states the lead in seconds and the wind-up has to fill exactly that lead, or " +
+            "the pose finishes before the blow it was warning about — the whole point of the warning.");
+    }
+
+    [Theory]
+    [InlineData(CombatEventType.Shield, ReplayBurst.Ward)]
+    [InlineData(CombatEventType.WardBroken, ReplayBurst.WardBroken)]
+    public async Task A_ward_granted_and_a_ward_broken_each_burst_over_the_actor_carrying_it(
+        CombatEventType type, ReplayBurst burst)
+    {
+        var cues = await CuesAfterTheOpening(
+            Staged(At(10, type, HeroSlot, SecondEnemySlot, value: 20)));
+
+        var warded = cues.ShouldHaveSingleItem();
+
+        warded.Burst.ShouldBe(
+            burst,
+            "a ward arriving and a ward giving way are the two moments a player can see why a blow " +
+            "did less than its number, and each has its own burst.");
+        warded.ActorId.ShouldBe(SecondEnemySlot, "over the actor the ward is on, which is the event's target.");
+    }
+
+    /// <summary>
+    /// 🔒 A spawn AFTER tick zero — a summon — is an entrance, and the bar it enters with is the
+    /// maximum the spawn states.
+    /// </summary>
+    /// <remarks>
+    /// No fixture the simulator emits through the public doors admits an actor mid-fight on demand,
+    /// so the log is built to.
+    /// </remarks>
+    [Fact]
+    public async Task A_summon_admitted_mid_fight_enters_with_the_maximum_the_log_spawned_it_with()
+    {
+        var presenter = await Playing(CastFight());
+
+        await presenter.AdvanceAsync(0, CancellationToken.None);
+        await presenter.AdvanceAsync(CueFightSeconds, CancellationToken.None);
+
+        var entered = presenter.StepCues
+                               .Where(cue => cue.Motion == ReplayMotion.Enter)
+                               .ShouldHaveSingleItem("one actor arrived after the opening, so one entrance is drawn.");
+
+        entered.ActorId.ShouldBe(SummonSlot, "the entrance belongs to the actor spawned, the event's target.");
+        entered.Side.ShouldBe(ReplaySide.Enemy);
+        entered.Health.ShouldNotBeNull(
+            "an add whose entrance fixes no health is an add with no bar for the rest of the fight.");
+        entered.Health.Value.ShouldBe(
+            SummonMaxHp,
+            tolerance: HealthTolerance,
+            customMessage: "and it opens on the maximum the spawn event states, because a summon opens full.");
+    }
+
+    // ---- 🔒 the cast list: who each slot IS, as the rules layer named it ------------------------
+
+    [Theory]
+    [InlineData(HeroSlot, "HERO", false, false, false)]
+    [InlineData(FirstEnemySlot, ThornSentinelIdentity, true, false, false)]
+    [InlineData(SecondEnemySlot, ThornmawIdentity, false, true, false)]
+    [InlineData(SummonSlot, SwarmIdentity, false, false, true)]
+    public async Task Each_actor_carries_the_identity_and_flags_the_roster_gives_its_slot(
+        byte slot, string identity, bool elite, bool boss, bool summon)
+    {
+        var presenter = await Playing(CastFight());
+
+        var actor = Actor(presenter, slot);
+
+        actor.Identity.ShouldBe(
+            identity,
+            $"slot {slot} is named by the roster the rules layer settled the fight with, and the " +
+            "stage dresses the slot with whatever model that name maps to — a slot that lost its " +
+            "name, or took a neighbour's, is a Thorn Sentinel drawn as an acorn.");
+        actor.IsElite.ShouldBe(elite);
+        actor.IsBoss.ShouldBe(boss);
+        actor.IsSummon.ShouldBe(summon, "and the three flags are read per slot rather than per side.");
+    }
+
+    /// <summary>🔒 S6: an actor the roster does not name has no identity — null, never a stand-in.</summary>
+    [Theory]
+    [InlineData(FirstEnemySlot)]
+    [InlineData(SecondEnemySlot)]
+    public async Task An_actor_the_roster_does_not_name_has_no_identity_rather_than_an_invented_one(byte slot)
+    {
+        var presenter = await Playing(HalfNamedRosterFight());
+
+        var actor = Actor(presenter, slot);
+
+        actor.Identity.ShouldBeNull(
+            "one of these slots the roster lists with no name and the other it does not list at " +
+            "all, and both are the same fact: no door named this actor. A default string here would " +
+            "dress the slot with a model for an enemy the server never fought.");
+        actor.IsElite.ShouldBeFalse();
+        actor.IsBoss.ShouldBeFalse();
+        actor.IsSummon.ShouldBeFalse();
+    }
+
+    // ---- 🔒 captions by authored name, where the roster gives one ------------------------------
+
+    [Fact]
+    public async Task An_enemy_the_roster_names_is_captioned_by_its_authored_name()
+    {
+        var presenter = await Playing(
+            NamedRosterFight(),
+            content: BattleContent.Naming(BattleContent.GruntNameKey, BattleContent.GruntAuthoredName));
+
+        presenter.CaptionOf(FirstEnemySlot).ShouldBe(
+            BattleContent.GruntAuthoredName,
+            "the roster names this slot GRUNT and the content set names the GRUNT, so the banner " +
+            "reads the name a designer wrote and a translator was paid for — and not the role and " +
+            "index the screen fell back to while no name was reachable.");
+    }
+
+    /// <summary>
+    /// 🔒 The catalogue's own fallback contract: a key nothing authored resolves to the key itself.
+    /// </summary>
+    [Fact]
+    public async Task An_enemy_whose_name_is_not_authored_is_captioned_by_its_own_key()
+    {
+        var presenter = await Playing(NamedRosterFight());
+
+        presenter.CaptionOf(SecondEnemySlot).ShouldBe(
+            MossbackNameKey,
+            "the identity is an elite id in upper snake case and the key is its lower-case form " +
+            "under the enemy namespace — so a caption that reads as this dotted identifier is a " +
+            "missing translation somebody can find with one search, where a role-and-index fallback " +
+            "would hide that the name was never authored.");
+    }
+
+    [Fact]
+    public async Task The_hero_keeps_its_own_caption_however_the_roster_names_it()
+    {
+        var presenter = await Playing(NamedRosterFight());
+
+        presenter.CaptionOf(HeroSlot).ShouldBe(
+            BattleContent.EnglishValueOf(BattleContent.HeroLabelKey),
+            "the roster names the hero too, and a caption that mapped every named actor through the " +
+            "enemy namespace would put 'loc.enemy.hero.name' over the player's own character.");
+    }
+
+    // ---- 🔒 the stage's biome, read off the run's chapter ---------------------------------------
+
+    [Fact]
+    public async Task The_biome_art_set_is_the_run_chapters_own_with_its_prefix_stripped()
+    {
+        var presenter = await Playing(
+            ShortFight(),
+            RecordingGameHost.Finding(AnyPlayer(), RunInChapter(7)),
+            content: BattleContent.WithChapters((1, "biome_decoy"), (7, "biome_fixture_vale")));
+
+        presenter.BiomeArtSet.ShouldBe(
+            "fixture_vale",
+            "the stage is dressed for the chapter the RUN is in — the second authored chapter here, " +
+            "not the first document found — and the art set is named without its 'biome_' prefix, " +
+            "which is the form the art manifest keys the palette and the props under.");
+    }
+
+    /// <summary>🔒 S6: absent means null, not an empty string a scene would try to load props for.</summary>
+    [Fact]
+    public async Task A_chapter_that_authors_no_art_set_leaves_the_biome_null_rather_than_blank()
+    {
+        var presenter = await Playing(
+            ShortFight(),
+            RecordingGameHost.Finding(AnyPlayer(), RunInChapter(7)),
+            content: BattleContent.WithChapters((7, null)));
+
+        presenter.BiomeArtSet.ShouldBeNull(
+            "a chapter with no art set has no biome to dress the stage in, and the honest answer is " +
+            "null: an empty string reads as a biome whose props happen to be missing.");
+    }
+
     // ---- 🔒 one arithmetic for one health bar --------------------------------------------------
 
     /// <summary>
@@ -1698,6 +1992,8 @@ public sealed class BattleReplayPresenterTests
     {
         var presenter = await Playing(ShortFight());
 
+        // The opening tick is consumed on its own, so the enemy's entrance is not among the cues read.
+        await presenter.AdvanceAsync(0, CancellationToken.None);
         await presenter.AdvanceAsync(1.0, CancellationToken.None);
 
         var struck = presenter.StepCues.Single(cue => cue.ActorId == SecondEnemySlot);
@@ -2131,6 +2427,136 @@ public sealed class BattleReplayPresenterTests
             ],
             LogHash: 808080UL);
 
+    /// <summary>How many of <see cref="QuietFight"/>'s events move an actor without drawing a number.</summary>
+    private const int QuietFightMotionCount = 7;
+
+    /// <summary>How many events <see cref="SilentFight"/> carries, none of which asks for anything.</summary>
+    private const int SilentFightEventCount = 4;
+
+    /// <summary>A fight made only of the events that belong to the fight itself and to no actor in it.</summary>
+    private static SimulationResult SilentFight() =>
+        new(
+            HeroWon: true,
+            DurationTicks: 40,
+            HeroHpRemaining: 30,
+            Log:
+            [
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                At(10, CombatEventType.PhaseChange, FirstEnemySlot, FirstEnemySlot, value: 1),
+                At(25, CombatEventType.RunEffectQueued, NoActorSlot, NoActorSlot),
+                At(40, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 818181UL);
+
+    /// <summary>
+    /// A fight whose opening roster is spawned on tick zero and whose only other events are the
+    /// given ones, so a case can read the cues of exactly those.
+    /// </summary>
+    private static SimulationResult Staged(params CombatEvent[] events) =>
+        new(
+            HeroWon: true,
+            DurationTicks: ShortFightDurationTicks,
+            HeroHpRemaining: HeroMaxHp,
+            Log:
+            [
+                At(0, CombatEventType.ActorSpawned, NoActorSlot, HeroSlot, value: HeroMaxHp),
+                At(0, CombatEventType.ActorSpawned, NoActorSlot, FirstEnemySlot, value: SurvivingEnemyMaxHp),
+                At(0, CombatEventType.ActorSpawned, NoActorSlot, SecondEnemySlot, value: SurvivingEnemyMaxHp),
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                .. events,
+                At(ShortFightDurationTicks, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 151515UL);
+
+    /// <summary>The slot a summon takes in <see cref="CastFight"/>, after the two opening enemies.</summary>
+    private const byte SummonSlot = 6;
+
+    /// <summary>What the summon is spawned with.</summary>
+    private const double SummonMaxHp = 45.0;
+
+    /// <summary>What each opening enemy of <see cref="CastFight"/> is spawned with.</summary>
+    private const double CastFightEnemyMaxHp = 50.0;
+
+    private const string GruntIdentity = "GRUNT";
+    private const string SwarmIdentity = "SWARM";
+    private const string ThornSentinelIdentity = "EL_THORN_SENTINEL";
+    private const string MossbackIdentity = "EL_MOSSBACK_ALPHA";
+    private const string ThornmawIdentity = "BOSS_THORNMAW";
+
+    /// <summary>The key the Mossback Alpha's name lives under, which no fixture here authors.</summary>
+    private const string MossbackNameKey = "loc.enemy.el_mossback_alpha.name";
+
+    /// <summary>
+    /// A fight whose roster carries every flag the rules layer sets — an elite, the boss and a summon
+    /// admitted on tick 30 — with the hero named through its own door.
+    /// </summary>
+    private static SimulationResult CastFight() =>
+        new SimulationResult(
+            HeroWon: true,
+            DurationTicks: 40,
+            HeroHpRemaining: HeroMaxHp - 10,
+            Log:
+            [
+                At(0, CombatEventType.ActorSpawned, NoActorSlot, HeroSlot, value: HeroMaxHp),
+                At(0, CombatEventType.ActorSpawned, NoActorSlot, FirstEnemySlot, value: CastFightEnemyMaxHp),
+                At(0, CombatEventType.ActorSpawned, NoActorSlot, SecondEnemySlot, value: CastFightEnemyMaxHp),
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                At(10, CombatEventType.Attack),
+                At(10, CombatEventType.Hit, HeroSlot, FirstEnemySlot, value: 10),
+                At(30, CombatEventType.ActorSpawned, NoActorSlot, SummonSlot, value: SummonMaxHp),
+                At(35, CombatEventType.Hit, SummonSlot, HeroSlot, value: 10),
+                At(40, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 141414UL)
+        {
+            Roster =
+            [
+                Named(HeroSlot, "HERO"),
+                Named(FirstEnemySlot, ThornSentinelIdentity, elite: true),
+                Named(SecondEnemySlot, ThornmawIdentity, boss: true),
+                Named(SummonSlot, SwarmIdentity, summon: true),
+            ],
+        };
+
+    /// <summary>
+    /// <see cref="RosterFight"/> with a roster naming a GRUNT in the first enemy slot and a Mossback
+    /// Alpha in the second.
+    /// </summary>
+    private static SimulationResult NamedRosterFight() =>
+        RosterFight() with
+        {
+            Roster =
+            [
+                Named(HeroSlot, "HERO"),
+                Named(FirstEnemySlot, GruntIdentity),
+                Named(SecondEnemySlot, MossbackIdentity, elite: true),
+            ],
+        };
+
+    /// <summary>
+    /// <see cref="RosterFight"/> with a roster that lists the first enemy without a name and does
+    /// not list the second at all.
+    /// </summary>
+    private static SimulationResult HalfNamedRosterFight() =>
+        RosterFight() with
+        {
+            Roster = [Named(HeroSlot, "HERO"), Named(FirstEnemySlot, identity: null)],
+        };
+
+    private static BattleRosterEntry Named(
+        byte slot, string? identity, bool elite = false, bool boss = false, bool summon = false) =>
+        new(slot, identity, elite, boss, summon);
+
+    /// <summary>A run parked in the battle phase in the given chapter.</summary>
+    private static RunSnapshot RunInChapter(int chapterId) =>
+        PlayerState.Run(
+            Run,
+            Player,
+            RunPhase.BattlePending,
+            chapterId: chapterId,
+            runSeed: 4242,
+            rngStreamPositions: Counters(battlesStarted: 1));
+
     /// <summary>A fight whose roster reaches the hero, a pet and two enemies.</summary>
     private static SimulationResult RosterFight() =>
         new(
@@ -2243,17 +2669,30 @@ public sealed class BattleReplayPresenterTests
         SimulationResult fight,
         RecordingGameHost? host = null,
         BattleSpeed speed = BattleSpeed.Single,
-        bool reducedMotion = false)
+        bool reducedMotion = false,
+        ContentSnapshot? content = null)
     {
         var presenter = Build(
             host ?? RecordingGameHost.Finding(AnyPlayer(), BattleRun()),
             StubBattleSimulation.Playing(fight),
             speed,
-            reducedMotion);
+            reducedMotion,
+            content);
 
         await presenter.StartAsync(CancellationToken.None);
 
         return presenter;
+    }
+
+    /// <summary>The cues of everything after tick zero, so an actor's own entrance is not among them.</summary>
+    private static async Task<IReadOnlyList<ReplayCue>> CuesAfterTheOpening(SimulationResult fight)
+    {
+        var presenter = await Playing(fight);
+
+        await presenter.AdvanceAsync(0, CancellationToken.None);
+        await presenter.AdvanceAsync(CueFightSeconds, CancellationToken.None);
+
+        return presenter.StepCues;
     }
 
     private static BattleReplayPresenter Build(
@@ -2261,14 +2700,20 @@ public sealed class BattleReplayPresenterTests
         IBattleSimulationSource? simulations = null,
         BattleSpeed speed = BattleSpeed.Single,
         bool reducedMotion = false,
-        ContentSnapshot? content = null) =>
-        new(host,
-            BattleContent.Catalogue(content ?? BattleContent.Strings()),
+        ContentSnapshot? content = null)
+    {
+        var authored = content ?? BattleContent.Strings();
+
+        return new BattleReplayPresenter(
+            host,
+            BattleContent.Catalogue(authored),
+            authored,
             simulations ?? StubBattleSimulation.Playing(ShortFight()),
             Player,
             Run,
             speed,
             reducedMotion);
+    }
 
     /// <summary>
     /// A prediction that answers whatever a case asked it to, without touching the real simulator.

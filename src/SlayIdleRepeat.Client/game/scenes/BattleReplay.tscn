@@ -1,35 +1,214 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/BattleReplay.cs" id="1_battle"]
+[ext_resource type="Script" path="res://game/scenes/BattleWorld.cs" id="2_world"]
+[ext_resource type="Script" path="res://game/scenes/BattleCameraRig.cs" id="3_rig"]
 
-[sub_resource type="QuadMesh" id="QuadMesh_ground"]
-size = Vector2(24, 42)
+; ============================================================================================
+; The battle, drawn as a stage the fight is fought on.
+;
+; 🔴 Every distance, fraction, timing, canvas offset and camera number on this screen's exports is
+; a CHOICE OF THIS TASK and not one of them is authored by a design document. The design states
+; how a fight must READ — the hero on the left facing the enemies on the right, a swing that
+; reaches, a blow that recoils, a fall that stays down, plates over heads, the whole stage in the
+; band the interface leaves free — and states no distance, no duration and no angle at all. Per
+; steering rule S6 they live here, in one greppable place, marked as debt owed to a ruling, rather
+; than as constants scattered through the code where they would read as decided.
+;
+; The units, so a tune does not mistake one for another: the stage distances (HalfGap through
+; DodgeSideStep, PlateClearance) are stage units; every *Seconds is seconds; BraceSquash, FallSink
+; and PulseSwell are fractions of the actor's OWN size, so a small enemy and a boss squash, sink and
+; swell in proportion; FloatRise and FloatFanStep are canvas pixels on the overlay, not stage units.
+;
+; What IS authored is derived rather than picked: the camera's distance solves itself from the
+; stage's real extent at the viewport's real aspect, and its lift from the band the interface
+; leaves free (BattleCameraRig.UsableBandTop/Bottom). The enemy heights come off the shipped
+; models, not off a number here.
+;
+; ⚠️ The two facing yaws are the one place the art's own convention shows: every model ships
+; facing +Z, the way glTF faces, and an actor rig looks along its own -Z, so both the hero and the
+; enemy template are turned 180 to look across the stage.
+;
+; ⚠️ There is no WorldEnvironment and no light here, and there must not be: a viewport has exactly
+; one environment, and AppRoot owns it along with the app-wide key and fill. The floor is a real
+; plane that takes the key light's shadow, not a quad pinned in front of the camera — a rig that
+; frames the stage would leave a pinned quad behind.
+;
+; ⚠️ Nothing here reflects anything: the floor's material leaves the engine's default surface
+; alone, because a reflective one renders black under a build with no probe and no sky.
+;
+; ⚠️ Every type size, colour and gap on the overlay is a per-node override owed to the UI kit,
+; chosen against the engine's default font, and has to be re-checked when the real faces land.
+; ============================================================================================
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
-shading_mode = 0
-albedo_color = Color(0.07, 0.07, 0.09, 1)
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+size = Vector2(40, 40)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.1, 0.11, 0.13, 1)
+roughness = 1.0
 
 [node name="BattleReplay" type="Node3D"]
 script = ExtResource("1_battle")
+HalfGap = 2.4
+EnemySpacing = 1.6
+EnemyArcDepth = 0.45
+SwingSeconds = 0.28
+SwingReach = 0.8
+RecoilSeconds = 0.22
+RecoilDistance = 0.3
+DodgeSeconds = 0.3
+DodgeSideStep = 0.6
+BraceSeconds = 0.25
+BraceSquash = 0.12
+FallSeconds = 0.6
+FallTipDegrees = 80.0
+FallSink = 0.15
+EnterSeconds = 0.35
+PlateClearance = 0.35
+PoseHoldSeconds = 0.8
+ReducedMotionSeconds = 0.1
+FloatSeconds = 0.7
+FloatRise = 220.0
+FloatFanStep = 44.0
+BandFadeSeconds = 0.25
+PulseSwell = 0.06
+HeroFacingYawDegrees = 180.0
+HeroHeight = 2.22
 
 [node name="World" type="Node3D" parent="."]
 unique_name_in_owner = true
+script = ExtResource("2_world")
 
-[node name="Camera" type="Camera3D" parent="World"]
+; The rig's yaw and the pitch's tilt are written again by the rig on _Ready, and its position and
+; the camera's distance on Snap — so these govern only the first frame. But the first frame is
+; what a screenshot of a scene file shows, and a rig that failed to wire would leave the stage
+; drawn from here forever. Kept in step with the rig's own exports.
+[node name="CameraRig" type="Node3D" parent="World"]
 unique_name_in_owner = true
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
+transform = Transform3D(0.8829, 0, 0.4695, 0, 1, 0, -0.4695, 0, 0.8829, 0, 1.2, 0)
+script = ExtResource("3_rig")
+YawDegrees = -28.0
+PitchDegrees = 16.0
+Margin = 1.15
+UsableBandTop = 0.14
+UsableBandBottom = 0.7
+HalfLife = 0.35
+
+[node name="Pitch" type="Node3D" parent="World/CameraRig"]
+transform = Transform3D(1, 0, 0, 0, 0.9613, -0.2756, 0, 0.2756, 0.9613, 0, 0, 0)
+
+; 🔒 A bare Camera3D named Camera, unique_in_owner, fov 60 — ScreenStage.Show resolves "%Camera"
+; and calls MakeCurrent on it, which is the whole handover contract and is orthogonal to every
+; transform the rig writes. Put the rig's script on this node instead and every handover in the
+; build draws through the previous screen's camera, silently.
+[node name="Camera" type="Camera3D" parent="World/CameraRig/Pitch"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 12)
 fov = 60.0
 
-[node name="Ground" type="MeshInstance3D" parent="World"]
-unique_name_in_owner = true
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
-mesh = SubResource("QuadMesh_ground")
-material_override = SubResource("StandardMaterial3D_ground")
+[node name="Floor" type="MeshInstance3D" parent="World"]
+mesh = SubResource("PlaneMesh_floor")
+material_override = SubResource("StandardMaterial3D_floor")
+
+[node name="Actors" type="Node3D" parent="World"]
 
 [node name="Ui" type="CanvasLayer" parent="."]
 unique_name_in_owner = true
 
 [node name="Screen" type="Control" parent="Ui"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Plates" type="Control" parent="Ui/Screen"]
+unique_name_in_owner = true
+mouse_filter = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Effects" type="Control" parent="Ui/Screen"]
+unique_name_in_owner = true
+mouse_filter = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HitSparks" type="CPUParticles2D" parent="Ui/Screen/Effects"]
+unique_name_in_owner = true
+emitting = false
+amount = 16
+lifetime = 0.4
+one_shot = true
+explosiveness = 0.9
+direction = Vector2(0, -1)
+spread = 55.0
+gravity = Vector2(0, 900)
+initial_velocity_min = 180.0
+initial_velocity_max = 420.0
+scale_amount_min = 4.0
+scale_amount_max = 9.0
+color = Color(0.98, 0.86, 0.62, 1)
+
+[node name="CritPop" type="CPUParticles2D" parent="Ui/Screen/Effects"]
+unique_name_in_owner = true
+emitting = false
+amount = 28
+lifetime = 0.55
+one_shot = true
+explosiveness = 1.0
+direction = Vector2(0, -1)
+spread = 180.0
+gravity = Vector2(0, 260)
+initial_velocity_min = 320.0
+initial_velocity_max = 700.0
+scale_amount_min = 6.0
+scale_amount_max = 14.0
+color = Color(0.99, 0.84, 0.36, 1)
+
+[node name="DeathPuff" type="CPUParticles2D" parent="Ui/Screen/Effects"]
+unique_name_in_owner = true
+emitting = false
+amount = 24
+lifetime = 0.9
+one_shot = true
+explosiveness = 0.75
+direction = Vector2(0, -1)
+spread = 180.0
+gravity = Vector2(0, -60)
+initial_velocity_min = 40.0
+initial_velocity_max = 160.0
+scale_amount_min = 10.0
+scale_amount_max = 24.0
+color = Color(0.42, 0.42, 0.48, 1)
+
+[node name="WardMotes" type="CPUParticles2D" parent="Ui/Screen/Effects"]
+unique_name_in_owner = true
+emitting = false
+amount = 20
+lifetime = 0.8
+one_shot = true
+explosiveness = 0.6
+direction = Vector2(0, -1)
+spread = 40.0
+gravity = Vector2(0, -120)
+initial_velocity_min = 60.0
+initial_velocity_max = 160.0
+scale_amount_min = 5.0
+scale_amount_max = 10.0
+color = Color(0.55, 0.78, 0.98, 1)
+
+[node name="FloatingText" type="Control" parent="Ui/Screen/Effects"]
+unique_name_in_owner = true
+mouse_filter = 2
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -56,174 +235,35 @@ theme_override_constants/separation = 32
 
 [node name="Banner" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 24
 
+; The title takes only the width its text needs and the opponent's name takes the rest, right-aligned
+; and wrapping — the board's StandingOnRow arrangement — so a short title never wraps.
 [node name="TitleLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Banner"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
 size_flags_vertical = 4
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 72
-autowrap_mode = 3
 
 [node name="OpponentLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Banner"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
-size_flags_stretch_ratio = 2.0
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 44
 horizontal_alignment = 2
 autowrap_mode = 3
 
-[node name="Stage" type="Control" parent="Ui/Screen/SafeArea/Column"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 400)
+; The stage shows through here: the band the camera frames the actors into.
+[node name="Spacer" type="Control" parent="Ui/Screen/SafeArea/Column"]
 layout_mode = 2
 size_flags_vertical = 3
-size_flags_stretch_ratio = 1.0
 mouse_filter = 2
 
-[node name="Arena" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Stage"]
-mouse_filter = 2
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 48
-
-[node name="HeroSide" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Stage/Arena"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-theme_override_constants/separation = 16
-
-[node name="HeroToken" type="ColorRect" parent="Ui/Screen/SafeArea/Column/Stage/Arena/HeroSide"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(280, 280)
-layout_mode = 2
-size_flags_horizontal = 4
-color = Color(0.36, 0.52, 0.82, 1)
-
-[node name="HeroName" type="Label" parent="Ui/Screen/SafeArea/Column/Stage/Arena/HeroSide"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 44
-horizontal_alignment = 1
-autowrap_mode = 3
-
-[node name="EnemySide" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Stage/Arena"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-theme_override_constants/separation = 16
-
-[node name="EnemyToken" type="ColorRect" parent="Ui/Screen/SafeArea/Column/Stage/Arena/EnemySide"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(280, 280)
-layout_mode = 2
-size_flags_horizontal = 4
-color = Color(0.72, 0.34, 0.36, 1)
-
-[node name="EnemyName" type="Label" parent="Ui/Screen/SafeArea/Column/Stage/Arena/EnemySide"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 44
-horizontal_alignment = 1
-autowrap_mode = 3
-
-[node name="Effects" type="Control" parent="Ui/Screen/SafeArea/Column/Stage"]
-unique_name_in_owner = true
-mouse_filter = 2
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="HitSparks" type="CPUParticles2D" parent="Ui/Screen/SafeArea/Column/Stage/Effects"]
-unique_name_in_owner = true
-emitting = false
-amount = 16
-lifetime = 0.4
-one_shot = true
-explosiveness = 0.9
-direction = Vector2(0, -1)
-spread = 55.0
-gravity = Vector2(0, 900)
-initial_velocity_min = 180.0
-initial_velocity_max = 420.0
-scale_amount_min = 4.0
-scale_amount_max = 9.0
-color = Color(0.98, 0.86, 0.62, 1)
-
-[node name="CritPop" type="CPUParticles2D" parent="Ui/Screen/SafeArea/Column/Stage/Effects"]
-unique_name_in_owner = true
-emitting = false
-amount = 28
-lifetime = 0.55
-one_shot = true
-explosiveness = 1.0
-direction = Vector2(0, -1)
-spread = 180.0
-gravity = Vector2(0, 260)
-initial_velocity_min = 320.0
-initial_velocity_max = 700.0
-scale_amount_min = 6.0
-scale_amount_max = 14.0
-color = Color(0.99, 0.84, 0.36, 1)
-
-[node name="DeathPuff" type="CPUParticles2D" parent="Ui/Screen/SafeArea/Column/Stage/Effects"]
-unique_name_in_owner = true
-emitting = false
-amount = 24
-lifetime = 0.9
-one_shot = true
-explosiveness = 0.75
-direction = Vector2(0, -1)
-spread = 180.0
-gravity = Vector2(0, -60)
-initial_velocity_min = 40.0
-initial_velocity_max = 160.0
-scale_amount_min = 10.0
-scale_amount_max = 24.0
-color = Color(0.42, 0.42, 0.48, 1)
-
-[node name="FloatingText" type="Control" parent="Ui/Screen/SafeArea/Column/Stage/Effects"]
-unique_name_in_owner = true
-mouse_filter = 2
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="ReadoutScroll" type="ScrollContainer" parent="Ui/Screen/SafeArea/Column"]
-custom_minimum_size = Vector2(0, 200)
-layout_mode = 2
-size_flags_vertical = 3
-size_flags_stretch_ratio = 0.8
-horizontal_scroll_mode = 0
-
-[node name="Readout" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/ReadoutScroll"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_constants/separation = 32
-
-[node name="Bars" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/ReadoutScroll/Readout"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_constants/separation = 24
-
-[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column/ReadoutScroll/Readout"]
+[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
@@ -244,13 +284,14 @@ theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 44
 autowrap_mode = 3
 
+; A multiplier is one token: the button grows with its text rather than wrapping it, and the caption
+; beside it is the cell that yields.
 [node name="SpeedButton" type="Button" parent="Ui/Screen/SafeArea/Column/ControlRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 168)
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_font_sizes/font_size = 48
-autowrap_mode = 3
 
 [node name="SkipButton" type="Button" parent="Ui/Screen/SafeArea/Column/ControlRow"]
 unique_name_in_owner = true
@@ -275,6 +316,8 @@ unique_name_in_owner = true
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 64.0
+offset_right = -64.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_colors/font_color = Color(0.98, 0.94, 0.9, 1)

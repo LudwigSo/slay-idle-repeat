@@ -42,6 +42,18 @@ internal static class BattleContent
     internal const string DefeatStatusKey = "loc.battle.defeat.status";
     internal const string RefusedStatusKey = "loc.battle.refused.status";
 
+    /// <summary>The loc key of the chapter-1 GRUNT's name, as the enemy loc namespace spells it.</summary>
+    internal const string GruntNameKey = "loc.enemy.grunt.name";
+
+    /// <summary>The GRUNT's authored English name, from <c>assets/GREENWOOD_VALE_CAST.md</c>.</summary>
+    internal const string GruntAuthoredName = "Thistlekin Scrapper";
+
+    /// <summary>Where the chapter documents sit in the content set.</summary>
+    internal const string ChaptersDirectory = "content/chapters/";
+
+    /// <summary>The chapter member naming its art set.</summary>
+    internal const string BiomeArtSetMember = "biomeArtSet";
+
     private static readonly ContentVersion FixtureStamp =
         ContentVersion.FromHex(new string('b', ContentVersion.HexLength));
 
@@ -106,6 +118,58 @@ internal static class BattleContent
     internal static ContentSnapshot Authoring(string key) =>
         new(FixtureStamp,
             [.. Locales([.. BattleKeys.Where(k => !string.Equals(k, key, StringComparison.Ordinal))])]);
+
+    /// <summary>
+    /// A content set carrying this screen's strings plus one enemy name, authored in English as the
+    /// cast document spells it rather than as a fixture marker.
+    /// </summary>
+    /// <param name="key">The enemy's name key.</param>
+    /// <param name="englishName">Its authored English name.</param>
+    internal static ContentSnapshot Naming(string key, string englishName)
+    {
+        var keys = new List<string>(BattleKeys) { key };
+
+        return new ContentSnapshot(
+            FixtureStamp,
+            [
+                Locale(
+                    "loc/en.json",
+                    ScreenContent.English,
+                    keys,
+                    k => string.Equals(k, key, StringComparison.Ordinal) ? englishName : EnglishValueOf(k)),
+                Locale("loc/de.json", ScreenContent.German, keys, GermanValueOf),
+            ]);
+    }
+
+    /// <summary>
+    /// A content set carrying this screen's strings and the given chapters, each with only what the
+    /// replay reads off one: its id and, where given, its art set.
+    /// </summary>
+    /// <param name="chapters">Chapter ids paired with their <c>biomeArtSet</c>, or null to author none.</param>
+    internal static ContentSnapshot WithChapters(params (int Id, string? BiomeArtSet)[] chapters)
+    {
+        var documents = new List<ContentDocument>(Locales(BattleKeys));
+
+        documents.AddRange(chapters.Select(chapter => Chapter(chapter.Id, chapter.BiomeArtSet)));
+
+        return new ContentSnapshot(FixtureStamp, documents);
+    }
+
+    private static ContentDocument Chapter(int chapterId, string? biomeArtSet)
+    {
+        var members = new List<KeyValuePair<string, ContentValue>>
+        {
+            new("id", ContentValue.Number(chapterId)),
+        };
+
+        if (biomeArtSet is not null)
+        {
+            members.Add(new KeyValuePair<string, ContentValue>(BiomeArtSetMember, ContentValue.Text(biomeArtSet)));
+        }
+
+        return new ContentDocument(
+            $"{ChaptersDirectory}CH_{chapterId:00}_FIXTURE.json", ContentValue.Object(members));
+    }
 
     private static IReadOnlyList<ContentDocument> Locales(IReadOnlyList<string> keys) =>
     [

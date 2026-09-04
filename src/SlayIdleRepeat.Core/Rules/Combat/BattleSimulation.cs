@@ -279,8 +279,16 @@ internal sealed class BattleSimulation
             });
         }
 
-        return Log.Complete(heroWon, ranTicks, _hero.CurrentHp);
+        return Log.Complete(heroWon, ranTicks, _hero.CurrentHp) with { Roster = RosterOf() };
     }
+
+    /// <summary>
+    /// The cast list: every actor ever admitted, summons included, in index order — which is the
+    /// order <see cref="_actors"/> already holds, since a summon is appended with the next index.
+    /// </summary>
+    private List<BattleRosterEntry> RosterOf() =>
+        _actors.ConvertAll(actor => new BattleRosterEntry(
+            actor.LogId, actor.Plan.Identity, actor.IsElite, actor.IsBoss, actor.IsSummon));
 
     // ══════════════════════════════════════════════════════════════════ the pre-tick
 

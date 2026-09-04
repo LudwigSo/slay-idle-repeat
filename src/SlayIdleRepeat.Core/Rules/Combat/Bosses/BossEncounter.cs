@@ -300,6 +300,7 @@ internal static class BossEncounterBuilder
         new()
         {
             Id = request.Script.Id,
+            Identity = request.Script.Id,
             Index = request.Index,
             LogId = request.LogId,
             Side = BattleSide.ENEMY,
