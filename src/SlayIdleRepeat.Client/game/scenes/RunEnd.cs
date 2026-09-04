@@ -25,9 +25,10 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// multiplier is exactly the failure that leaves somebody believing they were shortchanged.
 /// </para>
 /// <para>
-/// 🔒 <b>The revive is either a live button or a sentence, never a dead control.</b> Which of the two is
-/// the presenter's answer, and the sentence it hands over is specific to the reason — a spent revive and
-/// an unbuilt route are different facts, and <c>02</c> §6 plus the M15-03 deferral are why.
+/// 🔒 <b>The revive is a live button, a sentence, or nothing at all — never a dead control.</b> Which of
+/// the three is the presenter's answer: the button for a player who can reach one, the spent sentence for
+/// a run that used its one, and nothing for an unentitled player, because the only route that would serve
+/// them is not built and a sentence naming it would advertise a feature the game does not have.
 /// </para>
 /// <para>
 /// ⚠️ Every type size, colour, corner and outline in the two <c>RunEnd*.tscn</c> files is a per-node

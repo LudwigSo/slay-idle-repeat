@@ -391,9 +391,10 @@ public sealed class RunEndPresenter
 
     /// <summary>Submits <c>REVIVE</c> — <c>02</c> §6's one-per-run safety net.</summary>
     /// <remarks>
-    /// 🔒 Refused here rather than sent when the screen already knows it cannot resolve. Both reasons are
-    /// on the screen before the tap: the rules would refuse a run that has spent its revive, and the
-    /// unentitled arm has no route to offer. See the type's remarks for why the round trip is not spent.
+    /// 🔒 Refused here rather than sent when the screen already knows it cannot resolve. A spent revive
+    /// has its sentence on screen before any tap, and the unentitled arm draws no control to tap at all —
+    /// so a press reaching this guard is a press against a control the screen never offered. See the
+    /// type's remarks for why the round trip is not spent.
     /// </remarks>
     /// <param name="ct">Cancelled when the application shuts down.</param>
     public async Task<RunEndSubmission> ReviveAsync(CancellationToken ct)
