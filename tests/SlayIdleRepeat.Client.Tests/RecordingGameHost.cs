@@ -39,6 +39,7 @@ internal sealed class RecordingGameHost : IGameHost
     private RunSnapshot? _laterAcceptedRun;
     private IReadOnlyList<DomainEvent> _acceptedEvents = [];
     private readonly List<GameCommand> _submitted = [];
+    private TaskCompletionSource? _submitGate;
 
     private RecordingGameHost(OwnStateResult? read, Exception? readFailure)
     {
@@ -196,6 +197,34 @@ internal sealed class RecordingGameHost : IGameHost
         return this;
     }
 
+    /// <summary>
+    /// Leaves every submission genuinely in flight until <see cref="ReleaseSubmissions"/> is called.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The only fixture a double-submit latch can be proved against.</b> Left unset this host
+    /// answers synchronously, so a first call runs to completion before it returns and the second
+    /// press finds the screen already settled — refused by whatever stage guard the screen has,
+    /// whether the latch was taken before the await or after it, or not taken at all. Measured: with
+    /// <c>CampfirePresenter</c>'s latch deliberately moved to after its await, the suite's own
+    /// double-tap case still passed. A paused submission is what makes the second press arrive while
+    /// the first is really outstanding, which is the state the latch exists for.
+    /// <para>
+    /// 🔒 A case that pauses MUST release <b>before</b> it awaits anything, or a screen that failed
+    /// to latch hangs the suite instead of failing it: start both calls, release, then await. The
+    /// second press has already been made and turned away by then, so nothing is lost by releasing
+    /// early — and a case that waits first has no failure to report, only a runner that stopped.
+    /// </para>
+    /// </remarks>
+    internal RecordingGameHost PausingItsCommands()
+    {
+        _submitGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        return this;
+    }
+
+    /// <summary>Lets every paused submission answer.</summary>
+    internal void ReleaseSubmissions() => _submitGate?.TrySetResult();
+
     /// <summary>Makes an accepted command hand back the given events, in order.</summary>
     /// <remarks>
     /// The events are how a rolled face reaches a screen at all — no persisted field carries one —
@@ -245,6 +274,27 @@ internal sealed class RecordingGameHost : IGameHost
         SubmitToken = ct;
         _submitted.Add(command);
 
+        // Recorded synchronously whatever the gate says: what a screen submitted is a fact about the
+        // call, and a case that pauses one still has to be able to assert on it while it is paused.
+        // The ordinal travels with the answer rather than being re-read, so a paused submission still
+        // gets the row its own position in the sequence earns.
+        var ordinal = SubmitCallCount;
+
+        return _submitGate is { } gate
+            ? AnsweringWhenReleased(gate, player, ordinal)
+            : Answer(player, ordinal);
+    }
+
+    private async Task<ApplyCommandOutcome> AnsweringWhenReleased(
+        TaskCompletionSource gate, PlayerId player, int ordinal)
+    {
+        await gate.Task.ConfigureAwait(false);
+
+        return await Answer(player, ordinal).ConfigureAwait(false);
+    }
+
+    private Task<ApplyCommandOutcome> Answer(PlayerId player, int ordinal)
+    {
         if (_submitFailure is { } failure && _submitFailuresLeft > 0)
         {
             _submitFailuresLeft--;
@@ -259,7 +309,7 @@ internal sealed class RecordingGameHost : IGameHost
             return Task.FromResult(ApplyCommandOutcome.Reject(rejection, unchanged));
         }
 
-        var accepted = SubmitCallCount > 1 && _laterAcceptedRun is { } later ? later : _acceptedRun;
+        var accepted = ordinal > 1 && _laterAcceptedRun is { } later ? later : _acceptedRun;
 
         return Task.FromResult(
             ApplyCommandOutcome.Accept(PlayerState.SliceWith(unchanged, accepted), _acceptedEvents, []));

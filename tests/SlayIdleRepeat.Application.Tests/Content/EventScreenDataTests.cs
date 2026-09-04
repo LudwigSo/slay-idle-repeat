@@ -111,9 +111,23 @@ public sealed class EventScreenDataTests
             "landing on whoever adds the file, for a pairing decision made here.");
     }
 
+    /// <summary>
+    /// 🔒 The document is there, <b>and then</b> the whole set still loads with it in.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The presence half is not decoration. The shipped set validates perfectly well with no
+    /// event-screen document at all, so "the load succeeded" is a sentence this case could say
+    /// against a checkout that carries none of this screen — which is exactly the checkout it was
+    /// written on.
+    /// </remarks>
     [Fact]
     public void The_shipped_data_set_still_validates_with_the_event_screen_document_present()
     {
+        RepoData.Documents.Keys.ShouldContain(
+            EventScreenDocument,
+            "the document is absent, so the load below succeeds without ever seeing this screen and " +
+            "this case's name is a claim about a file nobody shipped.");
+
         var result = ContentLoader.Load(RepoData.Source(), ContentLoadOptions.Canonical);
 
         result.Succeeded.ShouldBeTrue(
@@ -210,6 +224,20 @@ public sealed class EventScreenDataTests
                     "options and lists its result rows through those keys. If this is red the " +
                     "tuning file has stopped naming them, and the event-screen document is not the " +
                     "place to start.");
+
+        // 🔒 The half the name actually claims. Resolving a currency caption says nothing about WHO
+        // names it — the temptation is a second copy in this document, and two documents claiming one
+        // key leave the copy free to drift out of step with the wallet it describes.
+        RepoData.Documents.Keys.ShouldContain(
+            EventScreenDocument,
+            "with no document there is nothing to check for a borrowed currency caption, and this " +
+            "case would report a clean separation it never looked at.");
+        RepoData.Documents[EventScreenDocument].ShouldNotContain(
+            "loc.currency.",
+            Case.Sensitive,
+            "the event-screen document names a currency caption of its own. Those eight keys belong " +
+            "to tuning/currencies.json, which is also what decides what a currency IS — a caption " +
+            "authored here would be a second answer to a question that already has one.");
     }
 
     /// <summary>

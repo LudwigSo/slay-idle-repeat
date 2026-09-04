@@ -6,6 +6,7 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 using Xunit;
 
 namespace SlayIdleRepeat.Client.Tests;
@@ -40,10 +41,18 @@ namespace SlayIdleRepeat.Client.Tests;
 public sealed class EventPresenterTests
 {
     /// <summary>An ordinary combat tile — the negative control for "this is not an event".</summary>
-    private const int EnemyTileKind = 0;
+    /// <remarks>
+    /// 🔒 Read off the rules layer's enum for the same reason <c>EventPresenter.EventTileKind</c> is:
+    /// a literal 0 here keeps pointing at whatever kind moves into that slot, and the day it becomes
+    /// Event this case would be standing the run on the very tile it claims to be standing off.
+    /// </remarks>
+    private const int EnemyTileKind = (int)TileKind.Enemy;
 
     /// <summary>The index the third option of the three-option fixture card travels as.</summary>
     private const int ThirdOptionIndex = 2;
+
+    /// <summary>An index past the last option of the three-option fixture card.</summary>
+    private const int IndexPastTheLastOption = 3;
 
     private static readonly PlayerId Player = new("PLAYER_event_7a31");
     private static readonly RunId Run = new("RUN_event_1c8e");
@@ -233,6 +242,10 @@ public sealed class EventPresenterTests
             "the board's Continue is not on this path — the screen draws for itself, and the draw " +
             "is RESOLVE_TILE on a pending Event tile.");
         host.SubmitRun.ShouldBe(Run);
+        host.ReadCallCount.ShouldBe(
+            1,
+            "the drawn card came back with the draw's own outcome, so a second read is a window in " +
+            "which the screen is deciding from the state it had BEFORE the command it just sent.");
 
         presenter.Stage.ShouldBe(EventStage.Choosing);
         presenter.CardId.ShouldBe(
@@ -266,6 +279,11 @@ public sealed class EventPresenterTests
         presenter.RulesRejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
         presenter.RejectionText.ShouldBe(
             EventContent.EnglishValueOf(EventContent.RefusedStatusKey));
+        presenter.StatusText.ShouldBe(
+            EventContent.EnglishValueOf(EventContent.DrawingStatusKey),
+            "the drawing sentence is the only thing on the screen naming the state the run is " +
+            "actually in, and this is the one arm that settles in it — left unasserted, the key is " +
+            "one the content set is required to carry and nothing renders.");
     }
 
     // ---- affordability, before the press --------------------------------------------------------
@@ -385,6 +403,42 @@ public sealed class EventPresenterTests
 
         submission.ShouldBe(EventSubmission.RefusedNotAvailable);
         host.SubmitCallCount.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// 🔒 An index that names no option on the drawn card is turned away rather than sent.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The index arrives from the scene, where a row's position is bound once and the card behind
+    /// it can change under it — a resume onto a shorter card, or a rebuild between the press and the
+    /// handler. Two things go wrong if it is not checked here: the screen indexes its own row list
+    /// and throws where a refusal was wanted, and the command reaches <c>EVENT_CHOOSE</c>, which
+    /// refuses it as <c>ILLEGAL_STATE</c> — the same wire value a run standing on no event at all
+    /// gets, so the sentence the player is shown stops being about anything.
+    /// </remarks>
+    [Theory]
+    [InlineData(IndexPastTheLastOption)]
+    [InlineData(-1)]
+    public async Task An_index_that_names_no_option_on_the_card_never_reaches_the_host(int index)
+    {
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(), AtAnEvent(EventContent.ThreeOptionCard));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Options.Count.ShouldBe(
+            3, "the fixture card authors three options, so " + index + " names none of them.");
+
+        (await presenter.ChooseAsync(index, CancellationToken.None)).ShouldBe(
+            EventSubmission.RefusedNotAvailable);
+        host.SubmitCallCount.ShouldBe(
+            0,
+            "the command went out carrying an index the card cannot answer. EVENT_CHOOSE refuses it " +
+            "as ILLEGAL_STATE, which is the value four other situations also travel as.");
+        presenter.Stage.ShouldBe(
+            EventStage.Choosing, "nothing was spent, so the choice is still the player's.");
     }
 
     /// <summary>
@@ -659,22 +713,42 @@ public sealed class EventPresenterTests
     /// afterwards, a double-tap spends two options off one card.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔴 Worse here than on most screens: the second press names a DIFFERENT option, so the run
     /// would pay two costs and draw two outcomes off a card that offers one choice.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The submission is genuinely PAUSED, and that is the whole case.</b> Against a host that
+    /// answers synchronously the first call runs to completion before it returns, so the second press
+    /// meets a screen that has already settled on <c>Resolved</c> and is turned away by the stage
+    /// guard — which a screen with the latch after its await, or with no latch at all, passes just as
+    /// happily. Measured on the sibling screen: with <c>CampfirePresenter</c>'s latch moved to after
+    /// its await, that suite's identically-shaped case still reported one submission. Holding the
+    /// first command open is what puts the second press where a double-tap actually lands.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task A_second_choice_while_one_is_in_flight_never_reaches_the_host_twice()
     {
         var host = RecordingGameHost
             .Finding(AnyPlayer(), AtAnEvent(EventContent.ThreeOptionCard))
-            .AcceptingInto(OffTheTile());
+            .AcceptingInto(OffTheTile())
+            .PausingItsCommands();
 
         var presenter = Build(host);
 
         await presenter.StartAsync(CancellationToken.None);
 
         var first = presenter.ChooseAsync(0, CancellationToken.None);
+
+        // The first command is outstanding at this line: the card is unspent, the tile is still
+        // pending and the screen is still Choosing, so the latch is the only thing that can refuse
+        // the second press. Released before anything is awaited, because a screen with no latch
+        // sends the second command and then waits on the paused host — and this case has to FAIL
+        // on that rather than hang the suite waiting for an answer nobody is going to give.
         var second = presenter.ChooseAsync(1, CancellationToken.None);
+
+        host.ReleaseSubmissions();
 
         await Task.WhenAll(first, second);
 
@@ -683,6 +757,15 @@ public sealed class EventPresenterTests
             "both presses reached the host, so a double-tap spent two options off one card. The " +
             "second call is refused by the screen's own latch, and the latch is taken before the " +
             "await rather than after it.");
+        (await second).ShouldBe(
+            EventSubmission.RefusedNotAvailable,
+            "the second press arrived while the first was still in flight, so nothing was sent for " +
+            "it — and a screen reporting anything else is reporting on a command it did not make.");
+        (await first).ShouldBe(
+            EventSubmission.Submitted,
+            "the press that WAS sent still has to come back as sent once the host answers. A latch " +
+            "that swallowed its own submission would leave a card spent and a screen that never " +
+            "heard about it.");
     }
 
     // ---- the vocabulary ---------------------------------------------------------------------------
@@ -752,6 +835,36 @@ public sealed class EventPresenterTests
             Case.Sensitive,
             "the fixture marks every catalogue value with this word, so its presence here means the " +
             "prose went through the string catalogue after all.");
+    }
+
+    // ---- construction -----------------------------------------------------------------------------
+
+    /// <summary>
+    /// 🔒 Every reference collaborator is required, and refused at the ctor rather than at first use.
+    /// </summary>
+    /// <remarks>
+    /// The screen is composed once and used for the rest of the tile, so a null host or a null
+    /// catalogue that is only noticed when a press arrives is a crash at the moment the player acts —
+    /// with a drawn card already spent-or-not and no sentence to show. <c>CampfirePresenter</c> is
+    /// held to the same three, and this screen is composed the same way.
+    /// </remarks>
+    [Fact]
+    public void Every_reference_collaborator_is_required()
+    {
+        var content = EventContent.Strings();
+
+        Should.Throw<ArgumentNullException>(() =>
+            new EventPresenter(null!, EventContent.Catalogue(content), content, Player, Run));
+        Should.Throw<ArgumentNullException>(() =>
+            new EventPresenter(
+                RecordingGameHost.FindingNoSuchPlayer(), null!, content, Player, Run));
+        Should.Throw<ArgumentNullException>(() =>
+            new EventPresenter(
+                RecordingGameHost.FindingNoSuchPlayer(),
+                EventContent.Catalogue(content),
+                null!,
+                Player,
+                Run));
     }
 
     // ---- fixture ----------------------------------------------------------------------------------

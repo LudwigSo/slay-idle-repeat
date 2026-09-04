@@ -6,6 +6,7 @@ using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using Xunit;
+using CorePlayer = SlayIdleRepeat.Core.Model.Player;
 
 namespace SlayIdleRepeat.Client.Tests;
 
@@ -91,7 +92,18 @@ public sealed class EventTileContractTests
             "nothing can take, because nothing else clears an Event tile — decide that for the new " +
             "card, and this is where the two are compared.");
 
-        BrokeAndOnCard(cards[0].Id).Player.ToSnapshot().Wallet.Values.ShouldAllBe(
+        var wallet = BrokeAndOnCard(cards[0].Id).Player.ToSnapshot().Wallet;
+
+        // 🔒 The count first, asked of the domain's own list rather than transcribed: "every balance
+        // is zero" is true of a wallet carrying no balances at all, which is the one shape that would
+        // let this whole sweep report a broke run while measuring nothing.
+        wallet.Count.ShouldBe(
+            CorePlayer.WalletCurrencies.Count,
+            "the fixture profile carries " + wallet.Count + " of the " +
+            CorePlayer.WalletCurrencies.Count + " currencies a wallet has. The check below asks " +
+            "every balance to be zero, and a wallet with rows missing satisfies that by having " +
+            "nothing to ask.");
+        wallet.Values.ShouldAllBe(
             balance => balance == 0L,
             "the fixture profile is supposed to hold nothing. With a funded wallet every priced " +
             "option becomes affordable and this whole sweep stops being about a broke run at all.");

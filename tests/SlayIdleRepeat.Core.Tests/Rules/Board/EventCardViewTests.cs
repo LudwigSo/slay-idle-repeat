@@ -220,12 +220,23 @@ public sealed class EventCardViewTests
     // ------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// 🔒 A card that was LOOKED at resolves byte-for-byte like one that was not.
+    /// 🔒 Projecting leaves the run's own row where it stood, and a card that was LOOKED at then
+    /// resolves byte-for-byte like one that was not.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The outcome draw belongs to <c>EVENT_CHOOSE</c>. A view that opened the event stream and let
     /// it advance would leave the choice resolving against a different roll than the screen showed —
-    /// invisible in the projection itself, and only visible by resolving on both paths.
+    /// invisible in the projection itself.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The first half is the half that can actually go wrong.</b> The signature already forbids
+    /// most of the hazard: the projection is handed a <c>RunSnapshot</c> and no aggregate, so it has
+    /// nothing to write a moved stream position back into — <em>except</em> the collections the row
+    /// carries by reference, which is the one route a "the view advanced the stream" bug has left. So
+    /// the run's canonical bytes are taken on both sides of the call rather than only inferred from
+    /// what choosing afterwards did.
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_card_that_was_projected_resolves_exactly_like_one_that_was_not()
@@ -233,7 +244,17 @@ public sealed class EventCardViewTests
         var looked = TileWorlds.OnTile(
             TileKind.Event, gold: 500, currentHp: 40, eventCardId: FixtureCards.Split);
 
-        EventCardView.Project(looked.Run!.ToSnapshot(), Content);
+        var lookedRun = looked.Run!;
+        var before = CanonicalStateWriter.CanonicalBytes(lookedRun.ToSnapshot());
+
+        EventCardView.Project(lookedRun.ToSnapshot(), Content);
+
+        CanonicalStateWriter.CanonicalBytes(lookedRun.ToSnapshot()).ShouldBe(
+            before,
+            "projecting the card moved the run's own row. The view is handed a snapshot rather than " +
+            "the aggregate, so the only way it can do that is by writing through one of the " +
+            "collections the row lent it — which is exactly what advancing the event stream in a " +
+            "projection would look like.");
 
         var blind = TileWorlds.OnTile(
             TileKind.Event, gold: 500, currentHp: 40, eventCardId: FixtureCards.Split);
