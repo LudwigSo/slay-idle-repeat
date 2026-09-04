@@ -34,6 +34,7 @@ public sealed class EventSceneRuleTests
 {
     private const string EventScene = "src/SlayIdleRepeat.Client/game/scenes/EventScreen.tscn";
     private const string OptionCardScene = "src/SlayIdleRepeat.Client/game/scenes/EventOptionCard.tscn";
+    private const string ResultRowScene = "src/SlayIdleRepeat.Client/game/scenes/EventResultRow.tscn";
 
     /// <summary>
     /// The smallest a control may be in the direction a thumb has to hit it.
@@ -132,6 +133,10 @@ public sealed class EventSceneRuleTests
     [InlineData("CardBody")]
     [InlineData("OptionColumn")]
     [InlineData("ResultPanel")]
+    [InlineData("ResultHeading")]
+    [InlineData("RunRows")]
+    [InlineData("WalletHeading")]
+    [InlineData("WalletRows")]
     [InlineData("StatusLabel")]
     [InlineData("RejectionLabel")]
     [InlineData("ContinueButton")]
@@ -159,6 +164,76 @@ public sealed class EventSceneRuleTests
             $"EventOptionCard.tscn has no unique node named '{name}', so one row of an option — its " +
             "caption, its price, the sentence blocking it, or the control that takes it — cannot be " +
             "drawn at all.");
+
+    /// <summary>The result row still carries the caption and the number the panel writes into.</summary>
+    /// <remarks>
+    /// The row scene is instantiated once per movement a resolved card made, and each half is bound
+    /// by a plain child path off the instance. Rename either and every row draws empty — the panel
+    /// reports that the card moved nothing, which is also the honest report for a card that really
+    /// moved nothing, so the two states are indistinguishable to anyone reading the screen.
+    /// </remarks>
+    [Theory]
+    [InlineData("CaptionLabel")]
+    [InlineData("ValueLabel")]
+    public void The_result_row_still_carries_the_child_the_panel_binds_by_name(string name) =>
+        SceneText.Node(ResultRowScene, name).ShouldNotBeNull(
+            $"EventResultRow.tscn has no single node named '{name}', so one half of every result " +
+            "line — its caption, or the signed amount itself — cannot be written at all.");
+
+    /// <summary>
+    /// 🔴 <b>The one thing on this screen a finger presses that is not a <c>Button</c>.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The touch floor above sweeps <c>Button</c>s, and a control that is pressed without being one
+    /// walks straight past it. A result row's number is exactly that: it is held to swap the
+    /// shortened figure for the exact one, so it is a touch target with none of a button's
+    /// affordances and none of its pinning.
+    /// </para>
+    /// <para>
+    /// 🔒 <c>mouse_filter</c> is pinned with it, and it is the half that fails SILENTLY. A
+    /// <c>Label</c> ignores input by default, so a row that lost this line would raise no error,
+    /// draw identically, and simply never answer a hold — the exact value would become unreachable
+    /// with nothing anywhere saying why. <c>0</c> is <c>STOP</c> rather than <c>PASS</c> on purpose:
+    /// these rows sit inside a <c>ScrollContainer</c>, which reads a touch it receives as the start
+    /// of a drag, and a passed-through hold would be taken for a scroll.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_result_row_number_is_a_touch_target_and_is_built_like_one()
+    {
+        var value = SceneText.Node(ResultRowScene, "ValueLabel").ShouldNotBeNull(
+            "EventResultRow.tscn has no single node named 'ValueLabel', so the number a long press " +
+            "reveals is not there to press.");
+
+        value.Body.ShouldContain(
+            "mouse_filter = 0",
+            "ValueLabel does not state mouse_filter = 0. A Label ignores input by default, so its " +
+            "GuiInput never fires, the hold that reveals the exact figure does nothing at all, and " +
+            "nothing in the build or in a diff says so.");
+
+        var stated = value.Body.FirstOrDefault(
+            line => line.StartsWith("custom_minimum_size = Vector2(", StringComparison.Ordinal))
+            .ShouldNotBeNull(
+                "ValueLabel states no custom_minimum_size, so the surface a finger has to hold is " +
+                "only as big as the digits printed in it — and a shortened number is three " +
+                "characters wide.");
+
+        var width = WidthIn(stated);
+        var height = HeightIn(stated);
+
+        width.ShouldNotBeNull("ValueLabel's custom_minimum_size does not parse: " + stated);
+        height.ShouldNotBeNull("ValueLabel's custom_minimum_size does not parse: " + stated);
+
+        width.Value.ShouldBeGreaterThanOrEqualTo(
+            TouchFloorPixels,
+            "ValueLabel is narrower than the " + TouchFloorPixels + "-pixel floor. It is held, not " +
+            "read, so it is a touch target in both directions rather than a column width.");
+        height.Value.ShouldBeGreaterThanOrEqualTo(
+            TouchFloorPixels,
+            "ValueLabel is shorter than the " + TouchFloorPixels + "-pixel floor, so the row it " +
+            "sits in is a strip of text a thumb has to land on exactly.");
+    }
 
     /// <summary>
     /// 🔴 <b>Every button on either scene is at least 144 pixels tall.</b>
@@ -208,6 +283,7 @@ public sealed class EventSceneRuleTests
     [Theory]
     [InlineData(EventScene)]
     [InlineData(OptionCardScene)]
+    [InlineData(ResultRowScene)]
     public void No_material_the_event_screen_draws_is_metallic(string scene) =>
         SceneText.Read(scene).ShouldNotContain(
             "metallic",
@@ -273,6 +349,14 @@ public sealed class EventSceneRuleTests
         return closes > opens ? header[opens..closes] : header;
     }
 
+    /// <summary>The X of a <c>custom_minimum_size = Vector2(x, y)</c> line, or null for none.</summary>
+    /// <remarks>
+    /// Asked only of a control that is held rather than read, where the floor applies across as
+    /// well as down. A button that fills its row is as wide as the row and needs no claim made
+    /// about it.
+    /// </remarks>
+    private static double? WidthIn(string line) => ComponentIn(line, 0);
+
     /// <summary>
     /// The Y of a <c>custom_minimum_size = Vector2(x, y)</c> line, or null when it does not parse.
     /// </summary>
@@ -280,7 +364,12 @@ public sealed class EventSceneRuleTests
     /// A line that will not parse answers null rather than zero, so it fails as "no floor stated"
     /// with the property's own name in the message rather than as a silently passing zero.
     /// </remarks>
-    private static double? HeightIn(string line)
+    private static double? HeightIn(string line) => ComponentIn(line, 1);
+
+    /// <summary>One component of the vector a <c>Vector2(x, y)</c> line writes.</summary>
+    /// <param name="line">The property line.</param>
+    /// <param name="component">0 for X, 1 for Y.</param>
+    private static double? ComponentIn(string line, int component)
     {
         var opens = line.IndexOf('(');
         var closes = line.IndexOf(')', opens + 1);
@@ -293,8 +382,9 @@ public sealed class EventSceneRuleTests
         var parts = line[(opens + 1)..closes].Split(',');
 
         return parts.Length == 2 &&
-               double.TryParse(parts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var y)
-            ? y
+               double.TryParse(
+                   parts[component].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            ? value
             : null;
     }
 }

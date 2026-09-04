@@ -108,10 +108,14 @@ theme_override_constants/separation = 24
 
 ; A panel, and now drawn as one. What the card moved is the only thing on this screen the player
 ; takes away with them, and it used to be four bare labels indistinguishable from the card's prose.
+; Transparent to input, because it lives inside CardScroll: a container that swallows a touch is a
+; patch of the card the player cannot drag the list by, and this panel presses nothing. The one
+; thing under it that DOES take input is a result row's number, which is held to reveal it.
 [node name="ResultPanel" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+mouse_filter = 2
 theme_type_variation = &"HudTile"
 
 [node name="ResultBody" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel"]
@@ -119,9 +123,15 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 16
 
+; Stated rather than inherited, and larger than the rows under it. Left to the theme's bare Label
+; entry these two headings came out at 36 in the same white the amounts are drawn in — smaller than
+; the 44 of the rows they head, and the one place on the screen where a heading was quieter than its
+; own contents.
 [node name="ResultHeading" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel/ResultBody"]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 48
 autowrap_mode = 3
 
 [node name="RunRows" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel/ResultBody"]
@@ -136,6 +146,8 @@ theme_override_constants/separation = 8
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 48
 autowrap_mode = 3
 
 [node name="WalletRows" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel/ResultBody"]

@@ -38,9 +38,11 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// ⚠️ <b>The screen's chrome names <c>SlayTheme.tres</c>; the card's own prose does not.</b> The
 /// title and the continue action are the theme's <c>HudTitle</c> and <c>PrimaryButton</c>, and the
 /// result panel is its <c>HudTile</c>, because the theme carries those exactly. The card's title,
-/// body, status and rejection sizes stay per-node overrides: the theme is a HUD vocabulary, it holds
-/// no entry for a body of authored prose, and a variation invented here that no other screen uses
-/// would be worse than the override it replaced.
+/// body, status, rejection and the result panel's two headings stay per-node overrides: the theme is
+/// a HUD vocabulary, it holds no entry for a body of authored prose, and a variation invented here
+/// that no other screen uses would be worse than the override it replaced. The headings in
+/// particular are STATED rather than left to the theme's bare <c>Label</c> entry — inherited, they
+/// came out smaller than the rows they head and in the same white as the amounts.
 /// </para>
 /// <para>
 /// 🔴 <b>A read that could not answer has nowhere to send the player</b>, exactly as on the campfire:
@@ -160,7 +162,14 @@ public partial class EventScreen : Node3D
     /// The card is held as well as the press because both are driven by the same answer — the press
     /// stops accepting input and the card's face recedes to say so.
     /// </summary>
-    private readonly List<(Button Press, PanelContainer Card, bool Available)> _optionButtons = [];
+    /// <remarks>
+    /// 🔴 The face is held as well, and it is the card's OWN authored one, read off the instance
+    /// before anything was drawn on it. A scene's <c>theme_override_styles/panel</c> and a runtime
+    /// stylebox override are ONE slot on a <c>Control</c>, so a live card cannot be drawn by
+    /// clearing the override — that clears the authored face itself.
+    /// </remarks>
+    private readonly List<(Button Press, PanelContainer Card, StyleBoxFlat? Face, bool Available)>
+        _optionButtons = [];
 
     /// <summary>The option list the column was last built from, by reference.</summary>
     /// <remarks>
@@ -358,7 +367,7 @@ public partial class EventScreen : Node3D
             _drawnOptionsFrom = presenter.Options;
         }
 
-        foreach (var (press, card, available) in _optionButtons)
+        foreach (var (press, card, face, available) in _optionButtons)
         {
             // Validity asked of both, not one: they are two engine objects and a teardown can have
             // freed either while this loop is running.
@@ -374,7 +383,7 @@ public partial class EventScreen : Node3D
             // 🔒 Drawn every render rather than once at build time, which is the whole point: the
             // in-flight case comes and goes while the card stays, so a face applied once could only
             // ever describe the permanent case.
-            DrawFace(card, pressable);
+            DrawFace(card, face, pressable);
         }
     }
 
@@ -410,6 +419,21 @@ public partial class EventScreen : Node3D
     {
         var card = cardScene.Instantiate<PanelContainer>();
 
+        // 🔴 Read BEFORE the face is drawn even once, and kept for the life of the card. The scene
+        // writes the card's fill, outline, corners and lift as theme_override_styles/panel, and a
+        // Control keeps an authored override and a runtime one in the SAME slot — so a live card
+        // drawn by clearing the override would throw the authored face away and fall back to the
+        // engine's default panel, leaving the unaffordable card, which is a copy of this, the only
+        // one on the screen still drawn as a card.
+        var face = card.GetThemeStylebox(PanelStyleOverride) as StyleBoxFlat;
+
+        if (face is null)
+        {
+            GD.PushError(
+                $"The event option card at '{OptionCardScenePath}' states no flat face, so an " +
+                "option that cannot be taken cannot be drawn apart from one that can.");
+        }
+
         card.GetNode<Label>(OptionLabelPath).Text = offered.Label;
 
         var cost = card.GetNode<Label>(OptionCostLabelPath);
@@ -440,11 +464,11 @@ public partial class EventScreen : Node3D
 
         press.Pressed += () => OnOptionPressed(choiceIndex);
 
-        _optionButtons.Add((press, card, offered.Available));
+        _optionButtons.Add((press, card, face, offered.Available));
 
         // Drawn here as well as in RenderOptions so a card is never in the tree for a frame looking
         // live when it is not: the build runs before the render loop that follows it.
-        DrawFace(card, !press.Disabled);
+        DrawFace(card, face, !press.Disabled);
 
         return card;
     }
@@ -458,28 +482,43 @@ public partial class EventScreen : Node3D
     /// it — an unaffordable price for the life of the screen, and a command in flight for a moment.
     /// </para>
     /// <para>
+    /// 🔴 <b>A live card has its authored face PUT BACK, never the override removed.</b> A scene's
+    /// <c>theme_override_styles/panel</c> is not a layer over the card's real face — it IS the card's
+    /// real face, in the one slot a runtime override also writes to. Clearing it drops the card to
+    /// the engine's default panel, which has no outline, no lift and none of this game's corner
+    /// radius; the unaffordable card, drawn from a copy taken earlier, would then be the only option
+    /// on the screen that still looked like one, and the accessibility signal would read backwards.
+    /// </para>
+    /// <para>
     /// 🔴 <b>Two of the four are not colour.</b> The frame thins and the lift goes, so the card that
     /// cannot be taken differs from the one that can in weight and in depth as well as in hue — and
     /// the sentence naming the price is on the card besides. An option marked by hue alone is the one
     /// thing this game's colour rule names outright.
     /// </para>
     /// </remarks>
-    private static void DrawFace(PanelContainer card, bool pressable)
+    private static void DrawFace(PanelContainer card, StyleBoxFlat? face, bool pressable)
     {
+        if (face is null)
+        {
+            // Said once, at build time, rather than every render: a card whose face could not be
+            // read keeps whatever it has and this would otherwise write the same line each frame.
+            return;
+        }
+
         if (pressable)
         {
-            // Removed rather than overwritten with the authored numbers restated here: the scene is
-            // where a live card's face is written down, and a second copy of it in this file would
-            // be the one that went stale.
-            card.RemoveThemeStyleboxOverride(PanelStyleOverride);
+            // The card's own face, restored. Never RemoveThemeStyleboxOverride — see the remarks:
+            // the authored face lives in the slot that call empties.
+            card.AddThemeStyleboxOverride(PanelStyleOverride, face);
 
             return;
         }
 
-        if (card.GetThemeStylebox(PanelStyleOverride) is not StyleBoxFlat face ||
-            face.Duplicate() is not StyleBoxFlat dimmed)
+        if (face.Duplicate() is not StyleBoxFlat dimmed)
         {
-            GD.PushError("An event option card has no flat face to dim, so it is drawn as a live one.");
+            GD.PushError("An event option card's face could not be copied, so it is drawn as a live one.");
+
+            card.AddThemeStyleboxOverride(PanelStyleOverride, face);
 
             return;
         }

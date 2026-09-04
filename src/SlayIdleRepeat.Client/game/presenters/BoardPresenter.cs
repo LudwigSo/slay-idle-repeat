@@ -567,6 +567,17 @@ public sealed class BoardPresenter
     /// on a Minigame tile would promise the screen that tile is supposed to open, and what the press
     /// actually does is resolve the tile without one — see <see cref="UnbuiltTileScreens"/>. The
     /// sentence saying so is <see cref="BlockText"/>'s.
+    /// <para>
+    /// 🔒 <b>An Event tile keeps the ORDINARY caption, and the control keeps its place.</b> That
+    /// looks wrong beside <see cref="PendingTileDrawsOnItsOwnScreen"/>, which sends no command for
+    /// one — but the caption names what the press accomplishes, not which command it sends, and on
+    /// the only board state that can show an event tile at all the press does exactly what
+    /// "Continue" says. That state is a handover that did not happen, so the decision latch is
+    /// still clear; the screen re-opens the decision on the tail of every submission, and a
+    /// submission that sent nothing takes that tail immediately. The press is the retry. A control
+    /// drawn out of use here would take away the one non-destructive thing on a board whose only
+    /// other offer is abandoning the run.
+    /// </para>
     /// </remarks>
     public string ResolveText =>
         _strings.Resolve(PendingTileHasNoScreen ? SkipUnbuiltActionKey : ResolveActionKey);
@@ -902,8 +913,12 @@ public sealed class BoardPresenter
     /// ⚠️ It is reachable, which is why it is a state rather than an assertion: the handover is
     /// latched on having HAPPENED, so a scene that could not load — or a screen that hands back with
     /// the tile still pending — leaves this board on screen with its own control live over an event
-    /// tile. Refusing is the honest answer there. The next read attempts the handover again, and
-    /// <see cref="AbandonOffered"/> is ungated in the meantime.
+    /// tile. Refusing is the honest answer there, and it is not a dead press: the handover that did
+    /// not happen left the decision latch clear, the screen re-opens the decision on the tail of
+    /// every submission, and a submission that moved nothing reaches that tail at once. So the
+    /// press that sends no command is the one that tries the screen again — which is why the
+    /// control keeps its ordinary caption rather than being drawn out of use. See
+    /// <see cref="ResolveText"/>. <see cref="AbandonOffered"/> is ungated throughout.
     /// </para>
     /// <para>
     /// The Minigame tile belongs here too the day its screen lands and

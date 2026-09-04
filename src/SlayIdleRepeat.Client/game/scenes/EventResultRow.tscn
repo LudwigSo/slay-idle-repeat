@@ -10,6 +10,7 @@
 ; is in the tree, so a row drawn from a theme it turned out not to inherit would be silently
 ; unreadable rather than merely wrong.
 [node name="EventResultRow" type="HBoxContainer"]
+mouse_filter = 2
 theme_override_constants/separation = 24
 
 [node name="CaptionLabel" type="Label" parent="."]
@@ -23,6 +24,12 @@ autowrap_mode = 3
 
 ; 144 square because it is the surface a long press is read off, and it wraps rather than trims: the
 ; hold exists to show the exact figure, and a figure that trims is not shown.
+;
+; mouse_filter = 0 is load-bearing twice over. A Label ignores input by default, so without it the
+; GuiInput the reveal is read from never fires at all and the hold silently does nothing. And it
+; STOPS rather than passes, which is what keeps the enclosing ScrollContainer from reading a
+; stationary hold as the start of a drag — the one square on the card list that is not draggable is
+; the one square that has its own gesture.
 [node name="ValueLabel" type="Label" parent="."]
 custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
