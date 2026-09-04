@@ -281,4 +281,109 @@ public sealed class MinigameSubmitTests
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.RngStreamPositions.ShouldBeEmpty();
     }
+
+    // ----------------------------------------------------------------------------------------------
+    // The resolution event.
+    // ----------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// 🔒 <b>An accepted submission says which outcome it resolved to.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The reward rows travel as <c>CurrencyChanged</c>, which says how much moved and never says
+    /// which row it came from — so without this event a screen can only report what it claimed. The
+    /// tier and its token are both pinned, and the token is asked of the reward table rather than
+    /// transcribed: an event naming only the index describes a different outcome the moment a
+    /// content edit reorders the table.
+    /// </remarks>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void A_client_asserted_resolution_reports_the_tier_it_was_given(int tier)
+    {
+        var state = Worlds.InARun(RunSnapshots.With(position: 5, chapterId: 1));
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, new MinigameSubmitCommand(MinigameCatalogue.TimingBar, tier), Worlds.Context);
+
+        result.Accepted.ShouldBeTrue();
+
+        var resolved = result.Events.OfType<MinigameResolved>().ShouldHaveSingleItem();
+
+        resolved.MinigameId.ShouldBe(
+            MinigameCatalogue.TimingBar,
+            "the resolution names another minigame than the one submitted, so a screen keyed on the " +
+            "id it opened would ignore its own answer.");
+        resolved.Tier.ShouldBe(
+            tier,
+            "the claim was tier " + tier + " and the resolution reported " + resolved.Tier +
+            ". On a client-asserted arm the claim IS the outcome once it is legal, so any other " +
+            "number means the rows paid and the row named are different rows.");
+        resolved.Outcome.ShouldBe(
+            MinigameRewardTuning.Read(Worlds.Context.Content)
+                                .OutcomeName(MinigameCatalogue.TimingBar, tier),
+            "the token is the reward table's own for that row. Carried beside the tier rather than " +
+            "left to be looked up, because the tier is an index a content edit can reorder.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>A server-rolled resolution names the tier the SERVER drew, not the one claimed.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The claim here is nonsense on purpose. No persisted field carries a rolled tier, so this
+    /// event is the only thing that can tell a screen what it was paid — and an event that echoed
+    /// the claim would tell the player they won 999999.
+    /// </remarks>
+    [Fact]
+    public void A_server_rolled_resolution_reports_the_tier_the_server_drew()
+    {
+        var state = Worlds.InARun(RunSnapshots.With(position: 5, chapterId: 1));
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, new MinigameSubmitCommand(MinigameCatalogue.ChestPick, 999_999), Worlds.Context);
+
+        result.Accepted.ShouldBeTrue();
+
+        var tuning = MinigameRewardTuning.Read(Worlds.Context.Content);
+        var resolved = result.Events.OfType<MinigameResolved>().ShouldHaveSingleItem();
+
+        resolved.MinigameId.ShouldBe(MinigameCatalogue.ChestPick);
+        resolved.Tier.ShouldBeInRange(
+            0,
+            tuning.TierCount(MinigameCatalogue.ChestPick) - 1,
+            "the resolution reported tier " + resolved.Tier + ", which the chest pick's table has no " +
+            "row for — so it is the client's ignored claim coming back out rather than the draw.");
+        resolved.Outcome.ShouldBe(
+            tuning.OutcomeName(MinigameCatalogue.ChestPick, resolved.Tier),
+            "the token and the tier name two different rows of one table, so the screen captions " +
+            "what was paid with another outcome's words.");
+
+        result.NewState.Player.BalanceOf(CurrencyId.CROWNS).ShouldBe(
+            tuning.RewardFor(MinigameCatalogue.ChestPick, resolved.Tier, 1).Crowns,
+            "the Crowns paid are not the ones the reported tier's row authors, so the event names a " +
+            "tier other than the one the rewards came from. Crowns rather than Gold: Gold is scaled " +
+            "by the run's own modifiers at the income site and the table's figure is not what lands.");
+    }
+
+    /// <summary>…and a refused submission resolved nothing, so it says nothing.</summary>
+    /// <remarks>
+    /// 🔒 The negative control. An event emitted before the legality gate would have a screen
+    /// reporting a win off a command the rules layer turned away.
+    /// </remarks>
+    [Fact]
+    public void A_refused_submission_reports_no_resolution()
+    {
+        var state = Worlds.InARun(RunSnapshots.With(position: 5));
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, new MinigameSubmitCommand(MinigameCatalogue.TimingBar, 999_999), Worlds.Context);
+
+        result.Accepted.ShouldBeFalse(
+            "with the submission accepted this case is measuring an acceptance rather than a " +
+            "refusal, and the absence below says nothing.");
+        result.Events.OfType<MinigameResolved>().ShouldBeEmpty(
+            "the command was refused and something still announced a resolution, so a screen " +
+            "watching for one would report a tier off a command the rules layer never applied.");
+    }
 }

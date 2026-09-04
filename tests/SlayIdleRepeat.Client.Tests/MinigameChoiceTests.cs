@@ -105,6 +105,12 @@ public sealed class MinigameChoiceTests
     [Fact]
     public void Every_built_arm_is_reachable()
     {
+        MinigameArms.Built.Count.ShouldBeGreaterThan(
+            1,
+            "the sweep below runs over the built arms, and with one arm or none it is a claim that " +
+            "the only answer possible came up. Reachability is only a measurement while there is " +
+            "more than one arm to be unreachable.");
+
         var offered = Sequence(Seed).Distinct(StringComparer.Ordinal).ToArray();
 
         foreach (var arm in MinigameArms.Built)

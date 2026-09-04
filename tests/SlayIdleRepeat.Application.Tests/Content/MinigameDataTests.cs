@@ -316,7 +316,15 @@ public sealed class MinigameDataTests
             "with no document there is nothing to check for a borrowed currency caption, and this " +
             "case would report a clean separation it never looked at.");
 
-        var borrowed = AuthoredValues()
+        var authored = AuthoredValues();
+
+        authored.Count.ShouldBeGreaterThanOrEqualTo(
+            ExpectedKeyCount,
+            "the document authors " + authored.Count + " string values and this screen renders " +
+            ExpectedKeyCount + ". The filter below is a sweep over that list, so an emptied or " +
+            "half-authored document reports a clean separation it never looked at.");
+
+        var borrowed = authored
             .Where(value => value.StartsWith(CurrencyKeyPrefix, StringComparison.Ordinal))
             .ToArray();
 

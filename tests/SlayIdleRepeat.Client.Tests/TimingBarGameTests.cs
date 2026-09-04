@@ -83,6 +83,20 @@ public sealed class TimingBarGameTests
         Should.Throw<ContentException>(
             () => TimingBarRules.Read(MinigameContent.TimingBarAuthoring(strikes: strikes)));
 
+    /// <summary>
+    /// 🔒 …and with no reward table at all the read refuses rather than believing the number.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The negative control for the pair above. A read that never opened the table and simply
+    /// compared the strike count against a four it carried in code satisfies both of those rows and
+    /// the one below — and would then agree with a retuned table nobody grew, which is the drift the
+    /// refusal exists to catch.
+    /// </remarks>
+    [Fact]
+    public void A_content_set_without_the_reward_table_is_refused_rather_than_believed() =>
+        Should.Throw<ContentException>(
+            () => TimingBarRules.Read(MinigameContent.TimingBarWithoutTheRewardTable()));
+
     /// <summary>…and the count the table CAN pay is accepted, so the refusal is about that number.</summary>
     [Fact]
     public void The_strike_count_the_reward_table_can_pay_is_accepted() =>
@@ -185,17 +199,26 @@ public sealed class TimingBarGameTests
     /// 🔒 <b>A strike scores exactly when the cursor is within the half-width of the centre.</b>
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔴 <b>The two edges are struck EXACTLY.</b> With a quarter-bar window the boundary is 0.25 and
     /// 0.75, and the comparison is inclusive — so a game using <c>&lt;</c> refuses a strike dead on
     /// the edge of the window it drew, which is the strike a player aiming at the edge makes. The
-    /// misses either side are one fiftieth of a bar out, close enough that a game with the window
+    /// misses either side are one twentieth of a bar out, close enough that a game with the window
     /// centred elsewhere would still be caught.
+    /// </para>
+    /// <para>
+    /// 🔒 The elapsed times are the ones the TRIANGLE puts those cursors at, and the upper edge is
+    /// reached on the RETURN leg. Over a two-second there-and-back sweep the cursor is at 1 after one
+    /// second and back at 0 after two, so 0.75 stands at 1.25 seconds and not at 1.5 — an arrangement
+    /// computed as <c>elapsed / sweepSeconds</c> puts the cursor somewhere else entirely and the
+    /// boundary this case exists for is never struck.
+    /// </para>
     /// </remarks>
     [Theory]
-    [InlineData(0.5, 0.25, true)]
-    [InlineData(0.4, 0.20, false)]
-    [InlineData(1.5, 0.75, true)]
-    [InlineData(1.6, 0.80, false)]
+    [InlineData(0.25, 0.25, true)]
+    [InlineData(0.20, 0.20, false)]
+    [InlineData(1.25, 0.75, true)]
+    [InlineData(1.20, 0.80, false)]
     [InlineData(1.0, 1.00, false)]
     [InlineData(0.0, 0.00, false)]
     public void A_strike_scores_exactly_inside_the_authored_window(
@@ -328,7 +351,7 @@ public sealed class TimingBarGameTests
         game.Cursor.ShouldBe(
             0.0,
             Slack,
-            "the same elapsed time moves a timed game a quarter of the way along the bar. A reduced- " +
+            "the same elapsed time moves a timed game to the middle of the bar. A reduced- " +
             "motion player has asked for nothing to move on its own, and a cursor that drifted " +
             "anyway is the animation they turned off.");
     }

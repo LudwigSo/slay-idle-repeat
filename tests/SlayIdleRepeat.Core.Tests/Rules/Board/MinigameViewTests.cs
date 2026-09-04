@@ -224,16 +224,26 @@ public sealed class MinigameViewTests
     /// Two chapters, because the rows are chapter-scaled and one chapter cannot tell a scaled view
     /// from an unscaled one.
     /// </para>
+    /// <para>
+    /// 🔴 <b>Two arms, because no <c>MG_TIMING_BAR</c> row pays Beast Feed at all.</b> Swept over the
+    /// timing bar alone, three of the four column comparisons below are zero against zero on every
+    /// row and only the Gold one is a measurement. <c>MG_MEMORY_RUNE</c>'s top row is the shipped row
+    /// that moves Beast Feed, and it is client-asserted, so the tier this case names is the tier the
+    /// handler pays rather than one it rolls for itself.
+    /// </para>
     /// </remarks>
     [Theory]
-    [InlineData(1, 0)]
-    [InlineData(1, 3)]
-    [InlineData(3, 2)]
-    [InlineData(3, 3)]
-    public void A_projected_row_is_what_an_accepted_submission_at_that_tier_pays(int chapterId, int tier)
+    [InlineData("MG_TIMING_BAR", 1, 0)]
+    [InlineData("MG_TIMING_BAR", 1, 3)]
+    [InlineData("MG_TIMING_BAR", 3, 2)]
+    [InlineData("MG_TIMING_BAR", 3, 3)]
+    [InlineData("MG_MEMORY_RUNE", 1, 2)]
+    [InlineData("MG_MEMORY_RUNE", 3, 2)]
+    public void A_projected_row_is_what_an_accepted_submission_at_that_tier_pays(
+        string minigameId, int chapterId, int tier)
     {
-        var row = RowFor(MinigameCatalogue.TimingBar, tier, chapterId, GoldBuffed);
-        var paid = Paid(MinigameCatalogue.TimingBar, tier, chapterId, GoldBuffed);
+        var row = RowFor(minigameId, tier, chapterId, GoldBuffed);
+        var paid = Paid(minigameId, tier, chapterId, GoldBuffed);
 
         row.Gold.ShouldBe(
             paid.Gold,
@@ -477,9 +487,9 @@ public sealed class MinigameViewTests
         var blind = Worlds.InARun(RunRow(chapterId: 1));
 
         var afterLooking = SlayIdleRepeat.Core.GameRules.Apply(
-            looked, new MinigameSubmitCommand(MinigameCatalogue.ChestPick, 0), Worlds.Context);
+            looked, new MinigameSubmitCommand(MinigameCatalogue.ChestPick, 0), ShippedThere);
         var afterBlind = SlayIdleRepeat.Core.GameRules.Apply(
-            blind, new MinigameSubmitCommand(MinigameCatalogue.ChestPick, 0), Worlds.Context);
+            blind, new MinigameSubmitCommand(MinigameCatalogue.ChestPick, 0), ShippedThere);
 
         afterLooking.Accepted.ShouldBeTrue(
             "with the submission refused there is no resolution to compare and this case measures " +
@@ -498,7 +508,21 @@ public sealed class MinigameViewTests
     /// <summary>The Gold-gain shrine buff, so the preview and the payout have a modifier to disagree over.</summary>
     private static readonly IReadOnlyList<string> GoldBuffed = ["SHR_GOLD"];
 
-    private static ContentSnapshot ShippedContent => Worlds.Context.Content;
+    /// <summary>The checkout's own content set, loaded whole.</summary>
+    /// <remarks>
+    /// 🔴 <b><c>Worlds.Context.Content</c> cannot price a shrine buff, and every reward case here
+    /// carries one.</b> That set authors its own <c>tuning/currencies.json</c> with no
+    /// <c>inRunIncome</c> block, so the Gold-modifier scaling at the income site throws
+    /// <c>MissingContentException</c> on the pointer <c>#/inRunIncome/shrineBuffPool/optionsOffered</c>
+    /// — before any assertion runs. The preview-equals-payout guard would then be a case that could
+    /// only ever error, which reads as red for the same reason an unimplemented projection does and
+    /// would be repaired by implementing nothing. Measured, not suspected.
+    /// </remarks>
+    private static ContentSnapshot ShippedContent => ShippedHarness.Content;
+
+    /// <summary>The fixture context, moved onto that set so a submission is paid the shipped way.</summary>
+    private static GameContext ShippedThere { get; } =
+        Worlds.Context with { Content = ShippedHarness.Content };
 
     /// <summary>
     /// The shipped set with <c>tuning/luck.json</c> replaced: the minigame class's counter key is the
@@ -578,7 +602,7 @@ public sealed class MinigameViewTests
         var before = Worlds.InARun(RunRow(chapterId, shrineBuffs));
 
         var outcome = SlayIdleRepeat.Core.GameRules.Apply(
-            before, new MinigameSubmitCommand(minigameId, tier), Worlds.Context);
+            before, new MinigameSubmitCommand(minigameId, tier), ShippedThere);
 
         outcome.Accepted.ShouldBeTrue(
             "the submission this case measures the payout from was refused, so there is no payout " +

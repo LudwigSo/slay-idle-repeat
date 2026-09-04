@@ -360,6 +360,16 @@ public sealed class MinigamePresenterTests
         await presenter.StartAsync(CancellationToken.None);
 
         presenter.Finished.ShouldBeFalse("nothing has been struck yet.");
+        presenter.StrikesLeft.ShouldBe(
+            MinigameContent.Strikes,
+            "the strikes-left caption is drawn from this and nothing else counts the presses down, " +
+            "so a screen reporting the wrong number tells the player they have shots they do not.");
+        presenter.HitWindowHalfWidth.ShouldBe(
+            MinigameContent.HitWindowHalfWidth,
+            1e-9,
+            "the scene draws the scoring window from this number and the strike is judged by the " +
+            "authored one. A screen reporting a different half-width draws a target the game does " +
+            "not score against — the player aims at a window that is not there.");
 
         (await presenter.SubmitAsync(CancellationToken.None))
             .ShouldBe(MinigameSubmission.RefusedNotAvailable);

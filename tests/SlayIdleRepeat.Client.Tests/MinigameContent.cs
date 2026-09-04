@@ -162,12 +162,19 @@ internal static class MinigameContent
     internal static LocaleStringCatalogue Catalogue(ContentSnapshot content) =>
         new(content, ScreenContent.English);
 
-    /// <summary>A content set holding <b>only</b> the timing bar's authored numbers.</summary>
+    /// <summary>
+    /// The timing bar's authored numbers and the reward table its strike count is read against.
+    /// </summary>
     /// <remarks>
-    /// For <c>TimingBarRules</c>' own cases, which must not be able to pass because some other
-    /// document happened to be present.
+    /// 🔴 <b>The reward table is here because the read needs it, not as scenery.</b>
+    /// <c>TimingBarRules.Read</c> refuses a strike count the <c>MG_TIMING_BAR</c> table cannot pay,
+    /// and a set holding the numbers alone leaves that comparison with nothing to compare against —
+    /// every read would then throw for the missing document, which is a refusal that looks exactly
+    /// like the one the strike-count cases are about while measuring nothing. The strings and the
+    /// pity registry are still left out, so a read that reached for either would fail here.
     /// </remarks>
-    internal static ContentSnapshot TimingBarOnly() => new(FixtureStamp, [Minigames()]);
+    internal static ContentSnapshot TimingBarOnly() =>
+        new(FixtureStamp, [Minigames(), RewardTables()]);
 
     /// <summary>
     /// A content set with a timing bar whose numbers a case chose — for the refusals and the bounds.
@@ -177,7 +184,24 @@ internal static class MinigameContent
         double sweepSeconds = SweepSeconds,
         double hitWindowHalfWidth = HitWindowHalfWidth,
         double reducedMotionStepFraction = ReducedMotionStepFraction) =>
-        new(FixtureStamp, [Minigames(strikes, sweepSeconds, hitWindowHalfWidth, reducedMotionStepFraction)]);
+        new(
+            FixtureStamp,
+            [
+                Minigames(strikes, sweepSeconds, hitWindowHalfWidth, reducedMotionStepFraction),
+                RewardTables(),
+            ]);
+
+    /// <summary>
+    /// The authored numbers with no reward table at all — the shape a strikes-versus-rows check
+    /// cannot be made over.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Refused rather than read as "no disagreement". Without this, a read that never opened the
+    /// reward table and simply believed the number it was given satisfies every other case in the
+    /// suite: 3 is accepted, 2 and 4 are refused, and the refusal could be a hard-coded four.
+    /// </remarks>
+    internal static ContentSnapshot TimingBarWithoutTheRewardTable() =>
+        new(FixtureStamp, [Minigames()]);
 
     /// <summary>Everything the Minigame screen reads: its strings, its numbers, the shipped tables.</summary>
     internal static ContentSnapshot Playable() =>
@@ -196,9 +220,13 @@ internal static class MinigameContent
     /// <summary>The two shipped documents Core's own projection reads, borrowed rather than mimicked.</summary>
     private static IReadOnlyList<ContentDocument> ShippedTables() =>
     [
-        BootContent.Shipped.GetDocument(CurrenciesDocument),
+        RewardTables(),
         BootContent.Shipped.GetDocument(LuckDocument),
     ];
+
+    /// <summary>The shipped reward tables, borrowed whole.</summary>
+    private static ContentDocument RewardTables() =>
+        BootContent.Shipped.GetDocument(CurrenciesDocument);
 
     private static ContentDocument Minigames(
         int strikes = Strikes,
