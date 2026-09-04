@@ -36,6 +36,11 @@
 .PARAMETER Godot
     Path to a Godot 4.7.1-mono binary, overriding discovery and $env:SIR_GODOT.
 
+.PARAMETER Locale
+    The locale the game starts in, passed to the engine as --language. Defaults to en: the German
+    strings are all ##TODO_DE## placeholders for now, and a German machine would otherwise show
+    nothing but them. Pass -Locale de to see the placeholders on purpose.
+
 .EXAMPLE
     pwsh ./Run-Game.ps1
 .EXAMPLE
@@ -45,7 +50,8 @@
 param(
     [switch] $NoBuild,
     [string] $Scene,
-    [string] $Godot
+    [string] $Godot,
+    [string] $Locale = 'en'
 )
 
 Set-StrictMode -Version Latest
@@ -123,7 +129,7 @@ if (-not (Test-Path (Join-Path $project '.godot/imported'))) {
 }
 
 # ── the launch ──────────────────────────────────────────────────────────────────────────────────
-$engineArgs = @('--path', $project)
+$engineArgs = @('--path', $project, '--language', $Locale)
 if ($Scene) { $engineArgs += $Scene }
 
 $log = Join-Path ([IO.Path]::GetTempPath()) ("sir-run-" + [Guid]::NewGuid().ToString('N').Substring(0, 8) + ".log")

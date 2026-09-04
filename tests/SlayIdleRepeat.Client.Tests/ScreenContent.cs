@@ -31,6 +31,15 @@ internal static class ScreenContent
     internal const string LoadingStatusKey = "loc.home.loading.status";
     internal const string RunLapsedStatusKey = "loc.home.run_lapsed.status";
     internal const string UnavailableStatusKey = "loc.home.unavailable.status";
+    internal const string PowerLabelKey = "loc.home.power.label";
+    internal const string ProgressLabelKey = "loc.home.progress.label";
+    internal const string StageLabelKey = "loc.home.stage.label";
+    internal const string NothingClearedStatusKey = "loc.home.nothing_cleared.status";
+
+    /// <summary>The currency names the HUD tiles borrow rather than author captions of their own.</summary>
+    internal const string CrownsNameKey = "loc.currency.crowns.name";
+    internal const string SoulShardsNameKey = "loc.currency.soul_shards.name";
+    internal const string GoldNameKey = "loc.currency.gold.name";
 
     internal const string ChapterSelectTitleKey = "loc.chapter_select.title.name";
     internal const string TierNormalKey = "loc.chapter_select.tier_normal.name";
@@ -76,7 +85,8 @@ internal static class ScreenContent
     [
         LegendLevelLabelKey, EnergyLabelKey, EnergyReserveLabelKey,
         StartRunActionKey, ContinueRunActionKey, LoadingStatusKey, UnavailableStatusKey,
-        RunLapsedStatusKey,
+        RunLapsedStatusKey, PowerLabelKey, ProgressLabelKey, StageLabelKey, NothingClearedStatusKey,
+        CrownsNameKey, SoulShardsNameKey, GoldNameKey,
     ];
 
     /// <summary>Every string key the Chapter Select screen renders, chapter names aside.</summary>

@@ -106,7 +106,12 @@ public static class HomeComposition
 
         return new ComposedHomeScreen(
             new HomePresenter(
-                composed.Client.GameHost, strings, content, composed.Client.Clock, player),
+                composed.Client.GameHost,
+                strings,
+                content,
+                composed.Client.Clock,
+                new HeroPowerReadout(content),
+                player),
             new ChapterSelectPresenter(composed.Client.GameHost, strings, content, player),
             run => BoardComposition.CreateBoardScreen(composed, player, run),
             () => InventoryComposition.CreateInventoryScreen(composed, player));

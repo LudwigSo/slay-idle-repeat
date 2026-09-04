@@ -94,6 +94,10 @@ public sealed class HomeDataTests
     [InlineData("loc.home.continue_run.action")]
     [InlineData("loc.home.loading.status")]
     [InlineData("loc.home.unavailable.status")]
+    [InlineData("loc.home.power.label")]
+    [InlineData("loc.home.progress.label")]
+    [InlineData("loc.home.stage.label")]
+    [InlineData("loc.home.nothing_cleared.status")]
     public void Every_home_string_the_screen_shows_is_carried_by_both_locales(string key)
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
@@ -108,6 +112,30 @@ public sealed class HomeDataTests
             "across. Stated as 'different from EN' rather than as any particular wording: the DE " +
             "values are untranslated placeholders today, and pinning their text would assert a " +
             "translation that has not been done.");
+    }
+
+    /// <summary>
+    /// 🔒 The captions the HUD borrows from other screens' documents, declared under the home
+    /// document's own <c>label</c> member. The orphan rule cannot miss them — each key is named by
+    /// the document that owns it — so this is the only place Home's dependence on them is stated.
+    /// </summary>
+    [Theory]
+    [InlineData("crowns", "loc.currency.crowns.name")]
+    [InlineData("soulShards", "loc.currency.soul_shards.name")]
+    [InlineData("gold", "loc.currency.gold.name")]
+    [InlineData("tierNormal", "loc.chapter_select.tier_normal.name")]
+    [InlineData("tierHeroic", "loc.chapter_select.tier_heroic.name")]
+    [InlineData("tierMythic", "loc.chapter_select.tier_mythic.name")]
+    public void The_home_document_names_each_caption_the_hud_borrows_from_another_screen(string member, string key)
+    {
+        var snapshot = ContentLoader.Load(RepoData.Source()).Require();
+
+        snapshot.ReadText($"{HomeDocument}#/label/{member}").ShouldBe(
+            key,
+            $"the HUD's '{member}' tile is captioned with a string another document owns, and the " +
+            "home document is where Home declares that it depends on it: retire or rename the key and " +
+            "this reference fails the content load, where the presenter's literal key would render " +
+            "as itself on the screen instead.");
     }
 
     /// <summary>
