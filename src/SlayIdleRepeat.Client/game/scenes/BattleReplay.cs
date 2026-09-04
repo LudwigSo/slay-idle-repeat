@@ -469,6 +469,12 @@ public partial class BattleReplay : Node3D
             return;
         }
 
+        // Drawn before the answer is awaited, not after it. The one advance that awaits anything is
+        // the one that crossed the last blow, and its cues are already in hand: held back until the
+        // round trip returns, the fight would stand one blow short of its end with no outcome line
+        // for as long as the submission takes, which a player cannot tell from a stall.
+        Settle(presenter);
+
         _busy = true;
 
         _ = AwaitAdvance(advancing, presenter);
@@ -480,7 +486,8 @@ public partial class BattleReplay : Node3D
         {
             await advancing;
 
-            Settle(presenter);
+            // The step was drawn before the wait; what the answer can change on screen is the refusal.
+            Render();
             Report(presenter);
         }
         catch (Exception failure)
@@ -1079,9 +1086,16 @@ public partial class BattleReplay : Node3D
 
         try
         {
-            var outcome = await presenter.SkipAsync(_lifetime);
+            var skipping = presenter.SkipAsync(_lifetime);
 
+            // The jump to the end is made before the presenter awaits anything, so the bars, the
+            // fallen and the outcome line land on the frame of the tap rather than on the frame the
+            // submission answers — the tap's feedback, and what the round trip is spent looking at.
             AnchorToEnd(presenter);
+            Render();
+
+            var outcome = await skipping;
+
             Render();
             Report(presenter);
 
