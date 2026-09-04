@@ -1,5 +1,6 @@
 using System.Globalization;
 using Godot;
+using SlayIdleRepeat.Client.Game.Presenters;
 
 namespace SlayIdleRepeat.Client.Game.Scenes;
 
@@ -149,8 +150,9 @@ public partial class ActorPlate : VBoxContainer
         _chips.Add(chip);
     }
 
+    /// <remarks>Through <see cref="PlayerNumber"/>, like every other number a player reads, so a bar past ten thousand shortens the way a result does.</remarks>
     private static string Readout(double current, double maximum) =>
-        Math.Round(current).ToString("0", CultureInfo.InvariantCulture) +
+        PlayerNumber.Abbreviated((long)Math.Round(current)) +
         OverSeparator +
-        Math.Round(maximum).ToString("0", CultureInfo.InvariantCulture);
+        PlayerNumber.Abbreviated((long)Math.Round(maximum));
 }

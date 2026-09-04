@@ -7,13 +7,18 @@
 ; ============================================================================================
 ; The battle, drawn as a stage the fight is fought on.
 ;
-; 🔴 Every distance, timing and camera number on this screen's exports is a CHOICE OF THIS TASK
-; and not one of them is authored by a design document. The design states how a fight must READ —
-; the hero on the left facing the enemies on the right, a swing that reaches, a blow that
-; recoils, a fall that stays down, plates over heads, the whole stage in the band the interface
-; leaves free — and states no distance, no duration and no angle at all. Per steering rule S6
-; they live here, in one greppable place, marked as debt owed to a ruling, rather than as
-; constants scattered through the code where they would read as decided.
+; 🔴 Every distance, fraction, timing, canvas offset and camera number on this screen's exports is
+; a CHOICE OF THIS TASK and not one of them is authored by a design document. The design states
+; how a fight must READ — the hero on the left facing the enemies on the right, a swing that
+; reaches, a blow that recoils, a fall that stays down, plates over heads, the whole stage in the
+; band the interface leaves free — and states no distance, no duration and no angle at all. Per
+; steering rule S6 they live here, in one greppable place, marked as debt owed to a ruling, rather
+; than as constants scattered through the code where they would read as decided.
+;
+; The units, so a tune does not mistake one for another: the stage distances (HalfGap through
+; DodgeSideStep, PlateClearance) are stage units; every *Seconds is seconds; BraceSquash, FallSink
+; and PulseSwell are fractions of the actor's OWN size, so a small enemy and a boss squash, sink and
+; swell in proportion; FloatRise and FloatFanStep are canvas pixels on the overlay, not stage units.
 ;
 ; What IS authored is derived rather than picked: the camera's distance solves itself from the
 ; stage's real extent at the viewport's real aspect, and its lift from the band the interface
@@ -233,21 +238,20 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 24
 
+; The title takes only the width its text needs and the opponent's name takes the rest, right-aligned
+; and wrapping — the board's StandingOnRow arrangement — so a short title never wraps.
 [node name="TitleLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Banner"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
 size_flags_vertical = 4
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 72
-autowrap_mode = 3
 
 [node name="OpponentLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Banner"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
-size_flags_stretch_ratio = 2.0
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 44
 horizontal_alignment = 2
@@ -280,13 +284,14 @@ theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
 theme_override_font_sizes/font_size = 44
 autowrap_mode = 3
 
+; A multiplier is one token: the button grows with its text rather than wrapping it, and the caption
+; beside it is the cell that yields.
 [node name="SpeedButton" type="Button" parent="Ui/Screen/SafeArea/Column/ControlRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 168)
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_font_sizes/font_size = 48
-autowrap_mode = 3
 
 [node name="SkipButton" type="Button" parent="Ui/Screen/SafeArea/Column/ControlRow"]
 unique_name_in_owner = true
@@ -311,6 +316,8 @@ unique_name_in_owner = true
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 64.0
+offset_right = -64.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_colors/font_color = Color(0.98, 0.94, 0.9, 1)

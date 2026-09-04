@@ -5,7 +5,11 @@
 ; The plate over one actor's head. Placed by BattleReplay at the actor's unprojected anchor with its
 ; bottom centre on the anchor, so it hangs over the model whatever the camera does. ChipTemplate is
 ; the hidden status chip every visible chip is a copy of: its square is authored here, once.
+;
+; One width for every plate, the bar's: a name longer than the bar wraps to two lines inside it
+; rather than widening its own plate, so the hero's and the enemies' plates read as one system.
 [node name="ActorPlate" type="VBoxContainer"]
+custom_minimum_size = Vector2(220, 0)
 script = ExtResource("1_plate")
 mouse_filter = 2
 theme_override_constants/separation = 6
@@ -16,12 +20,15 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 36
 horizontal_alignment = 1
+autowrap_mode = 3
+max_lines_visible = 2
 
 [node name="HpBar" type="ProgressBar" parent="."]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(220, 22)
 layout_mode = 2
 size_flags_horizontal = 4
+mouse_filter = 2
 show_percentage = false
 
 [node name="HpText" type="Label" parent="."]
@@ -34,6 +41,7 @@ horizontal_alignment = 1
 [node name="Statuses" type="HBoxContainer" parent="."]
 unique_name_in_owner = true
 layout_mode = 2
+mouse_filter = 2
 alignment = 1
 theme_override_constants/separation = 8
 

@@ -62,15 +62,15 @@ public partial class BattleReplay : Node3D
         "rather than derived and every actor has one from the tick it enters on.";
 
     /// <summary>
-    /// 🔴 Deliberately not done, and named so it can be found. Nothing in this build abbreviates a
-    /// number, and this screen does not become the first.
+    /// 🔴 Half done, and named so it can be found. Every number this screen draws is shortened past
+    /// ten thousand through the shared <see cref="PlayerNumber"/>; the exact value is not given back.
     /// </summary>
-    private const string LargeNumbersAreNotAbbreviatedHere =
+    private const string LargeNumbersAreAbbreviatedButNeverRevealedHere =
         "The design abbreviates a number past ten thousand and returns the exact value on a long " +
-        "press. Nothing in this build abbreviates anything, so a shortening introduced on this one " +
-        "screen would be the only one, and the reading-back half needs a press handler on every " +
-        "number rather than a format. It belongs with the shared formatting the UI kit owes every " +
-        "screen at once.";
+        "press. The plates and the floating numbers shorten through PlayerNumber, the one rule the " +
+        "results screens already obey. The reading-back half is not built: the plates and the " +
+        "floaters ignore every tap so the skip can never be missed, and a press handler on a " +
+        "number in flight belongs with the UI kit's shared readout, not with this screen alone.";
 
     /// <summary>
     /// How many floating numbers can be in the air at once: a fixed pool cycled round, never a label
@@ -792,7 +792,7 @@ public partial class BattleReplay : Node3D
 
         _floatTweens[index]?.Kill();
 
-        floater.Text = sign + Math.Round(amount).ToString("0", CultureInfo.InvariantCulture);
+        floater.Text = sign + PlayerNumber.Abbreviated((long)Math.Round(amount));
         floater.AddThemeFontSizeOverride(FontSizeOverride, size);
         floater.AddThemeColorOverride(FontColourOverride, colour);
         floater.Modulate = StandingColour;
