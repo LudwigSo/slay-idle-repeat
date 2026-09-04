@@ -39,7 +39,34 @@ internal static class EnemyPowerFormula
     private const double Stage3Multiplier = 1.35;
 
     /// <summary><c>StageMult</c> for the boss, which belongs to no stage.</summary>
-    private const double BossMultiplier = 2.20;
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b><c>02</c> §4.3 authors <c>2.20</c> here, and <c>2.20</c> puts the boss beyond the
+    /// fight cap.</b> The boss node's linear index is the board's last, so the growth term has
+    /// already multiplied the chapter target by <c>1 + 0.035 x 42 = 2.47</c> before this factor is
+    /// applied: at <c>2.20</c> a boss is <b>5.43x</b> its chapter's par. Against chapter 1's old par
+    /// of 1000 that is a Thornmaw of <c>HP 7825 / DEF 130</c>, which the calibrated par build of
+    /// <c>tuning/calibration_builds.json</c> (<c>referenceParBuild</c>, Legend 10, <c>ATK 145</c>)
+    /// needs <b>~102 s</b> to kill — past <c>CombatRules</c>' 90 s cap, where a timeout counts as a
+    /// loss, and long past <c>SYS_ENRAGE</c>'s 70 s ramp. Every boss in the game was unbeatable at
+    /// par, and <c>.claude/retros/M2.md</c> records the balance harness finding it from the other
+    /// side: over 1.2 M real boss fights, <em>"no build at par ever takes a boss below 66 % HP"</em>,
+    /// so no authored phase-2 or phase-3 mechanic had ever been reached at its intended difficulty.
+    /// </para>
+    /// <para>
+    /// <c>1.35</c> leaves the boss at <c>3.34x</c> its chapter's par, which is the figure that puts
+    /// the fight in the band <c>17</c> §1 authors and <c>BossDurationGuardrails</c> restates — 35-60 s
+    /// at par. It is the same fight <c>02</c> §4.3's <c>2.20</c> describes if the growth term is NOT
+    /// applied to the boss node: the two readings differ by exactly the double count.
+    /// </para>
+    /// <para>
+    /// 🔒 Global rather than per chapter, unlike the elite multiplier on
+    /// <c>enemies.json#/chapterPools</c>. What makes one boss harder than another is its own four
+    /// coefficients, and the double count above is not a property of any one chapter — a
+    /// per-chapter boss multiplier would leave it hidden in seven more places.
+    /// </para>
+    /// </remarks>
+    private const double BossMultiplier = 1.35;
 
     /// <summary><c>TierMult</c> for the three difficulty tiers.</summary>
     private const double NormalMultiplier = 1.0;

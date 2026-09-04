@@ -12,8 +12,8 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 internal readonly record struct ArchetypeWeight(EnemyArchetype Archetype, double Weight);
 
 /// <summary>
-/// One chapter's enemy pool — the weight table a <c>TILE_ENEMY</c> battle draws from, and the two
-/// elites the chapter's <c>elitePool</c> holds.
+/// One chapter's enemy pool — the weight table a <c>TILE_ENEMY</c> battle draws from, the two
+/// elites the chapter's <c>elitePool</c> holds, and the power multiplier those elites carry.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -26,17 +26,30 @@ internal readonly record struct ArchetypeWeight(EnemyArchetype Archetype, double
 /// the closed archetype set rather than over whatever the data holds, so an archetype missing from a
 /// chapter is a load failure rather than a silently edited-out design statement.
 /// </para>
+/// <para>
+/// ⚠️ <b><see cref="ElitePowerMultiplier"/> is per chapter, and it used to be global.</b> It was one
+/// <c>elites/powerMultiplier</c> of <c>2.2</c> for the whole game. It sits here because an elite and
+/// a MINI-BOSS are one code path (<c>run-minibosses</c> D7) and a mini-boss is unskippable, so the
+/// multiplier is what decides whether a chapter's two forced gates are passable: at <c>2.2</c>
+/// chapter 1's stage-1 <c>WARDEN</c> mini-boss reached <c>DEF 201</c> against a bare level-1 hero,
+/// which is a 197 s time-to-kill against a 90 s fight cap. Chapters 2-8 carry <c>05</c> §6.2's
+/// <c>2.2</c> verbatim; only chapter 1 is authored gentler.
+/// </para>
 /// </remarks>
 internal sealed class ChapterEnemyPool
 {
     private readonly IReadOnlyList<(EnemyArchetype item, double weight)> _table;
 
     private ChapterEnemyPool(
-        int chapter, IReadOnlyList<ArchetypeWeight> weights, IReadOnlyList<string> elitePool)
+        int chapter,
+        IReadOnlyList<ArchetypeWeight> weights,
+        IReadOnlyList<string> elitePool,
+        double elitePowerMultiplier)
     {
         Chapter = chapter;
         Weights = weights;
         ElitePool = elitePool;
+        ElitePowerMultiplier = elitePowerMultiplier;
 
         var table = new List<(EnemyArchetype item, double weight)>(weights.Count);
         var total = 0.0;
@@ -60,6 +73,13 @@ internal sealed class ChapterEnemyPool
     /// <summary>The chapter's two elite identities. Elites are drawn from here and nowhere else.</summary>
     internal IReadOnlyList<string> ElitePool { get; }
 
+    /// <summary>
+    /// <c>05</c> §6.2's elite power multiplier, as this chapter authors it — the factor an Elite's
+    /// and a mini-boss's Power is scaled by. Never a boss's: a boss already carries its own stage
+    /// multiplier and <c>05</c> §6.3 forbids multiplying it again.
+    /// </summary>
+    internal double ElitePowerMultiplier { get; }
+
     /// <summary>The sum of the row's weights. Every row totals 100.</summary>
     internal double TotalWeight { get; }
 
@@ -67,13 +87,22 @@ internal sealed class ChapterEnemyPool
     /// <param name="chapter">The chapter, <c>1..8</c>.</param>
     /// <param name="weights">One weight per archetype — all eight, no more, no fewer.</param>
     /// <param name="elitePool">The chapter's elite identity ids.</param>
+    /// <param name="elitePowerMultiplier">
+    /// The chapter's elite power multiplier. Positive and finite — a zero would make every elite and
+    /// mini-boss in the chapter a power-0 enemy, and a negative one is not a difficulty at all.
+    /// </param>
     /// <exception cref="ArgumentException">
     /// An archetype is missing or repeated, a weight is negative or not finite, or every weight is
     /// zero.
     /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">The chapter is out of range.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The chapter is out of range, or the elite power multiplier is not positive and finite.
+    /// </exception>
     internal static ChapterEnemyPool From(
-        int chapter, IReadOnlyList<ArchetypeWeight> weights, IReadOnlyList<string> elitePool)
+        int chapter,
+        IReadOnlyList<ArchetypeWeight> weights,
+        IReadOnlyList<string> elitePool,
+        double elitePowerMultiplier)
     {
         ArgumentNullException.ThrowIfNull(weights);
         ArgumentNullException.ThrowIfNull(elitePool);
@@ -152,7 +181,18 @@ internal sealed class ChapterEnemyPool
                 nameof(elitePool));
         }
 
-        return new ChapterEnemyPool(chapter, weights.ToArray(), elitePool.ToArray());
+        if (!double.IsFinite(elitePowerMultiplier) || elitePowerMultiplier <= 0.0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(elitePowerMultiplier), elitePowerMultiplier,
+                $"chapter {chapter.ToString(CultureInfo.InvariantCulture)}'s elite power multiplier " +
+                "has to be positive and finite. 05 §6.2 scales an Elite's Power by it, so a zero " +
+                "would field a power-0 elite whose every stat derives to nothing, and a chapter can " +
+                "be authored gentler than the 2.2 the section states but never authored away.");
+        }
+
+        return new ChapterEnemyPool(
+            chapter, weights.ToArray(), elitePool.ToArray(), elitePowerMultiplier);
     }
 
     /// <summary>

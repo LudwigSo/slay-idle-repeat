@@ -71,7 +71,7 @@ public sealed class HeroBuildTests
     public void An_equipped_weapon_raises_attack_by_the_amount_its_inputs_say()
     {
         Stat(HeroBuild.Of(Level, [Weapon("w")], Content), StatId.ATK).ShouldBe(
-            112.0, "36 of hero, plus 1000 x 0.1 x 3.8 x 0.2 of blade");
+            46.64, "36 of hero, plus 140 x 0.1 x 3.8 x 0.2 of blade");
     }
 
     /// <summary>

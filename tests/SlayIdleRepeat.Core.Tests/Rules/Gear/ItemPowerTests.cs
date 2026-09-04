@@ -35,8 +35,8 @@ public sealed class ItemPowerTests
     /// would agree with itself whatever the tuning said.
     /// </remarks>
     [Theory]
-    [InlineData(1, Rarity.C, 100.0)]
-    [InlineData(1, Rarity.SS, 600.0)]
+    [InlineData(1, Rarity.C, 14.0)]
+    [InlineData(1, Rarity.SS, 84.0)]
     [InlineData(5, Rarity.S, 6080.0)]
     [InlineData(8, Rarity.A, 30720.0)]
     public void Item_power_at_an_authored_chapter_and_band(int chapter, Rarity rarity, double expected)
@@ -70,8 +70,12 @@ public sealed class ItemPowerTests
             drops.ItemPowerCoefficient,
             drops.Band(rarity).StatMultiplier);
 
-        (Power(2, Rarity.C) / Power(1, Rarity.C)).ShouldBe(
+        (Power(3, Rarity.C) / Power(2, Rarity.C)).ShouldBe(
             2.0, 1e-9, "the par column doubles from chapter to chapter, and item power is a fraction of it");
+
+        // Chapter 1 is off that ladder on purpose — it is priced for a hero with no gear at all — so
+        // the claim it carries is the monotonicity, not the doubling.
+        Power(2, Rarity.C).ShouldBeGreaterThan(Power(1, Rarity.C));
         (Power(1, Rarity.SS) / Power(1, Rarity.C)).ShouldBe(
             (double)GearDocuments.ShippedStatMultiplierSs, 1e-9);
     }

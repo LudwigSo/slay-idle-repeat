@@ -19,6 +19,16 @@ public sealed class EncounterEntryPointTests
     private const ulong BattleSeed = 0xE4_C0_1D_E4_0000_0001UL;
     private const int Chapter = 1;
 
+    /// <summary>
+    /// A chapter that still carries <c>05</c> §6.2's ×2.2 elite power multiplier. Chapter 1 does
+    /// not: it authors <c>1.4</c>, because an Elite and a MINI-BOSS are one code path and chapter 1's
+    /// two mini-bosses have to be passable by a hero with no gear. At <c>1.4</c> an Elite's derived
+    /// ATK can fall BELOW a non-elite draw's whenever the elite identity's archetype has the lower
+    /// <c>atkCoef</c> — <c>WARDEN</c>'s is <c>0.7</c> against <c>CASTER</c>'s <c>1.5</c> — so the
+    /// "an Elite always hits harder" claim belongs to a chapter whose multiplier still says so.
+    /// </summary>
+    private const int ChapterWithStandardEliteMultiplier = 2;
+
     /// <summary>NORMAL — the base difficulty tier.</summary>
     private const int NormalTier = 0;
 
@@ -119,10 +129,12 @@ public sealed class EncounterEntryPointTests
         const double EnemyPower = 50_000_000.0;
 
         var withoutElite = CombatSimulator.SimulateEncounter(
-            BattleSeed, Punchbag(), 10, Chapter, NormalTier, new[] { EnemyPower }, Content, eliteIndex: -1);
+            BattleSeed, Punchbag(), 10, ChapterWithStandardEliteMultiplier, NormalTier,
+            new[] { EnemyPower }, Content, eliteIndex: -1);
 
         var withElite = CombatSimulator.SimulateEncounter(
-            BattleSeed, Punchbag(), 10, Chapter, NormalTier, new[] { EnemyPower }, Content, eliteIndex: 0);
+            BattleSeed, Punchbag(), 10, ChapterWithStandardEliteMultiplier, NormalTier,
+            new[] { EnemyPower }, Content, eliteIndex: 0);
 
         withElite.LogHash.ShouldNotBe(
             withoutElite.LogHash, "05 §6.2's ×2.2 power multiplier changes the derived stat block");

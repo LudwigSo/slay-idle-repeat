@@ -31,8 +31,13 @@ internal static class RunBattleTestArithmetic
     /// <inheritdoc cref="Stage1"/>
     private const double Stage3 = 1.35;
 
-    /// <summary>The boss's stage multiplier. The boss belongs to no stage.</summary>
-    private const double Boss = 2.20;
+    /// <summary>
+    /// The boss's stage multiplier. The boss belongs to no stage, and its node's linear index has
+    /// already multiplied the target by <c>2.47</c> before this applies — which is why it is
+    /// <c>1.35</c> and not <c>02</c> §4.3's <c>2.20</c>. See
+    /// <c>EnemyPowerFormula.BossMultiplier</c>.
+    /// </summary>
+    private const double Boss = 1.35;
 
     /// <summary>The enemy power one tile of one run is fought at.</summary>
     internal static double EnemyPower(RunSnapshot run, ContentSnapshot content)

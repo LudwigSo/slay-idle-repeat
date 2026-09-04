@@ -354,13 +354,26 @@ public sealed class RealDataNegativeCaseTests
             ContentIssueCode.OrphanedReference, "tuning/sim_profiles.json#/adPlacementGroups");
     }
 
-    /// <summary>R13: the par table is its own default fill.</summary>
+    /// <summary>
+    /// R13: the default fill is the par table's ceiling. Chapter 1 sits below it by ruling, so the
+    /// case that has to fire is one ABOVE it — the direction nobody chooses on purpose.
+    /// </summary>
     [Fact]
-    public void A_par_power_cell_that_stops_matching_the_default_fill_is_rejected()
+    public void A_par_power_cell_above_its_default_fill_is_rejected()
     {
         Rejects("tuning/par_power.json",
-            "{ \"chapter\": 1, \"NORMAL\": 1000,", "{ \"chapter\": 1, \"NORMAL\": 1100,",
+            "{ \"chapter\": 1, \"NORMAL\": 140,", "{ \"chapter\": 1, \"NORMAL\": 1100,",
             ContentIssueCode.OutOfRange, "tuning/par_power.json#/parPower/0/NORMAL");
+    }
+
+    /// <summary>R13: and par is strictly increasing, so a later chapter never asks less.</summary>
+    [Fact]
+    public void A_par_power_ladder_that_stops_climbing_is_rejected()
+    {
+        Rejects("tuning/par_power.json",
+            "{ \"chapter\": 2, \"NORMAL\": 2000, \"HEROIC\": 8000, \"MYTHIC\": 32000 }",
+            "{ \"chapter\": 2, \"NORMAL\": 140, \"HEROIC\": 560, \"MYTHIC\": 2240 }",
+            ContentIssueCode.OutOfRange, "tuning/par_power.json#/parPower/1/NORMAL");
     }
 
     /// <summary>R28: the daily shop draw has to be satisfiable.</summary>

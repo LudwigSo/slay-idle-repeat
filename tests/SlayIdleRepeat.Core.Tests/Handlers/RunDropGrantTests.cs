@@ -143,7 +143,9 @@ public sealed class RunDropGrantTests
     {
         // Bare-handed, so the hero actually loses: the server recomputes the fight, so Won: false
         // below is the client's claim, not the outcome. The geared control keeps the case honest.
-        var world = GearGrantWorlds.OnKill(TileKind.Elite, geared: false);
+        // ⚠️ Chapter 2: chapter 1's par is authored for a hero with no gear, so a bare Legend-20
+        // hero wins a chapter-1 Elite and there would be no loss to assert about.
+        var world = GearGrantWorlds.OnKill(TileKind.Elite, chapterId: 2, geared: false);
 
         Banked(Win(GearGrantWorlds.OnKill(TileKind.Elite))).ShouldNotBeEmpty(
             "the control banked nothing, so the emptiness below says nothing about the loss — an " +

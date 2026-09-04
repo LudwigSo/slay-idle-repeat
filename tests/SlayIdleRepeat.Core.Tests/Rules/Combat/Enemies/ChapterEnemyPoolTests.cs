@@ -10,6 +10,9 @@ public sealed class ChapterEnemyPoolTests
 {
     private const ulong BattleSeed = 0xC0FFEE_1234_5678UL;
 
+    /// <summary><c>05</c> §6.2's elite power multiplier, which chapters 2-8 carry verbatim.</summary>
+    private const double Standard = EnemyFixtures.StandardElitePowerMultiplier;
+
     [Fact]
     public void One_draw_from_a_pool_consumes_exactly_one_draw_index()
     {
@@ -52,11 +55,13 @@ public sealed class ChapterEnemyPoolTests
         var pool = EnemyFixtures.ChapterOnePool();
 
         pool.WeightOf(EnemyArchetype.REAVER).ShouldBe(0.0, "05 §6.4 — Chapter 1 has no REAVER");
+        pool.WeightOf(EnemyArchetype.LEECH).ShouldBe(0.0, "05 §6.4 — nor any LEECH");
 
         var drawn = Enumerable.Range(0, 2000).Select(_ => pool.Draw(rng)).ToArray();
 
         drawn.ShouldNotContain(EnemyArchetype.REAVER);
-        drawn.Distinct().Count().ShouldBe(7, "the other seven shapes all have a positive weight in Chapter 1");
+        drawn.ShouldNotContain(EnemyArchetype.LEECH);
+        drawn.Distinct().Count().ShouldBe(6, "the other six shapes all have a positive weight in Chapter 1");
     }
 
     /// <summary>
@@ -75,7 +80,7 @@ public sealed class ChapterEnemyPoolTests
         };
 
         var thrown = Should.Throw<ArgumentException>(
-            () => ChapterEnemyPool.From(1, withoutReaver, new List<string> { "EL_A", "EL_B" }));
+            () => ChapterEnemyPool.From(1, withoutReaver, new List<string> { "EL_A", "EL_B" }, Standard));
 
         thrown.ParamName.ShouldBe("weights");
         thrown.Message.ShouldContain("REAVER", Case.Sensitive);
@@ -91,7 +96,7 @@ public sealed class ChapterEnemyPoolTests
             .ToList();
 
         var thrown = Should.Throw<ArgumentException>(
-            () => ChapterEnemyPool.From(1, doubled, new List<string> { "EL_A", "EL_B" }));
+            () => ChapterEnemyPool.From(1, doubled, new List<string> { "EL_A", "EL_B" }, Standard));
 
         thrown.ParamName.ShouldBe("weights");
         thrown.Message.ShouldContain("GRUNT", Case.Sensitive);
@@ -109,7 +114,7 @@ public sealed class ChapterEnemyPoolTests
             .ToList();
 
         var thrown = Should.Throw<ArgumentException>(
-            () => ChapterEnemyPool.From(1, negative, new List<string> { "EL_A", "EL_B" }));
+            () => ChapterEnemyPool.From(1, negative, new List<string> { "EL_A", "EL_B" }, Standard));
 
         thrown.ParamName.ShouldBe("weights");
         thrown.Message.ShouldContain("negative or not finite", Case.Sensitive);
@@ -121,7 +126,7 @@ public sealed class ChapterEnemyPoolTests
         var zeroed = Enum.GetValues<EnemyArchetype>().Select(a => new ArchetypeWeight(a, 0.0)).ToList();
 
         var thrown = Should.Throw<ArgumentException>(
-            () => ChapterEnemyPool.From(1, zeroed, new List<string> { "EL_A", "EL_B" }));
+            () => ChapterEnemyPool.From(1, zeroed, new List<string> { "EL_A", "EL_B" }, Standard));
 
         thrown.ParamName.ShouldBe("weights");
         thrown.Message.ShouldContain("draw nothing at all", Case.Sensitive);
@@ -134,7 +139,7 @@ public sealed class ChapterEnemyPoolTests
         Should.Throw<ArgumentOutOfRangeException>(() => ChapterEnemyPool.From(
             chapter,
             Enum.GetValues<EnemyArchetype>().Select(a => new ArchetypeWeight(a, 10.0)).ToList(),
-            new List<string> { "EL_A", "EL_B" }))
+            new List<string> { "EL_A", "EL_B" }, Standard))
             .ParamName.ShouldBe("chapter");
 
     /// <summary>
@@ -149,12 +154,12 @@ public sealed class ChapterEnemyPoolTests
             .ToList();
 
         var empty = Should.Throw<ArgumentException>(
-            () => ChapterEnemyPool.From(1, weights, new List<string>()));
+            () => ChapterEnemyPool.From(1, weights, new List<string>(), Standard));
         empty.ParamName.ShouldBe("elitePool");
         empty.Message.ShouldContain("could present none", Case.Sensitive);
 
         var repeated = Should.Throw<ArgumentException>(() => ChapterEnemyPool.From(
-            1, weights, new List<string> { "EL_THORN_SENTINEL", "EL_THORN_SENTINEL" }));
+            1, weights, new List<string> { "EL_THORN_SENTINEL", "EL_THORN_SENTINEL" }, Standard));
         repeated.ParamName.ShouldBe("elitePool");
         repeated.Message.ShouldContain("EL_THORN_SENTINEL", Case.Sensitive);
     }
@@ -168,5 +173,45 @@ public sealed class ChapterEnemyPoolTests
         pool.TotalWeight.ShouldBe(100.0);
         pool.Weights.Count.ShouldBe(8, "05 §6.1's eight shapes are the closed set every row is stated over");
         pool.ElitePool.ShouldBe(new[] { "EL_THORN_SENTINEL", "EL_MOSSBACK_ALPHA" });
+    }
+
+    /// <summary>
+    /// The elite power multiplier is the chapter's own, not one global figure: chapter 1 authors a
+    /// gentler one than 05 §6.2's 2.2 because a mini-boss takes the elite power path and chapter 1's
+    /// two mini-bosses are unskippable by a hero with no gear.
+    /// </summary>
+    [Fact]
+    public void The_elite_power_multiplier_is_the_chapters_own()
+    {
+        EnemyFixtures.ChapterOnePool().ElitePowerMultiplier
+            .ShouldBe(EnemyFixtures.ChapterOneElitePowerMultiplier);
+
+        ChapterEnemyPool.From(
+                2,
+                Enum.GetValues<EnemyArchetype>().Select(a => new ArchetypeWeight(a, 12.5)).ToList(),
+                new List<string> { "EL_A", "EL_B" },
+                Standard)
+            .ElitePowerMultiplier.ShouldBe(Standard);
+    }
+
+    /// <summary>
+    /// A chapter may be authored gentler than 2.2 but never authored away: a zero would field an
+    /// elite whose every derived stat is nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-1.4)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void An_elite_power_multiplier_that_is_not_positive_and_finite_fails(double multiplier)
+    {
+        var thrown = Should.Throw<ArgumentOutOfRangeException>(() => ChapterEnemyPool.From(
+            1,
+            Enum.GetValues<EnemyArchetype>().Select(a => new ArchetypeWeight(a, 12.5)).ToList(),
+            new List<string> { "EL_A", "EL_B" },
+            multiplier));
+
+        thrown.ParamName.ShouldBe("elitePowerMultiplier");
+        thrown.Message.ShouldContain("positive and finite", Case.Sensitive);
     }
 }

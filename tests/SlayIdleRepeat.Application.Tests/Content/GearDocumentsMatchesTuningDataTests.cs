@@ -450,7 +450,9 @@ public sealed class GearDocumentsMatchesTuningDataTests
     /// <summary><c>17</c> §1 — the Normal column of the content par table.</summary>
     public static TheoryData<int, int> EveryParChapter() => new()
     {
-        { 1, 1000 }, { 2, 2000 }, { 3, 4000 }, { 4, 8000 },
+        // Chapter 1 is off the doubling ladder by ruling: it is priced for a hero with no gear,
+        // talents, pets or levels, which par_power.json's own P1 property puts near 210.
+        { 1, 140 }, { 2, 2000 }, { 3, 4000 }, { 4, 8000 },
         { 5, 16000 }, { 6, 32000 }, { 7, 64000 }, { 8, 128000 },
     };
 

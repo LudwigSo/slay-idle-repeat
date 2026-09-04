@@ -194,10 +194,13 @@ public sealed class ConfirmBattleResultTests
     public void Losing_a_battle_sets_HP_to_zero_and_pays_nothing()
     {
         // An Elite fought bare-handed: Won: false is only the client's claim and the recomputation
-        // overrules it, so a losing case must hand over a fight the hero genuinely loses — and a
-        // Legend-20 hero beats a chapter-1 ordinary Enemy with no gear at all.
+        // overrules it, so a losing case must hand over a fight the hero genuinely loses.
+        // ⚠️ Chapter 2, not chapter 1. Chapter 1's par is authored for a hero with NO gear at all
+        // (175, against the fill's 1000), so a Legend-20 bare hero now beats a chapter-1 Elite too
+        // and there is no losable fight there to hand over.
         var opened = TileWorlds.OnTile(
-            TileKind.Elite, gold: 250, currentHp: 60, phase: RunPhase.BattlePending, geared: false);
+            TileKind.Elite, chapterId: 2, gold: 250, currentHp: 60,
+            phase: RunPhase.BattlePending, geared: false);
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(
             opened, new ConfirmBattleResultCommand("1", Won: false), TileWorlds.Context);
