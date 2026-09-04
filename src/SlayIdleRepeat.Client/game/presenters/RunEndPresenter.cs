@@ -56,7 +56,9 @@ public enum RunEndSubmission
 /// ⚠️ <b>Two arms, and the second is an absence rather than a denial.</b> <c>02</c> §6 gives Plus
 /// subscribers an instant no-ad revive and everyone else the ad path — and the ad path needs
 /// <c>CLAIM_AD_REWARD</c>, which is <c>Deferred → M15-03</c>. So the unentitled arm is *"no route is
-/// built yet"*, which is what the screen says, rather than *"you may not"*.
+/// built yet"* rather than *"you may not"* — and the screen draws nothing for it, neither a control
+/// nor a sentence, because a sentence about a route that is not built advertises a feature the game
+/// does not have.
 /// </para>
 /// </remarks>
 public enum ReviveArm
@@ -125,8 +127,8 @@ public sealed record RunEndCounterRow(string Label, string Value);
 /// ⚠️ <b>Deliberately absent, and named so it can be found: the ad surfaces.</b>
 /// <c>AD_DOUBLE_RUN_REWARDS</c> and <c>AD_FREE_RETRY</c> both need <c>CLAIM_AD_REWARD</c>, which is
 /// <c>Deferred → M15-03</c>, so this screen shows no doubled total and offers no retry — see
-/// <see cref="ThereIsNoDoubledRewardToShow"/>. It does not silently default them either: the revive's
-/// unentitled arm says the route is not built, which is the honest sentence.
+/// <see cref="ThereIsNoDoubledRewardToShow"/>. The revive's unentitled arm is the same kind of absence
+/// and is drawn the same way — no control and no sentence — so nothing on this screen names an ad.
 /// </para>
 /// </remarks>
 public sealed class RunEndPresenter
@@ -169,7 +171,6 @@ public sealed class RunEndPresenter
     private const string ReviveActionKey = "loc.run_end.revive.action";
     private const string FinishActionKey = "loc.run_end.finish.action";
 
-    private const string ReviveNeedsPlusBlockKey = "loc.run_end.revive_needs_plus.block";
     private const string ReviveSpentBlockKey = "loc.run_end.revive_spent.block";
     private const string DeathCostsRewardsBlockKey = "loc.run_end.death_costs_rewards.block";
 
@@ -319,17 +320,17 @@ public sealed class RunEndPresenter
     public string FinishText => _strings.Resolve(FinishActionKey);
 
     /// <summary>
-    /// The sentence in place of the revive control when there is no control, resolved. Empty when the
-    /// control is there, and empty when a revive was never on the table.
+    /// The one sentence this screen keeps about a missing revive, resolved: the run spent its one.
+    /// Empty in every other state.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔒 <b>Two different absences and two different sentences, and the projection is what tells them
-    /// apart.</b> <c>RunEndReviveStanding.AlreadyUsed</c> is <c>02</c> §6's <em>once per run, hard</em>
-    /// spent — the run had its safety net. The unentitled arm is a route that is not built. Saying the
-    /// first to a player in the second case tells someone who never revived that they had, and saying
-    /// the second to a player who spent theirs offers them a subscription for something they already
-    /// used.
+    /// 🔒 <b>Only the spent revive gets a sentence.</b> <c>RunEndReviveStanding.AlreadyUsed</c> is the
+    /// once-per-run limit reached — the run had its one safety net, and a player who presses nothing
+    /// and finds no button deserves to be told why. An unentitled player whose run the rules would
+    /// still revive gets neither a control nor a sentence: the only route that would serve them is an
+    /// ad the game cannot show, and a sentence about a revive route that is not built advertises a
+    /// feature the game does not have.
     /// </para>
     /// <para>
     /// 🔒 <b>Nothing is said when a revive never applied.</b> A cleared chapter and an abandoned run are
@@ -337,14 +338,9 @@ public sealed class RunEndPresenter
     /// had broken.
     /// </para>
     /// </remarks>
-    public string ReviveBlockText => _view?.ReviveStanding switch
-    {
-        RunEndReviveStanding.Offered => ReviveAvailable
-            ? NothingLeftToSay
-            : _strings.Resolve(ReviveNeedsPlusBlockKey),
-        RunEndReviveStanding.AlreadyUsed => _strings.Resolve(ReviveSpentBlockKey),
-        _ => NothingLeftToSay,
-    };
+    public string ReviveBlockText => _view?.ReviveStanding == RunEndReviveStanding.AlreadyUsed
+        ? _strings.Resolve(ReviveSpentBlockKey)
+        : NothingLeftToSay;
 
     /// <summary>
     /// The sentence naming what dying cost, resolved — and empty for a run that did not die.
@@ -395,9 +391,10 @@ public sealed class RunEndPresenter
 
     /// <summary>Submits <c>REVIVE</c> — <c>02</c> §6's one-per-run safety net.</summary>
     /// <remarks>
-    /// 🔒 Refused here rather than sent when the screen already knows it cannot resolve. Both reasons are
-    /// on the screen before the tap: the rules would refuse a run that has spent its revive, and the
-    /// unentitled arm has no route to offer. See the type's remarks for why the round trip is not spent.
+    /// 🔒 Refused here rather than sent when the screen already knows it cannot resolve. A spent revive
+    /// has its sentence on screen before any tap, and the unentitled arm draws no control to tap at all —
+    /// so a press reaching this guard is a press against a control the screen never offered. See the
+    /// type's remarks for why the round trip is not spent.
     /// </remarks>
     /// <param name="ct">Cancelled when the application shuts down.</param>
     public async Task<RunEndSubmission> ReviveAsync(CancellationToken ct)

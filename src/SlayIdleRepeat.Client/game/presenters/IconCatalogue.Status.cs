@@ -3,8 +3,6 @@ namespace SlayIdleRepeat.Client.Game.Presenters;
 /// <summary>The status icons, keyed by the log's own status ordinal.</summary>
 public static partial class IconCatalogue
 {
-    private const string StatusIconDirectory = "res://game/art/icons/";
-
     /// <summary>The thirteen authored statuses, in the order the rules layer numbers them from one.</summary>
     private static readonly string[] StatusIconPaths = StatusIconPathsOf(
         "burn", "poison", "bleed", "freeze", "stun", "weaken", "sunder",
@@ -23,7 +21,7 @@ public static partial class IconCatalogue
 
         for (var index = 0; index < statusNames.Length; index++)
         {
-            paths[index] = $"{StatusIconDirectory}icon_status_{statusNames[index]}.svg";
+            paths[index] = $"{Directory}icon_status_{statusNames[index]}{SvgExtension}";
         }
 
         return paths;

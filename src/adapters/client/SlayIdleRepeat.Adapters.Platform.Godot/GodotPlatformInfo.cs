@@ -35,8 +35,16 @@ public sealed class GodotPlatformInfo
     /// implementation of the platform port faces the same normalisation. Doing it here as well
     /// would be the same rule written twice, in the one place no test can reach: calling this
     /// property outside the runtime is a fatal fault. What is left here is the engine call.
+    /// <para>
+    /// 🔒 The engine's RESOLVED locale, not the operating system's. <c>TranslationServer</c> starts
+    /// from the OS answer and then honours the two overrides the engine itself defines — the
+    /// <c>--language</c> command-line flag and <c>internationalization/locale/test</c> — so a run
+    /// launched with a locale named on the command line (<c>Run-Game.ps1</c> does this) reads that
+    /// locale everywhere. Reading <c>OS.GetLocale()</c> here made the flag a no-op for every string
+    /// this game shows, because nothing in it goes through the engine's translation tables.
+    /// </para>
     /// </remarks>
-    public string Locale => HostAnswers.ToLocale(global::Godot.OS.GetLocale()).Name;
+    public string Locale => HostAnswers.ToLocale(global::Godot.TranslationServer.GetLocale()).Name;
 
     /// <summary>The device model, or <see langword="null"/> when the engine cannot identify it.</summary>
     /// <remarks>

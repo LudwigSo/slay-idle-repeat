@@ -75,8 +75,7 @@ public sealed class RunEndPresenterTests
         host.SubmitCallCount.ShouldBe(
             before,
             "a revive with no route was sent to the host. There is no command that can grant one for " +
-            "an unentitled player — CLAIM_AD_REWARD is deferred to M15-03 — and the screen already " +
-            "carries that sentence.");
+            "an unentitled player, and the screen offers no control for it.");
     }
 
     /// <summary>…and an entitled player's revive does reach the host, as <c>REVIVE</c>.</summary>
@@ -171,44 +170,53 @@ public sealed class RunEndPresenterTests
         host.SubmitCallCount.ShouldBe(0);
     }
 
-    // ---- the two absences, which are two different sentences ------------------------------------
+    // ---- the two absences: one says nothing, the other says it was spent -------------------------
 
     /// <summary>
-    /// 🔒 <b>An unreachable revive and a spent one are told apart, and neither is left as a dead
-    /// button.</b>
+    /// 🔒 <b>A player with no route to a revive sees no control and no sentence about one.</b> The
+    /// revive is Plus-only; for everyone else the screen simply has no revive on it.
     /// </summary>
-    /// <remarks>
-    /// 🔴 This is the finding the projection's <c>RunEndReviveStanding</c> exists for. Both rows here
-    /// report <c>ReviveAvailable == false</c>, so nothing but the sentence separates them — and getting
-    /// it wrong tells a player who never revived that they had already used their one, or offers a
-    /// subscription to a player for something they have already spent. Asserted as *"these two differ"*
-    /// rather than against a literal, because the words are the locale's and the claim is that the
-    /// screen picks a different one.
-    /// </remarks>
     [Fact]
-    public async Task The_two_reasons_a_revive_is_missing_are_two_different_sentences()
+    public async Task An_unentitled_player_sees_no_revive_control_and_no_sentence()
     {
-        var unentitled = Build(Finding(Dead()), ReviveArm.NoReviveRouteResolved);
-        var spent = Build(Finding(Dead(reviveUsed: true)), ReviveArm.PlusInstant);
+        var entitled = Build(Finding(Dead()), ReviveArm.PlusInstant);
+        var presenter = Build(Finding(Dead()), ReviveArm.NoReviveRouteResolved);
 
-        await unentitled.StartAsync(CancellationToken.None);
-        await spent.StartAsync(CancellationToken.None);
+        await entitled.StartAsync(CancellationToken.None);
+        await presenter.StartAsync(CancellationToken.None);
 
-        unentitled.ReviveAvailable.ShouldBeFalse();
-        spent.ReviveAvailable.ShouldBeFalse();
+        entitled.ReviveAvailable.ShouldBeTrue(
+            "the premise: this same run IS offered a revive by the rules, so whatever the unentitled " +
+            "screen withholds below, it withholds because of the entitlement and not because there " +
+            "was nothing to revive.");
+        presenter.Stage.ShouldBe(
+            RunEndStage.Tallied, "and the unentitled read settled, so the screen is drawing the tally.");
+        presenter.ReviveAvailable.ShouldBeFalse(
+            "and this player has no route to one, so the control is withheld.");
 
-        unentitled.ReviveBlockText.ShouldNotBeNullOrWhiteSpace(
-            "an unentitled player is left with a dead control and no reason for it. 02 §6's ad route " +
-            "needs CLAIM_AD_REWARD, deferred to M15-03, so the absence has to be named.");
-        spent.ReviveBlockText.ShouldNotBeNullOrWhiteSpace(
-            "a run that used its one revive says nothing about why the control is gone.");
+        presenter.ReviveBlockText.ShouldBeEmpty(
+            "a sentence about a revive route that is not built advertises a feature the game does not " +
+            "have; the unentitled player gets neither a dead control nor a reason for one.");
+        presenter.FinishText.ShouldNotBeNullOrWhiteSpace(
+            "and the way off the screen is still drawn — withholding the revive never withholds the exit.");
+    }
 
-        spent.ReviveBlockText.ShouldNotBe(
-            unentitled.ReviveBlockText,
-            "the two absences share a sentence, so one of them is a lie: this run spent its revive and " +
-            "the other never had a route to one. Told that they had 'already used' it, a player who " +
-            "never revived reads the screen as broken; offered Plus for a revive they have spent, they " +
-            "are being sold something that cannot help them.");
+    /// <summary>…while a run that spent its one revive still says so.</summary>
+    [Fact]
+    public async Task A_spent_revive_still_says_so()
+    {
+        var presenter = Build(Finding(Dead(reviveUsed: true)), ReviveArm.PlusInstant);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Stage.ShouldBe(
+            RunEndStage.Tallied, "the premise: the run was read, so the missing revive is the run's doing.");
+        presenter.ReviveAvailable.ShouldBeFalse("and this run has no revive left.");
+        presenter.ReviveBlockText.ShouldBe(
+            RunDecisionContent.EnglishValueOf(RunDecisionContent.RunEndReviveSpentBlockKey),
+            "an entitled player whose revive is gone is owed the reason, or the missing control reads " +
+            "as broken. The spent sentence is the ONE sentence this screen keeps about a missing " +
+            "revive, and it has to be the spent one — not empty, and not some other key's.");
     }
 
     /// <summary>…and a run that never had a revive to lose says nothing about revives at all.</summary>

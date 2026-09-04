@@ -23,11 +23,10 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// decision a run is actually made of.
 /// </para>
 /// <para>
-/// 🔴 <b>Three separate absences share this screen and never share a sentence.</b> The quieter ad
-/// reroll and the outlined fourth card are two different affordances waiting on the ad reward
-/// system, each with its own line; the free-reroll allowance the design describes was never built at
-/// all, and says so in a third. Both ad slots keep their layout so the milestone that lands them
-/// fills a slot rather than re-laying out the screen.
+/// 🔒 <b>This screen draws only what the presenter gives it.</b> Three cards, the Gold-priced reroll
+/// with its price and the balance it is read against, the skip with its reward, and the guarantee
+/// counters. There is no reroll by ad, no fourth card by ad and no free-reroll count, and no slot
+/// kept for any of them: why none exists is <see cref="PerkDraftPresenter"/>'s to say, not this half's.
 /// </para>
 /// <para>
 /// 🔴 <b>A card whose numbers cannot be rendered says so</b> — the presenter answers with a named
@@ -209,17 +208,11 @@ public partial class PerkDraft : Node3D
     private const string GroundPath = "%Screen";
     private const string TitleLabelPath = "%TitleLabel";
     private const string CardColumnPath = "%CardColumn";
-    private const string AdFourthOptionCardPath = "%AdFourthOptionCard";
-    private const string AdFourthOptionNameLabelPath = "%AdFourthOptionNameLabel";
-    private const string AdFourthOptionBlockLabelPath = "%AdFourthOptionBlockLabel";
-    private const string AdRerollButtonPath = "%AdRerollButton";
-    private const string AdRerollBlockLabelPath = "%AdRerollBlockLabel";
     private const string StatusLabelPath = "%StatusLabel";
     private const string RejectionLabelPath = "%RejectionLabel";
     private const string RerollCostLabelPath = "%RerollCostLabel";
     private const string RerollCostValuePath = "%RerollCostValue";
     private const string RerollButtonPath = "%RerollButton";
-    private const string FreeRerollBlockLabelPath = "%FreeRerollBlockLabel";
     private const string GuaranteeColumnPath = "%GuaranteeColumn";
     private const string GuaranteeNotDueBlockLabelPath = "%GuaranteeNotDueBlockLabel";
     private const string SkipRewardLabelPath = "%SkipRewardLabel";
@@ -338,11 +331,6 @@ public partial class PerkDraft : Node3D
     private Control? _ground;
     private Label? _titleLabel;
     private VBoxContainer? _cardColumn;
-    private Control? _adFourthOptionCard;
-    private Label? _adFourthOptionNameLabel;
-    private Label? _adFourthOptionBlockLabel;
-    private Button? _adRerollButton;
-    private Label? _adRerollBlockLabel;
     private VBoxContainer? _guaranteeColumn;
     private Label? _guaranteeNotDueBlockLabel;
     private Label? _statusLabel;
@@ -350,7 +338,6 @@ public partial class PerkDraft : Node3D
     private Label? _rerollCostLabel;
     private Label? _rerollCostValue;
     private Button? _rerollButton;
-    private Label? _freeRerollBlockLabel;
     private Label? _skipRewardLabel;
     private Label? _skipRewardValue;
     private Button? _skipButton;
@@ -423,11 +410,6 @@ public partial class PerkDraft : Node3D
         _ground = GetNode<Control>(GroundPath);
         _titleLabel = GetNode<Label>(TitleLabelPath);
         _cardColumn = GetNode<VBoxContainer>(CardColumnPath);
-        _adFourthOptionCard = GetNode<Control>(AdFourthOptionCardPath);
-        _adFourthOptionNameLabel = GetNode<Label>(AdFourthOptionNameLabelPath);
-        _adFourthOptionBlockLabel = GetNode<Label>(AdFourthOptionBlockLabelPath);
-        _adRerollButton = GetNode<Button>(AdRerollButtonPath);
-        _adRerollBlockLabel = GetNode<Label>(AdRerollBlockLabelPath);
         _guaranteeColumn = GetNode<VBoxContainer>(GuaranteeColumnPath);
         _guaranteeNotDueBlockLabel = GetNode<Label>(GuaranteeNotDueBlockLabelPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
@@ -435,7 +417,6 @@ public partial class PerkDraft : Node3D
         _rerollCostLabel = GetNode<Label>(RerollCostLabelPath);
         _rerollCostValue = GetNode<Label>(RerollCostValuePath);
         _rerollButton = GetNode<Button>(RerollButtonPath);
-        _freeRerollBlockLabel = GetNode<Label>(FreeRerollBlockLabelPath);
         _skipRewardLabel = GetNode<Label>(SkipRewardLabelPath);
         _skipRewardValue = GetNode<Label>(SkipRewardValuePath);
         _skipButton = GetNode<Button>(SkipButtonPath);
@@ -452,9 +433,9 @@ public partial class PerkDraft : Node3D
 
         // Painted once, because nothing about which colour belongs to which state changes while the
         // screen is up. It is painted at all because a Button draws its text by draw mode, and the
-        // disabled mode two of these three spend their whole life in has an engine default of
+        // disabled mode both of these sit in while a command is out has an engine default of
         // half-transparent grey that no override of font_color reaches.
-        foreach (var button in new[] { _rerollButton, _adRerollButton, _skipButton })
+        foreach (var button in new[] { _rerollButton, _skipButton })
         {
             ButtonTextColours.ApplyTo(button, LiveColour, UnavailableColour);
         }
@@ -554,14 +535,11 @@ public partial class PerkDraft : Node3D
         // resolves leaves a null behind, and a null-forgiving operator over it would turn a renamed
         // node into a crash here instead of a blank label.
         if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
-            _titleLabel is null || _cardColumn is null || _adFourthOptionCard is null ||
-            _adFourthOptionNameLabel is null || _adFourthOptionBlockLabel is null ||
-            _adRerollButton is null || _adRerollBlockLabel is null ||
+            _titleLabel is null || _cardColumn is null ||
             _guaranteeColumn is null || _guaranteeNotDueBlockLabel is null ||
             _statusLabel is null || _rejectionLabel is null ||
             _rerollCostLabel is null || _rerollCostValue is null || _rerollButton is null ||
-            _freeRerollBlockLabel is null || _skipRewardLabel is null ||
-            _skipRewardValue is null || _skipButton is null)
+            _skipRewardLabel is null || _skipRewardValue is null || _skipButton is null)
         {
             return;
         }
@@ -569,17 +547,6 @@ public partial class PerkDraft : Node3D
         _titleLabel.Text = presenter.Title;
 
         RenderCards(presenter);
-
-        // 🔒 Both ad slots are drawn whatever the read said, and neither is ever hidden. Their whole
-        // point is that the milestone which lands them fills a slot the layout already has, instead
-        // of finding a screen laid out as though the offer had never been planned.
-        _adFourthOptionNameLabel.Text = presenter.AdFourthOptionName;
-        _adFourthOptionBlockLabel.Text = presenter.AdFourthOptionBlockText;
-        _adFourthOptionCard.Visible = true;
-
-        _adRerollButton.Text = presenter.AdRerollText;
-        _adRerollButton.Disabled = !presenter.AdRerollAvailable;
-        _adRerollBlockLabel.Text = presenter.AdRerollBlockText;
 
         RenderGuarantees(presenter);
 
@@ -595,7 +562,6 @@ public partial class PerkDraft : Node3D
 
         _rerollButton.Text = presenter.RerollText;
         _rerollButton.Disabled = _busy || presenter.Stage != PerkDraftStage.Ready;
-        _freeRerollBlockLabel.Text = presenter.FreeRerollBlockText;
 
         _skipRewardLabel.Text = presenter.SkipRewardLabel;
         _skipRewardValue.Text = presenter.SkipGoldRewardText;

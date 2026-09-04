@@ -22,7 +22,6 @@ internal static class RunDecisionContent
     // ---- Perk Draft ---------------------------------------------------------------------------
 
     internal const string DraftTitleNameKey = "loc.perk_draft.title.name";
-    internal const string DraftAdFourthOptionNameKey = "loc.perk_draft.ad_fourth_option.name";
     internal const string DraftSynergyLabelKey = "loc.perk_draft.synergy.label";
     internal const string DraftRerollCostLabelKey = "loc.perk_draft.reroll_cost.label";
     internal const string DraftSkipRewardLabelKey = "loc.perk_draft.skip_reward.label";
@@ -31,11 +30,7 @@ internal static class RunDecisionContent
     internal const string DraftUpgradeFamineLabelKey = "loc.perk_draft.upgrade_famine.label";
     internal const string DraftUpgradeBadgeKey = "loc.perk_draft.upgrade.badge";
     internal const string DraftRerollActionKey = "loc.perk_draft.reroll.action";
-    internal const string DraftAdRerollActionKey = "loc.perk_draft.ad_reroll.action";
     internal const string DraftSkipActionKey = "loc.perk_draft.skip.action";
-    internal const string DraftAdRerollBlockKey = "loc.perk_draft.ad_reroll_deferred.block";
-    internal const string DraftAdFourthOptionBlockKey = "loc.perk_draft.ad_fourth_option_deferred.block";
-    internal const string DraftFreeRerollBlockKey = "loc.perk_draft.free_reroll_unbuilt.block";
     internal const string DraftGuaranteeNotDueBlockKey = "loc.perk_draft.guarantee_not_due.block";
     internal const string DraftLoadingStatusKey = "loc.perk_draft.loading.status";
     internal const string DraftNoDraftStatusKey = "loc.perk_draft.no_draft.status";
@@ -122,7 +117,6 @@ internal static class RunDecisionContent
     internal const string RunEndBossMercyLabelKey = "loc.run_end.boss_mercy.label";
     internal const string RunEndReviveActionKey = "loc.run_end.revive.action";
     internal const string RunEndFinishActionKey = "loc.run_end.finish.action";
-    internal const string RunEndReviveNeedsPlusBlockKey = "loc.run_end.revive_needs_plus.block";
     internal const string RunEndReviveSpentBlockKey = "loc.run_end.revive_spent.block";
     internal const string RunEndDeathCostsRewardsBlockKey = "loc.run_end.death_costs_rewards.block";
     internal const string RunEndLoadingStatusKey = "loc.run_end.loading.status";
@@ -151,7 +145,7 @@ internal static class RunDecisionContent
         RunEndLegendXpLabelKey, CurrencySoulShardsNameKey,
         RunEndFloorItemsLabelKey, RunEndEliteMercyLabelKey, RunEndBossMercyLabelKey,
         RunEndReviveActionKey, RunEndFinishActionKey,
-        RunEndReviveNeedsPlusBlockKey, RunEndReviveSpentBlockKey, RunEndDeathCostsRewardsBlockKey,
+        RunEndReviveSpentBlockKey, RunEndDeathCostsRewardsBlockKey,
         RunEndLoadingStatusKey, RunEndRunMissingStatusKey, RunEndUnavailableStatusKey,
         RunEndRefusedStatusKey, RunEndHostUnavailableStatusKey,
     ];
@@ -171,12 +165,11 @@ internal static class RunDecisionContent
     /// <summary>Every string key the Perk Draft screen renders.</summary>
     internal static IReadOnlyList<string> DraftKeys { get; } =
     [
-        DraftTitleNameKey, DraftAdFourthOptionNameKey,
+        DraftTitleNameKey,
         DraftSynergyLabelKey, DraftRerollCostLabelKey, DraftSkipRewardLabelKey,
         DraftLegendaryPityLabelKey, DraftQualityFloorLabelKey, DraftUpgradeFamineLabelKey,
         DraftUpgradeBadgeKey,
-        DraftRerollActionKey, DraftAdRerollActionKey, DraftSkipActionKey,
-        DraftAdRerollBlockKey, DraftAdFourthOptionBlockKey, DraftFreeRerollBlockKey,
+        DraftRerollActionKey, DraftSkipActionKey,
         DraftGuaranteeNotDueBlockKey,
         DraftLoadingStatusKey, DraftNoDraftStatusKey, DraftRunMissingStatusKey,
         DraftReadUnavailableStatusKey, DraftCardsUnavailableStatusKey,

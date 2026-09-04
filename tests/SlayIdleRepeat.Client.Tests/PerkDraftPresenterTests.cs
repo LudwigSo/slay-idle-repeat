@@ -14,20 +14,17 @@ namespace SlayIdleRepeat.Client.Tests;
 
 /// <summary>
 /// `13` §4 / `06` §1 — the Perk Draft screen (S07): the three cards, the two priced ways off it,
-/// and the three separate absences that sit around them.
+/// and the absences that sit around them.
 /// </summary>
 /// <remarks>
 /// 🔴 This is the screen a run's whole build is chosen on, and it is the screen with the most ways
-/// to say nothing. Two ad affordances are deferred to a later milestone, the free-reroll economy the
-/// design describes was never written, four shipped perks cannot have their numbers rendered, and
-/// the one refusal a player can act on — not enough Gold — arrives beside refusals they cannot.
-/// Every one of those is a different sentence here.
+/// to say nothing. Four shipped perks cannot have their numbers rendered, and the one refusal a
+/// player can act on — not enough Gold — arrives beside refusals they cannot. Every one of those is
+/// a different sentence here — and the features that are not built (the ad reroll, the fourth ad
+/// card, the free-reroll allowance) are not drawn at all, not even as a sentence about their absence.
 /// </remarks>
 public sealed class PerkDraftPresenterTests
 {
-    /// <summary>Property names that would mean this screen had invented a free-reroll count.</summary>
-    private static readonly string[] WordsOfAnEconomyThatDoesNotExist = ["Free", "Charge", "Allowance"];
-
     /// <summary>The tile kind of the battle a draft opens after — an ordinary enemy fight.</summary>
     private const int EnemyBattleTileKind = 0;
 
@@ -85,109 +82,41 @@ public sealed class PerkDraftPresenterTests
     }
 
     /// <summary>
-    /// 🔒 <b>No free-reroll count is invented.</b> The design authors one per stage, accumulating to
-    /// three, plus one from a skip; none of it exists in code, and nothing here may report a number
-    /// that has no source.
+    /// 🔒 <b>Nothing on this screen names an ad reroll, a fourth ad card or a free reroll.</b> None
+    /// of the three is built, and a screen that names one draws a placeholder for a feature the game
+    /// does not have — a dead button, a dashed empty slot, or a sentence apologising for either.
     /// </summary>
     /// <remarks>
     /// 🔴 Stated over the type's own surface rather than over one value, because the failure this
-    /// guards against is a member being ADDED. The absence has a sentence — the only member here
-    /// allowed to mention the free reroll is the one that carries that sentence, and a sentence is
-    /// a string.
+    /// guards against is a member being ADDED back. Matched as whole PascalCase words, so the built
+    /// Gold reroll (<c>RerollText</c>, <c>RerollGoldCostText</c>) is never an offender.
     /// </remarks>
     [Fact]
-    public void No_member_of_this_screen_reports_a_free_reroll_count()
+    public void No_member_of_this_screen_names_an_ad_reroll_a_fourth_ad_card_or_a_free_reroll()
     {
         var members = typeof(PerkDraftPresenter)
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(member => member is PropertyInfo || member is MethodInfo { IsSpecialName: false })
+            .ToArray();
 
-        // 🔒 The subject set, floored by the NAMED member the rule exempts rather than by a count
-        // (steering S3). A screen carrying no free-reroll member at all satisfies the rule below
-        // perfectly — and is also the screen that has stopped naming the absence, which is the one
-        // thing this whole apparatus exists to keep on the page.
-        members.ShouldContain(
-            property => property.Name == nameof(PerkDraftPresenter.FreeRerollBlockText) &&
+        members.OfType<PropertyInfo>().ShouldContain(
+            property => property.Name == nameof(PerkDraftPresenter.RerollGoldCostText) &&
                         property.PropertyType == typeof(string),
-            "the one member allowed to mention the free reroll is the sentence naming its absence, " +
-            "and it is gone. Without it the rule below passes by having nothing to report, and the " +
-            "screen quietly stops saying the allowance was never built.");
+            "the Gold reroll's price line is gone from the screen. It is the one reroll that IS " +
+            "built, and without it the sweep below passes over a type that has been stripped of " +
+            "everything rather than one that has stopped drawing placeholders.");
 
         var offenders =
-            from property in members
-            where WordsOfAnEconomyThatDoesNotExist.Any(word =>
-                property.Name.Contains(word, StringComparison.Ordinal))
-            where property.PropertyType != typeof(string)
-            select $"{property.Name} : {property.PropertyType.Name}";
+            from member in members
+            from word in new[] { "AdReroll", "AdFourthOption", "FreeReroll" }
+            where NamesAsAWholeWord(member.Name, word)
+            select $"{member.Name} ({word})";
 
         offenders.ShouldBeEmpty(
-            "a member of this screen reports the free-reroll economy as something other than a " +
-            "sentence, which means it reports a NUMBER — and there is no number. REROLL_DRAFT " +
-            "charges Gold on every call with no counter and no cap, and SKIP_DRAFT grants no " +
-            "charge. Whatever this member answers was computed here, and it will be wrong in a way " +
-            "no test outside this one can see.");
-    }
-
-    /// <summary>
-    /// 🔒 Both ad affordances are unavailable, and they are two affordances rather than one.
-    /// </summary>
-    [Fact]
-    public void Neither_ad_affordance_is_offered_and_they_are_two_different_offers()
-    {
-        var presenter = Build(RecordingGameHost.FindingNoSuchPlayer());
-
-        presenter.AdRerollAvailable.ShouldBeFalse(
-            "the ad reroll grants an ad reward, and the command that would grant one is deferred to " +
-            "a later milestone. Offering it means inventing a placement id, a cap and a grant.");
-        presenter.AdFourthOptionAvailable.ShouldBeFalse(
-            "and the fourth-option card is the same deferred command behind a different affordance. " +
-            "Its layout slot is kept so the milestone that lands it fills a slot rather than " +
-            "re-laying out the screen — kept, not made live.");
-
-        presenter.AdRerollBlockText.ShouldNotBe(
-            presenter.AdFourthOptionBlockText,
-            "and they do not share a line. A player who pressed the quieter reroll and is told the " +
-            "fourth card is unavailable has been answered about something they did not touch.");
-    }
-
-    /// <summary>
-    /// 🔒 The four things that can be wrong with the reroll are four different sentences, <b>as
-    /// authored</b>.
-    /// </summary>
-    /// <remarks>
-    /// 🔴 Stated over the shipped locale, never over the fixture: every fixture value here is
-    /// derived from its own key, so four distinct keys give four distinct values by construction and
-    /// a fixture-based version of this case could never fail whatever anyone wrote in
-    /// <c>en.json</c>. The claim is about what a player reads — three of these are waits and one is
-    /// a price they can go and earn.
-    /// </remarks>
-    [Fact]
-    public void The_four_reasons_a_reroll_is_not_available_are_four_different_authored_sentences()
-    {
-        string[] keys =
-        [
-            RunDecisionContent.DraftAdRerollBlockKey,
-            RunDecisionContent.DraftAdFourthOptionBlockKey,
-            RunDecisionContent.DraftFreeRerollBlockKey,
-            RunDecisionContent.DraftRerollUnaffordableStatusKey,
-        ];
-
-        var authored = keys.Select(key =>
-        {
-            RunDecisionContent.ShippedEnglish.TryGetValue(key, out var sentence).ShouldBeTrue(
-                $"'{key}' is not in the shipped English locale, so one of the four things that can " +
-                "be wrong with the reroll has no sentence and a player meeting it is shown its key.");
-
-            return sentence;
-        }).ToArray();
-
-        authored.ShouldAllBe(sentence => sentence.Length > 0);
-        authored.Distinct(StringComparer.Ordinal).Count().ShouldBe(
-            authored.Length,
-            "two of the four are AUTHORED the same. The ad path is a deferred command, the fourth " +
-            "option is a different deferred affordance, the free allowance was never written at " +
-            "all, and an unaffordable reroll is a price — sharing a sentence between any two of " +
-            $"them sends a player to wait when they should be earning, or the reverse: " +
-            $"[{string.Join(" | ", authored)}]");
+            "a member of this screen names a feature that is not built. The ad reroll and the fourth " +
+            "ad card need CLAIM_AD_REWARD, which does not exist; the free-reroll allowance was never " +
+            "written — REROLL_DRAFT charges Gold on every call with no counter and no cap. Whatever " +
+            "this member offers or explains, the player is looking at a control for nothing.");
     }
 
     /// <summary>
@@ -1070,7 +999,7 @@ public sealed class PerkDraftPresenterTests
             "forced upgrade that cannot arrive");
     }
 
-    /// <summary>…and that state, not the other three absences, is what the fourth sentence names.</summary>
+    /// <summary>…and that state is what the not-due sentence names.</summary>
     [Fact]
     public async Task The_not_due_sentence_appears_only_while_a_row_is_not_due()
     {
@@ -1089,28 +1018,6 @@ public sealed class PerkDraftPresenterTests
         owning.GuaranteeNotDueBlockText.ShouldBeEmpty(
             "with every guarantee due there is nothing to explain, and a sentence left standing " +
             "would describe a state the run is not in");
-    }
-
-    /// <summary>
-    /// 🔒 And the fourth sentence never reuses the wording of the three the reroll carries. Steering
-    /// S2: a player who reads "waiting on a later milestone" beside a guarantee that is built and live
-    /// is misinformed in the direction this screen has already been careful about three times.
-    /// </summary>
-    [Fact]
-    public async Task The_not_due_sentence_is_none_of_the_three_absences_around_the_reroll()
-    {
-        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), WithADraftOpen()), BootContent.Shipped);
-
-        await presenter.StartAsync(CancellationToken.None);
-
-        var others = new[]
-        {
-            presenter.AdRerollBlockText,
-            presenter.AdFourthOptionBlockText,
-            presenter.FreeRerollBlockText,
-        };
-
-        others.ShouldNotContain(presenter.GuaranteeNotDueBlockText);
     }
 
     /// <summary>…and a run with no draft open discloses nothing, because there is no draft to disclose.</summary>
@@ -1173,5 +1080,28 @@ public sealed class PerkDraftPresenterTests
 
         return new PerkDraftPresenter(
             host, RunDecisionContent.Catalogue(strings), content ?? strings, Player, Run);
+    }
+
+    /// <summary>
+    /// True when <paramref name="word"/> sits in a PascalCase name as a whole word: opening the name
+    /// or following a lowercase letter or digit, and closing it or preceding an uppercase letter.
+    /// </summary>
+    private static bool NamesAsAWholeWord(string memberName, string word)
+    {
+        for (var at = memberName.IndexOf(word, StringComparison.Ordinal);
+             at >= 0;
+             at = memberName.IndexOf(word, at + 1, StringComparison.Ordinal))
+        {
+            var end = at + word.Length;
+            var opensAWord = at == 0 || char.IsLower(memberName[at - 1]) || char.IsDigit(memberName[at - 1]);
+            var closesAWord = end == memberName.Length || char.IsUpper(memberName[end]);
+
+            if (opensAWord && closesAWord)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -1,8 +1,10 @@
 using System.Reflection;
 using Shouldly;
 using SlayIdleRepeat.Client.Game.Presenters;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 using Xunit;
 
 namespace SlayIdleRepeat.Client.Tests;
@@ -32,6 +34,24 @@ public sealed class HomePresenterTests
     private const int CarriedLegendLevel = 23;
 
     private const string CarriedDisplayName = "Fixture Hero";
+
+    private const long CarriedCrowns = 8_431;
+
+    private const long CarriedSoulShards = 19;
+
+    // Five distinct values, each one past the edge PlayerNumber writes out in full, so the five
+    // tile texts cannot be told apart by a shared literal and none of them is exact by accident.
+    private const int LongEnergy = 30_003;
+
+    private const int LongReserve = 40_004;
+
+    private const long LongCrowns = 10_001;
+
+    private const long LongSoulShards = 20_002;
+
+    private const long LongGold = 50_005;
+
+    private static readonly int[] TwoAuthoredChapters = [1, 2];
 
     // ------------------------------------------------------------ before anything happens
 
@@ -556,6 +576,9 @@ public sealed class HomePresenterTests
         members.ShouldContain(nameof(HomePresenter.EnergyReserve), "the other bank, likewise without a capacity");
         members.ShouldContain(nameof(HomePresenter.LegendLevel), "the level the absent XP percentage would have sat under");
         members.ShouldContain(nameof(HomePresenter.Decision), "the decision the whole screen exists to make");
+        members.ShouldContain(nameof(HomePresenter.Crowns), "the balance the absent run cost would have been charged against");
+        members.ShouldContain(nameof(HomePresenter.Power), "the one derived number the screen DOES show, read through a source rather than computed here");
+        members.ShouldContain(nameof(HomePresenter.RunProgress), "the run panel's value, whose maximum lives on the record and not on the screen");
     }
 
     // -------------------------------------------------------------------------- the strings
@@ -575,6 +598,8 @@ public sealed class HomePresenterTests
         {
             presenter.LegendLevelLabel, presenter.EnergyLabel,
             presenter.EnergyReserveLabel, presenter.ActionText,
+            presenter.CrownsLabel, presenter.SoulShardsLabel, presenter.GoldLabel,
+            presenter.PowerLabel, presenter.ProgressLabel, presenter.StageLabel,
         }.ShouldBe(
             new[]
             {
@@ -582,6 +607,12 @@ public sealed class HomePresenterTests
                 ScreenContent.EnglishValueOf(ScreenContent.EnergyLabelKey),
                 ScreenContent.EnglishValueOf(ScreenContent.EnergyReserveLabelKey),
                 ScreenContent.EnglishValueOf(ScreenContent.StartRunActionKey),
+                ScreenContent.EnglishValueOf(ScreenContent.CrownsNameKey),
+                ScreenContent.EnglishValueOf(ScreenContent.SoulShardsNameKey),
+                ScreenContent.EnglishValueOf(ScreenContent.GoldNameKey),
+                ScreenContent.EnglishValueOf(ScreenContent.PowerLabelKey),
+                ScreenContent.EnglishValueOf(ScreenContent.ProgressLabelKey),
+                ScreenContent.EnglishValueOf(ScreenContent.StageLabelKey),
             },
             "an English literal in the presenter renders identically to a resolved English string on " +
             "every English handset, and ships a German build in English. Held against fixture values " +
@@ -641,6 +672,395 @@ public sealed class HomePresenterTests
             "working, and the player waits for something that is never coming.");
     }
 
+    // ------------------------------------------------------------- the wallet tiles
+
+    [Fact]
+    public async Task StartAsync_carries_both_wallet_balances_exactly_as_the_snapshot_holds_them()
+    {
+        var row = PlayerRow() with { Wallet = Wallet(CarriedCrowns, CarriedSoulShards) };
+        var presenter = Home(RecordingGameHost.Finding(row));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Crowns.ShouldBe(
+            CarriedCrowns,
+            "the Crowns tile shows the balance the row holds. A screen that read a different currency's " +
+            "row, or a default for a missing one, shows a plausible number for the wrong bank.");
+        presenter.SoulShards.ShouldBe(
+            CarriedSoulShards,
+            "and Soul Shards separately: two player-scoped currencies with two tiles, never summed and " +
+            "never one read for the other.");
+    }
+
+    [Fact]
+    public async Task A_wallet_with_no_row_for_a_currency_reads_as_a_balance_of_zero()
+    {
+        var presenter = Home(RecordingGameHost.Finding(PlayerRow()));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(
+            HomeContinueDecision.StartNewRun,
+            "a presenter indexing the wallet would throw on the missing row and StartAsync would " +
+            "report that as ReadUnavailable — leaving the zeros below as untouched defaults.");
+        presenter.Crowns.ShouldBe(0L, "a currency the wallet holds no row for is a balance of nothing, not a fault.");
+        presenter.SoulShards.ShouldBe(0L);
+    }
+
+    /// <summary>`16`'s number rule at its edge: ten thousand is written out, ten thousand and one is not.</summary>
+    [Theory]
+    [InlineData(9_999L, "9999")]
+    [InlineData(10_000L, "10000")]
+    [InlineData(10_001L, "10.0k")]
+    public async Task CrownsText_is_exact_up_to_ten_thousand_and_shortened_above_it(long crowns, string expected)
+    {
+        var row = PlayerRow() with { Wallet = Wallet(crowns, CarriedSoulShards) };
+        var presenter = Home(RecordingGameHost.Finding(row));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.CrownsText.ShouldBe(
+            expected,
+            "a tile 468 units wide holds five digits and not seven, and the design's own rule puts " +
+            "the edge at ten thousand inclusive. A presenter shortening at 1 000, or at 9 999, " +
+            "breaks the one example the rule is stated by.");
+    }
+
+    /// <summary>
+    /// 🔒 Stated over all four tile numbers at once, so a screen that shortened Crowns and forgot
+    /// Energy — which is an int and tempting to print raw — fails here rather than on a handset.
+    /// </summary>
+    [Fact]
+    public async Task Every_tile_number_is_shortened_by_the_same_rule()
+    {
+        var presenter = Home(RecordingGameHost.Finding(RichRow()));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        new[]
+        {
+            presenter.CrownsText, presenter.SoulShardsText, presenter.EnergyText, presenter.EnergyReserveText,
+        }.ShouldBe(
+            new[] { "10.0k", "20.0k", "30.0k", "40.0k" },
+            "four tiles, one rule. A tile printing its number raw is the one whose text overflows " +
+            "the moment a player passes ten thousand of anything.");
+    }
+
+    [Fact]
+    public async Task RevealFullValues_shows_every_tile_number_in_full()
+    {
+        var presenter = Home(RecordingGameHost.Finding(RichRow()));
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.RevealFullValues();
+
+        presenter.FullValuesRevealed.ShouldBeTrue("the flag the scene reads is the state the texts below are computed from.");
+        new[]
+        {
+            presenter.CrownsText, presenter.SoulShardsText, presenter.EnergyText, presenter.EnergyReserveText,
+        }.ShouldBe(
+            new[] { "10001", "20002", "30003", "40004" },
+            "a long-press is how a player asks 'how many, exactly?', and the answer is the exact " +
+            "digits — of every tile, since the gesture is one state of the screen and not of one tile.");
+    }
+
+    [Fact]
+    public async Task ConcealFullValues_shortens_the_tile_numbers_again()
+    {
+        var presenter = Home(RecordingGameHost.Finding(RichRow()));
+        await presenter.StartAsync(CancellationToken.None);
+        presenter.RevealFullValues();
+
+        presenter.ConcealFullValues();
+
+        presenter.FullValuesRevealed.ShouldBeFalse("the release of the press is the end of the reveal.");
+        presenter.CrownsText.ShouldBe(
+            "10.0k",
+            "a reveal that never ends leaves seven digits in a tile authored for five, and the next " +
+            "long-press has nothing left to reveal.");
+    }
+
+    // -------------------------------------------------------------- the run panel's gold
+
+    [Fact]
+    public async Task RunGold_is_the_runs_own_balance_when_the_run_can_be_continued()
+    {
+        var presenter = Home(RecordingGameHost.Finding(PlayerRow(), OpenRunRow(gold: LongGold)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.RunGold.ShouldBe(
+            LongGold,
+            "Gold is run-scoped: the number on the panel is the run row's, not a wallet row's.");
+        presenter.RunGoldText.ShouldBe(
+            "50.0k", "and it is shortened by the same rule as every other tile number.");
+    }
+
+    /// <summary>
+    /// The screen is re-read when a run ends and Home comes back. The second read is what has to
+    /// take the run panel down.
+    /// </summary>
+    [Fact]
+    public async Task A_second_read_after_the_run_has_ended_clears_the_run_panel()
+    {
+        var host = RecordingGameHost
+            .Finding(PlayerRow(), OpenRunRow(gold: LongGold))
+            .ThenFinding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.Ended, gold: LongGold));
+        var presenter = Home(host);
+        await presenter.StartAsync(CancellationToken.None);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(HomeContinueDecision.StartNewRun, "the ended run is a run to start over");
+        presenter.RunProgress.ShouldBeNull(
+            "the panel is drawn whenever RunProgress is set, so a value left over from the first read " +
+            "puts a finished run's stage on a screen whose button now says START.");
+        presenter.RunGold.ShouldBeNull("the Gold of a run that has been paid out is nobody's balance now.");
+        presenter.ContinuableRun.ShouldBeNull("and there is no run to hand the board on the next press.");
+    }
+
+    /// <summary>
+    /// 🔒 Both non-continuable decisions with a profile behind them, because <c>RunLapsed</c> still
+    /// HAS a run row with a Gold balance in it — and that balance belongs to a run nobody can play.
+    /// </summary>
+    [Theory]
+    [InlineData(HomeContinueDecision.StartNewRun)]
+    [InlineData(HomeContinueDecision.RunLapsed)]
+    public async Task RunGold_is_absent_when_there_is_no_run_to_continue(HomeContinueDecision decision)
+    {
+        var presenter = await PresenterDeciding(decision);
+
+        presenter.Decision.ShouldBe(decision, "the fixture must actually reach the decision this case is about.");
+
+        presenter.RunGold.ShouldBeNull(
+            $"{decision} offers no run to continue, so there is no run whose Gold this could be. A " +
+            "lapsed run's row still carries a balance, and showing it promises the player Gold they " +
+            "will never spend.");
+        presenter.RunGoldText.ShouldBeEmpty(
+            "and the text has to be blank rather than '0': the panel is hidden, but a blank is what " +
+            "a hidden panel reads when a later change shows it by mistake.");
+    }
+
+    // ------------------------------------------------------------------- the power tile
+
+    /// <summary>
+    /// 🔒 Floor, not round. 123.9 rounds to 124 and floors to 123, so a presenter using either of the
+    /// obvious wrong calls fails here.
+    /// </summary>
+    [Fact]
+    public async Task Power_is_the_floor_of_the_index_rather_than_its_rounding()
+    {
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow()), StubHeroPowerSource.Computing(123.9));
+
+        presenter.Power.ShouldBe(
+            123.0,
+            "the tile shows the power a player HAS, and rounding up shows a number they have not " +
+            "reached — the same way a level is the one completed, not the one nearest.");
+        presenter.PowerText.ShouldBe("123", "and the text is that whole number, with nothing after it.");
+    }
+
+    [Theory]
+    [InlineData(HeroPowerStanding.BuildNotAggregable)]
+    [InlineData(HeroPowerStanding.RowNotRehydratable)]
+    [InlineData(HeroPowerStanding.LegendLevelOutsideCurve)]
+    [InlineData(HeroPowerStanding.ContentUnavailable)]
+    public async Task Power_is_absent_rather_than_zero_when_the_source_could_not_compute_one(
+        HeroPowerStanding standing)
+    {
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow()), StubHeroPowerSource.Standing(standing));
+
+        presenter.Decision.ShouldBe(
+            HomeContinueDecision.StartNewRun,
+            "the read settled, so the absence below is the source's answer and not a failure StartAsync swallowed.");
+        presenter.Power.ShouldBeNull(
+            $"{standing} means no number exists, and a null is the only honest value for one.");
+        presenter.PowerText.ShouldBeEmpty(
+            "a power of '0' is a real reading — a hero with nothing — and is not what happened here. " +
+            "An empty tile says 'no reading'; a zero says 'you are worthless', to a player whose " +
+            "hero is fine.");
+    }
+
+    [Theory]
+    [InlineData(HeroPowerStanding.Computed)]
+    [InlineData(HeroPowerStanding.BuildNotAggregable)]
+    [InlineData(HeroPowerStanding.RowNotRehydratable)]
+    [InlineData(HeroPowerStanding.LegendLevelOutsideCurve)]
+    [InlineData(HeroPowerStanding.ContentUnavailable)]
+    public async Task PowerStanding_is_the_standing_the_source_reported(HeroPowerStanding standing)
+    {
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow()), SourceReporting(standing));
+
+        presenter.PowerStanding.ShouldBe(
+            standing,
+            "an empty power tile has four different causes and the scene has to be able to say which. " +
+            "A presenter collapsing them to 'absent' leaves whoever holds the handset with a blank " +
+            "and no way to tell a content fault from a row the domain refused.");
+    }
+
+    [Fact]
+    public async Task StartAsync_reads_power_over_the_run_being_continued()
+    {
+        var row = PlayerRow();
+        var run = OpenRunRow();
+        var power = DefaultPower();
+
+        await Started(RecordingGameHost.Finding(row, run), power);
+
+        power.LastPlayer.ShouldBe(row, "the hero is composed from this profile's row and no other.");
+        power.LastRun.ShouldBe(
+            run,
+            "inside a run the hero wears the loadout the run froze and the perks it drafted, and a " +
+            "source handed no run composes the between-runs hero — a plausible number for the wrong hero.");
+    }
+
+    /// <summary>
+    /// 🔒 <c>RunLapsed</c> is the case that matters: the row still carries a run, and that run's perks
+    /// are drafted for a board nobody will stand on again.
+    /// </summary>
+    [Theory]
+    [InlineData(HomeContinueDecision.StartNewRun)]
+    [InlineData(HomeContinueDecision.RunLapsed)]
+    public async Task StartAsync_reads_power_with_no_run_when_there_is_none_to_continue(HomeContinueDecision decision)
+    {
+        var power = DefaultPower();
+        var presenter = await PresenterDeciding(decision, power);
+
+        presenter.Decision.ShouldBe(decision, "the fixture must actually reach the decision this case is about.");
+
+        power.ReadCallCount.ShouldBe(1, "an anchor for the claim below, which an unread source satisfies vacuously.");
+        power.LastRun.ShouldBeNull(
+            $"{decision} has no run to continue, so the hero shown is the one the player will start " +
+            "the next run as — composed over the profile's own loadout, with no drafted perks.");
+    }
+
+    [Theory]
+    [InlineData(HomeContinueDecision.ProfileMissing)]
+    [InlineData(HomeContinueDecision.ReadUnavailable)]
+    public async Task StartAsync_reads_no_power_when_the_read_produced_no_profile(HomeContinueDecision decision)
+    {
+        var power = DefaultPower();
+        var presenter = await PresenterDeciding(decision, power);
+
+        presenter.Decision.ShouldBe(decision, "the fixture must actually reach the decision this case is about.");
+
+        power.ReadCallCount.ShouldBe(
+            0,
+            $"{decision} has no row to compose a hero from, so there is nothing to ask the source about.");
+        presenter.Power.ShouldBeNull("and the tile has nothing to show.");
+        presenter.PowerText.ShouldBeEmpty("blank, not a stale or default number, on a screen with no profile.");
+    }
+
+    // ---------------------------------------------------------------- the progress tile
+
+    /// <summary>
+    /// 🔒 Chapter beats tier. Chapter 1 at Mythic is a harder clear than chapter 2 at Normal and a
+    /// presenter ordering by tier first would name it — but the tile answers "how far", not "how hard".
+    /// </summary>
+    [Fact]
+    public async Task HighestClear_is_the_furthest_chapter_cleared_at_any_tier()
+    {
+        var presenter = await Started(
+            RecordingGameHost.Finding(ClearedRow((1, DifficultyTier.MYTHIC), (2, DifficultyTier.NORMAL))),
+            ScreenContent.Authoring(TwoAuthoredChapters));
+
+        presenter.HighestClear.ShouldBe(
+            new HighestChapterClear(2, ScreenContent.EnglishValueOf(ScreenContent.ChapterNameKey(2)), DifficultyTier.NORMAL),
+            "the furthest chapter reached, at the highest tier it was reached at.");
+        presenter.HighestClearText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.ChapterNameKey(2)) + " · " + TierName(DifficultyTier.NORMAL),
+            "chapter name, a middle dot, tier name — both halves resolved through the catalogue, " +
+            "since a chapter's name and a tier's name are both authored strings.");
+    }
+
+    [Fact]
+    public async Task HighestClear_ignores_a_clear_of_a_chapter_the_content_does_not_author()
+    {
+        var presenter = await Started(
+            RecordingGameHost.Finding(ClearedRow((1, DifficultyTier.NORMAL), (7, DifficultyTier.MYTHIC))),
+            ScreenContent.Authoring(TwoAuthoredChapters));
+
+        presenter.HighestClear.ShouldNotBeNull().ChapterId.ShouldBe(
+            1,
+            "a clear of a chapter this content set does not author has no name to show and no " +
+            "row to look up — a retired chapter, or a row written by a newer build. It is skipped, " +
+            "so the tile names a chapter the player can actually find.");
+    }
+
+    [Fact]
+    public async Task HighestClearText_is_the_nothing_cleared_line_when_no_chapter_has_been_cleared()
+    {
+        var presenter = await Started(
+            RecordingGameHost.Finding(PlayerRow()), ScreenContent.Authoring(TwoAuthoredChapters));
+
+        presenter.Decision.ShouldBe(
+            HomeContinueDecision.StartNewRun,
+            "the read settled, so the absence below is a fresh profile's and not a failure StartAsync swallowed.");
+        presenter.HighestClear.ShouldBeNull("nothing cleared is nothing, not chapter zero.");
+        presenter.HighestClearText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.NothingClearedStatusKey),
+            "a new player's progress tile says so in words rather than sitting blank next to five " +
+            "tiles that have numbers in them.");
+    }
+
+    // ------------------------------------------------------------------- the run panel
+
+    /// <summary>
+    /// Over the checkout's own content, because the stage a run stands in is read off a board that
+    /// only the shipped chapter tuning can generate.
+    /// </summary>
+    [Fact]
+    public async Task RunStageText_is_the_stage_the_run_stands_in_over_the_three_a_chapter_has()
+    {
+        var run = OpenRunRow(position: NodeInStage(2));
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow(), run), BootContent.Shipped);
+
+        presenter.RunStageText.ShouldBe(
+            "2/3",
+            "the stage is the node's, read off the board — a presenter answering '1/3' for every " +
+            "open run passes at the trailhead and is caught here.");
+    }
+
+    [Fact]
+    public async Task RunHitPointsText_is_current_over_maximum_written_in_full()
+    {
+        var run = OpenRunRow(currentHp: 10_001, maxHp: 12_345);
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow(), run), BootContent.Shipped);
+
+        presenter.RunHitPointsText.ShouldBe(
+            "10001/12345",
+            "both past the shortening edge and both written out: a health readout of '10.0k/12.3k' " +
+            "hides the one number a player checks before continuing a run.");
+    }
+
+    /// <summary>
+    /// 🔒 The run row is still there and still projects a board; only the decision says it is not
+    /// the player's to continue.
+    /// </summary>
+    [Fact]
+    public async Task RunProgress_is_absent_when_the_last_run_has_ended()
+    {
+        var ended = PlayerState.Run(OpenRun, Profile, RunPhase.Ended);
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow(), ended), BootContent.Shipped);
+
+        presenter.Decision.ShouldBe(HomeContinueDecision.StartNewRun, "the fixture must actually reach the decision this case is about.");
+        presenter.RunProgress.ShouldBeNull("a finished run stands nowhere the player can go back to.");
+        presenter.RunStageText.ShouldBeEmpty("blank rather than '1/3' on a screen whose run panel is hidden.");
+        presenter.RunHitPointsText.ShouldBeEmpty("and no hit points either — there is no hero in a fight.");
+    }
+
+    [Fact]
+    public async Task RunProgress_is_absent_when_the_open_run_has_lapsed()
+    {
+        var aYearOn = PlayerState.FixtureInstant.AddYears(1);
+        var presenter = Home(RecordingGameHost.Finding(PlayerRow(), OpenRunRow()), aYearOn, BootContent.Shipped, DefaultPower());
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(HomeContinueDecision.RunLapsed, "a run left alone for a year has lapsed under any authored window.");
+        presenter.RunProgress.ShouldBeNull("the row still projects a board, and nobody will stand on it again.");
+        presenter.RunStageText.ShouldBeEmpty();
+    }
+
     // ------------------------------------------------------------------------- null guards
 
     [Fact]
@@ -652,6 +1072,7 @@ public sealed class HomePresenterTests
                       ScreenContent.Catalogue(),
                       ScreenContent.Strings(),
                       new ManualClock(Now),
+                      DefaultPower(),
                       Profile))
               .ParamName.ShouldBe(
                   "gameHost",
@@ -669,12 +1090,32 @@ public sealed class HomePresenterTests
                       strings: null!,
                       ScreenContent.Strings(),
                       new ManualClock(Now),
+                      DefaultPower(),
                       Profile))
               .ParamName.ShouldBe(
                   "strings",
                   "without the catalogue there are no captions at all, and the first thing that would " +
                   "break is the loading frame — before the read has run and before there is anywhere " +
                   "to report it.");
+    }
+
+    [Fact]
+    public void Constructor_rejects_a_null_power_source()
+    {
+        Should.Throw<ArgumentNullException>(
+                  () => new HomePresenter(
+                      RecordingGameHost.Finding(PlayerRow()),
+                      ScreenContent.Catalogue(),
+                      ScreenContent.Strings(),
+                      new ManualClock(Now),
+                      power: null!,
+                      Profile))
+              .ParamName.ShouldBe(
+                  "power",
+                  "the power source is first touched inside the read, where every failure is caught " +
+                  "and reported as ReadUnavailable — so a composition root that never wired it would " +
+                  "show up as a profile that could not be read, on every handset, with nothing naming " +
+                  "the missing collaborator.");
     }
 
     // ---------------------------------------------------------------------------- fixtures
@@ -699,16 +1140,78 @@ public sealed class HomePresenterTests
     /// </remarks>
     private static readonly DateTimeOffset Now = PlayerState.FixtureInstant.AddHours(1);
 
+    /// <summary>The index the default power source answers — a number no case is about.</summary>
+    private const double AnyPowerIndex = 456.5;
+
+    private static StubHeroPowerSource DefaultPower() => StubHeroPowerSource.Computing(AnyPowerIndex);
+
+    /// <summary>A source reading the given standing — with a number when, and only when, it computed one.</summary>
+    private static StubHeroPowerSource SourceReporting(HeroPowerStanding standing) =>
+        standing == HeroPowerStanding.Computed ? DefaultPower() : StubHeroPowerSource.Standing(standing);
+
     private static HomePresenter Home(RecordingGameHost host) =>
         Home(host, Now);
 
-    private static HomePresenter Home(RecordingGameHost host, DateTimeOffset nowUtc)
-    {
-        var content = ScreenContent.Strings();
+    private static HomePresenter Home(RecordingGameHost host, DateTimeOffset nowUtc) =>
+        Home(host, nowUtc, ScreenContent.Strings(), DefaultPower());
 
-        return new HomePresenter(
-            host, ScreenContent.Catalogue(content), content, new ManualClock(nowUtc), Profile);
+    private static HomePresenter Home(RecordingGameHost host, StubHeroPowerSource power) =>
+        Home(host, Now, ScreenContent.Strings(), power);
+
+    private static HomePresenter Home(RecordingGameHost host, ContentSnapshot content) =>
+        Home(host, Now, content, DefaultPower());
+
+    private static HomePresenter Home(
+        RecordingGameHost host, DateTimeOffset nowUtc, ContentSnapshot content, StubHeroPowerSource power) =>
+        new(host, ScreenContent.Catalogue(content), content, new ManualClock(nowUtc), power, Profile);
+
+    private static async Task<HomePresenter> Started(RecordingGameHost host, StubHeroPowerSource power)
+    {
+        var presenter = Home(host, power);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        return presenter;
     }
+
+    private static async Task<HomePresenter> Started(RecordingGameHost host, ContentSnapshot content)
+    {
+        var presenter = Home(host, content);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        return presenter;
+    }
+
+    /// <summary>A row whose two banks and two wallet balances all sit above the shortening edge.</summary>
+    private static PlayerSnapshot RichRow() =>
+        PlayerState.Player(Profile, CarriedDisplayName, CarriedLegendLevel, LongEnergy, LongReserve) with
+        {
+            Wallet = Wallet(LongCrowns, LongSoulShards),
+        };
+
+    private static Dictionary<CurrencyId, long> Wallet(long crowns, long soulShards) => new()
+    {
+        [CurrencyId.CROWNS] = crowns,
+        [CurrencyId.SOUL_SHARDS] = soulShards,
+    };
+
+    private static PlayerSnapshot ClearedRow(params (int Chapter, DifficultyTier Tier)[] cleared) =>
+        PlayerState.Player(Profile, clearedChapterTiers: PlayerState.Cleared(cleared));
+
+    private static RunSnapshot OpenRunRow(long gold = 0, int position = -1, int currentHp = 100, int maxHp = 100) =>
+        PlayerState.Run(OpenRun, Profile, RunPhase.InProgress, position: position, currentHp: currentHp, maxHp: maxHp, gold: gold);
+
+    /// <summary>A node in the given stage of the board chapter 1 generates from the fixture run's seed.</summary>
+    private static int NodeInStage(int stage) =>
+        BoardView.Project(OpenRunRow(), BootContent.Shipped).Spine.First(node => node.Stage == stage).NodeId;
+
+    private static string TierName(DifficultyTier tier) => tier switch
+    {
+        DifficultyTier.NORMAL => ScreenContent.EnglishValueOf(ScreenContent.TierNormalKey),
+        DifficultyTier.HEROIC => ScreenContent.EnglishValueOf(ScreenContent.TierHeroicKey),
+        _ => ScreenContent.EnglishValueOf(ScreenContent.TierMythicKey),
+    };
 
     /// <summary>A started presenter that has settled on one particular decision.</summary>
     /// <remarks>
@@ -716,11 +1219,14 @@ public sealed class HomePresenterTests
     /// so a case over these is a case over states the read can actually produce. <c>NotYetRead</c>
     /// is the one that is not started at all, because that is precisely what it means.
     /// </remarks>
-    private static async Task<HomePresenter> PresenterDeciding(HomeContinueDecision decision)
+    private static Task<HomePresenter> PresenterDeciding(HomeContinueDecision decision) =>
+        PresenterDeciding(decision, DefaultPower());
+
+    private static async Task<HomePresenter> PresenterDeciding(HomeContinueDecision decision, StubHeroPowerSource power)
     {
         if (decision == HomeContinueDecision.NotYetRead)
         {
-            return Home(RecordingGameHost.Finding(PlayerRow()));
+            return Home(RecordingGameHost.Finding(PlayerRow()), power);
         }
 
         var (host, nowUtc) = decision switch
@@ -738,7 +1244,7 @@ public sealed class HomePresenterTests
                 (RecordingGameHost.FaultingItsRead(ReadFailure()), Now),
         };
 
-        var presenter = Home(host, nowUtc);
+        var presenter = Home(host, nowUtc, ScreenContent.Strings(), power);
 
         await presenter.StartAsync(CancellationToken.None);
 

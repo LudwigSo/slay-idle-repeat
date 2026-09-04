@@ -109,7 +109,7 @@ public sealed record PerkDraftCard(
 
 /// <summary>
 /// Drives the Perk Draft screen: the three cards on offer, the two ways off the screen that cost
-/// something, and the three separate absences that sit around them.
+/// something, and the guarantee counters that sit beneath them.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -125,14 +125,13 @@ public sealed record PerkDraftCard(
 /// it had simply been slow.
 /// </para>
 /// <para>
-/// 🔴 <b>Three separate absences share this screen and must never share a sentence.</b> The ad
-/// reroll is an ad reward whose command is deferred to a later milestone. The fourth-option ad card
-/// is a different affordance waiting on the same milestone, in a different place, with its own
-/// layout slot kept so it can be filled rather than re-laid-out. And the free-reroll allowance the
-/// design describes — one per stage, accumulating, plus one granted by a skip — <b>is not
-/// implemented at all</b>: see <see cref="TheFreeRerollAllowanceDoesNotExist"/>. The reroll on offer
-/// is Gold-priced and uncapped, so the control shows its price and the player's balance, and no
-/// remaining-free count is invented to sit beside it.
+/// 🔒 <b>This screen draws no ad reroll, no fourth ad card and no free-reroll count, because none of
+/// those exist.</b> The command that grants an ad reward is not built, so nothing here may offer or
+/// explain an ad. And the free-reroll allowance the design describes — one per stage, accumulating,
+/// plus one granted by a skip — is not implemented at all: <c>REROLL_DRAFT</c> charges Gold on every
+/// call with no cap and no counter, <c>SKIP_DRAFT</c> grants no charge, and nothing persisted counts
+/// draft rerolls. So the reroll on offer shows its Gold price and the player's balance, and nothing is
+/// drawn for a count or a control the game does not have.
 /// </para>
 /// <para>
 /// 🔒 <b>The three <c>DRAFT</c> luck-protection counters are shown, always.</b> <c>24</c> §1.1's
@@ -140,10 +139,10 @@ public sealed record PerkDraftCard(
 /// buys none of the goodwill it costs to build"</em> — and its Disclosure rule makes stating every
 /// <c>N</c> in §4 on its class's own screen a store-policy requirement on both platforms. <c>DRAFT</c>
 /// is that class and S07 is that screen. 🔒 <b>These are not the free-reroll count.</b> That number
-/// does not exist anywhere (see <see cref="TheFreeRerollAllowanceDoesNotExist"/>); these three do,
-/// they are on the run, they drive real forced options, and <c>DraftView.Guarantees</c> is where they
-/// and their authored rungs are read. Two of §4.7's five rules carry no counter and so get no row —
-/// the Sustain anti-brick is a state predicate and the Codex bias is a weight.
+/// does not exist anywhere, as the paragraph above says; these three do, they are on the run, they
+/// drive real forced options, and <c>DraftView.Guarantees</c> is where they and their authored rungs
+/// are read. Two of §4.7's five rules carry no counter and so get no row — the Sustain anti-brick is a
+/// state predicate and the Codex bias is a weight.
 /// </para>
 /// <para>
 /// 🔒 <b>The counter rows carry captions and numerals, never a composed sentence.</b> The locale
@@ -161,51 +160,18 @@ public sealed record PerkDraftCard(
 public sealed class PerkDraftPresenter
 {
     /// <summary>
-    /// ⚠️ Deliberately not built, and named so it can be found. The design authors a free-reroll
-    /// economy this build does not have, and a screen that showed a remaining-free count would be
-    /// showing a number that exists nowhere.
-    /// </summary>
-    private const string TheFreeRerollAllowanceDoesNotExist =
-        "The design set describes one free draft reroll per stage, accumulating up to three, plus " +
-        "one more granted by skipping a draft. None of it is in the code: REROLL_DRAFT charges " +
-        "Gold on every call with no cap and no counter, SKIP_DRAFT pays Gold and grants no charge, " +
-        "and no persisted field anywhere counts draft rerolls. So there is no remaining-free number " +
-        "to show, no cap to draw a meter against, and nothing this screen could read if it wanted " +
-        "one. It shows the authored Gold price instead, and names the absence in its own sentence " +
-        "— distinct from the ad reroll's, which is a real command deferred to a later milestone " +
-        "rather than a mechanic that was never written.";
-
-    /// <summary>
-    /// ⚠️ Deliberately not granted, and named so it can be found. Both ad affordances on this screen
-    /// resolve to one deferred command, and neither may be given a placement id, a cap or a reward
-    /// here.
-    /// </summary>
-    private const string TheAdRewardCommandIsDeferred =
-        "CLAIM_AD_REWARD is registered as deferred to a later milestone, so no screen in this build " +
-        "grants an ad reward. The two ad affordances here keep their layout slots — the quieter " +
-        "reroll beside the priced one, and the dashed fourth card below the three — so the " +
-        "milestone that lands them fills a slot rather than re-laying out the screen. Each carries " +
-        "its OWN sentence: they are two different offers, and a player told the fourth card is " +
-        "unavailable when it was the reroll they pressed learns nothing.";
-
-    /// <summary>
     /// Separates a countdown from the rung it is counting towards, the way the scene half separates a
     /// price from the balance it is read against.
     /// </summary>
     private const char OverSeparator = '/';
 
     private const string TitleNameKey = "loc.perk_draft.title.name";
-    private const string AdFourthOptionNameKey = "loc.perk_draft.ad_fourth_option.name";
     private const string SynergyLabelKey = "loc.perk_draft.synergy.label";
     private const string RerollCostLabelKey = "loc.perk_draft.reroll_cost.label";
     private const string SkipRewardLabelKey = "loc.perk_draft.skip_reward.label";
     private const string UpgradeBadgeKey = "loc.perk_draft.upgrade.badge";
     private const string RerollActionKey = "loc.perk_draft.reroll.action";
-    private const string AdRerollActionKey = "loc.perk_draft.ad_reroll.action";
     private const string SkipActionKey = "loc.perk_draft.skip.action";
-    private const string AdRerollBlockKey = "loc.perk_draft.ad_reroll_deferred.block";
-    private const string AdFourthOptionBlockKey = "loc.perk_draft.ad_fourth_option_deferred.block";
-    private const string FreeRerollBlockKey = "loc.perk_draft.free_reroll_unbuilt.block";
     private const string LegendaryPityLabelKey = "loc.perk_draft.legendary_pity.label";
     private const string QualityFloorLabelKey = "loc.perk_draft.quality_floor.label";
     private const string UpgradeFamineLabelKey = "loc.perk_draft.upgrade_famine.label";
@@ -339,11 +305,10 @@ public sealed class PerkDraftPresenter
     /// Why a row is showing its rung without a countdown, resolved — empty while all three are due.
     /// </summary>
     /// <remarks>
-    /// 🔒 A FOURTH absence on this screen, and it keeps its own sentence like the other three
-    /// (steering S2). It is not a deferred command and not an unbuilt mechanic: the upgrade famine is
-    /// built and live, and simply cannot be owed by a run that holds no perk below its top tier. A
-    /// player who read this as "waiting for a later milestone" would be misinformed in the one
-    /// direction this screen has already been careful about three times.
+    /// 🔒 The one absence on this screen that gets a sentence, because it is an absence in a mechanic
+    /// that is built: the upgrade famine is live, and simply cannot be owed by a run that holds no perk
+    /// below its top tier. A rung with no countdown and no reason would read as a counter that has
+    /// stopped working.
     /// </remarks>
     public string GuaranteeNotDueBlockText =>
         Guarantees.Any(g => !g.Live) ? _strings.Resolve(GuaranteeNotDueBlockKey) : NothingLeftToSay;
@@ -370,18 +335,8 @@ public sealed class PerkDraftPresenter
     /// <summary>The run's Gold balance, as a player reads it.</summary>
     public string GoldText => Readout(Gold);
 
-
-    /// <summary>Whether the ad reroll may be taken. 🔒 Never — see <see cref="TheAdRewardCommandIsDeferred"/>.</summary>
-    public bool AdRerollAvailable => false;
-
-    /// <summary>Whether the fourth ad card may be taken. 🔒 Never — same reason, different affordance.</summary>
-    public bool AdFourthOptionAvailable => false;
-
     /// <summary>The screen's heading, resolved.</summary>
     public string Title => _strings.Resolve(TitleNameKey);
-
-    /// <summary>The dashed fourth card's own caption, resolved.</summary>
-    public string AdFourthOptionName => _strings.Resolve(AdFourthOptionNameKey);
 
     /// <summary>The lead-in a synergy hint is written after, resolved.</summary>
     public string SynergyLabel => _strings.Resolve(SynergyLabelKey);
@@ -395,22 +350,8 @@ public sealed class PerkDraftPresenter
     /// <summary>The reroll control's caption, resolved.</summary>
     public string RerollText => _strings.Resolve(RerollActionKey);
 
-    /// <summary>The quieter ad reroll's caption, resolved.</summary>
-    public string AdRerollText => _strings.Resolve(AdRerollActionKey);
-
     /// <summary>The skip control's caption, resolved.</summary>
     public string SkipText => _strings.Resolve(SkipActionKey);
-
-    /// <summary>Why the ad reroll cannot be taken, resolved.</summary>
-    public string AdRerollBlockText => _strings.Resolve(AdRerollBlockKey);
-
-    /// <summary>Why the fourth ad card cannot be taken, resolved.</summary>
-    public string AdFourthOptionBlockText => _strings.Resolve(AdFourthOptionBlockKey);
-
-    /// <summary>
-    /// Why there is no free reroll to show, resolved — a different absence from either ad slot's.
-    /// </summary>
-    public string FreeRerollBlockText => _strings.Resolve(FreeRerollBlockKey);
 
     /// <summary>The line saying what the screen is doing while its cards are not an answer, resolved.</summary>
     public string StatusText => Stage switch

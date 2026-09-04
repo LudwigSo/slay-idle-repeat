@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/perk_draft.schema.json",
   "title": "content/perk_draft/perk_draft.json",
-  "description": "M7-07 — the loc keys the Perk Draft screen (S07) renders. What is fixed here is that the screen heads the draft and captions the dashed fourth card; labels a synergy hint, the reroll's price and the skip's reward; carries the one translated word an upgrade badge is composed from; offers a reroll, a quieter ad reroll and a skip; carries one sentence per absence sitting around the reroll; and carries one status line per state the read, the projection and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. Four absences are load-bearing, and the three DRAFT guarantee captions in label are a store-policy requirement rather than a nicety — 24 §1.1 requires every luck-protection counter shown always with a real number, and every N in §4 stated on its class's own screen. There is no member for a remaining-free-reroll count or for a per-draft cap, because neither exists in the rules layer at all — the reroll charges Gold on every call, with no counter and no ceiling, so a count drawn here would be a number nothing could compute. There is no member for an ad placement, cap or reward, because the ad reward command is deferred and a screen naming one would be inventing the grant. And there is no member carrying a MAGNITUDE: the reroll's price, the skip's reward and every perk effect number are tunables read at render time and drawn beside the captions here, because a number written into a translated string cannot be tuned and would be wrong in two languages at once.",
+  "description": "M7-07 — the loc keys the Perk Draft screen (S07) renders. What is fixed here is that the screen heads the draft; labels a synergy hint, the reroll's price and the skip's reward; carries the one translated word an upgrade badge is composed from; offers a reroll and a skip; carries the one sentence a guarantee row needs when it cannot count; and carries one status line per state the read, the projection and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. The three DRAFT guarantee captions in label are a store-policy requirement rather than a nicety — 24 §1.1 requires every luck-protection counter shown always with a real number, and every N in §4 stated on its class's own screen. There is no member for a remaining-free-reroll count or for a per-draft cap, because neither exists in the rules layer at all — the reroll charges Gold on every call, with no counter and no ceiling, so a count drawn here would be a number nothing could compute. There is no member for anything ad-shaped — no ad reroll, no fourth card by ad, no placement, cap or reward — because the ad reward command is not built and a screen naming one advertises a feature the game does not have. And there is no member carrying a MAGNITUDE: the reroll's price, the skip's reward and every perk effect number are tunables read at render time and drawn beside the captions here, because a number written into a translated string cannot be tuned and would be wrong in two languages at once.",
   "type": "object",
   "additionalProperties": false,
   "required": ["$schema", "_doc", "name", "label", "badge", "action", "block", "status"],
@@ -17,13 +17,12 @@
     "$schema": { "type": "string" },
     "_doc": { "type": "string", "minLength": 1 },
     "name": {
-      "description": "The screen's own heading and the caption of the dashed fourth card. The fourth card keeps a name although it is never live, because its layout slot is kept for the milestone that fills it and a slot drawn with no caption reads as a rendering fault rather than as a deliberate placeholder.",
+      "description": "The screen's own heading, and nothing else: the three cards carry the perk catalogue's names, and there is no fourth card to caption because the ad that would earn one is not built.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["title", "adFourthOption"],
+      "required": ["title"],
       "properties": {
-        "title": { "$ref": "#/$defs/locKey" },
-        "adFourthOption": { "$ref": "#/$defs/locKey" }
+        "title": { "$ref": "#/$defs/locKey" }
       }
     },
     "label": {
@@ -53,25 +52,21 @@
       }
     },
     "action": {
-      "description": "Every control the screen offers. The ad reroll is captioned although it is never live, because its layout slot is kept beside the priced reroll; the skip is the only way off this screen that costs the player nothing, so its caption going missing is a run that cannot read its way out of a draft.",
+      "description": "Every control the screen offers, and both are built: the reroll charges Gold, and the skip is the only way off this screen that costs the player nothing, so its caption going missing is a run that cannot read its way out of a draft. No ad reroll is captioned, because none exists to press.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["reroll", "adReroll", "skip"],
+      "required": ["reroll", "skip"],
       "properties": {
         "reroll": { "$ref": "#/$defs/locKey" },
-        "adReroll": { "$ref": "#/$defs/locKey" },
         "skip": { "$ref": "#/$defs/locKey" }
       }
     },
     "block": {
-      "description": "🔒 One sentence per absence sitting around the reroll, and the reason this object exists at all: FOUR unrelated holes now land on this screen, three of them on one control. Rerolling by ad waits on the ad reward system; a fourth card by ad waits on the same system but is a different affordance in a different place; and the free-reroll allowance the design describes was never written, so there is no allowance to be out of. And guaranteeNotDue is a different KIND of absence from the other three, which is exactly why it gets a fourth sentence rather than borrowing one: the upgrade famine is built, live and enforced, and simply cannot be owed by a run holding no perk below its top tier — so its row shows its authored rung with no countdown, and this sentence says why. Sharing a sentence between any two of the four tells a player the game has one hole where it has four, and sends them to wait for a feature when they should be earning Gold or drafting a perk.",
+      "description": "🔒 The one sentence on this screen about something that is not there, and it is about a mechanic that IS built. The upgrade famine is live and enforced, and simply cannot be owed by a run holding no perk below its top tier — so its row shows its authored rung with no countdown, and guaranteeNotDue says why, because a rung with no countdown and no reason reads as a counter that has stopped working. Nothing else here gets a sentence: an ad reroll, a fourth card by ad or a free-reroll allowance would each be a sentence about a feature the game does not have, and a player reading one waits for a feature when they should be earning Gold or drafting a perk.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["adReroll", "adFourthOption", "freeReroll", "guaranteeNotDue"],
+      "required": ["guaranteeNotDue"],
       "properties": {
-        "adReroll": { "$ref": "#/$defs/locKey" },
-        "adFourthOption": { "$ref": "#/$defs/locKey" },
-        "freeReroll": { "$ref": "#/$defs/locKey" },
         "guaranteeNotDue": { "$ref": "#/$defs/locKey" }
       }
     },
