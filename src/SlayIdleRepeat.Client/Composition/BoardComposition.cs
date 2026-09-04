@@ -15,7 +15,7 @@ namespace SlayIdleRepeat.Client.Composition;
 /// the first and shows the second; it composes neither.
 /// </para>
 /// <para>
-/// 🔒 The four destinations are FACTORIES rather than built presenters, for the reason
+/// 🔒 The five destinations are FACTORIES rather than built presenters, for the reason
 /// <see cref="Battle"/> states at length about its own: each is about one fight, one draft or one
 /// tile, and building one at composition time would hand every fight, every draft and every shop of
 /// a run the first one's presenter, its projection and its read.
@@ -29,6 +29,7 @@ public sealed class ComposedBoardScreen
     /// <param name="perkDraft">Builds the draft screen for the draft the run has open.</param>
     /// <param name="shop">Builds the shop screen for the shop tile the run is standing on.</param>
     /// <param name="campfire">Builds the campfire / shrine screen for the tile the run is standing on.</param>
+    /// <param name="eventScreen">Builds the event screen for the event tile the run is standing on.</param>
     /// <param name="runEnd">Builds the run-end screen for the run this board is playing.</param>
     /// <param name="connection">
     /// The one connection presenter, or null when this client was composed over no server. Optional
@@ -41,6 +42,7 @@ public sealed class ComposedBoardScreen
         Func<ComposedPerkDraftScreen> perkDraft,
         Func<ComposedShopScreen> shop,
         Func<ComposedCampfireScreen> campfire,
+        Func<ComposedEventScreen> eventScreen,
         Func<ComposedRunEndScreen> runEnd,
         ConnectionPresenter? connection)
     {
@@ -49,6 +51,7 @@ public sealed class ComposedBoardScreen
         ArgumentNullException.ThrowIfNull(perkDraft);
         ArgumentNullException.ThrowIfNull(shop);
         ArgumentNullException.ThrowIfNull(campfire);
+        ArgumentNullException.ThrowIfNull(eventScreen);
         ArgumentNullException.ThrowIfNull(runEnd);
 
         Board = board;
@@ -56,6 +59,7 @@ public sealed class ComposedBoardScreen
         PerkDraft = perkDraft;
         Shop = shop;
         Campfire = campfire;
+        Event = eventScreen;
         RunEnd = runEnd;
         Connection = connection;
     }
@@ -109,6 +113,15 @@ public sealed class ComposedBoardScreen
     /// </remarks>
     public Func<ComposedCampfireScreen> Campfire { get; }
 
+    /// <summary>Builds the event screen for the event tile the run has landed on.</summary>
+    /// <remarks>
+    /// 🔒 A factory for the reason the others are, and one of its own: the screen DRAWS the card as
+    /// its first command, so a presenter built at composition time would hold the read a run took
+    /// before it ever reached this tile — and every event tile of the run would open on the first
+    /// one's card.
+    /// </remarks>
+    public Func<ComposedEventScreen> Event { get; }
+
     /// <summary>Builds the run-end screen (S13 / S14) for the run this board is playing.</summary>
     /// <remarks>
     /// 🔒 One factory for both screens, because <c>02</c> §6 makes them one moment — and a factory
@@ -161,6 +174,7 @@ public static class BoardComposition
             () => PerkDraftComposition.CreatePerkDraftScreen(composed, player, run),
             () => ShopComposition.CreateShopScreen(composed, player, run),
             () => CampfireComposition.CreateCampfireScreen(composed, player, run),
+            () => EventComposition.CreateEventScreen(composed, player, run),
             () => RunEndComposition.CreateRunEndScreen(composed, player, run),
             NoServerSettledBoardActionResolved());
     }

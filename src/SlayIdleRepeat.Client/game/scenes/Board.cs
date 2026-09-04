@@ -130,13 +130,14 @@ public partial class Board : Node3D
     /// 🔴 Deliberately unbuilt, and named so it can be found — but NOT a dead end any more, which is
     /// why it is a warning and the sentence above is an error.
     /// </summary>
-    private const string TheEventAndMinigameScreensAreNotBuiltHere =
-        "The event-card and minigame screens are not built: the run is standing on a tile that has " +
-        "no screen to open. It is not stuck — the board's own control resolves the tile through the " +
-        "command that screen would have submitted, taking the card's first cost-free option or the " +
-        "minigame's lowest outcome tier, so the rest of the run is reachable. What the player does " +
-        "not get is the choice or the game. See UnbuiltTileScreens, which is the whole of the " +
-        "placeholder and goes when the two screens land.";
+    private const string TheMinigameScreenIsNotBuiltHere =
+        "The minigame screen is not built: the run is standing on a tile that has no screen to " +
+        "open. It is not stuck — the board's own control resolves the tile through the command that " +
+        "screen would have submitted, at the minigame's lowest outcome tier, so the rest of the run " +
+        "is reachable. What the player does not get is the game. See UnbuiltTileScreens, which is " +
+        "the whole of the placeholder and goes when that screen lands. The event card's half of " +
+        "this is gone: an Event tile opens its own screen now and is a destination like the shop " +
+        "and the campfire.";
 
     /// <summary>
     /// ⚠️ This task's choice, and the only timing on this screen that is not authored. The design
@@ -317,6 +318,9 @@ public partial class Board : Node3D
 
     /// <summary>Builds the campfire / shrine screen for the tile the run has landed on.</summary>
     private Func<ComposedCampfireScreen>? _campfire;
+
+    /// <summary>Builds the event screen for the event tile the run has landed on.</summary>
+    private Func<ComposedEventScreen>? _event;
     private Func<ComposedRunEndScreen>? _runEnd;
 
     /// <summary>Whether the battle now open has already had its replay watched.</summary>
@@ -447,8 +451,8 @@ public partial class Board : Node3D
 
     /// <summary>Takes everything the composition root built for this screen, and the shutdown token.</summary>
     /// <remarks>
-    /// The whole composed screen rather than its parts, because the parts had reached six: two
-    /// presenters and a factory for each of the four destinations a run can reach from here. The
+    /// The whole composed screen rather than its parts, because the parts had reached seven: two
+    /// presenters and a factory for each of the five destinations a run can reach from here. The
     /// holder is the client's own composition type, and this reads factories off it exactly as it
     /// already did for the battle — it calls them, it assembles nothing.
     /// </remarks>
@@ -468,6 +472,7 @@ public partial class Board : Node3D
         _perkDraft = screen.PerkDraft;
         _shop = screen.Shop;
         _campfire = screen.Campfire;
+        _event = screen.Event;
         _runEnd = screen.RunEnd;
         _connection = screen.Connection;
         _home = home;
@@ -1385,11 +1390,15 @@ public partial class Board : Node3D
     /// run that reaches it stops here with the reason named in the log.
     /// <para>
     /// 🔒 <b>Two levels, because the two gaps are not the same gap.</b> A finished run is an ERROR
-    /// here: this screen has nowhere to send it and the player is stuck looking at it. An Event or a
-    /// Minigame tile is a WARNING: the screen is missing and the log says so, but the run is not
-    /// stuck — the tile's own command still resolves it, so the line records a placeholder taken
-    /// rather than a dead end reached. Pushing both as errors would make the one that traps a player
-    /// unfindable among the ones that do not.
+    /// here: this screen has nowhere to send it and the player is stuck looking at it. A Minigame
+    /// tile is a WARNING: the screen is missing and the log says so, but the run is not stuck — the
+    /// tile's own command still resolves it, so the line records a placeholder taken rather than a
+    /// dead end reached. Pushing both as errors would make the one that traps a player unfindable
+    /// among the ones that do not.
+    /// </para>
+    /// <para>
+    /// The Event tile is no longer either of those. It opens its own screen, is routed like the shop
+    /// and the campfire, and reaches this method only as an ordinary pending tile.
     /// </para>
     /// </remarks>
     private static void ReportUnbuiltDestination(BoardPresenter presenter)
@@ -1402,7 +1411,7 @@ public partial class Board : Node3D
         if (presenter.PendingTileHasNoScreen)
         {
             GD.PushWarning(
-                $"{BoardMarker} placeholder · {TheEventAndMinigameScreensAreNotBuiltHere} " +
+                $"{BoardMarker} placeholder · {TheMinigameScreenIsNotBuiltHere} " +
                 $"tile={presenter.PendingTile?.Kind.ToString(CultureInfo.InvariantCulture) ?? "none"}");
         }
     }
@@ -1514,6 +1523,11 @@ public partial class Board : Node3D
                 ShopPresenter.ShopTileKind => RunDecision.Shop,
                 CampfirePresenter.CampfireTileKind or CampfirePresenter.ShrineTileKind =>
                     RunDecision.Campfire,
+
+                // 🔒 The tile alone, drawn card or not: the draw is the event screen's own first
+                // command, so a tile just landed on and a tile being resumed onto are one
+                // destination — and this arm is what makes the resume path real.
+                EventPresenter.EventTileKind => RunDecision.Event,
                 _ => null,
             },
             _ => null,
@@ -1533,6 +1547,9 @@ public partial class Board : Node3D
 
             case RunDecision.Campfire when _campfire is { } campfire:
                 return CampfireHandover.Show(this, campfire(), _lifetime);
+
+            case RunDecision.Event when _event is { } tileEvent:
+                return EventHandover.Show(this, tileEvent(), _lifetime);
 
             case RunDecision.RunEnd when _runEnd is { } runEnd:
                 return RunEndHandover.Show(this, runEnd(), _lifetime);
@@ -1576,5 +1593,11 @@ public partial class Board : Node3D
         /// them one moment.
         /// </summary>
         RunEnd = 4,
+
+        /// <summary>
+        /// `19` Part A, the event card the tile draws — one destination whether the card is already
+        /// drawn or not, because the draw is that screen's own first command.
+        /// </summary>
+        Event = 6,
     }
 }

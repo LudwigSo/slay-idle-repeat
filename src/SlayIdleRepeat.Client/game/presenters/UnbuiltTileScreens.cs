@@ -1,47 +1,47 @@
 using SlayIdleRepeat.Core.Commands;
-using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Rules.Board;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
 
 /// <summary>
-/// The two tile kinds a run can land on that this build has no screen for, and the commands that
-/// get a run off one anyway.
+/// The one tile kind a run can land on that this build has no screen for, and the command that gets
+/// a run off it anyway.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔴 <b>A PLACEHOLDER, AND THE WHOLE OF IT IS IN THIS ONE FILE SO IT CAN BE DELETED.</b> An Event
-/// tile and a Minigame tile are both resolved by a command a screen this build has not written would
-/// submit — <c>EVENT_CHOOSE</c> and <c>MINIGAME_SUBMIT</c> — and <c>RESOLVE_TILE</c> leaves both
-/// pending on purpose (<c>Handlers.ResolveTile</c>: *"acknowledged and not cleared"*). So a run that
-/// landed on either was stuck there for good: the roll is refused while a tile is pending, the
-/// board's Continue press either accepted and cleared nothing (Minigame) or was refused outright the
-/// second time (Event, whose card may not be re-drawn), and abandoning the run was the only way off
-/// the tile. The same shape of dead end <c>START_BATTLE</c> was the fix for, found the same way — by
-/// playing an exported build.
+/// 🔴 <b>A PLACEHOLDER, AND THE WHOLE OF IT IS IN THIS ONE FILE SO IT CAN BE DELETED.</b> A Minigame
+/// tile is resolved by a command a screen this build has not written would submit —
+/// <c>MINIGAME_SUBMIT</c> — and <c>RESOLVE_TILE</c> leaves it pending on purpose
+/// (<c>Handlers.ResolveTile</c>: *"acknowledged and not cleared"*). So a run that landed on one was
+/// stuck there for good: the roll is refused while a tile is pending, the board's Continue press
+/// accepted and cleared nothing, and abandoning the run was the only way off the tile. The same shape
+/// of dead end <c>START_BATTLE</c> was the fix for, found the same way — by playing an exported
+/// build.
 /// </para>
 /// <para>
-/// 🔒 <b>Through the real commands, not through a rules change.</b> Nothing here relaxes what the
+/// 🔒 <b>The Event tile is no longer here, and that is the change.</b> It has a screen now:
+/// <see cref="EventPresenter"/> draws the card itself, offers its options with their prices, and
+/// submits <c>EVENT_CHOOSE</c> for the one the player takes. Nothing in this file stands behind that
+/// tile any more — no card is read, no option is chosen on the player's behalf, and the board routes
+/// an Event tile to its own screen exactly as it routes a shop or a campfire.
+/// </para>
+/// <para>
+/// 🔒 <b>Through the real command, not through a rules change.</b> Nothing here relaxes what the
 /// rules layer accepts and no tile is cleared behind its back: this picks a legal payload for the
 /// command the missing screen would have submitted, so the tile resolves through the handler that
-/// owns it and pays what that handler pays. That is what makes the rest of a run testable — the
-/// board, the fights, the drafts, the shop, the campfire and the run's ending all sit BEHIND these
-/// two tiles on any board that generates one.
+/// owns it and pays what that handler pays. That is what keeps the rest of a run testable — the
+/// board, the fights, the drafts, the shop, the campfire, the event cards and the run's ending all
+/// sit BEHIND this tile on any board that generates one.
 /// </para>
 /// <para>
-/// ⚠️ <b>It makes the player's choice for them, and that is the cost of being a placeholder.</b> An
-/// event card's option is chosen here rather than offered, and a minigame is scored here rather than
-/// played. Both are biased to the least the tile can pay — the first cost-free option, and the
-/// lowest outcome tier — so a placeholder can never be the profitable way to play a tile. When the
-/// real screens land, this file goes and the two call sites in <see cref="BoardPresenter"/> go with
-/// it.
+/// ⚠️ <b>It plays the game for the player, and that is the cost of being a placeholder.</b> A
+/// minigame is scored here rather than played, biased to the least the tile can pay — the lowest
+/// outcome tier — so a placeholder can never be the profitable way to play a tile. When the real
+/// screen lands, this file goes and the call site in <see cref="BoardPresenter"/> goes with it.
 /// </para>
 /// </remarks>
 public static class UnbuiltTileScreens
 {
-    /// <summary>The Event tile's kind number — <c>EVENT_CHOOSE</c>'s tile.</summary>
-    public const int EventTileKind = (int)TileKind.Event;
-
     /// <summary>The Minigame tile's kind number — <c>MINIGAME_SUBMIT</c>'s tile.</summary>
     public const int MinigameTileKind = (int)TileKind.Minigame;
 
@@ -79,120 +79,21 @@ public static class UnbuiltTileScreens
     /// </remarks>
     public const int LowestOutcomeTier = 0;
 
-    /// <summary>The event option a card with no cost-free option at all would fall back to.</summary>
-    /// <remarks>
-    /// Reached only when the card cannot be read or authors nothing free, and every one of the
-    /// thirty shipped cards authors at least one free option — so this is the fallback for a content
-    /// set this build was not shipped with, not for anything a player can reach today. It can be
-    /// refused for funds, which is why it is the fallback rather than the rule.
-    /// </remarks>
-    public const int FirstOption = 0;
-
-    private const string CardsReference = "content/board_events/board_events.json#/cards";
-    private const string CardIdMember = "id";
-    private const string OptionsMember = "options";
-    private const string OptionCostMember = "cost";
-
     /// <summary>Whether this tile kind is one whose screen this build has not written.</summary>
     /// <param name="tileKind">The number the run carries in its pending-tile field.</param>
-    public static bool HasNoScreen(int tileKind) =>
-        tileKind is EventTileKind or MinigameTileKind;
+    public static bool HasNoScreen(int tileKind) => tileKind == MinigameTileKind;
 
     /// <summary>
-    /// The command that gets a run off one of these tiles, or null when the run is not on one.
+    /// The command that gets a run off this tile, or null when the run is not on one.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>An Event tile takes TWO commands and this answers with whichever is next.</b>
-    /// <c>RESOLVE_TILE</c> is what draws the card, <c>EVENT_CHOOSE</c> is what spends it, and
-    /// <c>EVENT_CHOOSE</c> is refused until the card exists — so the answer is decided from whether
-    /// the run is carrying a drawn card, not from the tile kind alone. A Minigame tile needs no
-    /// acknowledgement first: <c>MINIGAME_SUBMIT</c> reads the pending tile and clears it in one
-    /// step.
+    /// 🔒 One command and no acknowledgement first: <c>MINIGAME_SUBMIT</c> reads the pending tile
+    /// and clears it in one step, and <c>RESOLVE_TILE</c> on the same tile is accepted and clears
+    /// nothing — which is the dead end this file exists to remove.
     /// </remarks>
     /// <param name="tileKind">The pending tile's kind.</param>
-    /// <param name="drawnEventCardId">
-    /// The event card the run has already drawn, or null/empty when it has drawn none.
-    /// </param>
-    /// <param name="content">The loaded content set the card's options are read from.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
-    public static GameCommand? CommandThatLeaves(
-        int tileKind, string? drawnEventCardId, ContentSnapshot content)
-    {
-        ArgumentNullException.ThrowIfNull(content);
-
-        return tileKind switch
-        {
-            MinigameTileKind => new MinigameSubmitCommand(PlaceholderMinigameId, LowestOutcomeTier),
-            EventTileKind when !string.IsNullOrEmpty(drawnEventCardId) =>
-                new EventChooseCommand(FreeOptionIndexOf(content, drawnEventCardId)),
-            EventTileKind => new ResolveTileCommand(),
-            _ => null,
-        };
-    }
-
-    /// <summary>
-    /// The index of the first option of this card that costs nothing, or
-    /// <see cref="FirstOption"/> when the card authors none.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔒 <b>Cost-free specifically, and that is the difference between resolvable and resolvable
-    /// while rich.</b> <c>EVENT_CHOOSE</c> refuses an option the player cannot pay for, and seven of
-    /// the thirty shipped cards put a priced option first — so a placeholder that always took option
-    /// zero would put a broke run straight back on the dead end this whole file exists to remove.
-    /// Every shipped card authors at least one free option, which is what makes this reliable rather
-    /// than merely likelier.
-    /// </para>
-    /// <para>
-    /// ⚠️ Free of a CURRENCY cost, not free of consequence: an outcome behind a cost-free option can
-    /// still take hit points or hang a curse. The rules layer's own resolver decides that from the
-    /// card's authored weights, and a placeholder that went looking for a harmless option instead
-    /// would be inventing a reading of the content the game itself does not have.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>Read out of the raw document rather than the catalogue.</b>
-    /// <c>Content.BoardEvents.EventCatalogue</c> — which parses these same cards, and validates them
-    /// — is internal to the rules assembly. So this is a second reader over one file, and the ONE
-    /// thing it reads is whether an option object carries a <c>cost</c> member; every other shape in
-    /// the document is left alone, and anything malformed answers with the fallback rather than
-    /// throwing on a screen.
-    /// </para>
-    /// </remarks>
-    /// <param name="content">The loaded content set.</param>
-    /// <param name="cardId">The card the run has drawn.</param>
-    /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    public static int FreeOptionIndexOf(ContentSnapshot content, string cardId)
-    {
-        ArgumentNullException.ThrowIfNull(content);
-        ArgumentNullException.ThrowIfNull(cardId);
-
-        if (!content.TryRead(CardsReference, out var cards) || cards!.Kind != ContentValueKind.Array)
-        {
-            return FirstOption;
-        }
-
-        foreach (var card in cards.Items)
-        {
-            if (!card.TryGetMember(CardIdMember, out var id) ||
-                id!.Kind != ContentValueKind.Text ||
-                !string.Equals(id.AsText(), cardId, StringComparison.Ordinal) ||
-                !card.TryGetMember(OptionsMember, out var options) ||
-                options!.Kind != ContentValueKind.Array)
-            {
-                continue;
-            }
-
-            for (var index = 0; index < options.Items.Count; index++)
-            {
-                if (!options.Items[index].TryGetMember(OptionCostMember, out _))
-                {
-                    return index;
-                }
-            }
-
-            return FirstOption;
-        }
-
-        return FirstOption;
-    }
+    public static GameCommand? CommandThatLeaves(int tileKind) =>
+        tileKind == MinigameTileKind
+            ? new MinigameSubmitCommand(PlaceholderMinigameId, LowestOutcomeTier)
+            : null;
 }

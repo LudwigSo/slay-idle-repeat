@@ -1,0 +1,204 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/EventScreen.cs" id="1_event"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_primary_rest"]
+content_margin_left = 40.0
+content_margin_top = 24.0
+content_margin_right = 40.0
+content_margin_bottom = 24.0
+bg_color = Color(0.24, 0.26, 0.33, 1)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.55, 0.58, 0.68, 1)
+corner_radius_top_left = 63
+corner_radius_top_right = 63
+corner_radius_bottom_right = 63
+corner_radius_bottom_left = 63
+corner_detail = 12
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 16
+shadow_offset = Vector2(0, 8)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_primary_hover"]
+content_margin_left = 40.0
+content_margin_top = 24.0
+content_margin_right = 40.0
+content_margin_bottom = 24.0
+bg_color = Color(0.3, 0.33, 0.41, 1)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.55, 0.58, 0.68, 1)
+corner_radius_top_left = 63
+corner_radius_top_right = 63
+corner_radius_bottom_right = 63
+corner_radius_bottom_left = 63
+corner_detail = 12
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 16
+shadow_offset = Vector2(0, 8)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_primary_down"]
+content_margin_left = 40.0
+content_margin_top = 34.0
+content_margin_right = 40.0
+content_margin_bottom = 14.0
+bg_color = Color(0.1, 0.11, 0.15, 1)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.55, 0.58, 0.68, 1)
+corner_radius_top_left = 63
+corner_radius_top_right = 63
+corner_radius_bottom_right = 63
+corner_radius_bottom_left = 63
+corner_detail = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_primary_off"]
+content_margin_left = 40.0
+content_margin_top = 24.0
+content_margin_right = 40.0
+content_margin_bottom = 24.0
+bg_color = Color(0.13, 0.13, 0.16, 1)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.38, 0.4, 0.46, 1)
+corner_radius_top_left = 63
+corner_radius_top_right = 63
+corner_radius_bottom_right = 63
+corner_radius_bottom_left = 63
+corner_detail = 12
+
+[sub_resource type="QuadMesh" id="QuadMesh_ground"]
+size = Vector2(24, 42)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+shading_mode = 0
+albedo_color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="EventScreen" type="Node3D"]
+script = ExtResource("1_event")
+
+[node name="World" type="Node3D" parent="."]
+unique_name_in_owner = true
+
+[node name="Camera" type="Camera3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
+fov = 60.0
+
+[node name="Ground" type="MeshInstance3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+mesh = SubResource("QuadMesh_ground")
+material_override = SubResource("StandardMaterial3D_ground")
+
+[node name="Ui" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="Screen" type="Control" parent="Ui"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
+unique_name_in_owner = true
+mouse_filter = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 64
+theme_override_constants/margin_top = 128
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 128
+
+[node name="Column" type="VBoxContainer" parent="Ui/Screen/SafeArea"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 32
+
+[node name="TitleLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 72
+autowrap_mode = 3
+
+[node name="CardScroll" type="ScrollContainer" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.0
+horizontal_scroll_mode = 0
+
+[node name="CardColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="CardTitle" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 60
+autowrap_mode = 3
+
+[node name="CardBody" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.83, 0.88, 1)
+theme_override_font_sizes/font_size = 44
+autowrap_mode = 3
+
+[node name="OptionColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="ResultPanel" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="RejectionLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.62, 0.58, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ContinueButton" type="Button" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+theme_override_font_sizes/font_size = 80
+theme_override_styles/normal = SubResource("StyleBoxFlat_primary_rest")
+theme_override_styles/hover = SubResource("StyleBoxFlat_primary_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_primary_down")
+theme_override_styles/disabled = SubResource("StyleBoxFlat_primary_off")
+autowrap_mode = 3

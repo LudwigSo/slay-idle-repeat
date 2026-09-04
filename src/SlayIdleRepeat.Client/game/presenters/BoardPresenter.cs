@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Application.Ports.Client;
+﻿using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
@@ -208,11 +208,12 @@ public sealed record ForkPrompt(int JunctionPosition, int RemainingSteps, IReadO
 /// half of a screen it does not own.
 /// </para>
 /// <para>
-/// 🔴 <b>Two of those absences were a run that could not move, and this screen now skips past them.</b>
-/// The event card and the minigame have no screen AND no other command that clears their tile, so a
-/// run that landed on one was parked with the roll refused. It resolves them through their own
-/// commands with the least the tile can pay — see <see cref="UnbuiltTileScreens"/>, which is the whole
-/// of that placeholder and is meant to be deleted when the two screens land.
+/// 🔴 <b>One of those absences is still a run that could not move, and this screen skips past it.</b>
+/// The minigame has no screen AND no other command that clears its tile, so a run that landed on one
+/// was parked with the roll refused. It resolves through the tile's own command with the least it
+/// can pay — see <see cref="UnbuiltTileScreens"/>, which is the whole of that placeholder and is
+/// meant to be deleted when the screen lands. The event card was the other one and is no longer
+/// skipped at all: it opens its own screen, which draws the card and spends it.
 /// </para>
 /// </remarks>
 public sealed class BoardPresenter
@@ -563,9 +564,9 @@ public sealed class BoardPresenter
     /// </summary>
     /// <remarks>
     /// 🔒 A different caption rather than the same one, because it is a different offer. "Continue"
-    /// on an Event or a Minigame tile would promise the screen that tile is supposed to open, and
-    /// what the press actually does is resolve the tile without one — see
-    /// <see cref="UnbuiltTileScreens"/>. The sentence saying so is <see cref="BlockText"/>'s.
+    /// on a Minigame tile would promise the screen that tile is supposed to open, and what the press
+    /// actually does is resolve the tile without one — see <see cref="UnbuiltTileScreens"/>. The
+    /// sentence saying so is <see cref="BlockText"/>'s.
     /// </remarks>
     public string ResolveText =>
         _strings.Resolve(PendingTileHasNoScreen ? SkipUnbuiltActionKey : ResolveActionKey);
@@ -596,8 +597,8 @@ public sealed class BoardPresenter
     /// that stranded a run would strand it again.
     /// <para>
     /// ⚠️ It used to be the ONLY way off a tile whose screen this build has not written, and that is
-    /// no longer true: <see cref="UnbuiltTileScreens"/> resolves an Event and a Minigame tile through
-    /// their own commands, so giving the run up is a choice again rather than the only exit. The
+    /// no longer true: <see cref="UnbuiltTileScreens"/> resolves a Minigame tile through the tile's
+    /// own command, so giving the run up is a choice again rather than the only exit. The
     /// ungated offer stands regardless — every reason `16` D39 lists for it is still a reason.
     /// </para>
     /// </remarks>
@@ -867,14 +868,16 @@ public sealed class BoardPresenter
         PendingTile is { } tile && BattleReplayPresenter.OpensAFight(tile.Kind);
 
     /// <summary>
-    /// Whether the pending tile is one whose own screen this build has not written — an Event or a
-    /// Minigame.
+    /// Whether the pending tile is one whose own screen this build has not written — the Minigame,
+    /// and only that one now.
     /// </summary>
     /// <remarks>
-    /// 🔴 The state this used to be a dead end in. Both tiles are left by a command a screen that
-    /// does not exist would submit, so the board's Continue press could not clear either and
-    /// abandoning the run was the only way off the tile. <see cref="UnbuiltTileScreens"/> is what it
-    /// is skipped through and states the whole of why; this is the flag every surface asks.
+    /// 🔴 The state this used to be a dead end in. The tile is left by a command a screen that does
+    /// not exist would submit, so the board's Continue press could not clear it and abandoning the
+    /// run was the only way off. <see cref="UnbuiltTileScreens"/> is what it is skipped through and
+    /// states the whole of why; this is the flag every surface asks. The Event tile was the second
+    /// kind here and has left: it opens <see cref="EventPresenter"/>'s screen, which draws the card
+    /// itself and submits the option the player chooses.
     /// </remarks>
     public bool PendingTileHasNoScreen =>
         PendingTile is { } tile && UnbuiltTileScreens.HasNoScreen(tile.Kind);
@@ -924,56 +927,24 @@ public sealed class BoardPresenter
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>THE SECOND FIX FOR A RUN THAT COULD NOT MOVE, and the same shape as the fight's.</b> An
-    /// Event and a Minigame tile are each left by a command only their own screen submits, and
-    /// neither screen exists — so <c>RESOLVE_TILE</c> was the only thing this board could send, it
-    /// cleared neither tile, and the run was parked with the roll refused and nothing but
-    /// <c>ABANDON_RUN</c> reachable. <see cref="UnbuiltTileScreens"/> holds what is submitted instead
-    /// and why each payload is the one it is.
+    /// 🔴 <b>THE SECOND FIX FOR A RUN THAT COULD NOT MOVE, and the same shape as the fight's.</b> A
+    /// Minigame tile is left by a command only its own screen submits, and that screen does not
+    /// exist — so <c>RESOLVE_TILE</c> was the only thing this board could send, it cleared nothing,
+    /// and the run was parked with the roll refused and nothing but <c>ABANDON_RUN</c> reachable.
+    /// <see cref="UnbuiltTileScreens"/> holds what is submitted instead and why that payload is the
+    /// one it is.
     /// </para>
     /// <para>
-    /// 🔒 <b>TWO commands from one press, for the Event tile only.</b> The card is drawn by
-    /// <c>RESOLVE_TILE</c> and spent by <c>EVENT_CHOOSE</c>, and the second is refused until the
-    /// first has run — so a single press that submitted one of them would leave the tile pending and
-    /// need a second press to mean something different from the first. The choice is decided from the
-    /// run the DRAW came back with, not from the one the press started on, because which option is
-    /// free is a fact about the card that draw picked.
-    /// </para>
-    /// <para>
-    /// ⚠️ A draw that came back with no card leaves the tile as it was and reports the draw's own
-    /// outcome. The rules layer sets a card on every accepted draw, so this is a host answering with
-    /// a state the domain does not produce — and inventing a choice index for a card that is not
-    /// there would submit a command certain to be refused.
+    /// 🔒 <b>One command from one press.</b> The Event tile's two-command version of this is gone:
+    /// the event screen draws its own card and spends it, so nothing here reads a card or picks an
+    /// option on the player's behalf.
     /// </para>
     /// </remarks>
     /// <param name="ct">Cancellation.</param>
-    private async Task<BoardSubmission> SkipUnbuiltTileAsync(CancellationToken ct)
-    {
-        if (PendingTile is { Kind: UnbuiltTileScreens.EventTileKind } &&
-            string.IsNullOrEmpty(DrawnEventCardId))
-        {
-            var drawn = await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
-
-            if (drawn != BoardSubmission.Submitted ||
-                PendingTile is null ||
-                string.IsNullOrEmpty(DrawnEventCardId))
-            {
-                return drawn;
-            }
-        }
-
-        return UnbuiltTileScreens.CommandThatLeaves(PendingTile!.Kind, DrawnEventCardId, _content)
-            is { } leaving
+    private async Task<BoardSubmission> SkipUnbuiltTileAsync(CancellationToken ct) =>
+        UnbuiltTileScreens.CommandThatLeaves(PendingTile!.Kind) is { } leaving
             ? await SubmitAsync(leaving, ct).ConfigureAwait(false)
             : BoardSubmission.RefusedNotAvailable;
-    }
-
-    /// <summary>The event card the run has already drawn for its pending tile, or null for none.</summary>
-    /// <remarks>
-    /// Empty and null both mean "no card drawn" — the run row spells it as the empty string so its
-    /// canonical encoding has no nullable slot, and this reads it back as the absence it is.
-    /// </remarks>
-    private string? DrawnEventCardId => _snapshot?.PendingEventCardId;
 
     private BoardRollBlock BlockFromSnapshot()
     {
