@@ -170,7 +170,9 @@ internal static class EncounterFight
                         "pool and identity table have to name the same ids.");
                 identity = eliteId;
 
-                power = EnemyDerivation.ElitePower(power, enemies.ElitePowerMultiplier);
+                // The CHAPTER's multiplier, not one global figure: 05 §6.2's 2.2 is chapters 2-8's,
+                // and chapter 1 authors a gentler one because a mini-boss takes this same path.
+                power = EnemyDerivation.ElitePower(power, pool.ElitePowerMultiplier);
 
                 // Drawn for real, on the production stream; not yet translated into an effect (type remarks).
                 EliteModifierDraw.Draw(rng, enemies.EliteModifiers, eliteHistory, enemies.NoRepeatWithPreviousEliteInRun);

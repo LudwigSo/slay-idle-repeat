@@ -233,18 +233,12 @@
     },
 
     "elites": {
-      "description": "05 §6.2 — Elite = base archetype × 2.2 power, plus exactly one Elite Modifier drawn per encounter.",
+      "description": "05 §6.2 — Elite = base archetype × its chapter's elitePowerMultiplier, plus exactly one Elite Modifier drawn per encounter. ⚠️ The multiplier is NOT here: it is authored per chapter on chapterPools, because an elite and a mini-boss are one code path and chapter 1 needs a gentler one than 05 §6.2's 2.2.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["_doc", "powerMultiplier", "modifiersPerElite", "noRepeatWithPreviousEliteInRun", "modifiers", "identities"],
+      "required": ["_doc", "modifiersPerElite", "noRepeatWithPreviousEliteInRun", "modifiers", "identities"],
       "properties": {
         "_doc": { "type": "string", "minLength": 1 },
-        "powerMultiplier": {
-          "description": "05 §6.2 — 2.2. ⚠️ This is the ELITE multiplier and nothing else. A boss's Power already carries its own stage multiplier, and 05 §6.3 says in terms not to multiply it again.",
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "multipleOf": 0.0001
-        },
         "modifiersPerElite": {
           "description": "05 §6.2 — 'plus ONE Elite Modifier'. Authored as a number rather than assumed so the file states the rule it was written under. ⚠️ It is NOT a dial: EliteModifierDraw draws exactly one, and a second would need a draw that excludes the first, which 05 §6.2 does not state — so EnemyCatalogue.Read rejects any value but 1 rather than reading a number nothing honours.",
           "type": "integer",
@@ -322,7 +316,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["chapter", "weights", "elitePool"],
+        "required": ["chapter", "weights", "elitePool", "elitePowerMultiplier"],
         "properties": {
           "chapter": { "$ref": "#/$defs/chapterNumber" },
           "weights": {
@@ -348,6 +342,12 @@
             "maxItems": 2,
             "uniqueItems": true,
             "items": { "type": "string", "pattern": "^EL_[A-Z0-9_]+$" }
+          },
+          "elitePowerMultiplier": {
+            "description": "05 §6.2's elite power multiplier, authored per chapter rather than once globally. ⚠️ This is the ELITE multiplier and nothing else. A boss's Power already carries its own stage multiplier, and 05 §6.3 says in terms not to multiply it again. It applies to MINI-BOSSES too — run-minibosses D7 reuses the elite power path — which is why it is per chapter: chapters 2-8 carry 05 §6.2's 2.2 verbatim, and chapter 1 carries 1.4 because its two mini-bosses are unskippable and a bare level-1 hero has to pass both. Required on every row: an omitted key would silently make one chapter's elites free.",
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "multipleOf": 0.0001
           }
         }
       }

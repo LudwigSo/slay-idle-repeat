@@ -15,8 +15,6 @@ public sealed class EnemyCatalogueTests
         EnemyCatalogue.Document.ShouldBe("content/enemies/enemies.json");
 
         EnemyCatalogue.HpPerPowerPointer.ShouldBe("content/enemies/enemies.json#/derivation/hpPerPower");
-        EnemyCatalogue.ElitePowerMultiplierPointer
-            .ShouldBe("content/enemies/enemies.json#/elites/powerMultiplier");
         EnemyCatalogue.NoRepeatPointer
             .ShouldBe("content/enemies/enemies.json#/elites/noRepeatWithPreviousEliteInRun");
         EnemyCatalogue.FixedStatPointer(StatId.HEAL_PCT)
@@ -42,12 +40,18 @@ public sealed class EnemyCatalogueTests
 
         catalogue.Levels.Of(8, 2).ShouldBe(100, "05 §6.0 — Ch8 base 80 plus Mythic +20");
 
-        catalogue.ElitePowerMultiplier.ShouldBe(2.2);
         catalogue.ModifiersPerElite.ShouldBe(1, "05 §6.2 — plus ONE Elite Modifier");
         catalogue.NoRepeatWithPreviousEliteInRun.ShouldBeTrue();
         catalogue.EliteModifiers.Count.ShouldBe(8);
         catalogue.EliteIdentities.Count.ShouldBe(16);
         catalogue.ChapterPools.Count.ShouldBe(8);
+
+        // 05 §6.2's multiplier is per chapter, not one global figure: chapter 1's is gentler because
+        // a mini-boss takes the elite power path and its two are unskippable by a bare hero.
+        catalogue.Pool(1).ElitePowerMultiplier
+            .ShouldBe(EnemyFixtures.ChapterOneElitePowerMultiplier);
+        catalogue.Pool(2).ElitePowerMultiplier
+            .ShouldBe(EnemyFixtures.StandardElitePowerMultiplier, "05 §6.2 — chapters 2-8 carry 2.2");
 
         catalogue.DefaultTargetPriority.ShouldBe(0);
         catalogue.DeprioritisedTargetPriority.ShouldBe(-1);
@@ -220,8 +224,9 @@ public sealed class EnemyCatalogueTests
         // makes the ordering claim above observable rather than decorative.
         var chapterOne = EnemyCatalogue.Read(EnemyFixtures.Snapshot()).Pool(1);
 
-        chapterOne.WeightOf(EnemyArchetype.GRUNT).ShouldBe(40.0);
+        chapterOne.WeightOf(EnemyArchetype.GRUNT).ShouldBe(45.0);
         chapterOne.WeightOf(EnemyArchetype.REAVER).ShouldBe(0.0, "05 §6.4 — Chapter 1 has no REAVER");
+        chapterOne.WeightOf(EnemyArchetype.LEECH).ShouldBe(0.0, "ruling 2026-09-03 — nor any LEECH");
         chapterOne.TotalWeight.ShouldBe(100.0);
     }
 

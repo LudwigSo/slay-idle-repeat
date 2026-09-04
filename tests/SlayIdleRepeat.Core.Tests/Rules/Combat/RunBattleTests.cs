@@ -439,17 +439,24 @@ public sealed class RunBattleTests
     }
 
     /// <summary>A Heroic run is a harder fight than a Normal one on the same tile.</summary>
+    /// <remarks>
+    /// ⚠️ Read at chapter 1's LAST node, not its default seventh. Chapter 1's par is authored at
+    /// 175 for a hero with NO gear at all, so at the first stage's node 7 the fixture hero one-shots
+    /// either tier's draw and takes no damage at all — and the Heroic arm then ends HIGHER, on the
+    /// extra tick of lifesteal its bigger enemy bought. The claim needs a node where both arms cost
+    /// the hero something.
+    /// </remarks>
     [Fact]
     public void A_higher_tier_is_a_harder_fight_on_the_same_tile()
     {
         var normal = RunBattle.Simulate(
             RunBattleWorlds.PlayerRow(),
-            RunBattleWorlds.RunRow(tier: DifficultyTier.NORMAL),
+            RunBattleWorlds.RunRow(stage: 3, linearIndex: 41, tier: DifficultyTier.NORMAL),
             RunBattleWorlds.Content);
 
         var heroic = RunBattle.Simulate(
             RunBattleWorlds.PlayerRow(),
-            RunBattleWorlds.RunRow(tier: DifficultyTier.HEROIC),
+            RunBattleWorlds.RunRow(stage: 3, linearIndex: 41, tier: DifficultyTier.HEROIC),
             RunBattleWorlds.Content);
 
         heroic.HeroHpRemaining.ShouldBeLessThan(

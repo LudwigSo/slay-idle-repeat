@@ -22,7 +22,6 @@ internal sealed record EnemyCatalogue(
     IReadOnlyList<ArchetypeRow> Archetypes,
     OnHitStatus WardenSunder,
     IReadOnlyDictionary<int, OnHitStatus> CasterBiomeStatus,
-    double ElitePowerMultiplier,
     int ModifiersPerElite,
     bool NoRepeatWithPreviousEliteInRun,
     IReadOnlyList<EliteModifierRow> EliteModifiers,
@@ -49,9 +48,6 @@ internal sealed record EnemyCatalogue(
 
     /// <summary>Every term's rounding, as authored.</summary>
     internal const string RoundingDecimalsPointer = Document + "#/derivation/roundingDecimals";
-
-    /// <summary>The elite power multiplier.</summary>
-    internal const string ElitePowerMultiplierPointer = Document + "#/elites/powerMultiplier";
 
     /// <summary>The modifiers granted per Elite.</summary>
     internal const string ModifiersPerElitePointer = Document + "#/elites/modifiersPerElite";
@@ -131,7 +127,6 @@ internal sealed record EnemyCatalogue(
             ReadArchetypes(content),
             ReadOnHit(content, Document + "#/onHit/wardenSunder", casterRow: false),
             ReadCasterRows(content),
-            content.ReadDouble(ElitePowerMultiplierPointer),
             modifiersPerElite,
             content.ReadBoolean(NoRepeatPointer),
             ReadModifiers(content),
@@ -369,7 +364,11 @@ internal sealed record EnemyCatalogue(
                 elitePool.Add(content.ReadText($"{pointer}/elitePool/{e.ToString(CultureInfo.InvariantCulture)}"));
             }
 
-            pools[chapter] = ChapterEnemyPool.From(chapter, weights, elitePool);
+            pools[chapter] = ChapterEnemyPool.From(
+                chapter,
+                weights,
+                elitePool,
+                content.ReadDouble(pointer + "/elitePowerMultiplier"));
         }
 
         return pools;

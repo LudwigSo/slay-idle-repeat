@@ -256,8 +256,6 @@ public sealed class EnemiesDataTests
     {
         var data = Data();
 
-        data.ReadDouble($"{Document}#/elites/powerMultiplier")
-            .ShouldBe(2.2, "05 §6.2 — Elite = base archetype × 2.2 power");
         data.ReadInt32($"{Document}#/elites/modifiersPerElite")
             .ShouldBe(1, "05 §6.2 — plus ONE Elite Modifier");
         data.ReadBoolean($"{Document}#/elites/noRepeatWithPreviousEliteInRun")
@@ -385,6 +383,30 @@ public sealed class EnemiesDataTests
         }
 
         expected.Sum().ShouldBe(100, "05 §6.4 — weights per row sum to 100");
+    }
+
+    /// <summary>
+    /// 🔒 <c>05</c> §6.2's elite power multiplier, which is authored per chapter rather than once
+    /// globally. It has to be, because an Elite and a MINI-BOSS are one code path
+    /// (<c>run-minibosses</c> D7) and a mini-boss is unskippable: at §6.2's 2.2, chapter 1's stage-1
+    /// <c>WARDEN</c> mini-boss reached <c>DEF 201</c> against a hero with no gear, which is a 197 s
+    /// time-to-kill against a 90 s fight cap. Chapters 2-8 carry the section's 2.2 verbatim, and the
+    /// row is required on all eight so one chapter's elites cannot be freed by an omission.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 1.4)]
+    [InlineData(2, 2.2)]
+    [InlineData(3, 2.2)]
+    [InlineData(4, 2.2)]
+    [InlineData(5, 2.2)]
+    [InlineData(6, 2.2)]
+    [InlineData(7, 2.2)]
+    [InlineData(8, 2.2)]
+    public void Each_chapter_pool_row_authors_its_own_elite_power_multiplier(
+        int chapter, double expected)
+    {
+        Data().ReadDouble($"{Document}#/chapterPools/{chapter - 1}/elitePowerMultiplier")
+            .ShouldBe(expected, $"05 §6.2 — chapter {chapter}'s elite power multiplier");
     }
 
     /// <summary>

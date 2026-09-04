@@ -149,9 +149,16 @@ internal static class GearDocuments
     ];
 
     /// <summary>The Normal column of the content par table, chapter by chapter.</summary>
+    /// <remarks>
+    /// ⚠️ Chapter 1 is deliberately off the doubling ladder the other seven sit on. It is the
+    /// chapter a player enters with no gear, talents, pets or levels, and <c>par_power.json</c>'s own
+    /// P1 property puts its par near <c>expectedPowerByLevel</c>'s level-1 figure of 210 rather than
+    /// at the default fill's 1000. The fill is a ceiling, not an equality — see
+    /// <c>DeclaredRules.ParPowerTableStaysWithinItsDefaultFill</c>.
+    /// </remarks>
     internal static IReadOnlyList<(int Chapter, decimal Normal)> ShippedParPower { get; } =
     [
-        (1, 1000m), (2, 2000m), (3, 4000m), (4, 8000m),
+        (1, 140m), (2, 2000m), (3, 4000m), (4, 8000m),
         (5, 16000m), (6, 32000m), (7, 64000m), (8, 128000m),
     ];
 

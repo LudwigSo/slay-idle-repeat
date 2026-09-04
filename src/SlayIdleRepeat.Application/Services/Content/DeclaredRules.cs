@@ -319,8 +319,8 @@ internal static class DeclaredRules
         // Expected power never goes down, and every ladder resolves.
         ExpectedProgressionIsWellFormed,
 
-        // The par table is its own default fill.
-        ParPowerTableMatchesItsDefaultFill,
+        // The default fill is the par table's ceiling, and par never goes down by chapter.
+        ParPowerTableStaysWithinItsDefaultFill,
 
         // K_POWER is defined as Chapter 1 Normal par.
         Mirrors("29 §2.5.1 (K_POWER := Chapter 1 Normal par)",
@@ -674,7 +674,32 @@ internal static class DeclaredRules
         }
     }
 
-    private static void ParPowerTableMatchesItsDefaultFill(
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>This rule used to demand exact equality with the fill, which is stricter than
+    /// <c>29</c> §4 asks for.</b> <c>par_power.json</c>'s own <c>_doc</c> says <em>"every cell is
+    /// independently editable and the formula below is the default fill, not a constraint"</em>, so a
+    /// rule that failed the build on any deviation made the document's stated freedom unusable — and
+    /// chapter 1 needs it. Chapter 1 is the chapter a player enters with no gear, talents, pets or
+    /// levels, and the same file's P1 property (<c>expectedPowerByLevel</c>'s level-1 row over
+    /// <c>parNormal</c> chapter 1, ratio <c>1.0..1.3</c>) can only hold there at a par far below the
+    /// fill's <c>1000</c>.
+    /// </para>
+    /// <para>
+    /// What replaces equality keeps the teeth. The fill is a <b>ceiling</b>: a chapter may be tuned
+    /// gentler than the ladder — which is a decision someone made — but a cell ABOVE its fill is a
+    /// typo nobody chose, and every chapter still sitting on the fill is still pinned to it. And par
+    /// is <b>strictly increasing</b> by chapter, which is the ladder's actual meaning and is what the
+    /// equality check was really buying.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>K_POWER deliberately does not move with chapter 1.</b> The <c>29</c> §2.5.1
+    /// mirror declared above pins <c>referenceParBuild/targetPower</c> to
+    /// <c>defaultFill/chapterPowerTargetBase</c>, not to the authored chapter-1 cell, so retuning one
+    /// chapter cannot silently rescale the power scalar every chapter is graded by.
+    /// </para>
+    /// </remarks>
+    private static void ParPowerTableStaysWithinItsDefaultFill(
         IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
     {
         var table = Find(documents, "tuning/par_power.json#/parPower");
@@ -686,6 +711,8 @@ internal static class DeclaredRules
             return;
         }
 
+        var previous = 0.0m;
+
         for (var i = 0; i < table.Items.Count; i++)
         {
             var row = table.Items[i];
@@ -695,19 +722,31 @@ internal static class DeclaredRules
                 continue;
             }
 
-            var expected = basePower.Value;
+            var ceiling = basePower.Value;
             for (var step = 1; step < chapter.AsInt32(); step++)
             {
-                expected *= growth.Value;
+                ceiling *= growth.Value;
             }
 
-            if (normal.AsNumber() != expected)
+            if (normal.AsNumber() > ceiling)
             {
                 issues.Add(new ContentIssue(
                     ContentIssueCode.OutOfRange, $"tuning/par_power.json#/parPower/{i}/NORMAL",
-                    $"29 §4: chapter {chapter.AsInt32()} par is {normal.AsNumber()}, but the default fill " +
-                    $"({basePower} x {growth}^(c-1)) gives {expected}."));
+                    $"29 §4: chapter {chapter.AsInt32()} par is {normal.AsNumber()}, above the default " +
+                    $"fill ({basePower} x {growth}^(c-1)) of {ceiling}. The fill is a ceiling: a chapter " +
+                    "may be authored gentler than the ladder, never harder."));
             }
+
+            if (normal.AsNumber() <= previous)
+            {
+                issues.Add(new ContentIssue(
+                    ContentIssueCode.OutOfRange, $"tuning/par_power.json#/parPower/{i}/NORMAL",
+                    $"29 §4: chapter {chapter.AsInt32()} par is {normal.AsNumber()}, at or below the " +
+                    $"previous chapter's {previous}. Par is the power a chapter demands, so a ladder that " +
+                    "stalls or falls is a later chapter asking less than an earlier one."));
+            }
+
+            previous = normal.AsNumber();
 
             foreach (var tier in (string[])["HEROIC", "MYTHIC"])
             {

@@ -4,7 +4,7 @@
   "biomeArtSet": "biome_greenwood",
   "paletteId": "pal_greenwood",
   "musicId": "mus_ch1_greenwood",
-  "powerTarget": 1000,
+  "powerTarget": 140,
   "stageLengths": [12, 14, 16],
   "eliteCount": [1, 2, 2],
   "tileWeights": [

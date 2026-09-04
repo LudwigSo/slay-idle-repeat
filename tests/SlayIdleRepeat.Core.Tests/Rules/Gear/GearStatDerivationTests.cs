@@ -25,20 +25,29 @@ public sealed class GearStatDerivationTests
     /// <remarks>
     /// Exactly twice rather than merely larger: item power is a fixed fraction of the chapter's par,
     /// and the shipped par column doubles, so anything but a factor of two means a second scaling
-    /// crept in between the two.
+    /// crept in between the two. ⚠️ Read across chapters 2 and 3, not 1 and 2: chapter 1 is
+    /// authored off the ladder at 175 rather than the default fill's 1000, because it is the chapter a
+    /// player enters with no gear at all. The doubling claim belongs where the fill still holds, and
+    /// chapter 1 carries the monotonicity claim below instead.
     /// </remarks>
     [Theory]
     [InlineData(Rarity.C)]
     [InlineData(Rarity.SS)]
     public void A_flat_stat_scales_with_the_chapter_the_item_came_from(Rarity rarity)
     {
-        var first = Primary(Item(GearSlot.WEAPON, GearFamily.BLADE, rarity, chapterOrigin: 1));
-        var second = Primary(Item(GearSlot.WEAPON, GearFamily.BLADE, rarity, chapterOrigin: 2));
+        var first = Primary(Item(GearSlot.WEAPON, GearFamily.BLADE, rarity, chapterOrigin: 2));
+        var second = Primary(Item(GearSlot.WEAPON, GearFamily.BLADE, rarity, chapterOrigin: 3));
 
         first.IsPercent.ShouldBeFalse("ATK is authored with a flat coefficient");
         second.Value.ShouldBe(
             DeterminismRounding.Round(first.Value * 2.0),
-            "an item keeps the power it dropped with, and chapter 2's par is exactly twice chapter 1's.");
+            "an item keeps the power it dropped with, and chapter 3's par is exactly twice chapter 2's.");
+
+        Primary(Item(GearSlot.WEAPON, GearFamily.BLADE, rarity, chapterOrigin: 1)).Value
+            .ShouldBeLessThan(
+                first.Value,
+                "chapter 1 is priced for a hero with no gear, so its drops are weaker than " +
+                "chapter 2's — by a ruling, not by the fill's factor of two.");
     }
 
     /// <summary>A percent stat is identical at every chapter, at the same band and quality.</summary>
@@ -87,16 +96,16 @@ public sealed class GearStatDerivationTests
     /// twice.
     /// </remarks>
     [Theory]
-    [InlineData(0.0, 16.2, 46.75)]
-    [InlineData(0.5, 18.0, 55.0)]
-    [InlineData(1.0, 19.8, 63.25)]
+    [InlineData(0.0, 32.4, 93.5)]
+    [InlineData(0.5, 36.0, 110.0)]
+    [InlineData(1.0, 39.6, 126.5)]
     public void Quality_spans_further_on_the_secondary_stat_than_on_the_primary(
         double quality, double primary, double secondary)
     {
-        var item = Item(GearSlot.HELMET, GearFamily.HOOD, Rarity.C, 1, quality);
+        var item = Item(GearSlot.HELMET, GearFamily.HOOD, Rarity.C, 2, quality);
 
         Primary(item).Value.ShouldBe(
-            primary, "chapter 1 at C is 100 item power; DEF's coefficient is 0.18, spanning 0.90–1.10");
+            primary, "chapter 2 at C is 200 item power; DEF's coefficient is 0.18, spanning 0.90–1.10");
         Secondary(item).Value.ShouldBe(
             secondary, "and Max HP's is 0.55, spanning 0.85–1.15 — further, on purpose");
     }

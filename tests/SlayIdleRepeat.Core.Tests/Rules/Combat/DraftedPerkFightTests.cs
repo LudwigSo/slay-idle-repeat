@@ -1,4 +1,5 @@
 using Shouldly;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
@@ -67,9 +68,11 @@ public sealed class DraftedPerkFightTests
     }
 
     /// <summary>The run's fight, with or without one perk owned at Tier I.</summary>
+    /// <summary>The fight every case here reads — see <see cref="LastNode"/> for where.</summary>
     private static SimulationResult Fight(string? owning)
     {
-        var run = RunBattleWorlds.RunRow();
+        var run = RunBattleWorlds.RunRow(
+            TileKind.Elite, stage: LastStage, linearIndex: LastNode);
 
         if (owning is not null)
         {
@@ -81,6 +84,21 @@ public sealed class DraftedPerkFightTests
 
     private static int Applied(SimulationResult fight, ushort status) =>
         fight.Log.Count(e => e.Type == CombatEventType.StatusApplied && e.DataId == status);
+
+    /// <summary>
+    /// An ELITE on chapter 1's LAST spine node, rather than an ordinary draw on its default seventh.
+    /// ⚠️ A damage-over-time status ticks once per second, first on its anchor tick + 20, so the
+    /// tick case below — the discriminating half of this suite — needs an enemy that outlives one
+    /// second. Chapter 1's par is authored at 175 for a hero with NO gear at all, and at the first
+    /// stage's node 7 the fixture hero one-shots the draw on tick 1: the <c>BURN</c> is applied and
+    /// its target is dead before the timeline ever reaches tick 21. The last node's
+    /// <c>(1 + 0.035 x 41) x 1.35</c> and the chapter's elite multiplier together put enough HP on
+    /// the board for the fight to outlive a second, which is all the tick needs.
+    /// </summary>
+    private const int LastNode = 41;
+
+    /// <inheritdoc cref="LastNode"/>
+    private const int LastStage = 3;
 
     /// <summary>The fire category's base perk — every tier applies <c>BURN</c> on a landed hit.</summary>
     private const string BurnPerk = "PK_IGNITE";

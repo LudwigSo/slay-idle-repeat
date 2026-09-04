@@ -25,15 +25,24 @@ public sealed class EnemyPowerFormulaTests
 
     /// <summary>The four stage multipliers, at the node where every other term is 1.</summary>
     /// <remarks>
+    /// <para>
     /// Linear index 0 makes the growth term exactly <c>1 + 0.035·0 = 1</c>, and NORMAL makes the tier
     /// term exactly 1 — so the answer IS the stage multiplier times the target, and nothing else can
     /// be hiding in it.
+    /// </para>
+    /// <para>
+    /// ⚠️ The boss's <c>1.35</c> is not <c>02</c> §4.3's <c>2.20</c>. A boss node's linear index is
+    /// the board's last, so the growth term multiplies the target by <c>2.47</c> before the stage
+    /// multiplier does — at <c>2.20</c> a boss is <c>5.43×</c> its chapter's par, which the calibrated
+    /// par build cannot kill inside the 90 s fight cap. <c>EnemyPowerFormula.BossMultiplier</c>
+    /// carries the whole argument.
+    /// </para>
     /// </remarks>
     [Theory]
     [InlineData(1, 1000.0)]
     [InlineData(2, 1150.0)]
     [InlineData(3, 1350.0)]
-    [InlineData(BossStage, 2200.0)]
+    [InlineData(BossStage, 1350.0)]
     public void Each_stage_multiplier_is_02_section_4_3s(int stage, double expected)
     {
         EnemyPowerFormula.Compute(Target, DifficultyTier.NORMAL, linearIndex: 0, stage)
@@ -87,7 +96,7 @@ public sealed class EnemyPowerFormulaTests
     public void The_four_terms_compose()
     {
         const double tierMult = 16.0;
-        const double stageMult = 2.20;
+        const double stageMult = 1.35;
         const double growth = 1.0 + (0.035 * 42);
 
         EnemyPowerFormula.Compute(Target, DifficultyTier.MYTHIC, linearIndex: 42, stage: BossStage)

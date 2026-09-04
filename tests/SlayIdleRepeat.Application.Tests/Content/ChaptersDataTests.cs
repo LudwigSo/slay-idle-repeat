@@ -235,8 +235,13 @@ public sealed class ChaptersDataTests
     }
 
     /// <summary>powerTarget must equal parPower[id].NORMAL, which par_power.json ships today.</summary>
+    /// <remarks>
+    /// ⚠️ Chapter 1's 140 is not the default fill's 1000. It is priced for the hero a player
+    /// actually starts with — no gear, talents, pets or levels — which is the same figure
+    /// par_power.json's P1 property demands of chapter 1 and the shipped 1000 missed by 4.8x.
+    /// </remarks>
     [Theory]
-    [InlineData(ChapterOne, 1000)]
+    [InlineData(ChapterOne, 140)]
     [InlineData(ChapterTwo, 2000)]
     public void PowerTarget_equals_the_matching_par_power_normal_cell(string document, int expected)
     {

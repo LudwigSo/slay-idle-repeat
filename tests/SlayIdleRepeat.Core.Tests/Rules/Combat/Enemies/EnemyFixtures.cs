@@ -87,18 +87,19 @@ internal static class EnemyFixtures
             new Dictionary<string, double>(StringComparer.Ordinal) { ["thorns"] = 0.25 }, null),
     };
 
-    /// <summary>Chapter 1's pool, the row with the authored <c>REAVER</c> zero.</summary>
+    /// <summary>Chapter 1's pool, the row with the authored <c>REAVER</c> and <c>LEECH</c> zeros.</summary>
     internal static ChapterEnemyPool ChapterOnePool() =>
         ChapterEnemyPool.From(
             1,
             new List<ArchetypeWeight>
             {
-                new(EnemyArchetype.GRUNT, 40), new(EnemyArchetype.SWARM, 20),
+                new(EnemyArchetype.GRUNT, 45), new(EnemyArchetype.SWARM, 20),
                 new(EnemyArchetype.BRUTE, 15), new(EnemyArchetype.SKIRMISHER, 10),
                 new(EnemyArchetype.WARDEN, 5), new(EnemyArchetype.CASTER, 5),
-                new(EnemyArchetype.LEECH, 5), new(EnemyArchetype.REAVER, 0),
+                new(EnemyArchetype.LEECH, 0), new(EnemyArchetype.REAVER, 0),
             },
-            new List<string> { "EL_THORN_SENTINEL", "EL_MOSSBACK_ALPHA" });
+            new List<string> { "EL_THORN_SENTINEL", "EL_MOSSBACK_ALPHA" },
+            ChapterOneElitePowerMultiplier);
 
     /// <summary>A snapshot holding a <c>content/enemies/enemies.json</c> of the shipped shape.</summary>
     /// <param name="unauthorised">
@@ -185,7 +186,6 @@ internal static class EnemyFixtures
             ])),
             new("elites", ContentValue.Object(
             [
-                new("powerMultiplier", ContentValue.Number(2.2m)),
                 new("modifiersPerElite", ContentValue.Number(modifiersPerElite)),
                 new("noRepeatWithPreviousEliteInRun", ContentValue.Boolean(true)),
                 new("modifiers", ContentValue.Array(Modifiers.Select(m => ContentValue.Object(
@@ -245,10 +245,28 @@ internal static class EnemyFixtures
             new("EL_VOIDCALF", EnemyArchetype.LEECH),
         };
 
+    /// <summary>
+    /// Chapter 1's elite power multiplier — gentler than <c>05</c> §6.2's 2.2, because a mini-boss
+    /// takes the elite power path and chapter 1's two are unskippable by a bare level-1 hero.
+    /// </summary>
+    internal const double ChapterOneElitePowerMultiplier = 1.4;
+
+    /// <summary><c>05</c> §6.2's multiplier, which chapters 2-8 carry verbatim.</summary>
+    internal const double StandardElitePowerMultiplier = 2.2;
+
+    /// <summary>The eight elite power multipliers, by chapter.</summary>
+    internal static IReadOnlyList<double> PoolElitePowerMultipliers { get; } = new[]
+    {
+        ChapterOneElitePowerMultiplier,
+        StandardElitePowerMultiplier, StandardElitePowerMultiplier, StandardElitePowerMultiplier,
+        StandardElitePowerMultiplier, StandardElitePowerMultiplier, StandardElitePowerMultiplier,
+        StandardElitePowerMultiplier,
+    };
+
     /// <summary>The eight weight rows, in archetype order.</summary>
     internal static IReadOnlyList<int[]> PoolWeights { get; } = new List<int[]>
     {
-        new[] { 40, 20, 15, 10, 5, 5, 5, 0 },
+        new[] { 45, 20, 15, 10, 5, 5, 0, 0 },
         new[] { 25, 15, 10, 10, 5, 20, 15, 0 },
         new[] { 20, 25, 15, 5, 10, 15, 5, 5 },
         new[] { 20, 10, 20, 10, 5, 20, 5, 10 },
@@ -331,6 +349,8 @@ internal static class EnemyFixtures
                 new("chapter", ContentValue.Number(chapter)),
                 new("weights", ContentValue.Object(members)),
                 new("elitePool", ContentValue.Array(elites)),
+                new("elitePowerMultiplier",
+                    ContentValue.Number((decimal)PoolElitePowerMultipliers[chapter - 1])),
             ]);
         }
     }
