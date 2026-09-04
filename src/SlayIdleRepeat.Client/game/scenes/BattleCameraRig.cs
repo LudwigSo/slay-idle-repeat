@@ -13,7 +13,8 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// <see cref="BoardCameraRig"/>, for the same reason. <c>ScreenStage.Show</c> resolves
 /// <c>%Camera</c> as a bare <see cref="Camera3D"/> and makes it current; the rig yaws, its
 /// <c>Pitch</c> child tilts, and the camera under both only sits back along its own Z — which is
-/// exactly the one distance <see cref="BattleFraming.Frame"/> returns.
+/// exactly the distance <see cref="BattleFraming.Frame"/> returns. The rig itself stands at the
+/// look-at point, which the frame shifts off the box's centre along the camera's right and up.
 /// </para>
 /// <para>
 /// ⚠️ Every number below is an <c>[Export]</c> assigned in <c>BattleReplay.tscn</c>, under the
@@ -110,7 +111,7 @@ public partial class BattleCameraRig : Node3D
             target.Distance + ((camera.Position.Z - target.Distance) * remaining));
     }
 
-    /// <summary>Where the rig is heading and how far back the camera sits, for the framed box.</summary>
+    /// <summary>Where the rig is heading — the look-at point — and how far back the camera sits, for the framed box.</summary>
     private (Vector3 Position, float Distance)? Target()
     {
         if (!_framed || _pitch is not { } pitch || _camera is not { } camera || _metrics is not { } metrics)
@@ -128,10 +129,17 @@ public partial class BattleCameraRig : Node3D
             (float)(_bounds.MinY + _bounds.MaxY) / 2f,
             (float)(_bounds.MinZ + _bounds.MaxZ) / 2f);
 
-        // Along the screen's up axis rather than the world's, which is what the pitch node's own Y
-        // is once the rig has yawed and it has tilted.
+        // Along the screen's axes rather than the world's: the rig yaws about Y and the pitch node
+        // tilts about its X, so the pitch node's X is the camera's right and its Y the camera's up.
+        // The frame's shifts move the LOOK-AT point; a negative vertical shift lowers it, which
+        // lifts the picture into the band above the screen's centre.
+        var screenRight = pitch.GlobalBasis.X;
         var screenUp = pitch.GlobalBasis.Y;
 
-        return (centre + (screenUp * (float)frame.VerticalShift), (float)frame.Distance);
+        var lookAt = centre +
+                     (screenRight * (float)frame.HorizontalShift) +
+                     (screenUp * (float)frame.VerticalShift);
+
+        return (lookAt, (float)frame.Distance);
     }
 }

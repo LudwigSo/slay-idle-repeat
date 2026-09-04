@@ -32,6 +32,7 @@ public partial class BattleWorld : Node3D
 {
     private const string ActorsPath = "Actors";
     private const string MotionName = "Motion";
+    private const int BoxCorners = 8;
 
     private Node3D? _actors;
     private readonly List<ActorRig> _rigs = [];
@@ -42,7 +43,7 @@ public partial class BattleWorld : Node3D
 
     /// <summary>
     /// The box the actors on the stage stand inside, as <see cref="BattleFraming.BoundsOf"/> draws it
-    /// over every rig's rest point, height and presence.
+    /// over every rig's rest point, height, body width and presence.
     /// </summary>
     public StageBounds StageBounds
     {
@@ -54,7 +55,7 @@ public partial class BattleWorld : Node3D
             {
                 var rig = _rigs[index];
 
-                footprints[index] = new StageFootprint(rig.Rest, rig.Height, rig.Shown);
+                footprints[index] = new StageFootprint(rig.Rest, rig.Height, rig.Shown, rig.HalfWidth);
             }
 
             return BattleFraming.BoundsOf(footprints, _plateClearance);
@@ -196,7 +197,54 @@ public partial class BattleWorld : Node3D
             height = enemy.Height;
         }
 
-        return new ActorRig(actor.ActorId, root, motion, placement.Position, facing, height);
+        // Measured once the model is dressed and in the tree, where its global transform is real.
+        var halfWidth = HalfWidthOf(actor.ActorId, root, motion);
+
+        return new ActorRig(actor.ActorId, root, motion, placement.Position, facing, height, halfWidth);
+    }
+
+    /// <summary>
+    /// How far the rig's body reaches across the floor either side of its rest point: the widest
+    /// corner of every visual's own box under <paramref name="motion"/>, in the root's space, along
+    /// X or Z. Read off the engine at build, never per frame.
+    /// </summary>
+    private static float HalfWidthOf(byte actorId, Node3D root, Node3D motion)
+    {
+        var halfWidth = -1f;
+
+        Widen(root.GlobalTransform.AffineInverse(), motion, ref halfWidth);
+
+        if (halfWidth < 0f)
+        {
+            GD.PushWarning(
+                $"Actor {actorId} has no visual instance to measure a body width from, so the framing " +
+                "pads its rest point by nothing and its body may cross the frame's edge.");
+
+            return 0f;
+        }
+
+        return halfWidth;
+    }
+
+    private static void Widen(in Transform3D toRoot, Node node, ref float halfWidth)
+    {
+        if (node is VisualInstance3D visual)
+        {
+            var inRoot = toRoot * visual.GlobalTransform;
+            var box = visual.GetAabb();
+
+            for (var corner = 0; corner < BoxCorners; corner++)
+            {
+                var point = inRoot * box.GetEndpoint(corner);
+
+                halfWidth = Math.Max(halfWidth, Math.Max(Math.Abs(point.X), Math.Abs(point.Z)));
+            }
+        }
+
+        foreach (var child in node.GetChildren())
+        {
+            Widen(toRoot, child, ref halfWidth);
+        }
     }
 
     /// <summary>The catalogue's model for an actor, or null with the reason pushed.</summary>
@@ -284,7 +332,7 @@ public partial class BattleWorld : Node3D
 
     /// <summary>One actor's three nodes and the few facts about it the pose and the framing need.</summary>
     private sealed class ActorRig(
-        byte actorId, Node3D root, Node3D motion, StagePoint rest, Vector3 facing, float height)
+        byte actorId, Node3D root, Node3D motion, StagePoint rest, Vector3 facing, float height, float halfWidth)
     {
         internal byte ActorId { get; } = actorId;
 
@@ -298,6 +346,9 @@ public partial class BattleWorld : Node3D
         internal Vector3 Facing { get; } = facing;
 
         internal float Height { get; } = height;
+
+        /// <summary>How far the body reaches across the floor either side of the rest point, measured off the dressed model.</summary>
+        internal float HalfWidth { get; } = halfWidth;
 
         /// <summary>The root's basis inverted, once: a world-space displacement becomes the motion node's local one through it.</summary>
         internal Basis ToLocal { get; } = root.Basis.Inverse();

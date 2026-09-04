@@ -19,29 +19,53 @@ public sealed record BattleCameraMetrics(
     double UsableBandBottom,
     double HalfLife);
 
-/// <summary>Where the camera sits to frame a stage.</summary>
-/// <param name="Distance">How far back from the box's centre, along the camera's own forward axis.</param>
-/// <param name="VerticalShift">How far up the camera's own up axis the framed point moves to sit in the free band.</param>
-public readonly record struct StageFrame(double Distance, double VerticalShift);
+/// <summary>
+/// Where the camera looks and how far back it sits to frame a stage. The look-at point is the box's
+/// centre moved along the camera's right axis by <see cref="HorizontalShift"/> and along its up axis
+/// by <see cref="VerticalShift"/>; the camera sits <see cref="Distance"/> behind that point along its
+/// own forward axis.
+/// </summary>
+/// <param name="Distance">How far back from the look-at point, along the camera's forward axis.</param>
+/// <param name="HorizontalShift">How far along the camera's right axis the look-at point sits from the box's centre.</param>
+/// <param name="VerticalShift">
+/// How far along the camera's up axis the look-at point sits from the box's centre. Positive moves
+/// the look-at point UP the screen, and so the picture DOWN it: a band above centre asks for a
+/// negative shift.
+/// </param>
+public readonly record struct StageFrame(double Distance, double HorizontalShift, double VerticalShift);
 
-/// <summary>One actor as the framing sees it: where it rests on the floor, how tall it stands, and whether it is on the stage.</summary>
+/// <summary>One actor as the framing sees it: where it rests on the floor, how tall and how wide it stands, and whether it is on the stage.</summary>
 /// <param name="Rest">The actor's rest point, where the layout stood it.</param>
 /// <param name="Height">How tall the actor's model stands, so its plate anchor can be counted in.</param>
 /// <param name="Present">Whether the actor is on the stage at all; one that is not takes no room.</param>
-public readonly record struct StageFootprint(StagePoint Rest, double Height, bool Present);
+/// <param name="HalfWidth">The body's half extent across the floor, so the box reaches past the rest point to the body's edge.</param>
+public readonly record struct StageFootprint(StagePoint Rest, double Height, bool Present, double HalfWidth);
 
 /// <summary>
-/// The arithmetic the battle camera frames by, on top of <see cref="BoardFraming"/>: each of the box's
-/// eight corners, projected onto the yawed, pitched camera's right and up axes, is fitted by
-/// <see cref="BoardFraming.DistanceThatFits"/> at its own depth along the camera's forward axis, the
-/// furthest-back answer wins, and the band lift is <see cref="BoardFraming.VerticalShiftFor"/> at
-/// that distance.
+/// The arithmetic the battle camera frames by, on top of <see cref="BoardFraming"/>. Each of the
+/// box's eight corners, projected onto the yawed, pitched camera's right and up axes, is fitted by
+/// <see cref="BoardFraming.DistanceThatFits"/> at its own depth along the camera's forward axis, and
+/// the furthest-back answer wins. Fitting alone only guarantees inclusion: under a pitched, yawed
+/// view the near corners project far from the far ones, so the picture's mass sits toward the near
+/// side and low. The look-at point is therefore moved off the box's centre until the projected
+/// picture is centred across the screen and its vertical middle sits at the middle of the band the
+/// interface leaves free, and the distance is fitted again about the moved point.
 /// </summary>
 public static class BattleFraming
 {
+    private const int Corners = 8;
+
+    // Each pass centres the projected picture exactly for the current distance, then re-fits the
+    // distance about the moved look-at point; the re-fit disturbs the centring only by the change in
+    // distance over the reach, so the residual shrinks quadratically and four passes land well
+    // inside a millionth of the screen. The distance is always the last thing computed, so the
+    // margin holds exactly about the point returned.
+    private const int CentringPasses = 4;
+
     /// <summary>
-    /// The box the present actors stand inside: every rest point across the floor, from the floor up
-    /// to the plate anchor above the tallest of them. An empty stage is the zero box.
+    /// The box the present actors stand inside: every rest point across the floor, padded by the
+    /// body's half width either side, from the floor up to the plate anchor above the tallest of
+    /// them. An empty stage is the zero box.
     /// </summary>
     /// <param name="footprints">Every actor on the roster, present or not.</param>
     /// <param name="plateClearance">How far above an actor's head its plate anchor sits.</param>
@@ -64,13 +88,14 @@ public static class BattleFraming
 
             var x = (double)footprint.Rest.X;
             var z = (double)footprint.Rest.Z;
+            var halfWidth = footprint.HalfWidth;
             var top = footprint.Height + plateClearance;
 
             bounds = first
-                ? new StageBounds(x, 0d, z, x, top, z)
+                ? new StageBounds(x - halfWidth, 0d, z - halfWidth, x + halfWidth, top, z + halfWidth)
                 : new StageBounds(
-                    Math.Min(bounds.MinX, x), 0d, Math.Min(bounds.MinZ, z),
-                    Math.Max(bounds.MaxX, x), Math.Max(bounds.MaxY, top), Math.Max(bounds.MaxZ, z));
+                    Math.Min(bounds.MinX, x - halfWidth), 0d, Math.Min(bounds.MinZ, z - halfWidth),
+                    Math.Max(bounds.MaxX, x + halfWidth), Math.Max(bounds.MaxY, top), Math.Max(bounds.MaxZ, z + halfWidth));
             first = false;
         }
 
@@ -96,33 +121,131 @@ public static class BattleFraming
             (bounds.MaxY - bounds.MinY) / 2d,
             (bounds.MaxZ - bounds.MinZ) / 2d);
 
-        // A corner nearer the camera than the box's centre sits where the frustum is narrower, so
-        // each is fitted at its own depth: the distance the centre needs for that corner's
-        // projection, pulled forward by how much nearer the corner is. Whichever corner asks for
-        // the most wins, even if every corner asks for a negative distance.
-        var distance = double.NegativeInfinity;
+        // Every corner as the camera sees it, relative to the box's centre: across the screen, up
+        // it, and along the camera's forward axis. Depth does not change when the look-at point
+        // moves across or up, so it is fixed here once.
+        Span<double> across = stackalloc double[Corners];
+        Span<double> rise = stackalloc double[Corners];
+        Span<double> depth = stackalloc double[Corners];
 
-        for (var corner = 0; corner < 8; corner++)
+        for (var corner = 0; corner < Corners; corner++)
         {
             var offset = new Axis(
                 (corner & 1) == 0 ? -halfSize.X : halfSize.X,
                 (corner & 2) == 0 ? -halfSize.Y : halfSize.Y,
                 (corner & 4) == 0 ? -halfSize.Z : halfSize.Z);
 
-            var fromCentre = BoardFraming.DistanceThatFits(
-                Math.Abs(Dot(offset, right)),
-                Math.Abs(Dot(offset, up)),
+            across[corner] = Dot(offset, right);
+            rise[corner] = Dot(offset, up);
+            depth[corner] = Dot(offset, forward);
+        }
+
+        // Godot's field of view is the vertical one under the default keep-height aspect.
+        var tanVertical = Math.Tan(double.DegreesToRadians(verticalFovDegrees) / 2d);
+        var tanHorizontal = aspect * tanVertical;
+
+        // The band's centre in normalised screen coordinates, up positive: a band centred above the
+        // screen's middle is a positive target, and the picture's middle is moved up to it.
+        var bandCentre = 1d - (camera.UsableBandTop + camera.UsableBandBottom);
+
+        var horizontalShift = 0d;
+        var verticalShift = 0d;
+        var distance = DistanceFor(across, rise, depth, horizontalShift, verticalShift, camera, verticalFovDegrees, aspect);
+
+        for (var pass = 0; pass < CentringPasses; pass++)
+        {
+            if (!Recentre(across, depth, distance, tanHorizontal, 0d, ref horizontalShift) ||
+                !Recentre(rise, depth, distance, tanVertical, bandCentre, ref verticalShift))
+            {
+                break;
+            }
+
+            distance = DistanceFor(across, rise, depth, horizontalShift, verticalShift, camera, verticalFovDegrees, aspect);
+        }
+
+        return new StageFrame(distance, horizontalShift, verticalShift);
+    }
+
+    /// <summary>
+    /// How far back the look-at point the camera must sit for every corner to fit: each corner is
+    /// fitted for its own projection about the look-at point, pulled forward by how much nearer than
+    /// the centre it lies along the forward axis, and whichever asks for the most wins.
+    /// </summary>
+    private static double DistanceFor(
+        ReadOnlySpan<double> across,
+        ReadOnlySpan<double> rise,
+        ReadOnlySpan<double> depth,
+        double horizontalShift,
+        double verticalShift,
+        BattleCameraMetrics camera,
+        double verticalFovDegrees,
+        double aspect)
+    {
+        var distance = double.NegativeInfinity;
+
+        for (var corner = 0; corner < Corners; corner++)
+        {
+            var fromLookAt = BoardFraming.DistanceThatFits(
+                Math.Abs(across[corner] - horizontalShift),
+                Math.Abs(rise[corner] - verticalShift),
                 verticalFovDegrees,
                 aspect,
                 camera.Margin);
 
-            distance = Math.Max(distance, fromCentre - Dot(offset, forward));
+            distance = Math.Max(distance, fromLookAt - depth[corner]);
         }
 
-        var verticalShift = BoardFraming.VerticalShiftFor(
-            camera.UsableBandTop, camera.UsableBandBottom, distance, verticalFovDegrees);
+        return distance;
+    }
 
-        return new StageFrame(distance, verticalShift);
+    /// <summary>
+    /// Moves the look-at point along one screen axis so the middle of the projected picture lands on
+    /// <paramref name="target"/>, in normalised screen coordinates. One Newton step on the two extreme
+    /// corners: each projection slides by its own reach, so the step that puts the two extremes'
+    /// middle on the target is exact while they stay the extremes. False when a corner sits at or
+    /// behind the camera, where no projection exists.
+    /// </summary>
+    private static bool Recentre(
+        ReadOnlySpan<double> components,
+        ReadOnlySpan<double> depth,
+        double distance,
+        double tangent,
+        double target,
+        ref double shift)
+    {
+        var max = double.NegativeInfinity;
+        var min = double.PositiveInfinity;
+        var slopeAtMax = 0d;
+        var slopeAtMin = 0d;
+
+        for (var corner = 0; corner < Corners; corner++)
+        {
+            var reach = distance + depth[corner];
+
+            if (reach <= 0d)
+            {
+                return false;
+            }
+
+            var slope = 1d / (reach * tangent);
+            var projected = (components[corner] - shift) * slope;
+
+            if (projected > max)
+            {
+                max = projected;
+                slopeAtMax = slope;
+            }
+
+            if (projected < min)
+            {
+                min = projected;
+                slopeAtMin = slope;
+            }
+        }
+
+        shift += (max + min - (2d * target)) / (slopeAtMax + slopeAtMin);
+
+        return true;
     }
 
     private static double Dot(Axis a, Axis b) => (a.X * b.X) + (a.Y * b.Y) + (a.Z * b.Z);
