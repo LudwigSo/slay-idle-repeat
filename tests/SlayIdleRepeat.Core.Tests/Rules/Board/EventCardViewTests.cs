@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
@@ -31,6 +31,36 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 public sealed class EventCardViewTests
 {
     private static ContentSnapshot Content => TileWorlds.Context.Content;
+
+    // ------------------------------------------------------------------------------------------
+    // The two arguments, neither of which may be null.
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>A null run is named as the argument it is, not met as a dereference.</summary>
+    /// <remarks>
+    /// Both of these guards survived mutation testing before these cases existed: deleting either
+    /// <c>ThrowIfNull</c> left every other case green, because nothing asked what a null argument
+    /// does. What it does without the guard is throw <see cref="NullReferenceException"/> from
+    /// whichever member the projection happens to touch first — an exception that names none of the
+    /// three things a caller needs, where <see cref="ArgumentNullException"/> names the parameter.
+    /// </remarks>
+    [Fact]
+    public void A_null_run_is_refused_by_name() =>
+        Should.Throw<ArgumentNullException>(() => EventCardView.Project(null!, Content))
+            .ParamName.ShouldBe(
+                "run",
+                "the guard fired for the wrong argument, so the message sends a caller to the " +
+                "content set when the run is what was missing.");
+
+    /// <summary>A null content set is named as the argument it is.</summary>
+    [Fact]
+    public void A_null_content_set_is_refused_by_name() =>
+        Should.Throw<ArgumentNullException>(
+                () => EventCardView.Project(TileWorlds.OnTile(TileKind.Event).Run!.ToSnapshot(), null!))
+            .ParamName.ShouldBe(
+                "content",
+                "the guard fired for the wrong argument, so the message sends a caller to the run " +
+                "when the content set is what was missing.");
 
     // ------------------------------------------------------------------------------------------
     // The gate, both halves.
