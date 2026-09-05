@@ -321,6 +321,17 @@ public partial class Board : Node3D
 
     /// <summary>Builds the event screen for the event tile the run has landed on.</summary>
     private Func<ComposedEventScreen>? _event;
+
+    /// <summary>
+    /// Builds the minigame screen for the tile the run has landed on, given that tile's identity.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The only destination factory here that is asked for anything. Which minigame a tile offers
+    /// is not carried by the run at all, so it is picked from the run's seed and the tile's own
+    /// linear index — both of which this screen already holds, and neither of which it decides.
+    /// </remarks>
+    private Func<ulong, int, ComposedMinigameScreen>? _minigame;
+
     private Func<ComposedRunEndScreen>? _runEnd;
 
     /// <summary>Whether the battle now open has already had its replay watched.</summary>
@@ -452,7 +463,7 @@ public partial class Board : Node3D
     /// <summary>Takes everything the composition root built for this screen, and the shutdown token.</summary>
     /// <remarks>
     /// The whole composed screen rather than its parts, because the parts had reached seven: two
-    /// presenters and a factory for each of the five destinations a run can reach from here. The
+    /// presenters and a factory for each of the six destinations a run can reach from here. The
     /// holder is the client's own composition type, and this reads factories off it exactly as it
     /// already did for the battle — it calls them, it assembles nothing.
     /// </remarks>
@@ -473,6 +484,7 @@ public partial class Board : Node3D
         _shop = screen.Shop;
         _campfire = screen.Campfire;
         _event = screen.Event;
+        _minigame = screen.Minigame;
         _runEnd = screen.RunEnd;
         _connection = screen.Connection;
         _home = home;
@@ -1494,7 +1506,7 @@ public partial class Board : Node3D
         // Latched on the handover having HAPPENED, not on having been attempted — a handover that
         // could not load its scene left the board on screen with the decision still open, and a latch
         // set anyway would answer the next read with the dead-end sentence for a screen nobody saw.
-        _decisionShown = HandOver(decision) ? decision : null;
+        _decisionShown = HandOver(decision, presenter) ? decision : null;
     }
 
     /// <summary>Which screen, if any, the run's present state belongs on.</summary>
@@ -1528,6 +1540,11 @@ public partial class Board : Node3D
                 // command, so a tile just landed on and a tile being resumed onto are one
                 // destination — and this arm is what makes the resume path real.
                 EventPresenter.EventTileKind => RunDecision.Event,
+
+                // 🔒 The tile alone. Which of the three games it offers is the composition's pick
+                // off the run seed and this tile's own index, and the run records no answer to
+                // re-read — so the routing table asks only whether this is a minigame at all.
+                MinigamePresenter.MinigameTileKind => RunDecision.Minigame,
                 _ => null,
             },
             _ => null,
@@ -1535,7 +1552,12 @@ public partial class Board : Node3D
     }
 
     /// <summary>Builds the screen for one decision and puts it in front of this one.</summary>
-    private bool HandOver(RunDecision decision)
+    /// <param name="decision">Which screen the run's present state belongs on.</param>
+    /// <param name="presenter">
+    /// The board's own presenter, for the one destination whose factory needs the tile's identity:
+    /// the minigame's arm is picked from the run seed and the tile's linear index.
+    /// </param>
+    private bool HandOver(RunDecision decision, BoardPresenter presenter)
     {
         switch (decision)
         {
@@ -1550,6 +1572,13 @@ public partial class Board : Node3D
 
             case RunDecision.Event when _event is { } tileEvent:
                 return EventHandover.Show(this, tileEvent(), _lifetime);
+
+            case RunDecision.Minigame when _minigame is { } minigame &&
+                                           presenter.PendingTile is { } minigameTile:
+                return MinigameHandover.Show(
+                    this,
+                    minigame(presenter.RunSeed, minigameTile.LinearIndex),
+                    _lifetime);
 
             case RunDecision.RunEnd when _runEnd is { } runEnd:
                 return RunEndHandover.Show(this, runEnd(), _lifetime);
@@ -1599,5 +1628,12 @@ public partial class Board : Node3D
         /// drawn or not, because the draw is that screen's own first command.
         /// </summary>
         Event = 6,
+
+        /// <summary>
+        /// `19` Part B, the minigame the tile offers — one destination for all three built games,
+        /// because which one a tile opens is picked at composition time and the run carries no
+        /// record of it to route on.
+        /// </summary>
+        Minigame = 7,
     }
 }

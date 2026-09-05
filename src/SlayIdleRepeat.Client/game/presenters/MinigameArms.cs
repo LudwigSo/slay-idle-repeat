@@ -21,9 +21,12 @@ public static class MinigameArms
     public const string Unbuilt = "MG_MEMORY_RUNE";
 
     /// <summary>The minigames a tile may actually open, in the order a screen offers them.</summary>
-    public static IReadOnlyList<string> Built => throw new NotImplementedException(NotBuiltYet);
-
-    private const string NotBuiltYet =
-        "MinigameArms is a signature-only stub: the built list is derived from MinigameView.Ids, " +
-        "which is itself still a stub.";
+    /// <remarks>
+    /// The catalogue's own order, minus the unbuilt arm. Built once, because the catalogue is fixed
+    /// for the life of the process and a tile picking from this list asks for it per landing.
+    /// </remarks>
+    public static IReadOnlyList<string> Built { get; } = Array.AsReadOnly(
+        MinigameView.Ids
+            .Where(id => !string.Equals(id, Unbuilt, StringComparison.Ordinal))
+            .ToArray());
 }

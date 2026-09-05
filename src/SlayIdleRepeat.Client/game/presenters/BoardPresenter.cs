@@ -361,6 +361,17 @@ public sealed class BoardPresenter
     /// </remarks>
     public int Position { get; private set; }
 
+    /// <summary>The run's committed seed, as the run carries it. Zero until a run has been read.</summary>
+    /// <remarks>
+    /// 🔒 Carried for the ONE destination whose identity the run does not record. A Minigame tile
+    /// says it is a minigame and nothing about which of the four it offers, so the screen's arm is
+    /// picked from this seed and the tile's own linear index — a pick that has to be the same every
+    /// time the same tile is opened, or a resume would replace the game under a player who had begun
+    /// it. Nothing else on this screen reads it, and it is a fact about the run rather than a
+    /// derivation, so it is passed on rather than re-derived where it is needed.
+    /// </remarks>
+    public ulong RunSeed { get; private set; }
+
     /// <summary>Every node of the run's board in walk order, boss last — the whole track.</summary>
     /// <remarks>
     /// 🔒 The WHOLE track, never a window on it (`16` D42). Empty only when the board could not be
@@ -1108,6 +1119,7 @@ public sealed class BoardPresenter
         MaxHp = run.MaxHp;
         Gold = run.Gold;
         Position = run.Position;
+        RunSeed = run.RunSeed;
 
         PendingTile = run.PendingTileKind == BoardTileKinds.NoPendingTile
             ? null

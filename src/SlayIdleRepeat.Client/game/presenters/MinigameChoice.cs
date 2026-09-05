@@ -1,3 +1,5 @@
+using SlayIdleRepeat.Core.Rng;
+
 namespace SlayIdleRepeat.Client.Game.Presenters;
 
 /// <summary>Which minigame a Minigame tile offers.</summary>
@@ -27,10 +29,33 @@ public static class MinigameChoice
     /// <returns>One of <paramref name="built"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="built"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="built"/> is empty.</exception>
-    public static string For(ulong runSeed, int tileLinearIndex, IReadOnlyList<string> built) =>
-        throw new NotImplementedException(NotBuiltYet);
+    public static string For(ulong runSeed, int tileLinearIndex, IReadOnlyList<string> built)
+    {
+        ArgumentNullException.ThrowIfNull(built);
 
-    private const string NotBuiltYet =
-        "MinigameChoice is a signature-only stub: the Hash64-backed pick lands with the tests " +
-        "written against it.";
+        if (built.Count == 0)
+        {
+            throw new ArgumentException(
+                "There is no minigame to offer. A pick over nothing would have to invent an id or " +
+                "answer an empty one, and both reach MINIGAME_SUBMIT as an unknown minigame — a " +
+                "refusal the player reads as the game having broken rather than as a client with " +
+                "no screens.",
+                nameof(built));
+        }
+
+        // The draw shape the whole game uses: seed, a named stream, and the index of the draw. The
+        // tile's linear index IS the draw index here, so every tile of a run takes its own draw off
+        // one stream and re-opening a tile takes the same one again.
+        var draw = Hash64.Of(runSeed, ChoiceStream, unchecked((ulong)tileLinearIndex));
+
+        return built[(int)(draw % (ulong)built.Count)];
+    }
+
+    /// <summary>The stream this pick's draws are taken from.</summary>
+    /// <remarks>
+    /// Named rather than unnamed, and named for this decision alone: a stream shared with another
+    /// draw would move this pick whenever that draw's count moved, and the tile a player resumed
+    /// onto would offer a different game.
+    /// </remarks>
+    private const string ChoiceStream = "minigame.choice";
 }

@@ -15,7 +15,7 @@ namespace SlayIdleRepeat.Client.Composition;
 /// the first and shows the second; it composes neither.
 /// </para>
 /// <para>
-/// 🔒 The five destinations are FACTORIES rather than built presenters, for the reason
+/// 🔒 The six destinations are FACTORIES rather than built presenters, for the reason
 /// <see cref="Battle"/> states at length about its own: each is about one fight, one draft or one
 /// tile, and building one at composition time would hand every fight, every draft and every shop of
 /// a run the first one's presenter, its projection and its read.
@@ -30,6 +30,10 @@ public sealed class ComposedBoardScreen
     /// <param name="shop">Builds the shop screen for the shop tile the run is standing on.</param>
     /// <param name="campfire">Builds the campfire / shrine screen for the tile the run is standing on.</param>
     /// <param name="eventScreen">Builds the event screen for the event tile the run is standing on.</param>
+    /// <param name="minigame">
+    /// Builds the minigame screen for the minigame tile the run is standing on, given that tile's
+    /// own identity — the run's seed and the tile's linear index.
+    /// </param>
     /// <param name="runEnd">Builds the run-end screen for the run this board is playing.</param>
     /// <param name="connection">
     /// The one connection presenter, or null when this client was composed over no server. Optional
@@ -43,6 +47,7 @@ public sealed class ComposedBoardScreen
         Func<ComposedShopScreen> shop,
         Func<ComposedCampfireScreen> campfire,
         Func<ComposedEventScreen> eventScreen,
+        Func<ulong, int, ComposedMinigameScreen> minigame,
         Func<ComposedRunEndScreen> runEnd,
         ConnectionPresenter? connection)
     {
@@ -52,6 +57,7 @@ public sealed class ComposedBoardScreen
         ArgumentNullException.ThrowIfNull(shop);
         ArgumentNullException.ThrowIfNull(campfire);
         ArgumentNullException.ThrowIfNull(eventScreen);
+        ArgumentNullException.ThrowIfNull(minigame);
         ArgumentNullException.ThrowIfNull(runEnd);
 
         Board = board;
@@ -60,6 +66,7 @@ public sealed class ComposedBoardScreen
         Shop = shop;
         Campfire = campfire;
         Event = eventScreen;
+        Minigame = minigame;
         RunEnd = runEnd;
         Connection = connection;
     }
@@ -122,6 +129,15 @@ public sealed class ComposedBoardScreen
     /// </remarks>
     public Func<ComposedEventScreen> Event { get; }
 
+    /// <summary>Builds the minigame screen for the minigame tile the run has landed on.</summary>
+    /// <remarks>
+    /// 🔴 The only destination factory that takes arguments, and both are the TILE's rather than the
+    /// run's alone: which minigame a tile offers is picked from the run seed and the tile's linear
+    /// index, and nothing in the run records the answer. A factory that took neither would have to
+    /// pick from something else, and every minigame tile of a run would open on one arm.
+    /// </remarks>
+    public Func<ulong, int, ComposedMinigameScreen> Minigame { get; }
+
     /// <summary>Builds the run-end screen (S13 / S14) for the run this board is playing.</summary>
     /// <remarks>
     /// 🔒 One factory for both screens, because <c>02</c> §6 makes them one moment — and a factory
@@ -175,6 +191,8 @@ public static class BoardComposition
             () => ShopComposition.CreateShopScreen(composed, player, run),
             () => CampfireComposition.CreateCampfireScreen(composed, player, run),
             () => EventComposition.CreateEventScreen(composed, player, run),
+            (runSeed, tileLinearIndex) => MinigameComposition.CreateMinigameScreen(
+                composed, player, run, runSeed, tileLinearIndex),
             () => RunEndComposition.CreateRunEndScreen(composed, player, run),
             NoServerSettledBoardActionResolved());
     }

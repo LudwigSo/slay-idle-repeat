@@ -1,0 +1,41 @@
+[gd_scene format=3]
+
+; One row of the reward ladder: which outcome it is on the left, what it pays on the right.
+; Authored here rather than built in code, like EventResultRow and RunEndCounterRow, so the caption
+; and the amounts can carry their own colours and their own alignment — a caption and a list of
+; amounts glued into one label cannot line up down a column.
+;
+; Sizes and colours are per-node rather than named off SlayTheme, exactly as its sibling row scenes
+; are: this scene is instantiated into a screen and only inherits that screen's theme once it is in
+; the tree, so a row drawn from a theme it turned out not to inherit would be silently unreadable
+; rather than merely wrong.
+;
+; Nothing here is pressed, so the whole row ignores input: it sits inside a ScrollContainer, and a
+; row that swallowed a touch would be a strip of the ladder the list cannot be dragged by.
+[node name="MinigameTierRow" type="HBoxContainer"]
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="CaptionLabel" type="Label" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 40
+vertical_alignment = 1
+autowrap_mode = 3
+
+; Wraps rather than trims. A row that pays three currencies is the interesting one, and a trimmed
+; list of what an outcome pays is a preview that hides the part a player is choosing on.
+[node name="RewardLabel" type="Label" parent="."]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 40
+vertical_alignment = 1
+horizontal_alignment = 2
+autowrap_mode = 3
