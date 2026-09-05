@@ -46,10 +46,22 @@ public sealed class TimingBarRules
     private const string StepFractionReference =
         DocumentPath + "#/timingBar/reducedMotionStepFraction";
 
-    /// <summary>The widest a half-width can be before the window is the whole bar.</summary>
+    /// <summary>
+    /// Half the bar, which is the width at which the window already covers the whole of it.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Excluded rather than allowed, which is <c>minigames.schema.json</c>'s own bound: the window
+    /// is measured out from the centre in both directions, so a half-width of exactly this reaches
+    /// both ends and every strike scores wherever the cursor stands.
+    /// </remarks>
     private const double WidestHalfWidth = 0.5;
 
-    /// <summary>The whole bar, which is the furthest one step could ever move the cursor.</summary>
+    /// <summary>The whole bar, which is a step no player can aim with.</summary>
+    /// <remarks>
+    /// 🔒 Excluded rather than allowed, matching the schema: a step of exactly one bar-length folds
+    /// the cursor between the two ENDS and lands it nowhere else, so the accessible arm of the game
+    /// becomes unwinnable while the timed one is not.
+    /// </remarks>
     private const double WholeBar = 1.0;
 
     private TimingBarRules(
@@ -102,23 +114,24 @@ public sealed class TimingBarRules
                 "judged against would be unhittable by anything but luck.");
         }
 
-        if (halfWidth is <= 0 or > WidestHalfWidth)
+        if (halfWidth is <= 0 or >= WidestHalfWidth)
         {
             throw new InvalidTunableException(
                 HalfWidthReference,
-                "the scoring window is measured from the centre of the bar as a fraction of it, so " +
-                "it has to be wider than nothing and no wider than half — a half-width past " +
-                WidestHalfWidth + " is a window covering the whole bar, which is a game every " +
-                "strike wins.");
+                "the scoring window is measured out from the centre of the bar in both directions " +
+                "as a fraction of it, so it has to be wider than nothing and narrower than half — a " +
+                "half-width of half a bar reaches both ends, which is a window over the whole of it " +
+                "and a game every strike wins wherever the cursor stands.");
         }
 
-        if (stepFraction is <= 0 or > WholeBar)
+        if (stepFraction is <= 0 or >= WholeBar)
         {
             throw new InvalidTunableException(
                 StepFractionReference,
                 "the reduced-motion step is a fraction of the bar, so it has to move the cursor and " +
-                "cannot move it further than the bar is long — a step of nothing leaves the " +
-                "accessible arm of this game with no way to aim at all.");
+                "has to leave it somewhere a strike can be aimed — a step of nothing leaves the " +
+                "accessible arm of this game with no way to aim at all, and a step of a whole bar " +
+                "folds the cursor between the two ends and never puts it anywhere else.");
         }
 
         RefuseAStrikeCountTheTableCannotPay(content, strikes);

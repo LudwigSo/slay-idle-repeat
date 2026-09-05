@@ -330,25 +330,34 @@ public partial class Minigame : Node3D
 
         RenderTimingBar(presenter);
 
+        // 🔴 One answer for every control that can send the command, and it is the PRESENTER's rather
+        // than this screen's. A timing bar played out to its last strike is still being played until
+        // a submission is accepted, and a press on it is that submission again — so a control taken
+        // away here because the game was finished takes away the retry as well, and a submission that
+        // faulted then leaves a screen with a sentence on it and nothing at all to press.
+        var offered = !_busy && presenter.PlayOffered;
+
         // All three carry the same caption and the same answer, because the outcome is the server's
         // draw: which chest was opened decides nothing at all.
-        DrawChest(_chestOne, presenter.PickChestText);
-        DrawChest(_chestTwo, presenter.PickChestText);
-        DrawChest(_chestThree, presenter.PickChestText);
+        DrawChest(_chestOne, presenter.PickChestText, offered);
+        DrawChest(_chestTwo, presenter.PickChestText, offered);
+        DrawChest(_chestThree, presenter.PickChestText, offered);
 
         _strikeButton.Text = presenter.StrikeText;
         _strikeButton.Visible = playing && controls == MinigameControls.Timing;
-        _strikeButton.Disabled = _busy || presenter.Finished;
+        _strikeButton.Disabled = !offered;
 
         // Drawn only for a player who asked for nothing to move: with the sweep off, the step is the
-        // whole of how they aim, and with it on the cursor is already where the clock says.
+        // whole of how they aim, and with it on the cursor is already where the clock says. Unlike
+        // the strike beside it this one really is spent once the bar is played out — a step sends
+        // nothing, so on a finished game there is nothing for it to do.
         _stepButton.Text = presenter.StepText;
         _stepButton.Visible = _strikeButton.Visible && presenter.ReducedMotion;
-        _stepButton.Disabled = _busy || presenter.Finished;
+        _stepButton.Disabled = !offered || presenter.Finished;
 
         _rollButton.Text = presenter.RollText;
         _rollButton.Visible = playing && controls == MinigameControls.Dice;
-        _rollButton.Disabled = _busy;
+        _rollButton.Disabled = !offered;
 
         _continueButton.Text = presenter.ContinueText;
 
@@ -629,7 +638,10 @@ public partial class Minigame : Node3D
     }
 
     /// <summary>Writes one chest's caption and whether it may be opened right now.</summary>
-    private void DrawChest(Button? chest, string caption)
+    /// <param name="chest">The control, or null when this screen left the tree before it resolved.</param>
+    /// <param name="caption">What it reads. The same on all three, because they do the same thing.</param>
+    /// <param name="offered">Whether the presenter says a submission may still be sent.</param>
+    private static void DrawChest(Button? chest, string caption, bool offered)
     {
         if (chest is not { } control)
         {
@@ -637,7 +649,7 @@ public partial class Minigame : Node3D
         }
 
         control.Text = caption;
-        control.Disabled = _busy;
+        control.Disabled = !offered;
     }
 
     /// <summary>Takes one press handler back off a control, if the control is still there.</summary>

@@ -106,6 +106,69 @@ public sealed class TimingBarGameTests
                           "with this refused too, the case above is refusing every read rather than " +
                           "the two counts the table cannot pay.");
 
+    /// <summary>
+    /// 🔒 <b>Every authored number is bounded, and the bounds are the schema's own.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 Each of these rows is a document that ships a game nobody can play, and none of them is
+    /// malformed — so this read is the whole of what stands between such a document and a screen
+    /// opening on it. No strikes is a game with no press to make; a sweep of no time is a cursor
+    /// everywhere at once; a window of no width is a game no strike wins, and one of half a bar
+    /// reaches both ends, which is a game every strike wins wherever the cursor stands; a step of
+    /// nothing leaves the reduced-motion player unable to aim, and a step of a whole bar folds the
+    /// cursor between the two ENDS and puts it nowhere else — the accessible arm becomes unwinnable
+    /// while the timed one is not.
+    /// </para>
+    /// <para>
+    /// 🔒 The two fractions are pinned at exactly the value <c>minigames.schema.json</c> excludes. A
+    /// runtime bound one epsilon looser than the schema it stands behind is a bound that only ever
+    /// agrees with documents the schema has already refused.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(
+        0, MinigameContent.SweepSeconds, MinigameContent.HitWindowHalfWidth,
+        MinigameContent.ReducedMotionStepFraction)]
+    [InlineData(
+        MinigameContent.Strikes, 0.0, MinigameContent.HitWindowHalfWidth,
+        MinigameContent.ReducedMotionStepFraction)]
+    [InlineData(
+        MinigameContent.Strikes, MinigameContent.SweepSeconds, 0.0,
+        MinigameContent.ReducedMotionStepFraction)]
+    [InlineData(
+        MinigameContent.Strikes, MinigameContent.SweepSeconds, 0.5,
+        MinigameContent.ReducedMotionStepFraction)]
+    [InlineData(
+        MinigameContent.Strikes, MinigameContent.SweepSeconds, MinigameContent.HitWindowHalfWidth,
+        0.0)]
+    [InlineData(
+        MinigameContent.Strikes, MinigameContent.SweepSeconds, MinigameContent.HitWindowHalfWidth,
+        1.0)]
+    public void A_number_that_would_make_the_game_unplayable_is_refused_rather_than_shipped(
+        int strikes, double sweepSeconds, double hitWindowHalfWidth, double stepFraction) =>
+        Should.Throw<ContentException>(() => TimingBarRules.Read(
+            MinigameContent.TimingBarAuthoring(
+                strikes, sweepSeconds, hitWindowHalfWidth, stepFraction)));
+
+    /// <summary>
+    /// 🔒 …and the widest window and the longest step the schema DOES allow are both accepted.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The negative control for the two boundary rows above. Without it a read that refused every
+    /// fraction it was given — or refused on the strike count alone and never looked at either —
+    /// satisfies both of them, and the bound would be pinned at nothing in particular.
+    /// </remarks>
+    [Fact]
+    public void The_widest_window_and_the_longest_step_short_of_the_bound_are_accepted()
+    {
+        var rules = TimingBarRules.Read(MinigameContent.TimingBarAuthoring(
+            hitWindowHalfWidth: 0.49, reducedMotionStepFraction: 0.99));
+
+        rules.HitWindowHalfWidth.ShouldBe(0.49, Slack);
+        rules.ReducedMotionStepFraction.ShouldBe(0.99, Slack);
+    }
+
     // ---- the cursor ------------------------------------------------------------------------------
 
     /// <summary>

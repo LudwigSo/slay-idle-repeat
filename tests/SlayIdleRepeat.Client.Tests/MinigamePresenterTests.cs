@@ -791,6 +791,61 @@ public sealed class MinigamePresenterTests
             MinigameExit.ToTheBoard, "the tile has cleared, which is the ordinary way off this screen.");
     }
 
+    /// <summary>
+    /// 🔴 <b>A played-out timing bar whose submission never landed can still send it again.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 This is the state the four above do not cover, and it is a dead end if the screen gets it
+    /// wrong. The bar is finished, so nothing is left to strike; the submission faulted, so the tile
+    /// is still pending and the stage is still <c>Playing</c> — which makes <c>Exit</c> answer
+    /// <c>Nowhere</c> and takes the way back out of use, correctly, because leaving would hand the
+    /// board a tile it has already latched. The ONLY thing that can move this run on is the
+    /// submission going out again, and the only control that sends it is the arm's own. A screen that
+    /// withdrew that control because the game was finished would leave a refusal sentence with
+    /// nothing under it to press.
+    /// </para>
+    /// <para>
+    /// 🔒 Asserted through <c>PlayOffered</c> AND through a second call reaching the host, because
+    /// either alone is satisfiable by the other being wrong: a flag nobody acts on draws a live
+    /// control over a presenter that refuses, and a presenter that accepts is no use behind a control
+    /// drawn out of use.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_played_out_timing_bar_whose_submission_faulted_can_still_send_it_again()
+    {
+        var host = RecordingGameHost
+            .Finding(AnyPlayer(), AtAMinigame())
+            .FaultingItsCommands(new TimeoutException("the submission never completed"));
+
+        var presenter = Build(host, minigameId: MinigameContent.TimingBar);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        PlayTo(presenter, 2);
+
+        (await presenter.SubmitAsync(CancellationToken.None))
+            .ShouldBe(MinigameSubmission.HostUnavailable);
+
+        presenter.Finished.ShouldBeTrue("the bar was played out before the command went anywhere.");
+        presenter.Exit.ShouldBe(
+            MinigameExit.Nowhere,
+            "the tile is still pending, so handing back would give the board a decision it has " +
+            "latched — the way out is genuinely shut here, which is what makes the control below " +
+            "the only thing on the screen.");
+        presenter.PlayOffered.ShouldBeTrue(
+            "🔴 the game is finished and the submission faulted, so the screen has a sentence on it " +
+            "and NOTHING to press: the way back is out of use and the arm's own control was " +
+            "withdrawn for being finished. That is a run leavable only by killing the application.");
+
+        (await presenter.SubmitAsync(CancellationToken.None)).ShouldBe(
+            MinigameSubmission.HostUnavailable,
+            "the retry never reached the host, so the offer above is one the presenter does not " +
+            "honour — a live control over a submission that refuses itself.");
+        host.SubmitCallCount.ShouldBe(2, "the second press sent nothing.");
+    }
+
     // ---- reduced motion ---------------------------------------------------------------------------
 
     /// <summary>
@@ -881,18 +936,41 @@ public sealed class MinigamePresenterTests
     }
 
     /// <summary>
-    /// 🔒 Each arm names itself and states its own rule, and no two arms share either.
+    /// 🔒 Each arm names itself, states its own rule and asks for its own controls, and no two arms
+    /// share any of the three.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔴 The distinctness is the claim: a screen resolving one key for every arm passes an
     /// "it came from the catalogue" assertion and titles the dice duel "Three Chests".
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The control set is the half nothing else measures.</b> The scene switches on it and on
+    /// nothing else to decide which of the three games it draws at all — a wrong answer puts three
+    /// chests over a timing bar, and every other assertion in this suite still passes, because the
+    /// presenter's own numbers are right and only the picture is a different game.
+    /// </para>
+    /// <para>
+    /// 🔒 The unbuilt arm is a row here, not an omission. The rules layer accepts a submission for
+    /// it, so an id that reaches this screen with no name, no rule and no named control set would be
+    /// the one arm still reachable and the one arm with nothing drawn for it.
+    /// </para>
     /// </remarks>
     [Theory]
-    [InlineData("MG_CHEST_PICK", MinigameContent.ChestPickNameKey, MinigameContent.ChestPickRuleKey)]
-    [InlineData("MG_TIMING_BAR", MinigameContent.TimingBarNameKey, MinigameContent.TimingBarRuleKey)]
-    [InlineData("MG_DICE_DUEL", MinigameContent.DiceDuelNameKey, MinigameContent.DiceDuelRuleKey)]
+    [InlineData(
+        "MG_CHEST_PICK", MinigameContent.ChestPickNameKey, MinigameContent.ChestPickRuleKey,
+        MinigameControls.Chests)]
+    [InlineData(
+        "MG_TIMING_BAR", MinigameContent.TimingBarNameKey, MinigameContent.TimingBarRuleKey,
+        MinigameControls.Timing)]
+    [InlineData(
+        "MG_DICE_DUEL", MinigameContent.DiceDuelNameKey, MinigameContent.DiceDuelRuleKey,
+        MinigameControls.Dice)]
+    [InlineData(
+        MinigameArms.Unbuilt, MinigameContent.MemoryRuneNameKey, MinigameContent.MemoryRuneRuleKey,
+        MinigameControls.Unbuilt)]
     public void Each_arm_names_itself_and_states_its_own_rule(
-        string minigameId, string nameKey, string ruleKey)
+        string minigameId, string nameKey, string ruleKey, MinigameControls controls)
     {
         var presenter = Build(
             RecordingGameHost.Finding(AnyPlayer(), AtAMinigame()), minigameId: minigameId);
@@ -906,6 +984,10 @@ public sealed class MinigamePresenterTests
             MinigameContent.EnglishValueOf(ruleKey),
             minigameId + " states another arm's rule, so the only instruction the player gets " +
             "describes a game they are not playing.");
+        presenter.Controls.ShouldBe(
+            controls,
+            minigameId + " asks for another arm's controls, so the scene draws a different game " +
+            "from the one the rest of this screen is about.");
     }
 
     // ---- construction -----------------------------------------------------------------------------

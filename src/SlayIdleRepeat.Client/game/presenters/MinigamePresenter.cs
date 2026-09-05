@@ -378,6 +378,26 @@ public sealed class MinigamePresenter
             _ => MinigameExit.Nowhere,
         };
 
+    /// <summary>Whether the control that PLAYS this arm still does something when it is pressed.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>A played-out game is not a spent one, and this is where the difference is stated.</b> The
+    /// timing bar stays <see cref="MinigameStage.Playing"/> until a submission is ACCEPTED, so
+    /// <see cref="Exit"/> is <see cref="MinigameExit.Nowhere"/> and the way back is drawn out of use
+    /// throughout. If the submission then faults or is refused, the arm's own control is the only
+    /// thing left on the screen — and withdrawing it because the game was finished leaves a refusal
+    /// sentence with nothing under it to press, on a run that could then be left only by killing the
+    /// application. The press on a played-out bar IS the submission again, which is exactly why
+    /// <see cref="Finished"/> is not a reason to take the control away.
+    /// </para>
+    /// <para>
+    /// 🔒 Answered here rather than in the scene, for the reason <see cref="Controls"/> is: when a
+    /// control that sends a command may be pressed is a fact about the run and the command in flight,
+    /// and the one <c>Node</c> that worked it out for itself worked out the wrong one.
+    /// </para>
+    /// </remarks>
+    public bool PlayOffered => Stage == MinigameStage.Playing && !_submissionInFlight;
+
     /// <summary>Whether this arm's outcome is the server's to draw.</summary>
     public bool IsServerRolled { get; private set; }
 
