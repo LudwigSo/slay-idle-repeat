@@ -156,6 +156,7 @@ public sealed class MinigameSceneRuleTests
     [InlineData("StatusLabel")]
     [InlineData("RejectionLabel")]
     [InlineData("ActionColumn")]
+    [InlineData("StrikeRow")]
     [InlineData("StrikeButton")]
     [InlineData("StepButton")]
     [InlineData("RollButton")]

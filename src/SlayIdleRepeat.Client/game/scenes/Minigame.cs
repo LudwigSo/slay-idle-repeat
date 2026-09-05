@@ -78,6 +78,7 @@ public partial class Minigame : Node3D
     private const string ResultLabelPath = "%ResultLabel";
     private const string StatusLabelPath = "%StatusLabel";
     private const string RejectionLabelPath = "%RejectionLabel";
+    private const string StrikeRowPath = "%StrikeRow";
     private const string StrikeButtonPath = "%StrikeButton";
     private const string StepButtonPath = "%StepButton";
     private const string RollButtonPath = "%RollButton";
@@ -123,6 +124,7 @@ public partial class Minigame : Node3D
     private Label? _resultLabel;
     private Label? _statusLabel;
     private Label? _rejectionLabel;
+    private HBoxContainer? _strikeRow;
     private Button? _strikeButton;
     private Button? _stepButton;
     private Button? _rollButton;
@@ -180,6 +182,7 @@ public partial class Minigame : Node3D
         _resultLabel = GetNode<Label>(ResultLabelPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
         _rejectionLabel = GetNode<Label>(RejectionLabelPath);
+        _strikeRow = GetNode<HBoxContainer>(StrikeRowPath);
         _strikeButton = GetNode<Button>(StrikeButtonPath);
         _stepButton = GetNode<Button>(StepButtonPath);
         _rollButton = GetNode<Button>(RollButtonPath);
@@ -303,8 +306,8 @@ public partial class Minigame : Node3D
             _hitsLabel is null || _chestPanel is null || _diceDuelPanel is null ||
             _diceLabel is null || _resultPanel is null || _resultHeading is null ||
             _resultLabel is null || _statusLabel is null || _rejectionLabel is null ||
-            _strikeButton is null || _stepButton is null || _rollButton is null ||
-            _continueButton is null)
+            _strikeRow is null || _strikeButton is null || _stepButton is null ||
+            _rollButton is null || _continueButton is null)
         {
             return;
         }
@@ -355,6 +358,10 @@ public partial class Minigame : Node3D
         _stepButton.Text = presenter.StepText;
         _stepButton.Visible = _strikeButton.Visible && presenter.ReducedMotion;
         _stepButton.Disabled = _busy || !presenter.StepOffered;
+
+        // The pair share a row, and the row goes with the strike. Left standing on the arms that
+        // draw no bar it would be an empty control claiming a gap in the column above the way back.
+        _strikeRow.Visible = _strikeButton.Visible;
 
         _rollButton.Text = presenter.RollText;
         _rollButton.Visible = playing && controls == MinigameControls.Dice;
