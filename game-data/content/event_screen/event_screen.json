@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schema/event_screen.schema.json",
+  "_doc": "The strings the Event tile screen shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. ⚠️ The directory is `event_screen/` rather than `event/` on purpose: `schema/event.schema.json` already governs the live-ops event package, `schema/events.schema.json` the framework-wide tuning file, and `schema/board_events.schema.json` the cards this very screen shows. Four names a letter and a word apart is a real hazard, and this document takes the one none of the other three could be mistaken for. 🔴 The CARD PROSE IS NOT HERE. A card's title, its body and each option's label are free English strings in board_events.json rather than loc keys, so the locale check never sees them and a German player reads the card in English until a content pass re-authors them; what this document carries is the screen's own chrome, which is fully localised. Deliberately absent: any currency caption, because tuning/currencies.json already names all eight currencies through its own keys and a second copy here would be free to drift out of step with the wallet it describes; and any outcome wording, because what an option pays is drawn by weight at choose time and most shipped outcomes are UNSUPPORTED — which is why `status.nothingHappened` is the common answer on this screen and not an edge case. ⚠️ `label.wallet` captions the wallet SECTION of the result panel, not a row inside it: the rows are captioned by the currency's own name, and without a section caption a wallet payout would appear as bare currency names under a screen that had already used `label.result` for the Gold and HP rows above them.",
+  "name": {
+    "title": "loc.event_screen.title.name"
+  },
+  "label": {
+    "cost": "loc.event_screen.cost.label",
+    "result": "loc.event_screen.result.label",
+    "gold": "loc.event_screen.gold.label",
+    "hp": "loc.event_screen.hp.label",
+    "fixedDice": "loc.event_screen.fixed_dice.label",
+    "wallet": "loc.event_screen.wallet.label"
+  },
+  "action": {
+    "continue": "loc.event_screen.continue.action"
+  },
+  "block": {
+    "unaffordable": "loc.event_screen.unaffordable.block"
+  },
+  "status": {
+    "loading": "loc.event_screen.loading.status",
+    "drawing": "loc.event_screen.drawing.status",
+    "runMissing": "loc.event_screen.run_missing.status",
+    "notAtAnEvent": "loc.event_screen.not_at_an_event.status",
+    "readUnavailable": "loc.event_screen.read_unavailable.status",
+    "cardUnavailable": "loc.event_screen.card_unavailable.status",
+    "nothingHappened": "loc.event_screen.nothing_happened.status",
+    "refused": "loc.event_screen.refused.status",
+    "hostUnavailable": "loc.event_screen.host_unavailable.status"
+  }
+}

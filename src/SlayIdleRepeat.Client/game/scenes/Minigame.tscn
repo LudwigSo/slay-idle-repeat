@@ -1,0 +1,426 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/Minigame.cs" id="1_minigame"]
+[ext_resource type="Theme" path="res://game/theme/SlayTheme.tres" id="2_theme"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_ground"]
+size = Vector2(24, 42)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+shading_mode = 0
+albedo_color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="Minigame" type="Node3D"]
+script = ExtResource("1_minigame")
+
+[node name="World" type="Node3D" parent="."]
+unique_name_in_owner = true
+
+[node name="Camera" type="Camera3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
+fov = 60.0
+
+[node name="Ground" type="MeshInstance3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+mesh = SubResource("QuadMesh_ground")
+material_override = SubResource("StandardMaterial3D_ground")
+
+[node name="Ui" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+
+; The shared theme is assigned once, here, on the root of the overlay, and every control below
+; inherits it. What names a variation below is what the theme genuinely carries.
+[node name="Screen" type="Control" parent="Ui"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+
+; Authored insets are a starting point only: SafeAreaInsets overwrites all four from the display
+; server on the way in, which is what carries this screen across the 9:16 to 9:20 portrait range
+; without a magic number per node.
+[node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
+unique_name_in_owner = true
+mouse_filter = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 64
+theme_override_constants/margin_top = 128
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 128
+
+[node name="Column" type="VBoxContainer" parent="Ui/Screen/SafeArea"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="TitleLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudTitle"
+autowrap_mode = 3
+
+; The arm's own name and the one sentence saying how it is played. Both are the game's identity
+; rather than the screen's, so they sit above everything the game itself draws.
+[node name="ArmLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudValue"
+autowrap_mode = 3
+
+[node name="RuleLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+; The chest pick's pity countdown, and the chest pick's alone. Hidden by default, because three of
+; the four minigames advance no counter at all and a countdown drawn on them is a promise nothing
+; in the rules layer keeps.
+;
+; It stands with the rule sentence rather than inside the reward ladder, and OUTSIDE the scroll:
+; it is a fact about the pick the player is about to make, and three 340-tall chests are taller
+; than the frame on the shortest portrait this game supports — so a countdown living below them
+; would be a number the player has to go looking for after deciding without it.
+[node name="GuaranteeLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.82, 0.36, 1)
+theme_override_font_sizes/font_size = 40
+autowrap_mode = 3
+
+; The one child that takes the slack. Every other row here is its own height, so a taller frame
+; lengthens the game rather than stretching the chrome, and a shorter one scrolls the ladder rather
+; than pushing the action column off the bottom.
+[node name="GameScroll" type="ScrollContainer" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.0
+horizontal_scroll_mode = 0
+
+; Bottom-aligned inside the scroll, as the Event screen's card column is and for the same reason on
+; a handset: the game itself is the primary action, and content that fits with room to spare would
+; otherwise sit at the top of the frame with the slack beneath it and the play out of a thumb's
+; reach. Nothing moves when the ladder is taller than the frame.
+;
+; 🔴 The ORDER of the children below is load-bearing. A scroll whose content overflows opens at the
+; top, so whatever is authored first is what a player actually sees — and the reward ladder is four
+; rows of reference while the panel under it is the thing they have to press. Authored the other way
+; round, the shortest supported portrait opened on the ladder with the game itself below the fold.
+; The game comes first, the result that replaces it comes next, and the ladder — read once and then
+; only checked — sits under both.
+[node name="GameColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/GameScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 24
+alignment = 2
+
+; The timing bar. The track, the band a strike is judged inside, and the marker that sweeps it —
+; all three drawn from the presenter's own numbers rather than from sizes written here, so the band
+; a player aims at is the band the strike is scored against.
+[node name="TimingBarPanel" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudTile"
+
+[node name="TimingBarBody" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/TimingBarPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="BarTrack" type="ColorRect" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/TimingBarPanel/TimingBarBody"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 160)
+layout_mode = 2
+mouse_filter = 2
+color = Color(0.13, 0.13, 0.17, 1)
+
+; The band, anchored from the centre outwards. Its two anchors are written every draw from the
+; authored half-width, so a retuned window moves the picture and the scoring together.
+[node name="HitWindow" type="ColorRect" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/TimingBarPanel/TimingBarBody/BarTrack"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.42
+anchor_top = 0.0
+anchor_right = 0.58
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.98, 0.82, 0.36, 0.4)
+
+; 🔴 The two posts that turn the band into a SHAPE. A wash of colour across a dark track is one
+; channel, and a player who cannot separate the two hues has nothing at all to aim between; a pair
+; of hard opaque posts gives the target an edge that reads by contrast and by form. They are
+; children of the band, so the anchors written to it every draw carry them along and the posts
+; cannot come to stand anywhere but where the window actually is.
+[node name="WindowPostLeft" type="ColorRect" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/TimingBarPanel/TimingBarBody/BarTrack/HitWindow"]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.0
+anchor_bottom = 1.0
+offset_right = 8.0
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.98, 0.82, 0.36, 1)
+
+[node name="WindowPostRight" type="ColorRect" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/TimingBarPanel/TimingBarBody/BarTrack/HitWindow"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -8.0
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.98, 0.82, 0.36, 1)
+
+; The marker, a fixed width either side of a moving anchor. Anchored rather than offset from the
+; left edge so it stays where the fraction says on any track width.
+[node name="Cursor" type="ColorRect" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/TimingBarPanel/TimingBarBody/BarTrack"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.0
+anchor_bottom = 1.0
+offset_left = -8.0
+offset_right = 8.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.93, 0.93, 0.96, 1)
+
+[node name="HitsLabel" type="Label" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/TimingBarPanel/TimingBarBody"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+; Three chests. All three send the identical command, because the server draws the outcome and the
+; chest that was opened decides nothing — which is exactly why they are three controls and not one:
+; a single button would be honest about the rules and dishonest about the game.
+;
+; They carry the theme's primary face, as the strike and the roll do: opening a chest IS this arm's
+; play, and drawn quiet while the way back was drawn loud the only filled control on the screen was
+; the one that could not be pressed yet.
+[node name="ChestPanel" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="ChestOne" type="Button" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/ChestPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+autowrap_mode = 3
+
+[node name="ChestTwo" type="Button" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/ChestPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+autowrap_mode = 3
+
+[node name="ChestThree" type="Button" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/ChestPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+autowrap_mode = 3
+
+; The dice duel draws no board of its own: the roll is the server's and the outcome is the tier it
+; paid, so what stands here before the press is the rule sentence and nothing pretending to be dice.
+[node name="DiceDuelPanel" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudTile"
+
+[node name="DiceDuelBody" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/DiceDuelPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="DiceLabel" type="Label" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/DiceDuelPanel/DiceDuelBody"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+; What was actually won, drawn where a result belongs rather than on the status line: the status
+; line also carries "your run could not be read", and an outcome shown there reads as a failure. It
+; stands where the game itself stood, so the answer arrives in the place the player was looking.
+[node name="ResultPanel" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudTile"
+
+[node name="ResultBody" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/ResultPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="ResultHeading" type="Label" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/ResultPanel/ResultBody"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 48
+autowrap_mode = 3
+
+[node name="ResultLabel" type="Label" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/ResultPanel/ResultBody"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 44
+autowrap_mode = 3
+
+; 🔴 What the outcome actually PAID, under the name of the outcome that paid it. Named alone, the
+; result was the one thing on a reward screen that did not say what the reward was: the amounts sat
+; in an unhighlighted row of the ladder below, which is a table of what every outcome pays and says
+; nothing about which one this run got. It takes the theme's own value face rather than a size
+; written here, because that is what this game draws a number that matters in.
+[node name="ResultRewardLabel" type="Label" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/ResultPanel/ResultBody"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudValue"
+autowrap_mode = 3
+
+; What each outcome pays, before anything is played. Transparent to input, because it lives inside
+; GameScroll: a container that swallows a touch is a patch of the screen the list cannot be dragged
+; by, and nothing on this panel is pressed.
+;
+; 🔴 Drawn only when there are rows in it. Five of this screen's eight states project no ladder at
+; all — a run that could not be read, a run that is not here, a content set that cannot describe the
+; game — and a framed tile carrying a heading over nothing is the largest thing on those screens,
+; reading as a list that failed to arrive rather than as a list there was never anything to put in.
+[node name="RewardsPanel" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudTile"
+
+[node name="RewardsBody" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/RewardsPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+; Stated rather than inherited, and larger than the rows under it: left to the theme's bare Label
+; entry a heading comes out at 36, smaller than the 40 of the rows it heads.
+[node name="RewardsHeading" type="Label" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/RewardsPanel/RewardsBody"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 48
+autowrap_mode = 3
+
+[node name="RewardRows" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/RewardsPanel/RewardsBody"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="RejectionLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.62, 0.58, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+; The action column, under the thumb. Every control in it is 340 tall, which is this screen
+; family's own height and well above the 144-pixel floor.
+[node name="ActionColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+; 🔴 Aiming and hitting share ONE row, and that is what makes reduced motion cost no height at all.
+; Stacked, the extra control a player who asked for nothing to move is given took a third 340 out
+; of a frame that has 1920 of them, and the bar they were aiming at was squeezed under the fold —
+; the setting meant to help would have been the setting that made the game unplayable. Side by side
+; both halves span the width and neither sits in a corner, so the pair reads the same to either
+; hand. The row collapses with the strike when the arm is not the timing bar.
+[node name="StrikeRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+; Drawn only for a player who asked for nothing to move. It is not a lesser control: the cursor
+; does not sweep at all under reduced motion, so this is the whole of how that player aims. It sits
+; before the strike because that is the order it is used in — move the marker, then hit it.
+[node name="StepButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn/StrikeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+visible = false
+size_flags_horizontal = 3
+theme_type_variation = &"QuietButton"
+theme_override_font_sizes/font_size = 60
+autowrap_mode = 3
+
+[node name="StrikeButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn/StrikeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+visible = false
+size_flags_horizontal = 3
+theme_type_variation = &"PrimaryButton"
+theme_override_font_sizes/font_size = 80
+autowrap_mode = 3
+
+[node name="RollButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+visible = false
+theme_type_variation = &"PrimaryButton"
+theme_override_font_sizes/font_size = 80
+autowrap_mode = 3
+
+[node name="ContinueButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+theme_override_font_sizes/font_size = 80
+autowrap_mode = 3

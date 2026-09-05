@@ -127,18 +127,6 @@ public partial class Board : Node3D
         "drawn as ended and has nowhere to go. The board neither banks it nor abandons it.";
 
     /// <summary>
-    /// 🔴 Deliberately unbuilt, and named so it can be found — but NOT a dead end any more, which is
-    /// why it is a warning and the sentence above is an error.
-    /// </summary>
-    private const string TheEventAndMinigameScreensAreNotBuiltHere =
-        "The event-card and minigame screens are not built: the run is standing on a tile that has " +
-        "no screen to open. It is not stuck — the board's own control resolves the tile through the " +
-        "command that screen would have submitted, taking the card's first cost-free option or the " +
-        "minigame's lowest outcome tier, so the rest of the run is reachable. What the player does " +
-        "not get is the choice or the game. See UnbuiltTileScreens, which is the whole of the " +
-        "placeholder and goes when the two screens land.";
-
-    /// <summary>
     /// ⚠️ This task's choice, and the only timing on this screen that is not authored. The design
     /// says the die panel opens on a long press of the roll button and does not say how long a long
     /// press is. The panel is therefore also reachable from a control of its own, so nothing about
@@ -317,6 +305,20 @@ public partial class Board : Node3D
 
     /// <summary>Builds the campfire / shrine screen for the tile the run has landed on.</summary>
     private Func<ComposedCampfireScreen>? _campfire;
+
+    /// <summary>Builds the event screen for the event tile the run has landed on.</summary>
+    private Func<ComposedEventScreen>? _event;
+
+    /// <summary>
+    /// Builds the minigame screen for the tile the run has landed on, given that tile's identity.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The only destination factory here that is asked for anything. Which minigame a tile offers
+    /// is not carried by the run at all, so it is picked from the run's seed and the tile's own
+    /// linear index — both of which this screen already holds, and neither of which it decides.
+    /// </remarks>
+    private Func<ulong, int, ComposedMinigameScreen>? _minigame;
+
     private Func<ComposedRunEndScreen>? _runEnd;
 
     /// <summary>Whether the battle now open has already had its replay watched.</summary>
@@ -447,8 +449,8 @@ public partial class Board : Node3D
 
     /// <summary>Takes everything the composition root built for this screen, and the shutdown token.</summary>
     /// <remarks>
-    /// The whole composed screen rather than its parts, because the parts had reached six: two
-    /// presenters and a factory for each of the four destinations a run can reach from here. The
+    /// The whole composed screen rather than its parts, because the parts had reached seven: two
+    /// presenters and a factory for each of the six destinations a run can reach from here. The
     /// holder is the client's own composition type, and this reads factories off it exactly as it
     /// already did for the battle — it calls them, it assembles nothing.
     /// </remarks>
@@ -468,6 +470,8 @@ public partial class Board : Node3D
         _perkDraft = screen.PerkDraft;
         _shop = screen.Shop;
         _campfire = screen.Campfire;
+        _event = screen.Event;
+        _minigame = screen.Minigame;
         _runEnd = screen.RunEnd;
         _connection = screen.Connection;
         _home = home;
@@ -1206,12 +1210,29 @@ public partial class Board : Node3D
         _ = SubmitAsync(presenter => presenter.RollAsync(_lifetime));
     }
 
-    /// <remarks>Resolving a tile is server-settled too — see <see cref="OnRollPressed"/>.</remarks>
+    /// <remarks>
+    /// <para>Resolving a tile is server-settled too — see <see cref="OnRollPressed"/>.</para>
+    /// <para>
+    /// 🔴 <b>On a tile whose own screen is the only thing that can resolve it, this press IS that
+    /// screen.</b> The presenter sends no command for those two kinds, so what the press has to
+    /// accomplish is the handover — and the latch below refuses a second one for a decision it has
+    /// already shown. That is right when the board opens the decision by itself, which is how the
+    /// player would otherwise be sent round the same screen for ever; it is wrong on a press,
+    /// because the screen hands back deliberately in the states it cannot act in, and Continue then
+    /// redrew the identical board and did nothing at all. Cleared here, so the latch still stops the
+    /// loop the board would start on its own and the player can still ask for the screen again.
+    /// </para>
+    /// </remarks>
     private void OnResolvePressed()
     {
         if (!OfflineActionAffordance.MayBeSubmitted(_connection))
         {
             return;
+        }
+
+        if (_presenter is { PendingTileDrawsOnItsOwnScreen: true })
+        {
+            _decisionShown = null;
         }
 
         _ = SubmitAsync(presenter => presenter.ResolvePendingTileAsync(_lifetime));
@@ -1384,12 +1405,12 @@ public partial class Board : Node3D
     /// Reported rather than navigated to. A finished run belongs to a screen a later row owns, and a
     /// run that reaches it stops here with the reason named in the log.
     /// <para>
-    /// 🔒 <b>Two levels, because the two gaps are not the same gap.</b> A finished run is an ERROR
-    /// here: this screen has nowhere to send it and the player is stuck looking at it. An Event or a
-    /// Minigame tile is a WARNING: the screen is missing and the log says so, but the run is not
-    /// stuck — the tile's own command still resolves it, so the line records a placeholder taken
-    /// rather than a dead end reached. Pushing both as errors would make the one that traps a player
-    /// unfindable among the ones that do not.
+    /// 🔒 <b>One gap left, and it is the one that traps a player.</b> A finished run is an ERROR
+    /// here: this screen has nowhere to send it and the player is stuck looking at it. There used to
+    /// be a second, quieter line beside it for a tile whose own screen this build had not written —
+    /// a WARNING, because a placeholder still got the run past it. Both of those screens are built,
+    /// the placeholder is gone, and an Event or a Minigame tile now reaches this method as an
+    /// ordinary pending tile with a destination of its own.
     /// </para>
     /// </remarks>
     private static void ReportUnbuiltDestination(BoardPresenter presenter)
@@ -1397,13 +1418,6 @@ public partial class Board : Node3D
         if (presenter.RollBlock == BoardRollBlock.RunEnded)
         {
             GD.PushError($"{BoardMarker} halted · {TheRunEndScreensAreNotBuiltHere}");
-        }
-
-        if (presenter.PendingTileHasNoScreen)
-        {
-            GD.PushWarning(
-                $"{BoardMarker} placeholder · {TheEventAndMinigameScreensAreNotBuiltHere} " +
-                $"tile={presenter.PendingTile?.Kind.ToString(CultureInfo.InvariantCulture) ?? "none"}");
         }
     }
 
@@ -1485,7 +1499,7 @@ public partial class Board : Node3D
         // Latched on the handover having HAPPENED, not on having been attempted — a handover that
         // could not load its scene left the board on screen with the decision still open, and a latch
         // set anyway would answer the next read with the dead-end sentence for a screen nobody saw.
-        _decisionShown = HandOver(decision) ? decision : null;
+        _decisionShown = HandOver(decision, presenter) ? decision : null;
     }
 
     /// <summary>Which screen, if any, the run's present state belongs on.</summary>
@@ -1514,6 +1528,16 @@ public partial class Board : Node3D
                 ShopPresenter.ShopTileKind => RunDecision.Shop,
                 CampfirePresenter.CampfireTileKind or CampfirePresenter.ShrineTileKind =>
                     RunDecision.Campfire,
+
+                // 🔒 The tile alone, drawn card or not: the draw is the event screen's own first
+                // command, so a tile just landed on and a tile being resumed onto are one
+                // destination — and this arm is what makes the resume path real.
+                EventPresenter.EventTileKind => RunDecision.Event,
+
+                // 🔒 The tile alone. Which of the three games it offers is the composition's pick
+                // off the run seed and this tile's own index, and the run records no answer to
+                // re-read — so the routing table asks only whether this is a minigame at all.
+                MinigamePresenter.MinigameTileKind => RunDecision.Minigame,
                 _ => null,
             },
             _ => null,
@@ -1521,7 +1545,12 @@ public partial class Board : Node3D
     }
 
     /// <summary>Builds the screen for one decision and puts it in front of this one.</summary>
-    private bool HandOver(RunDecision decision)
+    /// <param name="decision">Which screen the run's present state belongs on.</param>
+    /// <param name="presenter">
+    /// The board's own presenter, for the one destination whose factory needs the tile's identity:
+    /// the minigame's arm is picked from the run seed and the tile's linear index.
+    /// </param>
+    private bool HandOver(RunDecision decision, BoardPresenter presenter)
     {
         switch (decision)
         {
@@ -1533,6 +1562,16 @@ public partial class Board : Node3D
 
             case RunDecision.Campfire when _campfire is { } campfire:
                 return CampfireHandover.Show(this, campfire(), _lifetime);
+
+            case RunDecision.Event when _event is { } tileEvent:
+                return EventHandover.Show(this, tileEvent(), _lifetime);
+
+            case RunDecision.Minigame when _minigame is { } minigame &&
+                                           presenter.PendingTile is { } minigameTile:
+                return MinigameHandover.Show(
+                    this,
+                    minigame(presenter.RunSeed, minigameTile.LinearIndex),
+                    _lifetime);
 
             case RunDecision.RunEnd when _runEnd is { } runEnd:
                 return RunEndHandover.Show(this, runEnd(), _lifetime);
@@ -1576,5 +1615,18 @@ public partial class Board : Node3D
         /// them one moment.
         /// </summary>
         RunEnd = 4,
+
+        /// <summary>
+        /// `19` Part A, the event card the tile draws — one destination whether the card is already
+        /// drawn or not, because the draw is that screen's own first command.
+        /// </summary>
+        Event = 6,
+
+        /// <summary>
+        /// `19` Part B, the minigame the tile offers — one destination for all three built games,
+        /// because which one a tile opens is picked at composition time and the run carries no
+        /// record of it to route on.
+        /// </summary>
+        Minigame = 7,
     }
 }

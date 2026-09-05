@@ -115,7 +115,7 @@ internal static class MinigameSubmit
         }
 
         var reward = tuning.RewardFor(command.MinigameId, tier, run.ChapterId);
-        var events = new List<DomainEvent>(4);
+        var events = new List<DomainEvent>(5);
 
         // Gold is the run's own currency and moves through Run; the other three columns are wallet
         // currencies on Player. A zero column is skipped rather than moved, to avoid a misleading
@@ -159,6 +159,16 @@ internal static class MinigameSubmit
             // column is, and a grant count is an int — the check is what makes the cast safe.
             run.GrantFixedDieChoices((int)Math.Min(reward.FixedDice, int.MaxValue));
         }
+
+        // After the rows, and only on a path that has already passed the legality gate: two of the
+        // four minigames draw their tier here and ignore the client's claim, and no persisted field
+        // records the draw — so this is the only thing that can tell a screen which row it was paid
+        // from. Raised last of the reward events so a reader meets the movements and then their cause.
+        events.Add(new MinigameResolved(
+            DomainEvent.UnstampedSequence,
+            command.MinigameId,
+            tier,
+            tuning.OutcomeName(command.MinigameId, tier)));
 
         run.RecordMinigameResolution(run.Position, command.MinigameId);
 

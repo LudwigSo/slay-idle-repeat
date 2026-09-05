@@ -1,0 +1,205 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/EventScreen.cs" id="1_event"]
+[ext_resource type="Theme" path="res://game/theme/SlayTheme.tres" id="2_theme"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_ground"]
+size = Vector2(24, 42)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+shading_mode = 0
+albedo_color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="EventScreen" type="Node3D"]
+script = ExtResource("1_event")
+
+[node name="World" type="Node3D" parent="."]
+unique_name_in_owner = true
+
+[node name="Camera" type="Camera3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
+fov = 60.0
+
+[node name="Ground" type="MeshInstance3D" parent="World"]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+mesh = SubResource("QuadMesh_ground")
+material_override = SubResource("StandardMaterial3D_ground")
+
+[node name="Ui" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+
+; The shared theme is assigned once, here, on the root of the overlay, and every control below
+; inherits it. What names a variation below is what the theme genuinely carries; the card's own
+; prose sizes are still written per node, because a card screen is not a HUD and the theme has no
+; entry for them.
+[node name="Screen" type="Control" parent="Ui"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+
+; Authored insets are a starting point only: SafeAreaInsets overwrites all four from the display
+; server on the way in, which is what carries this screen across the 9:16 to 9:20 portrait range
+; without a magic number per node.
+[node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
+unique_name_in_owner = true
+mouse_filter = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 64
+theme_override_constants/margin_top = 128
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 128
+
+[node name="Column" type="VBoxContainer" parent="Ui/Screen/SafeArea"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 32
+
+[node name="TitleLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudTitle"
+autowrap_mode = 3
+
+; The one child that takes the slack. Every other row here is its own height, so a taller frame
+; lengthens the card rather than stretching the chrome, and a shorter one scrolls the card rather
+; than pushing the continue off the bottom.
+[node name="CardScroll" type="ScrollContainer" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.0
+horizontal_scroll_mode = 0
+
+; Bottom-aligned inside the scroll, exactly as Campfire.tscn's MiddleColumn is, and for the reason
+; that matters on a handset: the option cards ARE the primary action here, and a card that fits with
+; room to spare — every shipped one does, and the tallest portrait this game supports has the most
+; room — would otherwise sit at the top of the frame with the slack beneath it and the choice out of
+; a thumb's reach. Hanging the card off the bottom puts the options directly above the continue
+; control, where the hand already is. Nothing moves when the card is taller than the frame.
+[node name="CardColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 24
+alignment = 2
+
+[node name="CardTitle" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 60
+autowrap_mode = 3
+
+[node name="CardBody" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.83, 0.88, 1)
+theme_override_font_sizes/font_size = 44
+autowrap_mode = 3
+
+[node name="OptionColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+; A panel, and now drawn as one. What the card moved is the only thing on this screen the player
+; takes away with them, and it used to be four bare labels indistinguishable from the card's prose.
+; Transparent to input, because it lives inside CardScroll: a container that swallows a touch is a
+; patch of the card the player cannot drag the list by, and this panel presses nothing. The one
+; thing under it that DOES take input is a result row's number, which is held to reveal it.
+[node name="ResultPanel" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudTile"
+
+[node name="ResultBody" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+; Stated rather than inherited, and larger than the rows under it. Left to the theme's bare Label
+; entry these two headings came out at 36 in the same white the amounts are drawn in — smaller than
+; the 44 of the rows they head, and the one place on the screen where a heading was quieter than its
+; own contents.
+[node name="ResultHeading" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel/ResultBody"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 48
+autowrap_mode = 3
+
+; The commonest outcome this build has, drawn where an outcome belongs. Most authored effects are
+; UNSUPPORTED, so a spent card that moved nothing is the ordinary ending — and it used to be written
+; on the status line below, in the same node, size and grey as "your run could not be read". Under
+; this panel's heading it reads as the answer to "what happened" rather than as the game breaking,
+; so it takes the rows' own live colour rather than the quiet one.
+[node name="NothingLabel" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel/ResultBody"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 44
+autowrap_mode = 3
+
+[node name="RunRows" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel/ResultBody"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+; Drawn only when there is a wallet row beneath it: this screen captions Gold, hit points and dice
+; itself, while a wallet row is captioned by the currency's own key and would hang under nothing.
+[node name="WalletHeading" type="Label" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel/ResultBody"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 48
+autowrap_mode = 3
+
+[node name="WalletRows" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/CardScroll/CardColumn/ResultPanel/ResultBody"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="RejectionLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.62, 0.58, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+; The theme's primary action, at this screen family's own height and caption size. The five
+; styleboxes it used to carry were a byte-for-byte copy of the variation's, plus one the copy had
+; dropped: PrimaryButton also states a focus style, so the engine's own focus rectangle no longer
+; draws over the rounded corner.
+[node name="ContinueButton" type="Button" parent="Ui/Screen/SafeArea/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+theme_override_font_sizes/font_size = 80
+autowrap_mode = 3

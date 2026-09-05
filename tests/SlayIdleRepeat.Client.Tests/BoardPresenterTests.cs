@@ -32,16 +32,36 @@ public sealed class BoardPresenterTests
     /// </remarks>
     private const int TreasureTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Treasure;
 
-    /// <summary>An Event tile — one of the two whose own screen this build has not written.</summary>
+    /// <summary>A Minigame tile — one of the two kinds this board must submit NOTHING for.</summary>
     /// <remarks>
-    /// 🔒 Read off the rules layer's enum for <c>TreasureTileKind</c>'s reason, and one more: these
-    /// two numbers decide whether a tile is SKIPPED, so a renumbering that moved a working tile into
-    /// one of these slots would have that tile's screen quietly replaced by a placeholder reward.
+    /// 🔒 Read off the rules layer's enum rather than off <c>MinigamePresenter.MinigameTileKind</c>,
+    /// which is the constant the branch under test reads: taken from the same place, the case would
+    /// agree with the production code about which number a minigame is even when both were wrong,
+    /// and the number is exactly what the case is about. 🔴 It has already been the number that
+    /// decided whether a run could move at all — <c>RESOLVE_TILE</c> is accepted on this kind and
+    /// clears nothing.
+    /// </remarks>
+    private const int MinigameTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Minigame;
+
+    /// <summary>An Event tile — the other kind this board must submit NOTHING for.</summary>
+    /// <remarks>
+    /// 🔒 Read off the rules layer's enum rather than off <c>EventPresenter.EventTileKind</c>, which
+    /// is the constant the branch under test reads: taken from the same place, the case would agree
+    /// with the production code about which number an event is even when both were wrong, and the
+    /// number is exactly what the case is about.
     /// </remarks>
     private const int EventTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Event;
 
-    /// <summary>A Minigame tile — the other one.</summary>
-    private const int MinigameTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Minigame;
+    /// <summary>
+    /// A Shop tile — a tile that opens a screen of its own and is still the board's to acknowledge.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The negative arm that makes "draws on its own screen" a rule rather than a list. Opening a
+    /// screen is not the property: the shop opens one and <c>RESOLVE_TILE</c> is exactly the
+    /// acknowledgement that screen is waiting for. The two kinds this board must send nothing for
+    /// are the ones whose screen submits the tile's FIRST command as well as its last.
+    /// </remarks>
+    private const int ShopTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Shop;
 
     /// <summary>
     /// A mini-boss tile — the node a move may not carry past, and a FIGHT tile.
@@ -55,9 +75,6 @@ public sealed class BoardPresenterTests
     /// one does.
     /// </remarks>
     private const int MiniBossTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.MiniBoss;
-
-    /// <summary>The card a case's event tile has drawn.</summary>
-    private const string DrawnCard = "EVT_FIXTURE";
 
     private static readonly PlayerId Player = new("PLAYER_board_7f30");
     private static readonly RunId Run = new("RUN_board_2a95");
@@ -510,152 +527,110 @@ public sealed class BoardPresenterTests
         host.SubmitCallCount.ShouldBe(0);
     }
 
-    // ---- the two tiles with no screen ---------------------------------------------------------
+    // ---- the tiles that draw on their own screen -----------------------------------------------
 
     /// <summary>
-    /// 🔴 <b>THE SECOND RUN THAT COULD NOT MOVE.</b> A Minigame tile is cleared by
-    /// <c>MINIGAME_SUBMIT</c> and by nothing else — <c>Handlers.ResolveTile</c> says of it exactly
-    /// what it says of a fight, *"acknowledged and not cleared"* — and this build has no minigame
-    /// screen to submit it. So the board's own press accepted, cleared nothing, and redrew the
-    /// identical state for ever, with the roll refused and <c>ABANDON_RUN</c> the only way off the
-    /// tile. Found the same way the fight was: by playing an exported build.
+    /// 🔴 <b>The board sends an event tile NOTHING, and that is a decision rather than an
+    /// oversight.</b> <c>RESOLVE_TILE</c> on an event tile is not the acknowledgement it is on a
+    /// shop or a campfire — it is the card's DRAW, and the event screen submits that itself as its
+    /// opening command. A board that sent it would spend the draw out of sight of the player who is
+    /// about to choose on it, leave the tile pending exactly as it found it so the press reads as
+    /// having done nothing, and make the NEXT press a bare <c>ILLEGAL_STATE</c> refusal, because a
+    /// drawn card may not be re-drawn and no sentence on this screen says why.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ The state is reachable rather than theoretical: the handover onto the event screen is
+    /// latched on having HAPPENED, so a scene that could not load — or a screen that hands back with
+    /// the tile still pending — leaves this board on screen with its own control live over an event
+    /// tile.
+    /// </remarks>
     [Fact]
-    public async Task A_minigame_tile_is_left_by_submitting_the_minigame_the_missing_screen_would_have()
+    public async Task An_event_tile_is_refused_rather_than_drawn_on_by_the_board()
     {
-        var host = RecordingGameHost
-            .Finding(
-                AnyPlayer(),
-                PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: MinigameTileKind))
-            .AcceptingInto(PlayerState.Run(Run, Player, RunPhase.InProgress));
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind));
 
         var presenter = Build(host);
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.PendingTileHasNoScreen.ShouldBeTrue("the premise: no minigame screen is built.");
+        presenter.PendingTileOpensAFight.ShouldBeFalse("an event card is not a fight.");
+
+        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
+            .ShouldBe(BoardSubmission.RefusedNotAvailable);
+
+        host.SubmitCallCount.ShouldBe(
+            0,
+            "the press submitted a command. RESOLVE_TILE on an event tile draws the card and leaves " +
+            "the tile pending, so the board would have spent the screen's own opening command and " +
+            "shown the player nothing for it.");
+
+        presenter.PendingTile.ShouldNotBeNull(
+            "nothing was submitted, so the tile the run is standing on has not moved.");
+
+        presenter.RollBlock.ShouldBe(BoardRollBlock.TilePending);
+    }
+
+    /// <summary>
+    /// 🔴 <b>The board sends a minigame tile NOTHING either, and this is the arm that was a dead end
+    /// twice over.</b> <c>MINIGAME_SUBMIT</c> is the only command that clears a minigame tile, and
+    /// only the minigame screen can send one, because only it knows what the player earned. What
+    /// this board would otherwise send is <c>RESOLVE_TILE</c>, which <c>Handlers.ResolveTile</c>
+    /// says of a minigame exactly what it says of a fight — *"acknowledged and not cleared"* — so it
+    /// is ACCEPTED, clears nothing, and leaves the board redrawing the identical state for ever with
+    /// the roll refused and <c>ABANDON_RUN</c> the only way off the tile.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The build carried a placeholder that submitted the minigame at its lowest tier rather than
+    /// leave a run parked there. Deleting the placeholder is what makes this case load-bearing: with
+    /// the refusal missing, the tile falls into the ordinary arm and the original dead end is back,
+    /// silently and with every other case still green. The state is reachable rather than
+    /// theoretical, for the reason the event case states — the handover is latched on having
+    /// HAPPENED.
+    /// </remarks>
+    [Fact]
+    public async Task A_minigame_tile_is_refused_rather_than_acknowledged_by_the_board()
+    {
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: MinigameTileKind));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
         presenter.PendingTileOpensAFight.ShouldBeFalse("a minigame is not a fight.");
 
         (await presenter.ResolvePendingTileAsync(CancellationToken.None))
-            .ShouldBe(BoardSubmission.Submitted);
-
-        var submit = host.SubmitCommand.ShouldBeOfType<MinigameSubmitCommand>(
-            "a minigame tile was sent RESOLVE_TILE, which the rules ACCEPT and which clears nothing " +
-            "— so the board redraws the identical state for ever and the run can never roll again.");
-
-        submit.Result.ShouldBe(
-            UnbuiltTileScreens.LowestOutcomeTier,
-            "a skipped minigame pays the least it can. Any other tier would make not playing the " +
-            "profitable way to play.");
-
-        host.SubmitCallCount.ShouldBe(1, "a minigame needs no acknowledgement first.");
-        presenter.PendingTile.ShouldBeNull();
-        presenter.RollBlock.ShouldBe(BoardRollBlock.None);
-    }
-
-    /// <summary>
-    /// 🔴 The Event tile's version of the same dead end, and it took TWO commands to leave rather
-    /// than one: <c>RESOLVE_TILE</c> draws the card, <c>EVENT_CHOOSE</c> spends it, and the draw may
-    /// not be re-sent — so the board's second press was REFUSED outright, which is the one arm of
-    /// this that a player could actually see going wrong.
-    /// </summary>
-    [Fact]
-    public async Task An_event_tile_is_drawn_and_then_chosen_from_one_press()
-    {
-        var host = RecordingGameHost
-            .Finding(
-                AnyPlayer(),
-                PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind))
-            .AcceptingInto(PlayerState.Run(
-                Run,
-                Player,
-                RunPhase.InProgress,
-                pendingTileKind: EventTileKind,
-                pendingEventCardId: DrawnCard))
-            .ThenAcceptingInto(PlayerState.Run(Run, Player, RunPhase.InProgress));
-
-        // The card's first option is PRICED and its second is free, which is the whole point of the
-        // arrangement: an index of 0 here is a command EVENT_CHOOSE refuses for funds.
-        var presenter = Build(host, BoardContent.AuthoringEventCard(1, DrawnCard, true, false));
-
-        await presenter.StartAsync(CancellationToken.None);
-
-        presenter.PendingTileHasNoScreen.ShouldBeTrue("the premise: no event screen is built.");
-
-        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
-            .ShouldBe(BoardSubmission.Submitted);
-
-        host.SubmittedCommands.Count.ShouldBe(
-            2,
-            "an event tile takes the draw and then the choice. One command alone leaves the tile " +
-            "pending, and the press after it would be a different command from the same control.");
-
-        host.SubmittedCommands[0].ShouldBeOfType<ResolveTileCommand>(
-            "EVENT_CHOOSE before the card is drawn finds no card and is refused.");
-
-        host.SubmittedCommands[1].ShouldBeOfType<EventChooseCommand>()
-            .ChoiceIndex.ShouldBe(1, "option 0 costs Gold, so a run with none could not take it.");
-
-        presenter.PendingTile.ShouldBeNull();
-        presenter.RollBlock.ShouldBe(BoardRollBlock.None);
-    }
-
-    /// <summary>
-    /// 🔒 The card is chosen from the run the DRAW came back with. A presenter that decided the
-    /// choice before submitting anything has no card to decide it from, so it would fall back to
-    /// option zero — which is the affordability hole wearing the shape of a working command.
-    /// </summary>
-    [Fact]
-    public async Task A_draw_that_comes_back_with_no_card_submits_no_choice()
-    {
-        var host = RecordingGameHost
-            .Finding(
-                AnyPlayer(),
-                PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind))
-            .AcceptingInto(PlayerState.Run(
-                Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind));
-
-        var presenter = Build(host, BoardContent.AuthoringEventCard(1, DrawnCard, true, false));
-
-        await presenter.StartAsync(CancellationToken.None);
-
-        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
-            .ShouldBe(BoardSubmission.Submitted);
-
-        host.SubmitCallCount.ShouldBe(1);
-        host.SubmitCommand.ShouldBeOfType<ResolveTileCommand>();
-    }
-
-    [Fact]
-    public async Task A_refused_draw_stops_before_the_choice()
-    {
-        var host = RecordingGameHost
-            .Finding(
-                AnyPlayer(),
-                PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind))
-            .RefusingCommands(RejectionReason.ILLEGAL_STATE);
-
-        var presenter = Build(host, BoardContent.AuthoringEventCard(1, DrawnCard, false));
-
-        await presenter.StartAsync(CancellationToken.None);
-
-        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
-            .ShouldBe(BoardSubmission.RefusedByRules);
+            .ShouldBe(BoardSubmission.RefusedNotAvailable);
 
         host.SubmitCallCount.ShouldBe(
-            1, "a choice submitted after a refused draw is a second refusal for one press.");
+            0,
+            "the press submitted a command. The only one this board could send a minigame tile is " +
+            "RESOLVE_TILE, which the rules ACCEPT and which clears nothing — so the board redraws " +
+            "the identical state for ever and the run can never roll again.");
+
+        presenter.PendingTile.ShouldNotBeNull(
+            "nothing was submitted, so the tile the run is standing on has not moved.");
+
+        presenter.RollBlock.ShouldBe(BoardRollBlock.TilePending);
     }
 
     /// <summary>
-    /// 🔒 The screen SAYS the screen is missing, on both surfaces a player can read: the sentence
-    /// under the board and the caption on the control. "Resolve this tile before rolling again" told
-    /// a player standing here to do something no control could do, and "Continue" promised the screen
-    /// the tile is supposed to open.
+    /// 🔒 And both read as an ORDINARY pending tile while they are refused, not as a missing screen:
+    /// the screens exist, the board simply is not the surface that opens them.
     /// </summary>
+    /// <remarks>
+    /// 🔴 There used to be a fifth block sentence and a second control caption saying the screen was
+    /// not built, and they went with the placeholder. This is what took their place: the board's
+    /// ordinary fallback, on both kinds, so a player standing on either is told the same thing they
+    /// are told on a shop or a campfire.
+    /// </remarks>
     [Theory]
     [InlineData(EventTileKind)]
     [InlineData(MinigameTileKind)]
-    public async Task A_tile_with_no_screen_says_so_rather_than_naming_the_block(int tileKind)
+    public async Task A_tile_that_draws_on_its_own_screen_names_the_ordinary_block(int tileKind)
     {
         var presenter = Build(RecordingGameHost.Finding(
             AnyPlayer(),
@@ -664,12 +639,71 @@ public sealed class BoardPresenterTests
         await presenter.StartAsync(CancellationToken.None);
 
         presenter.RollBlock.ShouldBe(BoardRollBlock.TilePending);
-        presenter.BlockText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.UnbuiltScreenStatusKey));
-        presenter.ResolveText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.SkipUnbuiltActionKey));
+        presenter.BlockText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.BlockedTileStatusKey));
+        presenter.ResolveText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.ResolveActionKey));
 
-        // 🔒 And it is still abandonable, which is what it was before this and has to stay: `16` D39
+        // 🔒 Still abandonable, which is the ungated exit every unresolved tile keeps: `16` D39
         // makes ABANDON_RUN legal on an unresolved tile whether or not anything else is.
         presenter.AbandonOffered.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// 🔴 <b>And the board can ASK which tiles those are, because its Continue has to open their
+    /// screens rather than merely refuse them.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 The screen is the only surface that can resolve either tile, so a Continue standing over
+    /// one has exactly one honest job: open it again. The scene's decision latch refuses a second
+    /// handover for a decision it has already shown — right when the board opens one by itself,
+    /// wrong on a press, because both screens hand BACK deliberately in the states they cannot act
+    /// in (a content set that cannot describe the game, a tile whose one submission is spent). On
+    /// that path a press that only refused redrew the identical board and reached the player as a
+    /// control that does nothing at all, with abandoning the run the only thing left. The scene
+    /// reads this to clear the latch on the press.
+    /// </para>
+    /// <para>
+    /// 🔒 The negative arm is what makes this a rule rather than a list. A shop or a treasure tile
+    /// is acknowledged by <c>RESOLVE_TILE</c> and picked up by its screen afterwards, so a board
+    /// that cleared its latch for one of those would re-open a screen the player had just left over
+    /// a command that is doing its job.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(EventTileKind, true)]
+    [InlineData(MinigameTileKind, true)]
+    [InlineData(ShopTileKind, false)]
+    [InlineData(TreasureTileKind, false)]
+    public async Task Only_a_tile_whose_own_screen_opens_it_asks_the_board_to_open_that_screen_again(
+        int tileKind, bool drawsOnItsOwnScreen)
+    {
+        var presenter = Build(RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: tileKind)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTileDrawsOnItsOwnScreen.ShouldBe(
+            drawsOnItsOwnScreen,
+            "tile kind " + tileKind + " answered the wrong way. The board clears its handover latch " +
+            "on a press over a tile that says true here, so a false negative leaves Continue doing " +
+            "nothing on a tile only its own screen can resolve, and a false positive re-opens a " +
+            "screen the player has just come back from.");
+    }
+
+    /// <summary>…and with no tile pending at all there is no screen to re-open.</summary>
+    [Fact]
+    public async Task A_board_with_no_pending_tile_asks_for_no_screen()
+    {
+        var presenter = Build(RecordingGameHost.Finding(
+            AnyPlayer(), PlayerState.Run(Run, Player, RunPhase.InProgress)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTile.ShouldBeNull();
+        presenter.PendingTileDrawsOnItsOwnScreen.ShouldBeFalse(
+            "there is no tile here, so there is no screen the board could be asked to open — and a " +
+            "latch cleared on this press would re-open whichever decision the run last held.");
     }
 
     [Fact]
@@ -681,20 +715,18 @@ public sealed class BoardPresenterTests
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.PendingTileHasNoScreen.ShouldBeFalse();
         presenter.BlockText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.BlockedTileStatusKey));
         presenter.ResolveText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.ResolveActionKey));
     }
 
     [Fact]
-    public async Task A_run_on_no_tile_at_all_is_not_standing_on_a_missing_screen()
+    public async Task A_run_on_no_tile_at_all_is_offered_the_ordinary_caption()
     {
         var presenter = Build(RecordingGameHost.Finding(
             AnyPlayer(), PlayerState.Run(Run, Player, RunPhase.InProgress)));
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.PendingTileHasNoScreen.ShouldBeFalse();
         presenter.ResolveText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.ResolveActionKey));
     }
 
@@ -1311,9 +1343,10 @@ public sealed class BoardPresenterTests
     /// the block would pass the first row and fail the other four.
     /// </para>
     /// <para>
-    /// 🔒 The tile row is the one that matters most: a run standing on an Event or a Minigame is
-    /// standing on a tile this client has no screen for (M7-07b), so the abandon is not merely a way
-    /// out — it is the ONLY way out.
+    /// 🔒 The tile row is the one that matters most: a run standing on an Event or a Minigame gets
+    /// no command at all from this board, because each of those tiles is left by its own screen —
+    /// so if that screen could not be reached, the abandon is not merely a way out, it is the ONLY
+    /// way out.
     /// </para>
     /// </remarks>
     [Theory]
@@ -1331,7 +1364,7 @@ public sealed class BoardPresenterTests
         presenter.Stage.ShouldBe(BoardStage.Ready);
         presenter.AbandonOffered.ShouldBeTrue(
             $"a run with {state} can be abandoned, and this screen is the only place a player can " +
-            "say so. Standing on a tile the client has no screen for, it is the only way out at all.");
+            "say so. Standing on a tile this board sends no command for, it is the only way out.");
         presenter.AbandonText.ShouldNotBeNullOrWhiteSpace();
     }
 

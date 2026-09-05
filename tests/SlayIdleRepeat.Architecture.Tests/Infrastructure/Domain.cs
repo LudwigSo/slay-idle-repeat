@@ -302,6 +302,41 @@ internal static class Domain
     /// stays inside <c>Core</c>, because the caller on the far side of this seam writes response bodies
     /// and log lines.
     /// </para>
+    /// <para>
+    /// 🔒 <b>The tile-screens pass adds <c>EventCardView</c> (with <c>EventOptionView</c>).</b> It
+    /// closes the hole <c>ShrineView</c> and <c>ShopView</c> closed for their own tiles, from the
+    /// other direction: the card is already DRAWN and persisted on the run, so a screen without an
+    /// entry point would have to reach the card catalogue itself — and <c>EventCard</c>,
+    /// <c>EventOption</c> and the whole six-op effect vocabulary are <c>internal</c>, so the only
+    /// ways left were widening them or transcribing thirty cards into the client. What leaves is the
+    /// prose, the options in the order <c>EVENT_CHOOSE</c> numbers them, and each option's price.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>And what deliberately does NOT leave is the odds.</b> <c>EventOutcome</c>,
+    /// <c>EventEffect</c> and <c>EventTileResolver</c> stay <c>internal</c>: the view names no
+    /// branch and no weight, because a player who could read them before choosing would be playing
+    /// a different game from the one the card's prose describes. That is a design boundary this
+    /// list happens to record rather than an encapsulation convenience.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The same pass adds <c>MinigameView</c> (with <c>MinigameTierRow</c> and
+    /// <c>MinigameGuaranteeView</c>).</b> A minigame's whole offer is content the client cannot
+    /// reach: <c>MinigameCatalogue</c>, <c>MinigameRewardTuning</c>, <c>LuckTuning</c> and
+    /// <c>ChestPickGuarantee</c> are all <c>internal</c>, so a screen without an entry point would
+    /// have to transcribe four ids, thirteen reward rows, the chapter-scaling formula and the
+    /// guarantee's ordinal arithmetic. What leaves is the ladder as it will actually be paid and the
+    /// chest guarantee as the player's own counter leaves it.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Two of the row's columns are answers rather than transcriptions, and that is the point
+    /// of the seam.</b> <c>MinigameTierRow.Gold</c> is the figure <em>after</em> the run's Gold
+    /// modifiers, because the handler scales Gold at the income site and the reward table's own
+    /// number is not what lands on a run carrying a shrine buff or a curse. And
+    /// <c>MinigameGuaranteeView</c>'s countdown is asked of the guarantee rule rather than derived
+    /// from the authored ordinal: <c>misses &gt;= everyNth - 1</c> has been read both ways in this
+    /// repository, and a projection restating it is a second place for the counter a player is
+    /// watching to disagree with the one the server keeps.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[]
     {
@@ -335,6 +370,11 @@ internal static class Domain
         "RunEndCounterKind",
         "ShopView",
         "ShopSlotRow",
+        "EventCardView",
+        "EventOptionView",
+        "MinigameView",
+        "MinigameTierRow",
+        "MinigameGuaranteeView",
         "HeroNames",
         "HeroNameDecision",
         "RunExpiry",

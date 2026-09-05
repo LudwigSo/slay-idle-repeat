@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/event_screen.schema.json",
+  "title": "content/event_screen/event_screen.json",
+  "description": "The loc keys the Event tile screen renders. What is fixed here is that the screen heads itself, prices each option and says when a price is out of reach, captions the result panel and each kind of row it can hold, offers the one control that leaves the tile, and carries one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. ⚠️ THE STEM IS THE HAZARD. event.schema.json (the live-ops event package), events.schema.json (the framework-wide tuning file) and board_events.schema.json (the cards this screen shows) are three shipped schemas a letter and a word away from this one, and the pairing table's own comment names all four. 🔴 WHAT IS ABSENT AND LOAD-BEARING: there is no member for a card's title, body or option label, because board_events.json authors those as free English strings rather than as loc keys — the locale check never sees them, and a German player reads the card in English until a content pass re-authors it; there is no member for any currency NAME, because tuning/currencies.json already names all eight and a second document claiming those keys could drift out of step with the wallet it describes; and there is no member naming what an option PAYS, because the outcome is drawn by weight at choose time and the odds are deliberately outside the screen's reach.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "_doc",
+    "name",
+    "label",
+    "action",
+    "block",
+    "status"
+  ],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "_doc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "description": "The one heading, so a player can tell which tile they are standing on. One arm only: an Event tile is a single kind, unlike the campfire document's two.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "label": {
+      "description": "🔒 The price caption, and the result panel's caption plus one per kind of row it can hold. The four row captions are separate members because the four things that can move are separate facts with separate units — run Gold, a share of the hero's HP bar, fixed-die CHOICES, and the meta wallet — and a screen that shared a caption between any two would tell a player one of them was the other. ⚠️ `wallet` captions the wallet SECTION and not the rows inside it: the rows carry the currency's own name from the currency catalogue, and the section caption is what stops a wallet payout appearing as bare currency names beneath a panel that had already spent `result` on the rows above.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cost",
+        "result",
+        "gold",
+        "hp",
+        "fixedDice",
+        "wallet"
+      ],
+      "properties": {
+        "cost": {
+          "$ref": "#/$defs/locKey"
+        },
+        "result": {
+          "$ref": "#/$defs/locKey"
+        },
+        "gold": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hp": {
+          "$ref": "#/$defs/locKey"
+        },
+        "fixedDice": {
+          "description": "The row saying fixed-die CHOICES were granted. 🔒 The caption names the choice rather than a die, because the player names each number afterwards through CHOOSE_FIXED_DIE, and it carries no count — the count is the outcome's, authored per card.",
+          "$ref": "#/$defs/locKey"
+        },
+        "wallet": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "action": {
+      "description": "🔒 The one control. An event is left by choosing and then continuing: there is no cancel, because landing on the tile has already happened and the card cannot be put back.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "continue"
+      ],
+      "properties": {
+        "continue": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "block": {
+      "description": "🔒 The one absence, and it is about the RUN rather than the build: an option priced above what the player holds. Said in front of the option rather than after a press, because EVENT_CHOOSE refuses it with INSUFFICIENT_FUNDS and a refusal arriving after the press reads as the game having failed rather than as a price the player could see.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unaffordable"
+      ],
+      "properties": {
+        "unaffordable": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "status": {
+      "description": "One line per state the read can be in, plus the answers a submission can come back with. `drawing` is separated from `loading` because this screen owns its own draw — it submits RESOLVE_TILE itself on landing, so there is a moment after the read has finished and before a card exists. `notAtAnEvent` is separated from `runMissing` because a screen opened on the wrong tile is not a run that has gone, and `cardUnavailable` from both because a drawn card this content version can no longer build is a third fact again. 🔴 `nothingHappened` is the COMMON answer rather than an edge case: most shipped outcomes are UNSUPPORTED, so an option that resolves and moves nothing is the ordinary result and the screen says so honestly instead of inventing flavour. `refused` and `hostUnavailable` are separate because a refusal is an answer about the game and a fault is the game not answering.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading",
+        "drawing",
+        "runMissing",
+        "notAtAnEvent",
+        "readUnavailable",
+        "cardUnavailable",
+        "nothingHappened",
+        "refused",
+        "hostUnavailable"
+      ],
+      "properties": {
+        "loading": {
+          "$ref": "#/$defs/locKey"
+        },
+        "drawing": {
+          "$ref": "#/$defs/locKey"
+        },
+        "runMissing": {
+          "$ref": "#/$defs/locKey"
+        },
+        "notAtAnEvent": {
+          "$ref": "#/$defs/locKey"
+        },
+        "readUnavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "cardUnavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "nothingHappened": {
+          "$ref": "#/$defs/locKey"
+        },
+        "refused": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hostUnavailable": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    }
+  }
+}

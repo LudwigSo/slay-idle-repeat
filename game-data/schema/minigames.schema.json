@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/minigames.schema.json",
+  "title": "tuning/minigames.json",
+  "description": "The timing-bar minigame's presentation numbers. What is fixed here is that the file carries exactly one block, that block carries exactly four numbers, and each of them is bounded so a value that would make the game unplayable is refused rather than shipped. It governs a client-only presentation document rather than one of the sixteen balance files 21 §3.1 catalogues, which is why it carries no _status member: the three _status values each say how faithfully a document reproduces the design section that owns it, and no section owns this one. ⚠️ The name is one letter from schema/minigame.schema.json, which governs the Minigame SCREEN's loc keys — a different document with a different shape. The pairing table in ContentLayout declares content/minigame/ explicitly so the two cannot resolve into each other.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "_doc",
+    "timingBar"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "_doc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timingBar": {
+      "description": "Strike the Anvil (03 §6.2). 🔒 strikes is an integer because a strike is a press: the count is one more than the number of outcome tiers MG_TIMING_BAR authors in tuning/currencies.json, and nothing here can enforce that agreement across two documents — MinigameTuningDataTests does, and TimingBarRules refuses at runtime. The three fractions are bounded, not merely typed: a sweep of no duration leaves the cursor motionless, a half-width at or past 0.5 covers the whole bar and makes every press score, and a reduced-motion step of zero leaves a player who cannot watch a moving cursor with no way to aim at all. That the step must also be NARROWER than the window is a relation between two members rather than a bound on either, so it is pinned by the suite instead.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "_doc",
+        "strikes",
+        "sweepSeconds",
+        "hitWindowHalfWidth",
+        "reducedMotionStepFraction"
+      ],
+      "properties": {
+        "_doc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strikes": {
+          "description": "How many presses one game gives. At least one, because a game of no strikes cannot be played and would author a single-row reward table.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "sweepSeconds": {
+          "description": "Seconds for one out-and-back sweep of the bar.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "hitWindowHalfWidth": {
+          "description": "Half the scoring window's width, as a fraction of the bar, measured from its centre.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 0.5
+        },
+        "reducedMotionStepFraction": {
+          "description": "How far one press of the step control moves the cursor when the sweep is off, as a fraction of the bar.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        }
+      }
+    }
+  }
+}

@@ -39,6 +39,7 @@ internal sealed class RecordingGameHost : IGameHost
     private RunSnapshot? _laterAcceptedRun;
     private IReadOnlyList<DomainEvent> _acceptedEvents = [];
     private readonly List<GameCommand> _submitted = [];
+    private TaskCompletionSource? _submitGate;
 
     private RecordingGameHost(OwnStateResult? read, Exception? readFailure)
     {
@@ -72,10 +73,12 @@ internal sealed class RecordingGameHost : IGameHost
 
     /// <summary>Every command submitted, in the order they were.</summary>
     /// <remarks>
-    /// 🔒 Kept alongside <see cref="SubmitCommand"/> rather than instead of it. One press can submit
-    /// more than one command — the board's skip of an unbuilt tile screen draws an event card and
-    /// then spends it — and "the last command was EVENT_CHOOSE" cannot tell that apart from a press
-    /// that skipped the draw altogether, which is the version the rules layer refuses.
+    /// 🔒 Kept alongside <see cref="SubmitCommand"/> rather than instead of it. One screen can
+    /// submit more than one command off a single opening — <c>EventPresenter</c> draws the card
+    /// itself and then spends it — and "the last command was EVENT_CHOOSE" cannot tell that apart
+    /// from a screen that skipped the draw altogether, which is the version the rules layer refuses.
+    /// It is also the only thing that can see a draw submitted TWICE, since a screen that drew twice
+    /// settles on exactly the same card.
     /// </remarks>
     internal IReadOnlyList<GameCommand> SubmittedCommands => _submitted;
 
@@ -181,10 +184,10 @@ internal sealed class RecordingGameHost : IGameHost
     /// </summary>
     /// <remarks>
     /// 🔒 A moving store on the SUBMIT side, and <see cref="ThenFinding"/>'s exact counterpart: a
-    /// press that submits two commands in sequence — the board's skip of an unbuilt tile screen is
-    /// one — decides the second from the run the first came back with, and a host that answered both
-    /// alike would satisfy a screen that read the moved run and a screen that never did. Left unset,
-    /// every acceptance answers alike and nothing about the existing cases changes.
+    /// screen that submits two commands in sequence — <c>EventPresenter</c>'s draw and then its
+    /// choice — decides the second from the run the first came back with, and a host that answered
+    /// both alike would satisfy a screen that read the moved run and a screen that never did. Left
+    /// unset, every acceptance answers alike and nothing about the existing cases changes.
     /// </remarks>
     /// <param name="run">The row the second and later commands hand back.</param>
     internal RecordingGameHost ThenAcceptingInto(RunSnapshot run)
@@ -193,6 +196,34 @@ internal sealed class RecordingGameHost : IGameHost
 
         return this;
     }
+
+    /// <summary>
+    /// Leaves every submission genuinely in flight until <see cref="ReleaseSubmissions"/> is called.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The only fixture a double-submit latch can be proved against.</b> Left unset this host
+    /// answers synchronously, so a first call runs to completion before it returns and the second
+    /// press finds the screen already settled — refused by whatever stage guard the screen has,
+    /// whether the latch was taken before the await or after it, or not taken at all. Measured: with
+    /// <c>CampfirePresenter</c>'s latch deliberately moved to after its await, the suite's own
+    /// double-tap case still passed. A paused submission is what makes the second press arrive while
+    /// the first is really outstanding, which is the state the latch exists for.
+    /// <para>
+    /// 🔒 A case that pauses MUST release <b>before</b> it awaits anything, or a screen that failed
+    /// to latch hangs the suite instead of failing it: start both calls, release, then await. The
+    /// second press has already been made and turned away by then, so nothing is lost by releasing
+    /// early — and a case that waits first has no failure to report, only a runner that stopped.
+    /// </para>
+    /// </remarks>
+    internal RecordingGameHost PausingItsCommands()
+    {
+        _submitGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        return this;
+    }
+
+    /// <summary>Lets every paused submission answer.</summary>
+    internal void ReleaseSubmissions() => _submitGate?.TrySetResult();
 
     /// <summary>Makes an accepted command hand back the given events, in order.</summary>
     /// <remarks>
@@ -243,6 +274,27 @@ internal sealed class RecordingGameHost : IGameHost
         SubmitToken = ct;
         _submitted.Add(command);
 
+        // Recorded synchronously whatever the gate says: what a screen submitted is a fact about the
+        // call, and a case that pauses one still has to be able to assert on it while it is paused.
+        // The ordinal travels with the answer rather than being re-read, so a paused submission still
+        // gets the row its own position in the sequence earns.
+        var ordinal = SubmitCallCount;
+
+        return _submitGate is { } gate
+            ? AnsweringWhenReleased(gate, player, ordinal)
+            : Answer(player, ordinal);
+    }
+
+    private async Task<ApplyCommandOutcome> AnsweringWhenReleased(
+        TaskCompletionSource gate, PlayerId player, int ordinal)
+    {
+        await gate.Task.ConfigureAwait(false);
+
+        return await Answer(player, ordinal).ConfigureAwait(false);
+    }
+
+    private Task<ApplyCommandOutcome> Answer(PlayerId player, int ordinal)
+    {
         if (_submitFailure is { } failure && _submitFailuresLeft > 0)
         {
             _submitFailuresLeft--;
@@ -257,7 +309,7 @@ internal sealed class RecordingGameHost : IGameHost
             return Task.FromResult(ApplyCommandOutcome.Reject(rejection, unchanged));
         }
 
-        var accepted = SubmitCallCount > 1 && _laterAcceptedRun is { } later ? later : _acceptedRun;
+        var accepted = ordinal > 1 && _laterAcceptedRun is { } later ? later : _acceptedRun;
 
         return Task.FromResult(
             ApplyCommandOutcome.Accept(PlayerState.SliceWith(unchanged, accepted), _acceptedEvents, []));
