@@ -282,6 +282,79 @@ public sealed class MinigamePresenterTests
     }
 
     /// <summary>
+    /// 🔒 <b>A ladder row that grants a fixed die says so, and one that grants none does not.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 The reward preview is a promise about the payout, and a die is the one column with no
+    /// currency caption to borrow — so it is the column a ladder can silently drop. A shipped row
+    /// pays one, so a preview that omits it hands the player a reward the screen never mentioned.
+    /// </para>
+    /// <para>
+    /// 🔴 The negative half is not padding: a die column drawn on every row would promise a die on
+    /// the many rows that pay none, which is the same defect facing the other way. The zero rule is
+    /// the one every other column already follows.
+    /// </para>
+    /// <para>
+    /// 🔒 Which rows grant a die is asked of the projection, never transcribed — the reward tables
+    /// are tuning and may be re-authored, and a case naming the dice duel's top tier by hand would
+    /// go on passing over a table that had moved the die somewhere else. Both counters carry a
+    /// floor so a sweep that found no rows at all cannot report a clean ladder.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_reward_row_granting_a_fixed_die_names_it_and_one_granting_none_does_not()
+    {
+        var dieCaption = MinigameContent.EnglishValueOf(MinigameContent.FixedDiceLabelKey);
+        var granting = 0;
+        var silent = 0;
+
+        foreach (var minigameId in MinigameArms.Built)
+        {
+            var presenter = Build(
+                RecordingGameHost.Finding(AnyPlayer(), AtAMinigame()), minigameId: minigameId);
+
+            await presenter.StartAsync(CancellationToken.None);
+
+            foreach (var row in presenter.Rows)
+            {
+                var reward = presenter.RewardText(row);
+
+                if (row.FixedDice != 0)
+                {
+                    granting++;
+                    reward.ShouldContain(
+                        PlayerNumber.Abbreviated(row.FixedDice) + " " + dieCaption,
+                        Case.Sensitive,
+                        minigameId + " tier " + row.Tier + " pays " + row.FixedDice +
+                        " fixed dice and its ladder row reads '" + reward + "'. The player reads " +
+                        "this row, plays, and is handed a die the preview never mentioned.");
+                }
+                else
+                {
+                    silent++;
+                    reward.ShouldNotContain(
+                        dieCaption,
+                        Case.Sensitive,
+                        minigameId + " tier " + row.Tier + " pays no fixed dice and its ladder row " +
+                        "reads '" + reward + "'. A die promised on a row that grants none is the " +
+                        "same broken promise as one paid on a row that never named it.");
+                }
+            }
+        }
+
+        granting.ShouldBeGreaterThan(
+            0,
+            "no shipped row granted a fixed die, so the half of this case that matters swept " +
+            "nothing. Either the reward tables stopped paying dice — in which case the ladder's " +
+            "die column is now dead and should go — or the projection stopped reporting them.");
+        silent.ShouldBeGreaterThan(
+            0,
+            "every shipped row granted a fixed die, so the zero-column rule was never exercised. " +
+            "A screen that always draws the column would pass this case.");
+    }
+
+    /// <summary>
     /// 🔒 <b>The guarantee line is the chest pick's, and it names BOTH numbers.</b>
     /// </summary>
     /// <remarks>

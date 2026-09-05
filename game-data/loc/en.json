@@ -362,6 +362,7 @@
     "loc.minigame.strikes_left.label": "Strikes left",
     "loc.minigame.guarantee.label": "Gold chest guarantee",
     "loc.minigame.result.label": "What you won",
+    "loc.minigame.fixed_dice.label": "Fixed die choices",
     "loc.minigame.strike.action": "Strike",
     "loc.minigame.step.action": "Move the marker",
     "loc.minigame.pick_chest.action": "Open this chest",

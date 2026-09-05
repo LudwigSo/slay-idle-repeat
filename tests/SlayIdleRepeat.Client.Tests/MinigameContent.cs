@@ -44,6 +44,13 @@ internal static class MinigameContent
     internal const string GuaranteeLabelKey = "loc.minigame.guarantee.label";
     internal const string ResultLabelKey = "loc.minigame.result.label";
 
+    /// <summary>The reward ladder's fixed-die column, the one column captioned from this screen.</summary>
+    /// <remarks>
+    /// A die is not a currency, so unlike Gold, Crowns, Beast Feed and Enhance Stones it has no
+    /// <c>loc.currency.&lt;snake&gt;.name</c> key for the ladder to borrow.
+    /// </remarks>
+    internal const string FixedDiceLabelKey = "loc.minigame.fixed_dice.label";
+
     internal const string StrikeActionKey = "loc.minigame.strike.action";
     internal const string StepActionKey = "loc.minigame.step.action";
     internal const string PickChestActionKey = "loc.minigame.pick_chest.action";
@@ -142,6 +149,7 @@ internal static class MinigameContent
         TitleNameKey, ChestPickNameKey, TimingBarNameKey, DiceDuelNameKey, MemoryRuneNameKey,
         ChestPickRuleKey, TimingBarRuleKey, DiceDuelRuleKey, MemoryRuneRuleKey,
         RewardsLabelKey, HitsLabelKey, StrikesLeftLabelKey, GuaranteeLabelKey, ResultLabelKey,
+        FixedDiceLabelKey,
         StrikeActionKey, StepActionKey, PickChestActionKey, RollActionKey, ContinueActionKey,
         LoadingStatusKey, PlayingStatusKey, RunMissingStatusKey, NotAtAMinigameStatusKey,
         ReadUnavailableStatusKey, RulesUnavailableStatusKey, AlreadyResolvedStatusKey,

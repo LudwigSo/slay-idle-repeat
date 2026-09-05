@@ -166,13 +166,13 @@ public enum MinigameExit
 /// <c>loc.minigame.&lt;token&gt;.outcome</c> — so a thirteenth reward row cannot ship without one.
 /// </para>
 /// <para>
-/// ⚠️ <b>A reward row's fixed dice have no caption anywhere in the content set, so the ladder does
-/// not list them.</b> The four currencies a reward can pay are captioned by
-/// <c>tuning/currencies.json</c>'s own <c>loc.currency.&lt;snake&gt;.name</c> keys, which this screen
-/// borrows rather than duplicating; a die is not a currency and carries no such key, and the
-/// <c>loc.minigame.*</c> group authors none either. One shipped row — the dice duel's top outcome —
-/// grants a die, and its preview is silent about it. Naming it needs one authored key
-/// (<c>loc.minigame.fixed_dice.label</c>) in the document, the schema and both locales.
+/// 🔒 <b>The ladder lists all five reward columns, fixed dice included.</b> The four currencies a
+/// reward can pay are captioned by <c>tuning/currencies.json</c>'s own
+/// <c>loc.currency.&lt;snake&gt;.name</c> keys, which this screen borrows rather than duplicating. A
+/// die is not a currency and carries no such key, so <c>label.fixedDice</c> is authored in the
+/// <c>loc.minigame.*</c> group and is the one reward caption this screen owns. It is not decoration:
+/// a shipped row — the dice duel's top outcome — grants a die, and a preview silent about it would
+/// pay the player something the ladder never mentioned, which is exactly what a ladder is for.
 /// </para>
 /// </remarks>
 public sealed class MinigamePresenter
@@ -193,6 +193,7 @@ public sealed class MinigamePresenter
     private const string StrikesLeftLabelKey = "loc.minigame.strikes_left.label";
     private const string GuaranteeLabelKey = "loc.minigame.guarantee.label";
     private const string ResultLabelKey = "loc.minigame.result.label";
+    private const string FixedDiceLabelKey = "loc.minigame.fixed_dice.label";
 
     private const string StrikeActionKey = "loc.minigame.strike.action";
     private const string StepActionKey = "loc.minigame.step.action";
@@ -551,21 +552,22 @@ public sealed class MinigamePresenter
 
     /// <summary>What one tier of the ladder pays, as a player reads it.</summary>
     /// <remarks>
-    /// 🔒 Only the columns that moved, and each captioned by <c>tuning/currencies.json</c>'s own key
-    /// rather than by a second copy this screen would author — a reward row describing a wallet is
-    /// the last place two names for one currency should be able to drift apart. A row's fixed dice
-    /// are not listed, because nothing in the content set names a die; the type's own remarks record
-    /// which key would be needed.
+    /// 🔒 Only the columns that moved, and the four currencies captioned by
+    /// <c>tuning/currencies.json</c>'s own keys rather than by a second copy this screen would
+    /// author — a reward row describing a wallet is the last place two names for one currency should
+    /// be able to drift apart. The fifth column, a row's fixed dice, is the one this screen captions
+    /// itself: a die is not a currency and has no such key to borrow.
     /// </remarks>
     /// <param name="row">The tier row, as the projection scaled it.</param>
     public string RewardText(MinigameTierRow row)
     {
-        var paid = new List<string>(4);
+        var paid = new List<string>(5);
 
         Pay(paid, row.Gold, GoldCurrencyNameKey);
         Pay(paid, row.Crowns, CrownsCurrencyNameKey);
         Pay(paid, row.BeastFeed, BeastFeedCurrencyNameKey);
         Pay(paid, row.EnhanceStones, EnhanceStonesCurrencyNameKey);
+        Pay(paid, row.FixedDice, FixedDiceLabelKey);
 
         return string.Join(BetweenAmounts, paid);
     }
@@ -822,14 +824,19 @@ public sealed class MinigamePresenter
             : NothingLeftToSay;
     }
 
-    /// <summary>Adds one currency of a reward row, when the row pays any of it.</summary>
-    private void Pay(List<string> paid, long amount, string currencyNameKey)
+    /// <summary>Adds one column of a reward row, when the row pays any of it.</summary>
+    /// <remarks>
+    /// 🔒 A zero column is left off entirely rather than drawn as a nought, and every column goes
+    /// through here so the fixed-die column cannot acquire a rule of its own — a die column standing
+    /// on the many shipped rows that grant none would be its own kind of wrong preview.
+    /// </remarks>
+    private void Pay(List<string> paid, long amount, string captionKey)
     {
         if (amount != 0)
         {
             paid.Add(
                 PlayerNumber.Abbreviated(amount) + AmountAndCurrency +
-                _strings.Resolve(currencyNameKey));
+                _strings.Resolve(captionKey));
         }
     }
 

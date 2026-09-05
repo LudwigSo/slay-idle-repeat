@@ -87,6 +87,7 @@ public sealed class MinigameDataTests
         "loc.minigame.strikes_left.label",
         GuaranteeLabelKey,
         "loc.minigame.result.label",
+        "loc.minigame.fixed_dice.label",
         "loc.minigame.strike.action",
         "loc.minigame.step.action",
         "loc.minigame.pick_chest.action",
@@ -130,7 +131,11 @@ public sealed class MinigameDataTests
     private static ContentSnapshot Shipped => LazyShipped.Value;
 
     /// <summary>How many strings the screen renders, so a sweep over an empty list cannot pass.</summary>
-    private const int ExpectedKeyCount = 41;
+    /// <remarks>
+    /// 42 rather than 41 since <c>label.fixedDice</c> was authored: the reward ladder pays five
+    /// columns and only four of them are currencies with a caption of their own to borrow.
+    /// </remarks>
+    private const int ExpectedKeyCount = 42;
 
     public static TheoryData<string> EveryKey
     {
