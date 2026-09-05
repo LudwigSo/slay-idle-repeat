@@ -46,8 +46,6 @@ internal static class BoardContent
     internal const string RefusedStatusKey = "loc.board.refused.status";
     internal const string BlockedTileStatusKey = "loc.board.blocked_tile.status";
     internal const string BlockedGateStatusKey = "loc.board.blocked_gate.status";
-    internal const string UnbuiltScreenStatusKey = "loc.board.unbuilt_screen.status";
-    internal const string SkipUnbuiltActionKey = "loc.board.skip_unbuilt.action";
     internal const string BlockedForkStatusKey = "loc.board.blocked_fork.status";
     internal const string BlockedBattleStatusKey = "loc.board.blocked_battle.status";
     internal const string BlockedDraftStatusKey = "loc.board.blocked_draft.status";
@@ -70,12 +68,12 @@ internal static class BoardContent
     [
         HpLabelKey, GoldLabelKey, StageLabelKey, RolledLabelKey, StandingOnLabelKey,
         GateRuleLabelKey,
-        RollActionKey, ResolveActionKey, SkipUnbuiltActionKey,
+        RollActionKey, ResolveActionKey,
         AbandonActionKey, AbandonConfirmActionKey,
         ForkNameKey, ForkContinueActionKey, ForkBranchActionKey,
         LoadingStatusKey, RunMissingStatusKey, RunEndedStatusKey, UnavailableStatusKey,
         RefusedStatusKey,
-        BlockedTileStatusKey, UnbuiltScreenStatusKey, BlockedGateStatusKey,
+        BlockedTileStatusKey, BlockedGateStatusKey,
         BlockedForkStatusKey, BlockedBattleStatusKey, BlockedDraftStatusKey,
         ForkPerilousLabelKey, ForkShelteredLabelKey, ForkArcaneLabelKey, ForkFeralLabelKey,
         FixedDiceHeldLabelKey, FixedDiceChooseLabelKey,

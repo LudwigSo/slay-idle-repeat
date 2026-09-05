@@ -127,19 +127,6 @@ public partial class Board : Node3D
         "drawn as ended and has nowhere to go. The board neither banks it nor abandons it.";
 
     /// <summary>
-    /// 🔴 Deliberately unbuilt, and named so it can be found — but NOT a dead end any more, which is
-    /// why it is a warning and the sentence above is an error.
-    /// </summary>
-    private const string TheMinigameScreenIsNotBuiltHere =
-        "The minigame screen is not built: the run is standing on a tile that has no screen to " +
-        "open. It is not stuck — the board's own control resolves the tile through the command that " +
-        "screen would have submitted, at the minigame's lowest outcome tier, so the rest of the run " +
-        "is reachable. What the player does not get is the game. See UnbuiltTileScreens, which is " +
-        "the whole of the placeholder and goes when that screen lands. The event card's half of " +
-        "this is gone: an Event tile opens its own screen now and is a destination like the shop " +
-        "and the campfire.";
-
-    /// <summary>
     /// ⚠️ This task's choice, and the only timing on this screen that is not authored. The design
     /// says the die panel opens on a long press of the roll button and does not say how long a long
     /// press is. The panel is therefore also reachable from a control of its own, so nothing about
@@ -1401,16 +1388,12 @@ public partial class Board : Node3D
     /// Reported rather than navigated to. A finished run belongs to a screen a later row owns, and a
     /// run that reaches it stops here with the reason named in the log.
     /// <para>
-    /// 🔒 <b>Two levels, because the two gaps are not the same gap.</b> A finished run is an ERROR
-    /// here: this screen has nowhere to send it and the player is stuck looking at it. A Minigame
-    /// tile is a WARNING: the screen is missing and the log says so, but the run is not stuck — the
-    /// tile's own command still resolves it, so the line records a placeholder taken rather than a
-    /// dead end reached. Pushing both as errors would make the one that traps a player unfindable
-    /// among the ones that do not.
-    /// </para>
-    /// <para>
-    /// The Event tile is no longer either of those. It opens its own screen, is routed like the shop
-    /// and the campfire, and reaches this method only as an ordinary pending tile.
+    /// 🔒 <b>One gap left, and it is the one that traps a player.</b> A finished run is an ERROR
+    /// here: this screen has nowhere to send it and the player is stuck looking at it. There used to
+    /// be a second, quieter line beside it for a tile whose own screen this build had not written —
+    /// a WARNING, because a placeholder still got the run past it. Both of those screens are built,
+    /// the placeholder is gone, and an Event or a Minigame tile now reaches this method as an
+    /// ordinary pending tile with a destination of its own.
     /// </para>
     /// </remarks>
     private static void ReportUnbuiltDestination(BoardPresenter presenter)
@@ -1418,13 +1401,6 @@ public partial class Board : Node3D
         if (presenter.RollBlock == BoardRollBlock.RunEnded)
         {
             GD.PushError($"{BoardMarker} halted · {TheRunEndScreensAreNotBuiltHere}");
-        }
-
-        if (presenter.PendingTileHasNoScreen)
-        {
-            GD.PushWarning(
-                $"{BoardMarker} placeholder · {TheMinigameScreenIsNotBuiltHere} " +
-                $"tile={presenter.PendingTile?.Kind.ToString(CultureInfo.InvariantCulture) ?? "none"}");
         }
     }
 

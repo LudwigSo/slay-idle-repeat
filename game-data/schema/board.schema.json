@@ -38,7 +38,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "roll", "resolve", "skipUnbuilt", "forkContinue", "forkBranch",
+        "roll", "resolve", "forkContinue", "forkBranch",
         "abandon", "abandonConfirm",
         "overviewStage", "overviewBoard", "overviewHero"
       ],
@@ -48,14 +48,10 @@
         "overviewBoard": { "$ref": "#/$defs/locKey" },
         "overviewHero": { "$ref": "#/$defs/locKey" },
         "resolve": { "$ref": "#/$defs/locKey" },
-        "skipUnbuilt": {
-          "description": "🔴 What the tile control reads on a tile whose own screen this build has not written — an Event or a Minigame. A second key rather than a reused `resolve`, because it is a different offer: `Continue` promises the screen the tile is supposed to open, and the press actually resolves the tile WITHOUT one. Required rather than optional so that deleting the placeholder is a diff somebody has to argue for, the same way `abandonConfirm` is required.",
-          "$ref": "#/$defs/locKey"
-        },
         "forkContinue": { "$ref": "#/$defs/locKey" },
         "forkBranch": { "$ref": "#/$defs/locKey" },
         "abandon": {
-          "description": "The control that gives up the run. Required, and required from THIS screen in particular: 16 D39 makes ABANDON_RUN legal from every state a live run can stand in, and this is the only surface that reaches it — a board standing on a tile whose screen this build has not written has no other way out.",
+          "description": "The control that gives up the run. Required, and required from THIS screen in particular: 16 D39 makes ABANDON_RUN legal from every state a live run can stand in, and this is the only surface that reaches it, so a run with every other control gated still has this one.",
           "$ref": "#/$defs/locKey"
         },
         "abandonConfirm": {
@@ -112,15 +108,11 @@
       "description": "🔒 One sentence per reason the roll is not live, and the reason this object exists at all: a tile left unresolved, a fork left unchosen, a battle left unfought and a draft left untaken all refuse a roll with the SAME wire value. A screen that showed one sentence for all four would tell the player the roll failed and not one thing they could do about it — and each of the four is escaped by doing something different. The screen therefore decides the cause from the run's own state before submitting anything, and these are the sentences it can then say.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["tile", "unbuiltScreen", "gate", "fork", "battle", "draft"],
+      "required": ["tile", "gate", "fork", "battle", "draft"],
       "properties": {
         "tile": { "$ref": "#/$defs/locKey" },
-        "unbuiltScreen": {
-          "description": "🔴 A FIFTH sentence, and the only one that admits a gap in the build rather than naming a state of the run. Two of the fifteen tile kinds — Event and Minigame — are left by a command only their own screen submits, and neither screen exists, so `tile`'s `resolve this tile before rolling again` told a player standing on one to do something no control on the screen could do. This says the screen is missing and what the skip does instead.",
-          "$ref": "#/$defs/locKey"
-        },
         "gate": {
-          "description": "🔴 A SIXTH sentence, and the one read at the moment the rule has already cost something. `tile` — `resolve this tile before rolling again` — is true of a mini-boss node and explains neither why the move stopped short of the number rolled nor why an armed escape did not fire, and this is the only place on the screen where either can be said where it happened.",
+          "description": "🔴 A FIFTH sentence, and the one read at the moment the rule has already cost something. `tile` — `resolve this tile before rolling again` — is true of a mini-boss node and explains neither why the move stopped short of the number rolled nor why an armed escape did not fire, and this is the only place on the screen where either can be said where it happened.",
           "$ref": "#/$defs/locKey"
         },
         "fork": { "$ref": "#/$defs/locKey" },
