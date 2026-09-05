@@ -1,4 +1,4 @@
-﻿using Shouldly;
+using Shouldly;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Client.Game.Presenters;
@@ -51,6 +51,17 @@ public sealed class BoardPresenterTests
     /// number is exactly what the case is about.
     /// </remarks>
     private const int EventTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Event;
+
+    /// <summary>
+    /// A Shop tile — a tile that opens a screen of its own and is still the board's to acknowledge.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The negative arm that makes "draws on its own screen" a rule rather than a list. Opening a
+    /// screen is not the property: the shop opens one and <c>RESOLVE_TILE</c> is exactly the
+    /// acknowledgement that screen is waiting for. The two kinds this board must send nothing for
+    /// are the ones whose screen submits the tile's FIRST command as well as its last.
+    /// </remarks>
+    private const int ShopTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Shop;
 
     /// <summary>
     /// A mini-boss tile — the node a move may not carry past, and a FIGHT tile.
@@ -634,6 +645,65 @@ public sealed class BoardPresenterTests
         // 🔒 Still abandonable, which is the ungated exit every unresolved tile keeps: `16` D39
         // makes ABANDON_RUN legal on an unresolved tile whether or not anything else is.
         presenter.AbandonOffered.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// 🔴 <b>And the board can ASK which tiles those are, because its Continue has to open their
+    /// screens rather than merely refuse them.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 The screen is the only surface that can resolve either tile, so a Continue standing over
+    /// one has exactly one honest job: open it again. The scene's decision latch refuses a second
+    /// handover for a decision it has already shown — right when the board opens one by itself,
+    /// wrong on a press, because both screens hand BACK deliberately in the states they cannot act
+    /// in (a content set that cannot describe the game, a tile whose one submission is spent). On
+    /// that path a press that only refused redrew the identical board and reached the player as a
+    /// control that does nothing at all, with abandoning the run the only thing left. The scene
+    /// reads this to clear the latch on the press.
+    /// </para>
+    /// <para>
+    /// 🔒 The negative arm is what makes this a rule rather than a list. A shop or a treasure tile
+    /// is acknowledged by <c>RESOLVE_TILE</c> and picked up by its screen afterwards, so a board
+    /// that cleared its latch for one of those would re-open a screen the player had just left over
+    /// a command that is doing its job.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(EventTileKind, true)]
+    [InlineData(MinigameTileKind, true)]
+    [InlineData(ShopTileKind, false)]
+    [InlineData(TreasureTileKind, false)]
+    public async Task Only_a_tile_whose_own_screen_opens_it_asks_the_board_to_open_that_screen_again(
+        int tileKind, bool drawsOnItsOwnScreen)
+    {
+        var presenter = Build(RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: tileKind)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTileDrawsOnItsOwnScreen.ShouldBe(
+            drawsOnItsOwnScreen,
+            "tile kind " + tileKind + " answered the wrong way. The board clears its handover latch " +
+            "on a press over a tile that says true here, so a false negative leaves Continue doing " +
+            "nothing on a tile only its own screen can resolve, and a false positive re-opens a " +
+            "screen the player has just come back from.");
+    }
+
+    /// <summary>…and with no tile pending at all there is no screen to re-open.</summary>
+    [Fact]
+    public async Task A_board_with_no_pending_tile_asks_for_no_screen()
+    {
+        var presenter = Build(RecordingGameHost.Finding(
+            AnyPlayer(), PlayerState.Run(Run, Player, RunPhase.InProgress)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTile.ShouldBeNull();
+        presenter.PendingTileDrawsOnItsOwnScreen.ShouldBeFalse(
+            "there is no tile here, so there is no screen the board could be asked to open — and a " +
+            "latch cleared on this press would re-open whichever decision the run last held.");
     }
 
     [Fact]

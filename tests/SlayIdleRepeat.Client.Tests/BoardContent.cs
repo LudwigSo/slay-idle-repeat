@@ -1,4 +1,4 @@
-﻿using SlayIdleRepeat.Client.Game.Presenters;
+using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Content;
 
 namespace SlayIdleRepeat.Client.Tests;

@@ -367,6 +367,24 @@ public sealed class MinigamePresenter
     /// the decision it has already latched — which it refuses as halted, leaving a live board whose
     /// own control cannot resolve that tile either.
     /// </para>
+    /// <para>
+    /// 🔴 <b>A game the RULES LAYER has refused is a sixth settled state, and it hides inside
+    /// <see cref="MinigameStage.Playing"/>.</b> The stage cannot move on a refusal — nothing is
+    /// resolved and the ladder must survive — so the screen goes on saying the game is the player's
+    /// to play while the one command that would end it comes back refused. Every reason
+    /// <c>MINIGAME_SUBMIT</c> refuses this screen is an answer ABOUT the run rather than a hiccup in
+    /// reaching it: the tile's one submission is already spent, the run is standing somewhere else,
+    /// the run is over. None of them changes by pressing again, so a screen offering only the press
+    /// offers only the same refusal, for ever, with the way back drawn out of use. The play control
+    /// stays live beside this — a refusal is not proof the next press fails, and taking it away
+    /// would undo the played-out-bar case below — but the way back opens.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>A FAULTED submission deliberately does not open it.</b> A fault is the game not
+    /// answering rather than an answer, the retry is the whole of the way through, and handing back
+    /// on one would leave a tile pending on a board that cannot resolve it over a failure that may
+    /// already have passed.
+    /// </para>
     /// </remarks>
     public MinigameExit Exit => CanLeave
         ? MinigameExit.ToTheBoard
@@ -376,6 +394,7 @@ public sealed class MinigamePresenter
             MinigameStage.RunMissing or MinigameStage.NotAtAMinigame or
                 MinigameStage.AlreadyResolved or MinigameStage.RulesUnavailable =>
                 MinigameExit.ToTheBoard,
+            _ when RulesRejection is not null => MinigameExit.ToTheBoard,
             _ => MinigameExit.Nowhere,
         };
 

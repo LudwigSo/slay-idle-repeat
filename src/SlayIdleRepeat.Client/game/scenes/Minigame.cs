@@ -101,6 +101,20 @@ public partial class Minigame : Node3D
     /// <summary>And one with nothing to do — the same quiet grey every caption is drawn in.</summary>
     private static readonly Color UnavailableColour = new(0.66f, 0.67f, 0.73f);
 
+    /// <summary>A chest drawn at its full weight — the one that was opened, and all three at rest.</summary>
+    private static readonly Color Standing = new(1, 1, 1, 1);
+
+    /// <summary>
+    /// And one drawn back out of the way while another chest's answer is out.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Opacity rather than a second hue, and applied to the whole control rather than to its
+    /// text: the three chests are identical by design, so the only thing that can say which one was
+    /// opened is that one of them did not change. A colour swap says it in one channel a player may
+    /// not separate; receding the other two says it by weight, by contrast and by depth at once.
+    /// </remarks>
+    private static readonly Color Receded = new(1, 1, 1, 0.4f);
+
     private MinigamePresenter? _presenter;
     private Board? _board;
     private CancellationToken _lifetime;
@@ -144,6 +158,16 @@ public partial class Minigame : Node3D
 
     /// <summary>Whether a submission is in flight, so a second press cannot start another.</summary>
     private bool _busy;
+
+    /// <summary>Which chest was opened, while its answer is still out.</summary>
+    /// <remarks>
+    /// 🔴 <b>Three identical controls send one identical command, so without this a press has no
+    /// answer at all.</b> Taking all three out of use says a press landed; it says nothing about
+    /// WHICH, and "did I hit the one I aimed at" is the question a thumb on a handset actually asks.
+    /// Read only while <see cref="_busy"/> is set, so a refused or faulted submission — which puts
+    /// all three back in the player's hand — needs nothing cleared.
+    /// </remarks>
+    private Button? _chestInFlight;
 
     /// <summary>Takes the presenter, the board to hand back to, and the app's shutdown token.</summary>
     /// <param name="presenter">Drives this screen.</param>
@@ -201,17 +225,19 @@ public partial class Minigame : Node3D
         ButtonTextColours.ApplyTo(_stepButton, LiveColour, UnavailableColour);
         ButtonTextColours.ApplyTo(_rollButton, LiveColour, UnavailableColour);
         ButtonTextColours.ApplyTo(_continueButton, LiveColour, UnavailableColour);
-        ButtonTextColours.ApplyTo(_chestOne, LiveColour, UnavailableColour);
-        ButtonTextColours.ApplyTo(_chestTwo, LiveColour, UnavailableColour);
-        ButtonTextColours.ApplyTo(_chestThree, LiveColour, UnavailableColour);
+
+        // The three chests are painted by DrawChest instead, because the one that was opened keeps
+        // the live colour while it is out of use and the other two do not — so their text colour is
+        // a fact about the press rather than a constant, and a second author of it here would be
+        // whichever of the two ran last.
 
         _strikeButton.Pressed += OnStrikePressed;
         _stepButton.Pressed += OnStepPressed;
         _rollButton.Pressed += OnSubmitPressed;
         _continueButton.Pressed += OnContinuePressed;
-        _chestOne.Pressed += OnSubmitPressed;
-        _chestTwo.Pressed += OnSubmitPressed;
-        _chestThree.Pressed += OnSubmitPressed;
+        _chestOne.Pressed += OnChestOnePressed;
+        _chestTwo.Pressed += OnChestTwoPressed;
+        _chestThree.Pressed += OnChestThreePressed;
 
         // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
         // does this on the way in, because every handover in this build leaves the outgoing screen
@@ -241,9 +267,9 @@ public partial class Minigame : Node3D
         Detach(_stepButton, OnStepPressed);
         Detach(_rollButton, OnSubmitPressed);
         Detach(_continueButton, OnContinuePressed);
-        Detach(_chestOne, OnSubmitPressed);
-        Detach(_chestTwo, OnSubmitPressed);
-        Detach(_chestThree, OnSubmitPressed);
+        Detach(_chestOne, OnChestOnePressed);
+        Detach(_chestTwo, OnChestTwoPressed);
+        Detach(_chestThree, OnChestThreePressed);
 
         // Nothing is left running behind a screen on its way out.
         SetProcess(false);
@@ -366,9 +392,14 @@ public partial class Minigame : Node3D
 
         // All three carry the same caption and the same answer, because the outcome is the server's
         // draw: which chest was opened decides nothing at all.
-        DrawChest(_chestOne, presenter.PickChestText, offered);
-        DrawChest(_chestTwo, presenter.PickChestText, offered);
-        DrawChest(_chestThree, presenter.PickChestText, offered);
+        //
+        // 🔴 …which is exactly why the one that WAS opened has to keep its weight while its answer
+        // is out. Three identical controls taken out of use together say a press landed and say
+        // nothing about which of them took it, and a submission is a round trip on a handset's
+        // connection. The chest that was opened stands; the other two recede behind it.
+        DrawChest(_chestOne, presenter.PickChestText, offered, Receding(_chestOne));
+        DrawChest(_chestTwo, presenter.PickChestText, offered, Receding(_chestTwo));
+        DrawChest(_chestThree, presenter.PickChestText, offered, Receding(_chestThree));
 
         _strikeButton.Text = presenter.StrikeText;
         _strikeButton.Visible = playing && controls == MinigameControls.Timing;
@@ -552,6 +583,35 @@ public partial class Minigame : Node3D
         Render();
     }
 
+    private void OnChestOnePressed() => OpenChest(_chestOne);
+
+    private void OnChestTwoPressed() => OpenChest(_chestTwo);
+
+    private void OnChestThreePressed() => OpenChest(_chestThree);
+
+    /// <summary>Opens one chest, and remembers which one while its answer is out.</summary>
+    /// <remarks>
+    /// The command is the identical one whichever chest this is — the outcome is the server's draw.
+    /// What differs is only what the screen can say back, which is that this chest is the one the
+    /// press landed on.
+    /// </remarks>
+    /// <param name="chest">The control that was pressed.</param>
+    private void OpenChest(Button? chest)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _chestInFlight = chest;
+
+        OnSubmitPressed();
+    }
+
+    /// <summary>Whether one chest should stand back while another chest's answer is out.</summary>
+    private bool Receding(Button? chest) =>
+        _busy && _chestInFlight is not null && !ReferenceEquals(chest, _chestInFlight);
+
     private void OnSubmitPressed() => _ = SubmitAsync();
 
     /// <remarks>
@@ -682,11 +742,19 @@ public partial class Minigame : Node3D
         }
     }
 
-    /// <summary>Writes one chest's caption and whether it may be opened right now.</summary>
+    /// <summary>Writes one chest's caption, whether it may be opened, and how it stands.</summary>
+    /// <remarks>
+    /// 🔴 <b>Out of use is not the same as standing back.</b> All three chests go out of use the
+    /// moment one is opened, because one tile takes one submission — but the one that was opened
+    /// keeps its full weight and its live caption, and the two that were not fade behind it. Drawn
+    /// out of use alike, the answer to "which did I hit" is nothing at all, on the one arm of this
+    /// screen whose controls are deliberately indistinguishable.
+    /// </remarks>
     /// <param name="chest">The control, or null when this screen left the tree before it resolved.</param>
     /// <param name="caption">What it reads. The same on all three, because they do the same thing.</param>
     /// <param name="offered">Whether the presenter says a submission may still be sent.</param>
-    private static void DrawChest(Button? chest, string caption, bool offered)
+    /// <param name="receding">Whether another chest's answer is out, so this one stands back.</param>
+    private static void DrawChest(Button? chest, string caption, bool offered, bool receding)
     {
         if (chest is not { } control)
         {
@@ -695,6 +763,13 @@ public partial class Minigame : Node3D
 
         control.Text = caption;
         control.Disabled = !offered;
+        control.Modulate = receding ? Receded : Standing;
+
+        // The opened chest keeps the live caption THROUGH being out of use, which is the whole of
+        // what tells it apart from the two beside it; a chest merely waiting its turn takes the
+        // quiet grey every unusable control on these screens takes.
+        ButtonTextColours.ApplyTo(
+            control, LiveColour, offered || receding ? UnavailableColour : LiveColour);
     }
 
     /// <summary>Takes one press handler back off a control, if the control is still there.</summary>

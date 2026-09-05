@@ -682,6 +682,93 @@ public sealed class MinigamePresenterTests
             MinigameContent.EnglishValueOf(MinigameContent.RefusedStatusKey));
     }
 
+    /// <summary>
+    /// 🔴 <b>A game the rules layer has REFUSED still offers the way back.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 The refusal hides inside <c>Playing</c>, because nothing may be settled off a refused
+    /// outcome — so the screen goes on saying the game is the player's to play while the one command
+    /// that ends it comes back refused. Every reason <c>MINIGAME_SUBMIT</c> refuses is an answer
+    /// ABOUT the run rather than a hiccup in reaching it: this tile's one submission is already
+    /// spent, the run is standing somewhere else, the run is over. None of them changes by pressing
+    /// again, so a screen offering only the press offers only the same refusal — and with the way
+    /// back drawn out of use that run is leavable only by killing the application.
+    /// </para>
+    /// <para>
+    /// 🔒 Asserted alongside <c>PlayOffered</c>, because opening the way back must not close the
+    /// retry: the played-out-bar case below stands on the arm's own control surviving a submission
+    /// that did not land.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_submission_the_rules_layer_refused_leaves_the_player_a_way_off_the_screen()
+    {
+        var presenter = Build(
+            RecordingGameHost
+                .Finding(AnyPlayer(), AtAMinigame())
+                .RefusingCommands(RejectionReason.ILLEGAL_STATE),
+            minigameId: MinigameContent.ChestPick);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Exit.ShouldBe(
+            MinigameExit.Nowhere,
+            "nothing has been refused yet and the game is still the player's to play, so the way " +
+            "back being open here would let them leave a tile still pending behind them.");
+
+        (await presenter.SubmitAsync(CancellationToken.None))
+            .ShouldBe(MinigameSubmission.RefusedByRules);
+
+        presenter.Stage.ShouldBe(
+            MinigameStage.Playing,
+            "the stage cannot move on a refusal — which is precisely why the way out cannot be read " +
+            "off the stage alone.");
+        presenter.CanLeave.ShouldBeFalse(
+            "the tile is still pending, so the ordinary way out is shut and this state needs the " +
+            "second reason for the control to be live.");
+        presenter.Exit.ShouldBe(
+            MinigameExit.ToTheBoard,
+            "🔴 the rules layer has answered, and its answer will not change by being asked again. " +
+            "With the way back shut the player is left pressing a control that is refused every " +
+            "time, on a run that can then be left only by killing the application.");
+        presenter.PlayOffered.ShouldBeTrue(
+            "opening the way back closed the retry. A refusal is not proof the next press fails, " +
+            "and the played-out timing bar depends on this control surviving a submission that did " +
+            "not land.");
+    }
+
+    /// <summary>…and a FAULTED submission deliberately does not open it.</summary>
+    /// <remarks>
+    /// 🔒 A fault is the game not answering rather than an answer about the run, so the retry is the
+    /// whole of the way through — and handing back would leave a tile pending on a board that
+    /// cannot resolve it over a failure that may already have passed. This is the negative control
+    /// for the case above: without it, "the way back is always open once a command has been sent"
+    /// satisfies that one just as well.
+    /// </remarks>
+    [Fact]
+    public async Task A_submission_that_never_answered_keeps_the_retry_and_not_the_way_back()
+    {
+        var presenter = Build(
+            RecordingGameHost
+                .Finding(AnyPlayer(), AtAMinigame())
+                .FaultingItsCommands(new TimeoutException("the submission never completed")),
+            minigameId: MinigameContent.ChestPick);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        (await presenter.SubmitAsync(CancellationToken.None))
+            .ShouldBe(MinigameSubmission.HostUnavailable);
+
+        presenter.Exit.ShouldBe(
+            MinigameExit.Nowhere,
+            "a call that never completed said nothing about the run, so leaving on it hands the " +
+            "board a tile it cannot resolve over a failure the next press may not meet.");
+        presenter.PlayOffered.ShouldBeTrue(
+            "and the retry is the whole of the way through a fault, so the arm's own control has to " +
+            "still be live.");
+    }
+
     /// <summary>🔒 A faulting host is not silence, and it does not read as a rules refusal.</summary>
     [Fact]
     public async Task A_host_that_faults_on_a_submission_is_told_apart_from_a_refusal()

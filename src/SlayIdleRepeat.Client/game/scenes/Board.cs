@@ -1210,12 +1210,29 @@ public partial class Board : Node3D
         _ = SubmitAsync(presenter => presenter.RollAsync(_lifetime));
     }
 
-    /// <remarks>Resolving a tile is server-settled too — see <see cref="OnRollPressed"/>.</remarks>
+    /// <remarks>
+    /// <para>Resolving a tile is server-settled too — see <see cref="OnRollPressed"/>.</para>
+    /// <para>
+    /// 🔴 <b>On a tile whose own screen is the only thing that can resolve it, this press IS that
+    /// screen.</b> The presenter sends no command for those two kinds, so what the press has to
+    /// accomplish is the handover — and the latch below refuses a second one for a decision it has
+    /// already shown. That is right when the board opens the decision by itself, which is how the
+    /// player would otherwise be sent round the same screen for ever; it is wrong on a press,
+    /// because the screen hands back deliberately in the states it cannot act in, and Continue then
+    /// redrew the identical board and did nothing at all. Cleared here, so the latch still stops the
+    /// loop the board would start on its own and the player can still ask for the screen again.
+    /// </para>
+    /// </remarks>
     private void OnResolvePressed()
     {
         if (!OfflineActionAffordance.MayBeSubmitted(_connection))
         {
             return;
+        }
+
+        if (_presenter is { PendingTileDrawsOnItsOwnScreen: true })
+        {
+            _decisionShown = null;
         }
 
         _ = SubmitAsync(presenter => presenter.ResolvePendingTileAsync(_lifetime));

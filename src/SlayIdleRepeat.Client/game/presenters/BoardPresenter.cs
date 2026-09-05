@@ -578,12 +578,18 @@ public sealed class BoardPresenter
     /// 🔒 <b>An Event or a Minigame tile keeps the ORDINARY caption, and the control keeps its
     /// place.</b> That looks wrong beside <see cref="PendingTileDrawsOnItsOwnScreen"/>, which sends
     /// no command for either — but the caption names what the press accomplishes, not which command
-    /// it sends, and on the only board state that can show one of those tiles at all the press does
-    /// exactly what "Continue" says. That state is a handover that did not happen, so the decision
-    /// latch is still clear; the screen re-opens the decision on the tail of every submission, and a
-    /// submission that sent nothing takes that tail immediately. The press is the retry. A control
-    /// drawn out of use here would take away the one non-destructive thing on a board whose only
-    /// other offer is abandoning the run.
+    /// it sends, and on both of the board states that can show one of those tiles the press does
+    /// exactly what "Continue" says: it opens that tile's own screen. The screen re-opens the
+    /// decision on the tail of every submission, and a submission that sent nothing takes that tail
+    /// immediately. The press is the retry. A control drawn out of use here would take away the one
+    /// non-destructive thing on a board whose only other offer is abandoning the run.
+    /// <para>
+    /// 🔴 It is the retry on BOTH states rather than on one only because the scene clears its
+    /// decision latch on this press — see <see cref="PendingTileDrawsOnItsOwnScreen"/>. A handover
+    /// that never happened left that latch clear anyway; a screen that handed back deliberately did
+    /// not, and without the clearing this caption would promise a screen on a press that redrew the
+    /// same board and did nothing.
+    /// </para>
     /// </para>
     /// </remarks>
     public string ResolveText => _strings.Resolve(ResolveActionKey);
@@ -911,15 +917,23 @@ public sealed class BoardPresenter
     /// and refusing here is what keeps deleting the placeholder from putting it back.
     /// </para>
     /// <para>
-    /// ⚠️ It is reachable for both, which is why it is a state rather than an assertion: the
-    /// handover is latched on having HAPPENED, so a scene that could not load — or a screen that
-    /// hands back with the tile still pending — leaves this board on screen with its own control
-    /// live over one of them. Refusing is the honest answer there, and it is not a dead press: the
-    /// handover that did not happen left the decision latch clear, the screen re-opens the decision
-    /// on the tail of every submission, and a submission that moved nothing reaches that tail at
-    /// once. So the press that sends no command is the one that tries the screen again — which is
-    /// why the control keeps its ordinary caption rather than being drawn out of use. See
-    /// <see cref="ResolveText"/>. <see cref="AbandonOffered"/> is ungated throughout.
+    /// ⚠️ It is reachable for both, which is why it is a state rather than an assertion, and it is
+    /// reachable two ways rather than one. A handover that could not load its scene leaves this
+    /// board on screen with its own control live over one of those tiles. So does a screen that
+    /// deliberately hands BACK with the tile still pending — which both of them do, on a content
+    /// set that cannot describe the game and on a tile whose one submission the rules layer has
+    /// already spent.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>Which is why this is public, and why the press that sends no command is still the one
+    /// that tries the screen again.</b> The screen this board hands to is the only surface that can
+    /// resolve either tile, so the honest thing for a Continue standing over one is to open it —
+    /// and on the second of those two paths the board's own decision latch is SET, so a press that
+    /// merely refused would redraw the identical board and reach the player as a control that does
+    /// nothing at all. The scene reads this to clear that latch on the press, which keeps the latch
+    /// doing the job it exists for — stopping the board from re-opening a screen on its own, for
+    /// ever — while leaving the player a way to ask for it. See <see cref="ResolveText"/>, whose
+    /// caption stands on exactly this. <see cref="AbandonOffered"/> is ungated throughout.
     /// </para>
     /// <para>
     /// 🔒 Each number is asked of the screen that owns it, the way
@@ -927,7 +941,7 @@ public sealed class BoardPresenter
     /// exactly one home in this client.
     /// </para>
     /// </remarks>
-    private bool PendingTileDrawsOnItsOwnScreen => PendingTile is
+    public bool PendingTileDrawsOnItsOwnScreen => PendingTile is
         { Kind: EventPresenter.EventTileKind or MinigamePresenter.MinigameTileKind };
 
     /// <summary>
