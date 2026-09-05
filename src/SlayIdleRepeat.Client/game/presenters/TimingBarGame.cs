@@ -98,8 +98,13 @@ public sealed class TimingBarGame
 
     /// <summary>Moves time forward. Does nothing at all under reduced motion.</summary>
     /// <remarks>
-    /// The clock keeps running once the game is finished, because the cursor is still drawn: a bar
-    /// that froze on the last strike would read as the screen having stopped answering.
+    /// 🔒 Nothing here stops on <see cref="Finished"/>, and that is deliberately not a promise that
+    /// the marker keeps moving: whether the clock is still being fed is the SCREEN's answer, and the
+    /// screen stops feeding it the moment the last strike lands, because the tier is settled and a
+    /// marker still sweeping a band would be inviting a strike that scores nothing. What this
+    /// refuses to do is make that decision here — a game that latched its own clock could never be
+    /// driven past the last strike by anything, including a case that wants to prove the cursor is
+    /// derived from time rather than from strikes.
     /// </remarks>
     /// <param name="delta">Seconds since the last frame. Never negative.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="delta"/> is negative.</exception>

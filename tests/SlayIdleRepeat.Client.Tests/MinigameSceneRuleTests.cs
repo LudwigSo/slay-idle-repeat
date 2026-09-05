@@ -123,7 +123,8 @@ public sealed class MinigameSceneRuleTests
     /// when it is gone — and that error is the only thing in the build that would say so. What is
     /// lost is not decoration: without <c>RewardRows</c> the player chooses a game with no idea what
     /// any outcome pays, without <c>HitsLabel</c> a bar reports neither hits nor strikes left, and
-    /// without <c>ResultLabel</c> a resolved tile never says what was won.
+    /// without <c>ResultLabel</c> a resolved tile never says what was won — nor, without
+    /// <c>ResultRewardLabel</c>, how much of it.
     /// </remarks>
     [Theory]
     [InlineData("World")]
@@ -153,6 +154,7 @@ public sealed class MinigameSceneRuleTests
     [InlineData("ResultPanel")]
     [InlineData("ResultHeading")]
     [InlineData("ResultLabel")]
+    [InlineData("ResultRewardLabel")]
     [InlineData("StatusLabel")]
     [InlineData("RejectionLabel")]
     [InlineData("ActionColumn")]

@@ -302,9 +302,27 @@ theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 44
 autowrap_mode = 3
 
+; 🔴 What the outcome actually PAID, under the name of the outcome that paid it. Named alone, the
+; result was the one thing on a reward screen that did not say what the reward was: the amounts sat
+; in an unhighlighted row of the ladder below, which is a table of what every outcome pays and says
+; nothing about which one this run got. It takes the theme's own value face rather than a size
+; written here, because that is what this game draws a number that matters in.
+[node name="ResultRewardLabel" type="Label" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn/ResultPanel/ResultBody"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudValue"
+autowrap_mode = 3
+
 ; What each outcome pays, before anything is played. Transparent to input, because it lives inside
 ; GameScroll: a container that swallows a touch is a patch of the screen the list cannot be dragged
 ; by, and nothing on this panel is pressed.
+;
+; 🔴 Drawn only when there are rows in it. Five of this screen's eight states project no ladder at
+; all — a run that could not be read, a run that is not here, a content set that cannot describe the
+; game — and a framed tile carrying a heading over nothing is the largest thing on those screens,
+; reading as a list that failed to arrive rather than as a list there was never anything to put in.
 [node name="RewardsPanel" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/GameScroll/GameColumn"]
 unique_name_in_owner = true
 layout_mode = 2

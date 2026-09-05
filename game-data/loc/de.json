@@ -354,7 +354,7 @@
     "loc.minigame.dice_duel.name": "##TODO_DE## Dice Duel",
     "loc.minigame.memory_rune.name": "##TODO_DE## Rune Recall",
     "loc.minigame.chest_pick.rule": "##TODO_DE## Pick one of three chests. What is inside is decided when you pick.",
-    "loc.minigame.timing_bar.rule": "##TODO_DE## The marker sweeps the bar. Strike while it is inside the bright band.",
+    "loc.minigame.timing_bar.rule": "##TODO_DE## The marker moves along the bar. Strike while it is inside the bright band.",
     "loc.minigame.dice_duel.rule": "##TODO_DE## Best of three rolls against the house. Take two and the duel is yours.",
     "loc.minigame.memory_rune.rule": "##TODO_DE## Watch the runes light, then repeat the order. Two rounds.",
     "loc.minigame.rewards.label": "##TODO_DE## What each outcome pays",

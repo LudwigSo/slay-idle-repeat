@@ -354,7 +354,7 @@
     "loc.minigame.dice_duel.name": "Dice Duel",
     "loc.minigame.memory_rune.name": "Rune Recall",
     "loc.minigame.chest_pick.rule": "Pick one of three chests. What is inside is decided when you pick.",
-    "loc.minigame.timing_bar.rule": "The marker sweeps the bar. Strike while it is inside the bright band.",
+    "loc.minigame.timing_bar.rule": "The marker moves along the bar. Strike while it is inside the bright band.",
     "loc.minigame.dice_duel.rule": "Best of three rolls against the house. Take two and the duel is yours.",
     "loc.minigame.memory_rune.rule": "Watch the runes light, then repeat the order. Two rounds.",
     "loc.minigame.rewards.label": "What each outcome pays",

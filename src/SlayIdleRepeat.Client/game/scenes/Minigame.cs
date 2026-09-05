@@ -60,6 +60,7 @@ public partial class Minigame : Node3D
     private const string TitleLabelPath = "%TitleLabel";
     private const string ArmLabelPath = "%ArmLabel";
     private const string RuleLabelPath = "%RuleLabel";
+    private const string RewardsPanelPath = "%RewardsPanel";
     private const string RewardsHeadingPath = "%RewardsHeading";
     private const string RewardRowsPath = "%RewardRows";
     private const string GuaranteeLabelPath = "%GuaranteeLabel";
@@ -76,6 +77,7 @@ public partial class Minigame : Node3D
     private const string ResultPanelPath = "%ResultPanel";
     private const string ResultHeadingPath = "%ResultHeading";
     private const string ResultLabelPath = "%ResultLabel";
+    private const string ResultRewardLabelPath = "%ResultRewardLabel";
     private const string StatusLabelPath = "%StatusLabel";
     private const string RejectionLabelPath = "%RejectionLabel";
     private const string StrikeRowPath = "%StrikeRow";
@@ -106,6 +108,7 @@ public partial class Minigame : Node3D
     private Label? _titleLabel;
     private Label? _armLabel;
     private Label? _ruleLabel;
+    private PanelContainer? _rewardsPanel;
     private Label? _rewardsHeading;
     private VBoxContainer? _rewardRows;
     private Label? _guaranteeLabel;
@@ -122,6 +125,7 @@ public partial class Minigame : Node3D
     private PanelContainer? _resultPanel;
     private Label? _resultHeading;
     private Label? _resultLabel;
+    private Label? _resultRewardLabel;
     private Label? _statusLabel;
     private Label? _rejectionLabel;
     private HBoxContainer? _strikeRow;
@@ -164,6 +168,7 @@ public partial class Minigame : Node3D
         _titleLabel = GetNode<Label>(TitleLabelPath);
         _armLabel = GetNode<Label>(ArmLabelPath);
         _ruleLabel = GetNode<Label>(RuleLabelPath);
+        _rewardsPanel = GetNode<PanelContainer>(RewardsPanelPath);
         _rewardsHeading = GetNode<Label>(RewardsHeadingPath);
         _rewardRows = GetNode<VBoxContainer>(RewardRowsPath);
         _guaranteeLabel = GetNode<Label>(GuaranteeLabelPath);
@@ -180,6 +185,7 @@ public partial class Minigame : Node3D
         _resultPanel = GetNode<PanelContainer>(ResultPanelPath);
         _resultHeading = GetNode<Label>(ResultHeadingPath);
         _resultLabel = GetNode<Label>(ResultLabelPath);
+        _resultRewardLabel = GetNode<Label>(ResultRewardLabelPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
         _rejectionLabel = GetNode<Label>(RejectionLabelPath);
         _strikeRow = GetNode<HBoxContainer>(StrikeRowPath);
@@ -301,11 +307,13 @@ public partial class Minigame : Node3D
         // itself the crash, and a shutdown during a slow command is the ordinary case on a handset.
         if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
             _titleLabel is null || _armLabel is null || _ruleLabel is null ||
-            _rewardsHeading is null || _rewardRows is null || _guaranteeLabel is null ||
+            _rewardsPanel is null || _rewardsHeading is null || _rewardRows is null ||
+            _guaranteeLabel is null ||
             _timingBarPanel is null || _hitWindow is null || _cursor is null ||
             _hitsLabel is null || _chestPanel is null || _diceDuelPanel is null ||
             _diceLabel is null || _resultPanel is null || _resultHeading is null ||
-            _resultLabel is null || _statusLabel is null || _rejectionLabel is null ||
+            _resultLabel is null || _resultRewardLabel is null || _statusLabel is null ||
+            _rejectionLabel is null ||
             _strikeRow is null || _strikeButton is null || _stepButton is null ||
             _rollButton is null || _continueButton is null)
         {
@@ -319,17 +327,33 @@ public partial class Minigame : Node3D
 
         RenderLadder(presenter, _rewardRows);
 
-        _guaranteeLabel.Text = presenter.GuaranteeText;
-        _guaranteeLabel.Visible = _guaranteeLabel.Text.Length > 0;
+        // 🔴 Hidden when there is nothing in it. Five of the eight states this screen settles in
+        // project no ladder at all, and a framed tile with a heading over an empty list is the
+        // biggest thing on those screens — it reads as a list that failed to arrive rather than as
+        // one there was never anything to put in.
+        _rewardsPanel.Visible = presenter.Rows.Count > 0;
 
         var playing = presenter.Stage == MinigameStage.Playing;
         var controls = presenter.Controls;
+
+        // 🔴 Drawn only while there is still a pick to make. It counts down to a chest the NEXT pick
+        // is guaranteed to be, and the read it came from is the one before this tile's pick — so
+        // left standing beside a resolved outcome it is a promise about a streak the pick just
+        // moved, stated one short of the truth at the one moment a player looks at it.
+        _guaranteeLabel.Text = presenter.GuaranteeText;
+        _guaranteeLabel.Visible = playing && _guaranteeLabel.Text.Length > 0;
 
         _timingBarPanel.Visible = playing && controls == MinigameControls.Timing;
         _chestPanel.Visible = playing && controls == MinigameControls.Chests;
         _diceDuelPanel.Visible = playing && controls == MinigameControls.Dice;
 
+        // 🔴 The dice duel draws no board of its own, so its panel carries the rule sentence in the
+        // slot the other two games stand in — and the standing caption above it would then be the
+        // same words twice on one screen, at two sizes, a thumb apart. Bound to the ARM rather than
+        // to the panel's visibility, so the sentence does not migrate up the screen the instant the
+        // tile resolves.
         _diceLabel.Text = presenter.RuleText;
+        _ruleLabel.Visible = controls != MinigameControls.Dice;
 
         RenderTimingBar(presenter);
 
@@ -380,6 +404,19 @@ public partial class Minigame : Node3D
         _resultLabel.Text = presenter.ResolvedOutcome.Length > 0
             ? presenter.OutcomeText(presenter.ResolvedOutcome)
             : "";
+
+        // 🔴 What the outcome PAID, beneath the name of the outcome. Named alone, the payoff moment
+        // of a reward minigame was the one place on the screen that did not say what the reward was:
+        // the amounts stood in an unmarked row of the ladder underneath, which is a table of what
+        // every outcome pays and says nothing about which one this run got. Indexed by the tier the
+        // way the presenter reads its own caption off it, and bounded, because a tier that is not a
+        // row of this ladder is a server and a content set that disagree.
+        _resultRewardLabel.Text = presenter.ResolvedTier >= 0 &&
+                                  presenter.ResolvedTier < presenter.Rows.Count
+            ? presenter.RewardText(presenter.Rows[presenter.ResolvedTier])
+            : "";
+        _resultRewardLabel.Visible = _resultRewardLabel.Text.Length > 0;
+
         _resultPanel.Visible = _resultLabel.Text.Length > 0;
 
         // Hidden rather than blanked once they have nothing to say: an empty label still claims a
