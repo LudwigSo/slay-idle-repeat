@@ -3,36 +3,30 @@ using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Client.Composition;
 
-/// <summary>
-/// Everything one Minigame screen needs: the presenter that drives the game, and the one
-/// accessibility setting the scene half has to honour by itself.
-/// </summary>
+/// <summary>Everything one Minigame screen needs, which is the presenter that drives the game.</summary>
 /// <remarks>
-/// 🔒 The motion setting is carried here for the reason <c>ComposedBattleScreen</c> carries its own:
-/// it is answered in two halves. The presenter owns the half that is rules — under reduced motion the
-/// cursor does not sweep and a press steps it instead — and the scene owns the half that is drawing:
-/// which of the two aim controls it puts on screen at all. One value decided once in the composition
-/// root is what keeps a screen from drawing a Strike control over a game that is stepped.
+/// 🔒 <b>The motion setting is NOT carried beside the presenter here, and that is the one way this
+/// holder differs from <c>ComposedBattleScreen</c> and <c>ComposedPerkDraftScreen</c>.</b> Those two
+/// keep their own copy because their presenters take the flag and keep it private, so the scene half
+/// — which has its own drawing to answer under it — has nowhere else to read it. This screen's
+/// presenter publishes <see cref="MinigamePresenter.ReducedMotion"/>, so a copy here would be a
+/// second holder of one setting on one screen, and the failure it invites is precisely the one the
+/// setting exists to prevent: a Strike control drawn over a game that is stepped.
 /// </remarks>
 public sealed class ComposedMinigameScreen
 {
-    /// <summary>Pairs the minigame presenter with the motion setting its scene half draws under.</summary>
+    /// <summary>Holds the presenter the Minigame screen is driven by.</summary>
     /// <param name="minigame">Drives the Minigame screen.</param>
-    /// <param name="reducedMotion">Whether the timing bar is aimed by stepping rather than by timing.</param>
     /// <exception cref="ArgumentNullException"><paramref name="minigame"/> is null.</exception>
-    public ComposedMinigameScreen(MinigamePresenter minigame, bool reducedMotion)
+    public ComposedMinigameScreen(MinigamePresenter minigame)
     {
         ArgumentNullException.ThrowIfNull(minigame);
 
         Minigame = minigame;
-        ReducedMotion = reducedMotion;
     }
 
     /// <summary>Drives the Minigame screen.</summary>
     public MinigamePresenter Minigame { get; }
-
-    /// <summary>Whether the timing bar is aimed by stepping rather than by timing.</summary>
-    public bool ReducedMotion { get; }
 }
 
 /// <summary>
@@ -78,7 +72,8 @@ public static class MinigameComposition
     /// 🔴 Whether the timing bar is aimed by stepping rather than by timing. An argument rather than
     /// a constant, and defaulted, because the settings screen that would remember it is not built —
     /// the same seam <c>BattleComposition</c> and <c>PerkDraftComposition</c> carry for the same
-    /// reason.
+    /// reason. It is handed to the presenter and to nothing else, which is where every half of the
+    /// screen then reads it from.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="composed"/> is null.</exception>
     public static ComposedMinigameScreen CreateMinigameScreen(
@@ -97,7 +92,6 @@ public static class MinigameComposition
 
         return new ComposedMinigameScreen(
             new MinigamePresenter(
-                composed.Client.GameHost, strings, content, player, run, arm, reducedMotion),
-            reducedMotion);
+                composed.Client.GameHost, strings, content, player, run, arm, reducedMotion));
     }
 }

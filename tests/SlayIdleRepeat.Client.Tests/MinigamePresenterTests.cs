@@ -890,6 +890,66 @@ public sealed class MinigamePresenterTests
             0.0, "the step is the only way a reduced-motion player aims, and it moved nothing.");
     }
 
+    /// <summary>
+    /// 🔴 <b>A step on a played-out bar is refused by the PRESENTER, and the strike beside it is
+    /// not.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two controls answer differently once the game is finished, and the difference is a fact
+    /// about the game rather than about the drawing: a press on a played-out bar IS the submission
+    /// again, so the arm's own control has to survive being finished — but a step sends no command
+    /// and settles no tier, so there is genuinely nothing left for it to do.
+    /// </para>
+    /// <para>
+    /// 🔒 Both halves in one case, because either alone passes while the other is wrong. And asked
+    /// of the presenter rather than left to the screen's <c>Node</c> half to compose out of two other
+    /// answers: this repository has no harness that can reach a <c>Node</c>, so a rule worked out
+    /// inside one is a rule no case can fail.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_step_on_a_played_out_bar_moves_nothing_while_the_strike_beside_it_still_submits()
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(AnyPlayer(), AtAMinigame()),
+            minigameId: MinigameContent.TimingBar,
+            reducedMotion: true);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.StepOffered.ShouldBeTrue(
+            "the bar has not been played, so the one way a reduced-motion player aims it is open.");
+
+        presenter.Step();
+
+        var aimed = presenter.Cursor;
+
+        aimed.ShouldBeGreaterThan(
+            0.0, "the step taken while the game was live has to have moved the marker.");
+
+        for (var strike = 0; strike < MinigameContent.Strikes; strike++)
+        {
+            presenter.Strike();
+        }
+
+        presenter.Finished.ShouldBeTrue("every authored strike was taken.");
+        presenter.PlayOffered.ShouldBeTrue(
+            "the submission has not been accepted, so the arm's own control is still the press that " +
+            "sends it — that half must NOT move with this one.");
+        presenter.StepOffered.ShouldBeFalse(
+            "🔴 a step sends no command and settles no tier, so on a played-out bar it is spent. A " +
+            "control still offered here asks the player to aim a game whose tier is already decided.");
+
+        presenter.Step();
+
+        presenter.Cursor.ShouldBe(
+            aimed,
+            1e-9,
+            "the marker moved under a settled game, so the refusal above is a flag nothing acts on " +
+            "— and a screen drawing the control from it would be honest while the game was not.");
+    }
+
     // ---- the vocabulary ---------------------------------------------------------------------------
 
     /// <summary>

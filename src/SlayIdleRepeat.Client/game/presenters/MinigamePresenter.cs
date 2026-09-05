@@ -398,6 +398,28 @@ public sealed class MinigamePresenter
     /// </remarks>
     public bool PlayOffered => Stage == MinigameStage.Playing && !_submissionInFlight;
 
+    /// <summary>Whether the control that AIMS a reduced-motion bar still does something.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Unlike the strike beside it, this one really is spent once the bar is played out.</b> A
+    /// step sends no command and settles no tier, so on a finished game there is nothing left for it
+    /// to do — where a press on a played-out bar IS the submission again, which is why
+    /// <see cref="PlayOffered"/> deliberately survives <see cref="Finished"/> and this does not.
+    /// </para>
+    /// <para>
+    /// 🔒 Answered here rather than composed in the scene out of two other answers, for the reason
+    /// <see cref="PlayOffered"/> and <see cref="Controls"/> are: whether a control that moves the
+    /// game may be pressed is a fact about the game, this repository has no harness that can reach a
+    /// <c>Node</c>, and a rule worked out inside one is a rule no case can fail.
+    /// </para>
+    /// <para>
+    /// The motion flag is part of it because a step on a timed bar moves nothing at all — the timed
+    /// cursor is derived from the clock, so offering the control there would be offering a press
+    /// that cannot answer.
+    /// </para>
+    /// </remarks>
+    public bool StepOffered => PlayOffered && ReducedMotion && !Finished;
+
     /// <summary>Whether this arm's outcome is the server's to draw.</summary>
     public bool IsServerRolled { get; private set; }
 
@@ -554,7 +576,18 @@ public sealed class MinigamePresenter
     public void Advance(double delta) => _game?.Advance(delta);
 
     /// <summary>Moves the timing bar's cursor one authored step — the reduced-motion way to aim.</summary>
-    public void Step() => _game?.Step();
+    /// <remarks>
+    /// Refused outright while <see cref="StepOffered"/> is false, exactly as <see cref="Strike"/> is,
+    /// so a press that arrived a frame after the last strike landed cannot move the marker under a
+    /// game whose tier is already settled.
+    /// </remarks>
+    public void Step()
+    {
+        if (StepOffered)
+        {
+            _game?.Step();
+        }
+    }
 
     /// <summary>Takes one timing-bar strike, and answers whether it scored.</summary>
     /// <remarks>

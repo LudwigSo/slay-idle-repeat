@@ -348,12 +348,13 @@ public partial class Minigame : Node3D
         _strikeButton.Disabled = !offered;
 
         // Drawn only for a player who asked for nothing to move: with the sweep off, the step is the
-        // whole of how they aim, and with it on the cursor is already where the clock says. Unlike
-        // the strike beside it this one really is spent once the bar is played out — a step sends
-        // nothing, so on a finished game there is nothing for it to do.
+        // whole of how they aim, and with it on the cursor is already where the clock says. Whether
+        // it may still be pressed is the presenter's own answer and NOT this screen's — a step is
+        // spent once the bar is played out where the strike beside it is not, and that difference is
+        // a fact about the game rather than about the drawing.
         _stepButton.Text = presenter.StepText;
         _stepButton.Visible = _strikeButton.Visible && presenter.ReducedMotion;
-        _stepButton.Disabled = !offered || presenter.Finished;
+        _stepButton.Disabled = _busy || !presenter.StepOffered;
 
         _rollButton.Text = presenter.RollText;
         _rollButton.Visible = playing && controls == MinigameControls.Dice;
