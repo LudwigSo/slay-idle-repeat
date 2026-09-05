@@ -131,6 +131,26 @@ public sealed class MinigameResolvedTests
             "the hand-written PrintMembers is gone and the synthesized one is back.");
     }
 
+    /// <summary>
+    /// 🔒 The whole rendering, brace to brace — not a substring of it.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The case above asks only that the members appear somewhere inside <c>ToString()</c>, which
+    /// leaves everything the hand-written <c>PrintMembers</c> decides OUTSIDE that span unpinned —
+    /// including its return value, which is the whole of what a record does with the space before
+    /// its closing brace. Answering <see langword="false"/> there renders every minigame resolution
+    /// in every log as <c>…Outcome = GOLD}</c>, in a hierarchy where every other event is spaced,
+    /// and nothing said so. Stated as one exact string because the claim is the exact string.
+    /// </remarks>
+    [Fact]
+    public void ToString_renders_the_whole_record_including_the_space_before_its_closing_brace() =>
+        new MinigameResolved(2, ChestPick, -1, GoldTier).ToString().ShouldBe(
+            "MinigameResolved { Sequence = 2, MinigameId = " + ChestPick +
+            ", Tier = -1, Outcome = " + GoldTier + " }",
+            "the resolution renders as something other than the shape every record in this " +
+            "hierarchy has. The members, their order, and the separators around them are all one " +
+            "claim: a reader scanning a log for a minigame resolution is reading this line whole.");
+
     private static string Render(MinigameResolved evt, CultureInfo culture)
     {
         var previous = CultureInfo.CurrentCulture;

@@ -83,12 +83,66 @@ public sealed class MinigameViewTests
                 MinigameView.Project(OnAMinigame(), AnyPlayer(), null!, MinigameCatalogue.TimingBar))
             .ParamName.ShouldBe("content");
 
+    /// <inheritdoc cref="A_null_run_is_refused_by_name"/>
+    [Fact]
+    public void A_null_id_is_refused_by_name() =>
+        Should.Throw<ArgumentNullException>(() =>
+                MinigameView.Project(OnAMinigame(), AnyPlayer(), ShippedContent, null!))
+            .ParamName.ShouldBe("minigameId");
+
     /// <summary>An id the catalogue does not carry is refused rather than projected as an empty table.</summary>
     [Fact]
     public void An_id_that_names_no_minigame_is_refused()
     {
         Should.Throw<ArgumentException>(() => MinigameView.Project(
             OnAMinigame(), AnyPlayer(), ShippedContent, "MG_NOT_A_REAL_MINIGAME"));
+    }
+
+    /// <summary>
+    /// 🔒 <b>Every refusal above is made BEFORE the pending-tile gate, and off the tile is where
+    /// that becomes visible.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 The cases above all stand their run on a Minigame tile, so the projection walks on into the
+    /// content set and meets a second, downstream refusal that looks exactly like the one it was
+    /// asked for: with the guard removed a null content set is refused by <c>MinigameRewardTuning</c>
+    /// under the same argument name, and a null id falls through to the unknown-id refusal. Both
+    /// leave those cases green with nothing guarding the entry at all. Off the tile the projection
+    /// answers <c>null</c> before touching either, so a missing guard here is silence rather than a
+    /// coincidental second opinion.
+    /// </para>
+    /// <para>
+    /// That the arguments are validated ahead of the gate is the projection's documented contract:
+    /// an id the rules layer does not know is a screen the player cannot leave by playing it,
+    /// whatever tile the run happens to be standing on.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_arguments_are_refused_off_a_minigame_tile_too_where_no_downstream_guard_can_answer()
+    {
+        Should.Throw<ArgumentNullException>(() => MinigameView.Project(
+                    NoPendingTile(), AnyPlayer(), null!, MinigameCatalogue.TimingBar))
+            .ParamName.ShouldBe(
+                "content",
+                "a run standing on no tile projects nothing, so nothing downstream ever opens the " +
+                "content set — this refusal is the entry guard's alone to make.");
+
+        Should.Throw<ArgumentNullException>(() => MinigameView.Project(
+                    NoPendingTile(), AnyPlayer(), ShippedContent, null!))
+            .ParamName.ShouldBe(
+                "minigameId",
+                "a null id is a caller that lost track of which minigame it opened, and it is a " +
+                "different fault from an id that is merely unknown — the two must not answer with " +
+                "one exception type.");
+
+        Should.Throw<ArgumentException>(() => MinigameView.Project(
+                    NoPendingTile(), AnyPlayer(), ShippedContent, "MG_NOT_A_REAL_MINIGAME"))
+            .ParamName.ShouldBe(
+                "minigameId",
+                "an unknown id came back as a quiet null rather than a refusal, so a tile offering " +
+                "an id MINIGAME_SUBMIT will turn away draws as an empty screen instead of saying " +
+                "which argument was wrong.");
     }
 
     // ------------------------------------------------------------------------------------------

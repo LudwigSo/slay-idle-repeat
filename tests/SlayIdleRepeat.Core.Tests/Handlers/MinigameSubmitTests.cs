@@ -371,6 +371,95 @@ public sealed class MinigameSubmitTests
             "by the run's own modifiers at the income site and the table's figure is not what lands.");
     }
 
+    // ----------------------------------------------------------------------------------------------
+    // The fixed die.
+    // ----------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// 🔒 <b>The row that promises a fixed die actually grants one.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 Every other reward column travels as a <c>CurrencyChanged</c> event and is pinned through
+    /// one. The die is not a currency: it is a counter on the run and moves no event at all, so a
+    /// handler that stopped granting it changes nothing any other case in this suite can see — while
+    /// the minigame screen's reward ladder goes on drawing a die column for a row that would then
+    /// pay none.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The seed is the lever, because the arm is server-rolled.</b> The dice duel draws its own
+    /// tier and ignores the claim, so the only way to land on the one authored row that grants a die
+    /// is to hand the run a seed whose draw goes there — and the tier that was actually drawn is read
+    /// back off the resolution rather than assumed, so a change to the draw makes this case say the
+    /// row it landed on instead of quietly measuring a row that grants nothing.
+    /// </para>
+    /// <para>
+    /// The grant is asked of the reward table rather than transcribed, with a floor: a table retuned
+    /// to grant no dice at all would otherwise leave this case comparing zero against zero.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_resolution_on_the_row_that_grants_a_fixed_die_grants_it()
+    {
+        // Chosen so MG_DICE_DUEL's server-side draw lands on its die-granting row; the assertions
+        // below say so out loud rather than trusting it.
+        const ulong SeedDrawingTheDieRow = 2UL;
+
+        var state = Worlds.InARun(RunSnapshots.With(
+            position: 5, chapterId: 1, runSeed: SeedDrawingTheDieRow));
+
+        state.Run!.PendingFixedDieChoices.ShouldBe(
+            0, "the run starts with no die owed, or the count below cannot be attributed to this submission.");
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, new MinigameSubmitCommand(MinigameCatalogue.DiceDuel, 0), Worlds.Context);
+
+        result.Accepted.ShouldBeTrue();
+
+        var resolved = result.Events.OfType<MinigameResolved>().ShouldHaveSingleItem();
+        var granted = MinigameRewardTuning.Read(Worlds.Context.Content)
+                                          .RewardFor(MinigameCatalogue.DiceDuel, resolved.Tier, 1)
+                                          .FixedDice;
+
+        granted.ShouldBeGreaterThan(
+            0L,
+            "the draw landed on '" + resolved.Outcome + "', which grants no fixed die — so this " +
+            "case is measuring nothing. Either the seed no longer reaches the granting row or the " +
+            "reward table stopped authoring one.");
+        result.NewState.Run!.PendingFixedDieChoices.ShouldBe(
+            (int)granted,
+            "'" + resolved.Outcome + "' authors " + granted + " fixed die/dice and the run was left " +
+            "owed " + result.NewState.Run.PendingFixedDieChoices + ". Winning a game ABOUT dice pays " +
+            "a die you get to choose the number on, and the screen's ladder shows that column before " +
+            "the press.");
+    }
+
+    /// <summary>…and a row that authors none grants none.</summary>
+    /// <remarks>
+    /// 🔴 The negative control. Without it a handler granting a die on every accepted submission
+    /// satisfies the case above, and every minigame in the game quietly becomes a dice forge.
+    /// </remarks>
+    [Fact]
+    public void A_resolution_on_a_row_that_authors_no_fixed_die_grants_none()
+    {
+        var state = Worlds.InARun(RunSnapshots.With(position: 5, chapterId: 1));
+
+        // MG_TIMING_BAR tier 3 is the richest client-asserted row in the table and still authors no die.
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, new MinigameSubmitCommand(MinigameCatalogue.TimingBar, 3), Worlds.Context);
+
+        result.Accepted.ShouldBeTrue();
+
+        MinigameRewardTuning.Read(Worlds.Context.Content)
+                            .RewardFor(MinigameCatalogue.TimingBar, 3, 1)
+                            .FixedDice.ShouldBe(
+                                0L, "this row has been retuned to grant a die, so it is no longer the control.");
+        result.NewState.Run!.PendingFixedDieChoices.ShouldBe(
+            0,
+            "a row authoring no fixed die still left the run owed one, so the grant is unconditional " +
+            "rather than the dice duel's own reward.");
+    }
+
     /// <summary>…and a refused submission resolved nothing, so it says nothing.</summary>
     /// <remarks>
     /// 🔒 The negative control. An event emitted before the legality gate would have a screen
