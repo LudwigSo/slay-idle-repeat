@@ -281,14 +281,21 @@ internal sealed class RecordingGameHost : IGameHost
         var ordinal = SubmitCallCount;
 
         return _submitGate is { } gate
-            ? AnsweringWhenReleased(gate, player, ordinal)
+            ? AnsweringWhenReleased(gate, player, ordinal, ct)
             : Answer(player, ordinal);
     }
 
+    /// <remarks>
+    /// 🔴 The wait honours the caller's token, so a paused submission is a host that has not
+    /// answered YET rather than one that can never be walked away from. A caller that bounds its own
+    /// call — <c>GameDayOpener</c> does, with the boot's server-stage deadline — is testable against
+    /// this fixture only if the pause is cancellable; a gate that ignored the token would hang such
+    /// a case instead of failing it, which is the worst shape a test can have.
+    /// </remarks>
     private async Task<ApplyCommandOutcome> AnsweringWhenReleased(
-        TaskCompletionSource gate, PlayerId player, int ordinal)
+        TaskCompletionSource gate, PlayerId player, int ordinal, CancellationToken ct)
     {
-        await gate.Task.ConfigureAwait(false);
+        await gate.Task.WaitAsync(ct).ConfigureAwait(false);
 
         return await Answer(player, ordinal).ConfigureAwait(false);
     }

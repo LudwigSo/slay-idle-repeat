@@ -21,6 +21,9 @@ namespace SlayIdleRepeat.Client.Tests;
 /// </remarks>
 public sealed class HomePresenterTests
 {
+    /// <summary>The authored line the launch block shows when its read does not answer.</summary>
+    private const string LaunchFailedStatusKey = "loc.home.launch.failed.status";
+
     private static readonly PlayerId Profile = new("PLAYER_home_4c1e");
 
     private static readonly RunId OpenRun = new("RUN_home_9b22");
@@ -1096,29 +1099,52 @@ public sealed class HomePresenterTests
     }
 
     /// <summary>
-    /// 🔒 The notice line prefers the launch block's own failure to the header's.
+    /// 🔒 The notice line prefers the launch block's own failure to the header's, and 🔴 it is an
+    /// AUTHORED sentence rather than the exception behind it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Both models can produce a sentence and only one line shows it. The launch block's is the more
     /// recent read AND the one whose button offers a way out of itself, so it is the one shown; the
     /// header's generic unavailable line under a Retry button would name a failure nothing on the
     /// screen could act on.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>What is SHOWN and what is LOGGED are different strings, and this is where that is
+    /// stated.</b> The notice used to be <c>FailureLine</c> itself — the caught exception's type
+    /// name and message — drawn into the stage card in place of the stage. On a phone that is
+    /// untranslated English naming an internal symbol, on the one row a blocked player reads, and it
+    /// says nothing about what to do. The diagnostic still exists, because a bug report needs it;
+    /// the player gets the line somebody wrote for them.
+    /// </para>
     /// </remarks>
     [Fact]
-    public async Task The_notice_is_the_launch_blocks_own_failure_when_the_launch_block_failed()
+    public async Task The_notice_is_the_launch_blocks_own_authored_failure_line()
     {
+        var strings = ScreenContent.Catalogue();
         var presenter = Home(
             RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.InProgress)));
 
         await presenter.RefreshAsync(CancellationToken.None);
 
-        presenter.FailureLine.ShouldNotBeNullOrEmpty(
+        var diagnostic = presenter.FailureLine.ShouldNotBeNull(
             "the precondition: the launch block's read faulted and named what failed.");
 
+        diagnostic.ShouldNotBeEmpty();
+
         presenter.Notice.ShouldBe(
-            presenter.FailureLine,
-            "the sentence the stage card shows in place of a stage is the one naming what actually " +
-            "went wrong.");
+            strings.Resolve(LaunchFailedStatusKey),
+            "the stage card shows the authored line for a read that did not answer — the one that " +
+            "says what happened in the player's language and points at the Retry underneath it.");
+        presenter.Notice.ShouldNotBe(
+            diagnostic,
+            "and never the diagnostic. That is the whole finding: an exception's type name drawn " +
+            "on a phone is a sentence nobody outside this repository can act on.");
+        presenter.Notice.ShouldNotContain(
+            "Exception",
+            Case.Sensitive,
+            "no shape of the caught exception may reach the label — a notice built by trimming or " +
+            "prefixing the diagnostic is the same defect wearing a different string.");
     }
 
     /// <summary>🔒 …and there is no notice at all when there is a stage to draw.</summary>
@@ -1279,8 +1305,11 @@ public sealed class HomePresenterTests
         presenter.SettingsLabel.ShouldBe(
             strings.Resolve("loc.home.settings.action"), "and the top bar's.");
         presenter.HeroCaption.ShouldBe(
-            strings.Resolve("loc.home.hero.inspect.label"),
-            "and the line under the hero's name — which names no gear count, because nothing in " +
+            strings.Resolve("loc.home.hero.caption.label"),
+            "and the line under the hero's name. 🔴 It used to resolve loc.home.hero.inspect.label, " +
+            "whose value read 'Tap to inspect' — a promise this screen cannot keep, since hero " +
+            "inspection has no screen in this build and is not even one of the eleven destinations " +
+            "that answer a tap with an acknowledgement. Still no gear count, because nothing in " +
             "this build authors one.");
     }
 

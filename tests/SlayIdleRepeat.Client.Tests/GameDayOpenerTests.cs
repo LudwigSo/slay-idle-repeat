@@ -165,12 +165,116 @@ public sealed class GameDayOpenerTests
         opener.Failure.ShouldBeNull("and the first call's fault is not still being reported.");
     }
 
+    /// <summary>
+    /// 🔴 A host that does not answer does not hold the launch open.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This command is awaited on the boot path, between the boot presenter finishing and the home
+    /// screen appearing, so for as long as it runs the player is looking at a splash that has
+    /// already said <em>Ready</em>. The boot budgets every server stage of its OWN at
+    /// <c>BootPresenter.ServerStageDeadline</c> apiece precisely so that a slow or unreachable
+    /// server costs a moment rather than a minute — and an unbounded call here would have been that
+    /// budget plus whatever the transport allows, which on the shipped HTTP adapter is its whole
+    /// fifteen-second request timeout.
+    /// </para>
+    /// <para>
+    /// 🔒 Expiry costs the player nothing that is not recovered: the day is idempotent, so an
+    /// attempt cut short either landed server-side anyway — and the profile the home screen reads a
+    /// moment later carries the grant — or did not, and the next launch opens the day instead.
+    /// </para>
+    /// <para>
+    /// ⚠️ The bound is COOPERATIVE, exactly as the boot's own stage bound is: it cancels the token
+    /// the host was handed. A transport that ignored its token would still hold the launch, and no
+    /// deadline anywhere in this client can fix that.
+    /// </para>
+    /// <para>
+    /// 🔒 The case puts its own wait around the call, and that is not belt-and-braces: the fixture
+    /// host answers only when it is released, so an opener that handed its own token straight
+    /// through would never return at all and this would HANG the suite rather than fail it. A test
+    /// that stops the runner reports nothing; this one reports a red inside five seconds.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_host_that_never_answers_does_not_hold_the_launch_past_its_deadline()
+    {
+        var host = RecordingGameHost.Finding(PlayerState.Player(Profile)).PausingItsCommands();
+        var opener = new GameDayOpener(host, ClientVersion, Stamp, TimeSpan.FromMilliseconds(25));
+
+        var opened = await opener
+            .OpenAsync(Profile, CancellationToken.None)
+            .WaitAsync(SuiteBound);
+
+        opened.ShouldBeFalse("nothing answered, so no day was opened.");
+        opener.Failure.ShouldNotBeNull(
+            "the launch says it gave up rather than reporting a silent success. Unbounded, this " +
+            "await simply never returns and the player never reaches the home screen at all.");
+        opener.Refusal.ShouldBeNull("nothing refused it — nothing answered.");
+
+        host.SubmitCallCount.ShouldBe(
+            1,
+            "and it was genuinely submitted before it was given up on. A deadline that cancelled " +
+            "the token before the call was made would lose the grant on every launch and satisfy " +
+            "every assertion above.");
+
+        host.ReleaseSubmissions();
+    }
+
+    /// <summary>
+    /// The negative control: the same paused host inside a deadline it comfortably beats.
+    /// </summary>
+    /// <remarks>
+    /// Without this, an opener that reported a failure for every call whatsoever — or one whose
+    /// deadline fired before the submission was ever made — would pass the case above exactly.
+    /// </remarks>
+    [Fact]
+    public async Task A_host_that_answers_inside_the_deadline_opens_the_day()
+    {
+        var host = RecordingGameHost.Finding(PlayerState.Player(Profile)).PausingItsCommands();
+        var opener = new GameDayOpener(host, ClientVersion, Stamp, TimeSpan.FromSeconds(30));
+
+        var opening = opener.OpenAsync(Profile, CancellationToken.None);
+
+        host.ReleaseSubmissions();
+
+        (await opening).ShouldBeTrue();
+        opener.Failure.ShouldBeNull("the host answered well inside the bound.");
+    }
+
+    /// <summary>The launch is bounded by the boot's own number, never by one this class invented.</summary>
+    /// <remarks>
+    /// What the deadline protects is the boot's promise about how long a splash lasts, so the boot
+    /// is where the number belongs. Passed in rather than named here, and the composition root hands
+    /// over <c>BootPresenter.ServerStageDeadline</c>; a second constant here would be free to drift
+    /// from the budget it is a share of.
+    /// </remarks>
+    [Fact]
+    public void The_deadline_is_a_positive_span_or_the_grant_is_lost_before_it_is_asked_for() =>
+        Should.Throw<ArgumentOutOfRangeException>(
+                  () => new GameDayOpener(NeverCalled(), ClientVersion, Stamp, TimeSpan.Zero))
+              .ParamName.ShouldBe("deadline");
+
     [Fact]
     public void Constructor_rejects_a_null_host() =>
         Should.Throw<ArgumentNullException>(
-                  () => new GameDayOpener(host: null!, ClientVersion, Stamp))
+                  () => new GameDayOpener(host: null!, ClientVersion, Stamp, Deadline))
               .ParamName.ShouldBe("host");
 
+    /// <summary>A deadline long enough that no case here is racing it.</summary>
+    private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// How long a case is willing to wait on an opener that should have given up long before.
+    /// </summary>
+    /// <remarks>
+    /// Two hundred times the deadline under test, so it can only be reached by an opener that did
+    /// not bound its call at all — and reaching it is a FAILURE rather than a runner that stopped.
+    /// </remarks>
+    private static readonly TimeSpan SuiteBound = TimeSpan.FromSeconds(5);
+
+    private static RecordingGameHost NeverCalled() =>
+        RecordingGameHost.Finding(PlayerState.Player(Profile));
+
     private static GameDayOpener Opener(RecordingGameHost host) =>
-        new(host, ClientVersion, Stamp);
+        new(host, ClientVersion, Stamp, Deadline);
 }

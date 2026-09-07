@@ -162,11 +162,21 @@ public sealed class BootPresenter
 
     /// <summary>How long one server stage may hold the boot: the budget above, split evenly.</summary>
     /// <remarks>
+    /// <para>
     /// Evenly rather than weighted, because expiry costs nothing that is not recovered a moment
     /// later — the reconnect ladder owns retry and opens the session behind the first playable
     /// screen — so there is no stage worth giving the other's share to.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Internal rather than private, because the boot path grew a server call outside this
+    /// class.</b> <c>GameDayOpener</c>'s <c>BEGIN_SESSION</c> is awaited by the boot scene between
+    /// this presenter finishing and the home screen appearing, so it holds the player on the splash
+    /// exactly as a stage here does — and it is bounded by this same number rather than by one of
+    /// its own, or the boot's stated one-second budget for server work would be that second plus
+    /// whatever the HTTP adapter's request timeout is.
+    /// </para>
     /// </remarks>
-    private static readonly TimeSpan ServerStageDeadline = ServerStageBudget / 2;
+    internal static readonly TimeSpan ServerStageDeadline = ServerStageBudget / 2;
 
     /// <summary>What a content check that never answered in time is recorded as.</summary>
     private static readonly ContentSyncFailure ContentCheckRanOutOfTime = new(

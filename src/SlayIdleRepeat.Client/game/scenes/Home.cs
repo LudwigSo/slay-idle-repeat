@@ -125,6 +125,7 @@ public partial class Home : Node3D
     private const string SettingsButtonPath = "%SettingsButton";
     private const string HeroNamePath = "%HeroName";
     private const string HeroCaptionPath = "%HeroCaption";
+    private const string StubNoticePath = "%StubNotice";
     private const string MailButtonPath = "%MailButton";
     private const string RankingButtonPath = "%RankingButton";
     private const string QuestsButtonPath = "%QuestsButton";
@@ -144,6 +145,18 @@ public partial class Home : Node3D
 
     /// <summary>The tab this screen IS. It is never a destination to hand over to.</summary>
     private const HomeTab ThisTab = HomeTab.Home;
+
+    /// <summary>
+    /// How long the acknowledgement of a tap on an unbuilt destination stays on the screen.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Chosen, not authored, and long enough to be read rather than glimpsed: the two lines it
+    /// shows are a short sentence each, and a notice that is gone before a player has looked up from
+    /// their thumb is the same silence it replaced. Nothing in game-data authors a notice duration,
+    /// and inventing a tuning member for one control's timer would be the second copy of a number
+    /// nobody else needs.
+    /// </remarks>
+    private const float AcknowledgementSeconds = 2.5f;
 
     // ------------------------------------------------------------------ the layout's numbers
 
@@ -227,6 +240,17 @@ public partial class Home : Node3D
     private Button? _settingsButton;
     private Label? _heroName;
     private Label? _heroCaption;
+    private Label? _stubNotice;
+
+    /// <summary>
+    /// Which acknowledgement is on the screen, counted rather than named.
+    /// </summary>
+    /// <remarks>
+    /// A one-shot timer cannot be cancelled once it is running, so a second tap does not stop the
+    /// first timer — it outdates it. Without this, tapping two stubs in quick succession shows the
+    /// second line and then hides it a fraction later, when the FIRST tap's timer comes due.
+    /// </remarks>
+    private int _acknowledgement;
     private Button? _mailButton;
     private Button? _rankingButton;
     private Button? _questsButton;
@@ -322,6 +346,8 @@ public partial class Home : Node3D
 
         ScreenStage.Show(this);
 
+        Withdraw();
+
         _ = StartAsync();
     }
 
@@ -339,6 +365,7 @@ public partial class Home : Node3D
         _settingsButton = GetNode<Button>(SettingsButtonPath);
         _heroName = GetNode<Label>(HeroNamePath);
         _heroCaption = GetNode<Label>(HeroCaptionPath);
+        _stubNotice = GetNode<Label>(StubNoticePath);
         _mailButton = GetNode<Button>(MailButtonPath);
         _rankingButton = GetNode<Button>(RankingButtonPath);
         _questsButton = GetNode<Button>(QuestsButtonPath);
@@ -407,8 +434,10 @@ public partial class Home : Node3D
 
         // The presenter outlives this node — it is the composition root's, and Resume brings the
         // screen back over the same one. A reveal left standing would come back with the figures a
-        // finger once held for and nobody holding anything.
+        // finger once held for and nobody holding anything, and an acknowledgement left standing
+        // would come back long after the tap that asked for it.
         _presenter?.ConcealFullValues();
+        Withdraw();
 
         if (_tabBar is not null && IsInstanceValid(_tabBar))
         {
@@ -444,6 +473,7 @@ public partial class Home : Node3D
             await picker.StartAsync(_lifetime);
 
             Render();
+            LogFailure(presenter);
             Report(presenter, picker);
         }
         catch (Exception failure)
@@ -473,6 +503,7 @@ public partial class Home : Node3D
             await presenter.RefreshAsync(_lifetime);
 
             Render();
+            LogFailure(presenter);
         }
         catch (Exception failure)
         {
@@ -624,8 +655,12 @@ public partial class Home : Node3D
 
             // Disabled rather than hidden while the read is still out: a primary action that
             // vanishes reads as a screen that lost its purpose, while a disabled one reads as a
-            // screen waiting, which is what it is.
-            _startButton.Disabled = presenter.PrimaryAction == HomePrimaryAction.Wait;
+            // screen waiting, which is what it is. The same holds for a submission already in
+            // flight — the latch inside the presenter already refuses the second press, and this is
+            // what that refusal looks like from the player's side rather than a press that silently
+            // did nothing.
+            _startButton.Disabled = presenter.PrimaryAction
+                is HomePrimaryAction.Wait or HomePrimaryAction.Starting;
         }
     }
 
@@ -682,7 +717,10 @@ public partial class Home : Node3D
                 break;
 
             case HomePrimaryAction.OfferRefill:
-                Stub("refill_sheet");
+                // Its own line, because this press is the one made by a player who is blocked: the
+                // general "not open yet" would leave them with no way forward at all, and there IS
+                // one — Energy comes back on its own, and the pill above is counting it down.
+                Stub("refill_sheet", presenter.RefillNotOpenYetNotice);
                 break;
 
             case HomePrimaryAction.Retry:
@@ -708,7 +746,16 @@ public partial class Home : Node3D
                 return;
             }
 
-            var outcome = await presenter.PressStartAsync(_lifetime);
+            // 🔴 Started, then DRAWN, then awaited. PressStartAsync takes its in-flight latch
+            // before its first await, so the presenter is already in HomePrimaryAction.Starting by
+            // the time this call returns a task — and drawing here is what turns a submission that
+            // can take the host's whole request timeout into a button that visibly answered the tap.
+            // Awaiting first would draw the in-flight state only after it was over.
+            var press = presenter.PressStartAsync(_lifetime);
+
+            Render();
+
+            var outcome = await press;
 
             if (outcome is null)
             {
@@ -717,6 +764,7 @@ public partial class Home : Node3D
                 // and the presenter settles into its failure state for it. Returning without
                 // redrawing would leave the button reading Start with nothing behind it.
                 Render();
+                LogFailure(presenter);
 
                 return;
             }
@@ -735,6 +783,23 @@ public partial class Home : Node3D
         catch (Exception failure)
         {
             GD.PushError($"The home screen could not start a run: {failure}");
+        }
+    }
+
+    /// <summary>
+    /// Puts the technical detail behind a failed read into the log.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The other half of showing the player an authored sentence.</b> The notice line names
+    /// what happened in the player's language and points at the Retry under it; the exception's type
+    /// and message are what whoever has to fix it needs, and they would otherwise exist nowhere at
+    /// all once the screen stopped drawing them.
+    /// </remarks>
+    private static void LogFailure(HomePresenter presenter)
+    {
+        if (presenter.FailureLine is { } line)
+        {
+            GD.PushError($"The home screen's read did not answer: {line}");
         }
     }
 
@@ -815,9 +880,91 @@ public partial class Home : Node3D
         _ = InventoryHandover.Show(this, compose(), _lifetime);
     }
 
-    /// <summary>Says, on one greppable line, that a destination was asked for and does not exist.</summary>
-    private static void Stub(string destination) =>
+    /// <summary>
+    /// Answers a tap on a destination this build has no screen for: the player is told, and the log
+    /// is told.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Both halves, and the second one is the fix.</b> The greppable line is for whoever runs
+    /// the build; it is not, and never was, feedback. Eleven controls on this screen printed one and
+    /// did nothing else, and a control that is tapped and does nothing is a control the player reads
+    /// as broken — they tap it again, and again, and then stop trusting the row it is in. The
+    /// authored line the presenter resolves is what actually reaches them.
+    /// </remarks>
+    /// <param name="destination">Which destination was asked for.</param>
+    /// <param name="notice">The line to show, or the presenter's general one when null.</param>
+    private void Stub(string destination, string? notice = null)
+    {
         GD.Print($"{StubMarker} destination={destination} state=no_screen_yet");
+
+        if (_presenter is not { } presenter)
+        {
+            return;
+        }
+
+        Acknowledge(notice ?? presenter.NotOpenYetNotice);
+    }
+
+    /// <summary>
+    /// Puts one sentence over the diorama for a moment and takes it away again.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>A transient line rather than a dialog.</b> Nothing here is a decision and nothing here
+    /// needs dismissing: a modal over a tap on a tab would make the player do a second piece of work
+    /// to undo the first, and this screen's whole job is to be one press from a run. The line does
+    /// not move any band — it is anchored over the hero band rather than laid out inside one — so
+    /// the launch block does not jump under a thumb that is already on its way to Start.
+    /// </para>
+    /// <para>
+    /// ⚠️ The tree's timer rather than a node of this screen's own, and the token is re-read on
+    /// timeout: a second tap while a line is up replaces the line and invalidates the first timer's
+    /// claim to hide it, so the second acknowledgement is not cut short by the first one expiring.
+    /// </para>
+    /// </remarks>
+    /// <param name="line">The sentence to show.</param>
+    private void Acknowledge(string line)
+    {
+        if (_stubNotice is null || !IsInstanceValid(_stubNotice))
+        {
+            return;
+        }
+
+        _stubNotice.Text = line;
+        _stubNotice.Visible = true;
+
+        var token = ++_acknowledgement;
+        var timer = GetTree()?.CreateTimer(AcknowledgementSeconds);
+
+        if (timer is null)
+        {
+            return;
+        }
+
+        timer.Timeout += () =>
+        {
+            if (token == _acknowledgement)
+            {
+                Withdraw();
+            }
+        };
+    }
+
+    /// <summary>Takes the acknowledgement line away, whether or not one is showing.</summary>
+    /// <remarks>
+    /// Called on the way out of the screen as well as on the timer: a line left standing would come
+    /// back with the screen, long after the tap that asked for it.
+    /// </remarks>
+    private void Withdraw()
+    {
+        _acknowledgement++;
+
+        if (_stubNotice is not null && IsInstanceValid(_stubNotice))
+        {
+            _stubNotice.Visible = false;
+            _stubNotice.Text = "";
+        }
+    }
 
     // ---------------------------------------------------------------------------- the handovers
 

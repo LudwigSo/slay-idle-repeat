@@ -48,6 +48,20 @@ public partial class TabBar : HBoxContainer
 
     private readonly List<TabEntry> _tabs = [];
 
+    /// <summary>Which tab's screen is on the page. The bar's own memory of it.</summary>
+    /// <remarks>
+    /// 🔴 <b>Held here because the buttons TOGGLE, and a toggle is a claim about where the player
+    /// is.</b> Every tab is a toggle button and the selected one is drawn by its pressed style, so
+    /// the engine flips that style the instant a finger lands — before anything has decided whether
+    /// the tap goes anywhere. Three of the five destinations have no screen yet and two more hand
+    /// over asynchronously, and the tab this screen already IS goes nowhere by design; in each of
+    /// those cases the engine's flip was the last word, so the bar was left claiming the player was
+    /// on Talents while they were still looking at Home — or, on a press of Home itself, claiming
+    /// they were on no tab at all. The selection is restored before the press is announced, so what
+    /// the bar shows is only ever what a screen actually put there.
+    /// </remarks>
+    private HomeTab? _selected;
+
     /// <inheritdoc/>
     public override void _Ready()
     {
@@ -61,7 +75,11 @@ public partial class TabBar : HBoxContainer
             // Held rather than written inline, so the same delegate can be taken off again: a
             // handler left connected across a bar that is detached and re-added fires twice, and
             // once is the whole contract of a navigation control.
-            var entry = new TabEntry(tab, button, () => TabSelected?.Invoke(tab));
+            var entry = new TabEntry(tab, button, () =>
+            {
+                RestoreSelection();
+                TabSelected?.Invoke(tab);
+            });
 
             button.Pressed += entry.Handler;
             _tabs.Add(entry);
@@ -102,12 +120,27 @@ public partial class TabBar : HBoxContainer
             }
 
             entry.Button.Text = caption(entry.Tab);
-            entry.Button.ButtonPressed = entry.Tab == selected;
 
             if (entry.Button.GetNodeOrNull<Control>(DotName) is { } dot)
             {
                 dot.Visible = badged(entry.Tab);
                 dot.SelfModulate = dotColour;
+            }
+        }
+
+        _selected = selected;
+
+        RestoreSelection();
+    }
+
+    /// <summary>Draws the selection the last <see cref="Show"/> named, whatever a press has done.</summary>
+    private void RestoreSelection()
+    {
+        foreach (var entry in _tabs)
+        {
+            if (IsInstanceValid(entry.Button))
+            {
+                entry.Button.ButtonPressed = _selected == entry.Tab;
             }
         }
     }

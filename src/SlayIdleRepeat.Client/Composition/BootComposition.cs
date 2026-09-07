@@ -78,6 +78,13 @@ public static class BootComposition
             // The version of the content set this client actually LOADED, never the one it was
             // built against: BEGIN_SESSION is the one command carrying a content hash, and the
             // composition root is the only place that knows the real value.
-            composed.Client.Content.Current.Version);
+            composed.Client.Content.Current.Version,
+
+            // 🔴 The boot's own per-stage bound, not one of this call's. The command is awaited on
+            // the boot path, between the presenter finishing and the home screen appearing, so it
+            // holds the player on the splash exactly as a boot stage does — and the boot states how
+            // long it is willing to do that. Left unbounded it would have been that budget plus
+            // whatever the transport allows, which on the HTTP adapter is fifteen seconds.
+            BootPresenter.ServerStageDeadline);
     }
 }

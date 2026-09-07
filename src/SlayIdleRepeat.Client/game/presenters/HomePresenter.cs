@@ -127,6 +127,21 @@ public enum HomePrimaryAction
 
     /// <summary>Read again. The one action that gets a player off a screen whose read faulted.</summary>
     Retry = 5,
+
+    /// <summary>
+    /// A <c>START_RUN</c> is outstanding. The button is on the page, disabled, and wearing its own
+    /// word.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>It exists because the submission is a server round trip and the screen used to answer
+    /// it with nothing.</b> The in-flight latch already stopped a second press from reaching the
+    /// seam, but it stopped it SILENTLY: the button kept the word Start Run, kept its ember, and did
+    /// not move for however long the host took to answer — which on the shipped HTTP adapter is up
+    /// to its whole request timeout. A player who taps the one primary action on the core-loop
+    /// screen and sees nothing change has been told the tap did not register, and taps again. This
+    /// state is what the latch looks like from the player's side.
+    /// </remarks>
+    Starting = 6,
 }
 
 /// <summary>The three entries the hero band's side rail reaches.</summary>
@@ -655,13 +670,17 @@ public sealed class HomePresenter
     private const string LaunchRefillActionKey = "loc.home.launch.refill.action";
     private const string LaunchUnderpoweredActionKey = "loc.home.launch.start_underpowered.action";
     private const string LaunchLoadingActionKey = "loc.home.launch.loading.action";
+    private const string LaunchStartingActionKey = "loc.home.launch.starting.action";
     private const string LaunchRetryActionKey = "loc.home.launch.retry.action";
+    private const string LaunchFailedStatusKey = "loc.home.launch.failed.status";
+    private const string NotOpenYetStatusKey = "loc.home.not_open_yet.status";
+    private const string RefillNotOpenYetStatusKey = "loc.home.launch.refill_not_open_yet.status";
     private const string ChangeStageActionKey = "loc.home.launch.change.action";
     private const string SettingsActionKey = "loc.home.settings.action";
     private const string NextUpLabelKey = "loc.home.launch.next_up.label";
     private const string RecommendedPowerLabelKey = "loc.home.launch.recommended_power.label";
     private const string NoStageLabelKey = "loc.home.launch.no_stage.label";
-    private const string HeroInspectLabelKey = "loc.home.hero.inspect.label";
+    private const string HeroCaptionLabelKey = "loc.home.hero.caption.label";
     private const string TabHomeLabelKey = "loc.home.tab.home.label";
     private const string TabGearLabelKey = "loc.home.tab.gear.label";
     private const string TabTalentsLabelKey = "loc.home.tab.talents.label";
@@ -788,7 +807,14 @@ public sealed class HomePresenter
     public bool LaunchRowsVisible => true;
 
     /// <summary>What failed, when <see cref="LaunchState"/> is <see cref="HomeLaunchState.PresenterFailure"/>.</summary>
-    /// <remarks>Names the thing that failed; the copy carries no apology, per the brief.</remarks>
+    /// <remarks>
+    /// 🔴 <b>A DIAGNOSTIC, and never the sentence the player is shown.</b> It carries the caught
+    /// exception's type name and message, which is what a bug report needs and the exact opposite of
+    /// what a phone screen needs: <c>InvalidOperationException: START_RUN was refused ILLEGAL_STATE</c>
+    /// is untranslated English naming a symbol nobody outside this repository has heard of, and it
+    /// tells the player nothing about what to do next. <see cref="Notice"/> shows the authored line
+    /// instead, and the scene logs this one.
+    /// </remarks>
     public string? FailureLine { get; private set; }
 
     /// <summary>The player's display name, for the hero band's name block.</summary>
@@ -797,8 +823,17 @@ public sealed class HomePresenter
     /// <summary>The Legend Level on the avatar's badge.</summary>
     public string HubLevelText => _view is { } view ? PlayerNumber.Full(view.PlayerLevel) : NoValue;
 
-    /// <summary>The line under the hero's name. No gear count: nothing in this build authors one.</summary>
-    public string HeroCaption => _strings.Resolve(HeroInspectLabelKey);
+    /// <summary>The line under the hero's name.</summary>
+    /// <remarks>
+    /// 🔴 <b>It used to read "Tap to inspect", and the screen could not keep that promise.</b> Hero
+    /// inspection has no screen in this build — it is not even one of the eleven destinations that
+    /// answer with an acknowledgement — so the sentence invited a tap that could never lead anywhere.
+    /// The line now points at the one destination that exists and is what a player looking at their
+    /// hero actually wants: the Gear tab, on the bar at the bottom of this same screen. No gear count
+    /// either way, for the reason it never had one: nothing in this build records how many slots are
+    /// empty.
+    /// </remarks>
+    public string HeroCaption => _strings.Resolve(HeroCaptionLabelKey);
 
     /// <summary>
     /// The Crowns balance behind the pill.
@@ -978,6 +1013,38 @@ public sealed class HomePresenter
             "this rail entry has no caption. Author one before the rail carries it."),
     });
 
+    /// <summary>
+    /// The one line a destination this build has no screen for answers a tap with.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Eleven controls on this screen lead nowhere, and until this existed they answered a tap
+    /// by writing to a log.</b> A log line is a fact for whoever runs the build; to the player
+    /// holding the phone it is indistinguishable from a control that is wired and broken, and the
+    /// checklist calls that a dead button. The stubs themselves are sanctioned — the screens are
+    /// later milestones' — but the silence was not: what is owed is an acknowledgement that the tap
+    /// registered and that the destination is not built yet, which is exactly what this says and no
+    /// more. It invents no content and promises no date.
+    /// </remarks>
+    public string NotOpenYetNotice => _strings.Resolve(NotOpenYetStatusKey);
+
+    /// <summary>
+    /// The refill offer's own wording of <see cref="NotOpenYetNotice"/>.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Its own line because that press is the one made by a player who is BLOCKED.</b> Every
+    /// other stub is a tap on something optional; this one is the primary action of
+    /// <see cref="HomeLaunchState.InsufficientEnergy"/>, made by somebody who cannot start a run and
+    /// is looking for the way out. So the line names the way out, and it is already on the screen:
+    /// Energy regenerates on its own and the top bar's pill counts down to the next point.
+    /// <para>
+    /// ⚠️ It may never read as an offer to buy Energy, and that is a contract rather than a
+    /// preference: this game ships no real-money currency and no IAP of any kind, Energy is not
+    /// purchasable at any price, and every rewarded benefit is capped and reachable free. A line
+    /// that hinted at a purchase would be selling something that does not exist.
+    /// </para>
+    /// </remarks>
+    public string RefillNotOpenYetNotice => _strings.Resolve(RefillNotOpenYetStatusKey);
+
     /// <summary>Reads the hub's view model and settles <see cref="LaunchState"/>.</summary>
     /// <param name="ct">Cancellation.</param>
     public async Task LoadAsync(CancellationToken ct)
@@ -1100,7 +1167,9 @@ public sealed class HomePresenter
     /// button that started a fresh run because the hub's read was still out would destroy a board
     /// the player was standing on, and the two presses look identical.
     /// </remarks>
-    public HomePrimaryAction PrimaryAction => Decision == HomeContinueDecision.ContinueRun
+    public HomePrimaryAction PrimaryAction => _startInFlight
+        ? HomePrimaryAction.Starting
+        : Decision == HomeContinueDecision.ContinueRun
         ? HomePrimaryAction.Resume
         : LaunchState switch
         {
@@ -1118,9 +1187,16 @@ public sealed class HomePresenter
         };
 
     /// <summary>The primary button's word for <see cref="PrimaryAction"/>, resolved.</summary>
-    public string PrimaryActionLabel => PrimaryAction == HomePrimaryAction.Resume
-        ? ActionText
-        : ActionLabel;
+    public string PrimaryActionLabel => PrimaryAction switch
+    {
+        HomePrimaryAction.Resume => ActionText,
+
+        // 🔒 Its own word rather than the launch state's, which is still Ready underneath: a button
+        // that says Start Run while a start is already outstanding is the same button it was before
+        // the tap, and the tap is exactly what the player is waiting to see acknowledged.
+        HomePrimaryAction.Starting => _strings.Resolve(LaunchStartingActionKey),
+        _ => ActionLabel,
+    };
 
     /// <summary>The theme accent the primary button is drawn in.</summary>
     /// <remarks>
@@ -1128,9 +1204,15 @@ public sealed class HomePresenter
     /// board is the screen's ordinary business, and the energy accent means <em>this button buys
     /// Energy</em>, which it does not.
     /// </remarks>
-    public HomeColourRole PrimaryActionColour => PrimaryAction == HomePrimaryAction.Resume
-        ? HomeColourRole.Action
-        : ActionColour;
+    public HomeColourRole PrimaryActionColour => PrimaryAction switch
+    {
+        HomePrimaryAction.Resume => HomeColourRole.Action,
+
+        // The ember it was already wearing. A press must not repaint the button it was made on —
+        // a colour that moves under a finger reads as a different button having arrived.
+        HomePrimaryAction.Starting => HomeColourRole.Action,
+        _ => ActionColour,
+    };
 
     /// <summary>What the badge on the primary button is saying.</summary>
     /// <remarks>
@@ -1145,13 +1227,23 @@ public sealed class HomePresenter
     /// The one sentence shown in place of a stage, or empty when there is a stage to show.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Four states produce one and each has its own authored line: a read that faulted, a read that
     /// has not answered, a profile the device has lost, and a run left alone past its window. The
     /// launch block's own failure is asked about FIRST because it is the more recent read and it is
     /// the one whose button offers a way out of it.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The failure arm is an AUTHORED line, not <see cref="FailureLine"/>.</b> It used to be
+    /// the caught exception's type name and message, drawn into the stage card in place of the
+    /// stage — untranslated English naming an internal symbol, on the one row a blocked player
+    /// reads. The authored line says what happened and names the way out, which is the button
+    /// directly under it; the technical detail is still recorded, and the scene puts it in the log
+    /// where whoever has to fix it will look.
+    /// </para>
     /// </remarks>
     public string Notice => LaunchState == HomeLaunchState.PresenterFailure
-        ? FailureLine ?? NothingLeftToSay
+        ? _strings.Resolve(LaunchFailedStatusKey)
         : Decision is HomeContinueDecision.RunLapsed
             or HomeContinueDecision.ProfileMissing
             or HomeContinueDecision.ReadUnavailable

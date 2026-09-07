@@ -30,6 +30,15 @@ public sealed class HomeRunHubTests
     /// <summary>What a refusal the launch block has no sentence for arrives as.</summary>
     private const string UnsayableRefusal = "START_RUN was refused ILLEGAL_STATE";
 
+    /// <summary>The primary button's word while a submission is outstanding.</summary>
+    private const string StartingActionKey = "loc.home.launch.starting.action";
+
+    /// <summary>The line a destination with no screen yet answers a tap with.</summary>
+    private const string NotOpenYetKey = "loc.home.not_open_yet.status";
+
+    /// <summary>…and the refill offer's own wording of it.</summary>
+    private const string RefillNotOpenYetKey = "loc.home.launch.refill_not_open_yet.status";
+
     /// <summary>A Crowns balance well past the point the shortened form takes over.</summary>
     private const long HeldCrowns = 412_345L;
 
@@ -95,6 +104,108 @@ public sealed class HomeRunHubTests
         refused.ShouldBeNull(
             "and the second press answers with nothing rather than with the first press's outcome: " +
             "a screen that navigated on it would open the board twice.");
+    }
+
+    /// <summary>
+    /// 🔴 The button says the press registered, for as long as the press is outstanding.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The latch above keeps a second submission off the seam, and until this it did so SILENTLY:
+    /// the button kept the word Start Run, kept its ember and did not move for however long the host
+    /// took to answer — up to the whole request timeout on the shipped HTTP adapter. A player who
+    /// taps the one primary action on the core-loop screen and sees nothing change has been told the
+    /// tap did not land, and taps again. The refusal has to be visible, not merely correct.
+    /// </para>
+    /// <para>
+    /// 🔒 Proved on the same in-flight fixture the latch is, because the claim is about the state
+    /// DURING the call: a seam that answered synchronously would be settled again before anything
+    /// could be asked, and every assertion below would pass against a presenter that shows nothing
+    /// at all.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task The_button_says_a_run_is_being_started_while_the_press_is_outstanding()
+    {
+        var strings = ScreenContent.Catalogue();
+        var screen = GatedHomeScreen.Answering(Ready());
+        var presenter = new HomePresenter(screen, strings);
+
+        await presenter.LoadAsync(CancellationToken.None);
+
+        var settled = presenter.PrimaryActionLabel;
+
+        presenter.PrimaryAction.ShouldBe(
+            HomePrimaryAction.StartRun, "the precondition: a press from here starts a run.");
+
+        var press = presenter.PressStartAsync(CancellationToken.None);
+
+        presenter.PrimaryAction.ShouldBe(
+            HomePrimaryAction.Starting,
+            "the latch is taken before the seam is awaited, so the screen is already in its " +
+            "in-flight state by the time the press hands a task back — which is the only moment a " +
+            "renderer has to draw it.");
+        presenter.PrimaryActionLabel.ShouldBe(
+            strings.Resolve(StartingActionKey),
+            "its own authored word. Left on the launch state's, the button would read Start Run " +
+            "through the whole submission and be the same button it was before the tap.");
+        presenter.PrimaryActionLabel.ShouldNotBe(
+            settled, "which is the point: something the player can see has to have changed.");
+        presenter.PrimaryActionColour.ShouldBe(
+            HomeColourRole.Action,
+            "the ember it was already wearing. A colour that moved under the finger would read as " +
+            "a different button having arrived rather than as this one working.");
+
+        screen.Release();
+
+        await press;
+
+        presenter.PrimaryAction.ShouldBe(
+            HomePrimaryAction.StartRun,
+            "and the in-flight state is not a state the screen can be stuck in: the latch is " +
+            "dropped in a finally, so the button comes back however the submission ended.");
+    }
+
+    /// <summary>
+    /// 🔴 Every destination this build has no screen for has a sentence to answer a tap with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Eleven of them — three tabs, three rail entries, the settings control, the three resource
+    /// sheets and the refill offer — and each used to answer a press by printing one line to the
+    /// engine log. That is a fact for whoever runs the build and nothing at all for the player
+    /// holding the phone: a control that was tapped and did not visibly do anything is a control
+    /// they read as broken, and tap again.
+    /// </para>
+    /// <para>
+    /// 🔒 The refill offer gets its OWN line, and that is the half worth pinning. It is the primary
+    /// action of <see cref="HomeLaunchState.InsufficientEnergy"/>, so the player making that press
+    /// is blocked from the thing this whole screen exists to do — and unlike every other stub there
+    /// IS a next step to name, because Energy regenerates on its own and the pill above is counting
+    /// down to the next point. The two lines sharing one key would leave that player told only that
+    /// something is missing.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task The_destinations_with_no_screen_yet_each_have_a_line_to_answer_a_tap_with()
+    {
+        var strings = ScreenContent.Catalogue();
+        var presenter = new HomePresenter(ScriptedHomeScreen.Answering(Ready()), strings);
+
+        await presenter.LoadAsync(CancellationToken.None);
+
+        presenter.NotOpenYetNotice.ShouldBe(
+            strings.Resolve(NotOpenYetKey),
+            "the one acknowledgement every unbuilt destination gives back, authored and localised " +
+            "like every other string on this screen.");
+        presenter.RefillNotOpenYetNotice.ShouldBe(
+            strings.Resolve(RefillNotOpenYetKey),
+            "and the refill offer's own, because that press is made by somebody who cannot start a " +
+            "run and needs to be told what does get them one.");
+        presenter.RefillNotOpenYetNotice.ShouldNotBe(
+            presenter.NotOpenYetNotice,
+            "two keys, not one resolved twice: a single line for both cannot name the way out of " +
+            "the one state where a way out exists.");
     }
 
     /// <summary>

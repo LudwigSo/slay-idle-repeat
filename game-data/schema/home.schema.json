@@ -25,7 +25,7 @@
         "crowns", "soulShards", "gold",
         "power", "progress", "stage",
         "tierNormal", "tierHeroic", "tierMythic",
-        "nextUp", "recommendedPower", "noStage", "heroInspect",
+        "nextUp", "recommendedPower", "noStage", "heroCaption",
         "tabHome", "tabGear", "tabTalents", "tabCollection", "tabShop",
         "railMail", "railRanking", "railQuests"
       ],
@@ -45,7 +45,7 @@
         "nextUp": { "$ref": "#/$defs/locKey" },
         "recommendedPower": { "$ref": "#/$defs/locKey" },
         "noStage": { "$ref": "#/$defs/locKey" },
-        "heroInspect": { "$ref": "#/$defs/locKey" },
+        "heroCaption": { "$ref": "#/$defs/locKey" },
         "tabHome": { "$ref": "#/$defs/locKey" },
         "tabGear": { "$ref": "#/$defs/locKey" },
         "tabTalents": { "$ref": "#/$defs/locKey" },
@@ -60,7 +60,7 @@
       "description": "The primary button, in the two shapes the run decision can take. Two captions rather than one parameterised caption: 'start a new run' and 'resume the run you are in' send the player to different places, and a screen that says the same word for both is a screen a player cannot read.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["startRun", "continueRun", "gear", "launchRefill", "launchUnderpowered", "launchLoading", "launchRetry", "changeStage", "settings"],
+      "required": ["startRun", "continueRun", "gear", "launchRefill", "launchUnderpowered", "launchLoading", "launchStarting", "launchRetry", "changeStage", "settings"],
       "properties": {
         "startRun": { "$ref": "#/$defs/locKey" },
         "continueRun": { "$ref": "#/$defs/locKey" },
@@ -68,21 +68,25 @@
         "launchRefill": { "$ref": "#/$defs/locKey" },
         "launchUnderpowered": { "$ref": "#/$defs/locKey" },
         "launchLoading": { "$ref": "#/$defs/locKey" },
+        "launchStarting": { "$ref": "#/$defs/locKey" },
         "launchRetry": { "$ref": "#/$defs/locKey" },
         "changeStage": { "$ref": "#/$defs/locKey" },
         "settings": { "$ref": "#/$defs/locKey" }
       }
     },
     "status": {
-      "description": "The line shown while the screen has no decision to offer — the read has not answered yet, the read said there is no such profile, the run the player left has lapsed — and the one line a tile shows in place of a value: nothingCleared is what the progress tile says on a profile that has cleared no chapter. The CAUSE beyond that is carried in code as a named state so it can be logged and told apart, while what a player is shown stays one honest sentence.",
+      "description": "The line shown while the screen has no decision to offer — the read has not answered yet, the read said there is no such profile, the run the player left has lapsed — and the one line a tile shows in place of a value: nothingCleared is what the progress tile says on a profile that has cleared no chapter. The CAUSE beyond that is carried in code as a named state so it can be logged and told apart, while what a player is shown stays one honest sentence — which is exactly why launchFailed exists: the launch block catches an exception, keeps its type and message as the DIAGNOSTIC it logs, and shows this authored line instead, because a raw type name on a phone is a sentence nobody can act on. notOpenYet is the one acknowledgement every destination this build has no screen for gives back on a tap, and refillNotOpenYet is that same acknowledgement worded for the refill offer, where the player is blocked and the honest next step — Energy returning on its own, counted down in the top bar — is already on the screen. Neither may read as an offer to buy Energy: this game has no real-money currency of any kind.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["loading", "unavailable", "runLapsed", "nothingCleared"],
+      "required": ["loading", "unavailable", "runLapsed", "nothingCleared", "launchFailed", "notOpenYet", "refillNotOpenYet"],
       "properties": {
         "loading": { "$ref": "#/$defs/locKey" },
         "unavailable": { "$ref": "#/$defs/locKey" },
         "runLapsed": { "$ref": "#/$defs/locKey" },
-        "nothingCleared": { "$ref": "#/$defs/locKey" }
+        "nothingCleared": { "$ref": "#/$defs/locKey" },
+        "launchFailed": { "$ref": "#/$defs/locKey" },
+        "notOpenYet": { "$ref": "#/$defs/locKey" },
+        "refillNotOpenYet": { "$ref": "#/$defs/locKey" }
       }
     }
   }

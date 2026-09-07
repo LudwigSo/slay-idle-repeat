@@ -75,12 +75,21 @@ unique_name_in_owner = true
 
 ; The shared theme is assigned once, here, on the root of the overlay: every control below inherits
 ; it, and each names a type variation rather than carrying colours and sizes of its own.
+;
+; 🔴 mouse_filter = 2 (Ignore), and it is the one property this whole overlay could not do without.
+; A Control defaults to STOP, and this one is anchored to the entire viewport underneath every band —
+; so without this line it SWALLOWS every pointer event on the screen that no control above it took,
+; and the mouse_filter = 2 set on Bands, TopBar, HeroBand and NameBlock buys exactly nothing. It was
+; latent rather than live only because nothing on this screen listens for an unhandled input yet; the
+; next thing that does would have been debugged against a scene that silently ate its events.
+; HomeSceneRuleTests pins it, because there is nothing about a missing property that reads as wrong.
 [node name="Screen" type="Control" parent="Ui"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme = ExtResource("3_theme")
 
 ; The four bands, stacked with no separation. Three are pinned to their exported heights and the
@@ -216,6 +225,37 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
 theme_type_variation = &"RailButton"
+autowrap_mode = 3
+
+; 🔴 The one line eleven destinations answer a tap with, and the twelfth thing on this screen that
+; needed to exist: the tabs for Talents, Collection and Shop, the three rail entries, the settings
+; control, the three resource pills and the refill offer all lead to screens this build has not
+; written, and each of them used to answer a press by printing to the engine log. To the player that
+; is a control that was tapped and did nothing, which is the definition of a dead button.
+;
+; It sits over the diorama rather than in a band of its own: a band would take height from the hero
+; every frame for a line that is showing on almost none of them. HeroSubtitle for the same reason the
+; two labels below it wear it — what is behind this is a picture, and an outline is the one contrast a
+; flat font colour cannot give over one. Hidden until a tap asks for it, and it never takes a pointer:
+; an acknowledgement that could itself be tapped is a control, and this is a sentence.
+[node name="StubNotice" type="Label" parent="Ui/Screen/Bands/HeroBand"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 42.0
+offset_top = -318.0
+offset_right = -42.0
+offset_bottom = -186.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_type_variation = &"HeroSubtitle"
+horizontal_alignment = 1
+vertical_alignment = 1
 autowrap_mode = 3
 
 [node name="NameBlock" type="VBoxContainer" parent="Ui/Screen/Bands/HeroBand"]

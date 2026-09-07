@@ -78,6 +78,69 @@ public sealed class HomeSceneRuleTests
             "visibility does not cross the Node3D-to-CanvasLayer seam.");
     }
 
+    /// <summary>
+    /// 🔴 The overlay's root passes every pointer event no control above it took.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>Ui/Screen</c> is a plain <c>Control</c> anchored to the whole viewport, underneath all four
+    /// bands. A <c>Control</c> defaults to <c>MOUSE_FILTER_STOP</c>, so without an explicit filter
+    /// this one node swallows every tap that lands anywhere the four bands did not claim — and the
+    /// <c>mouse_filter = 2</c> carefully set on <c>Bands</c>, <c>TopBar</c>, <c>HeroBand</c> and
+    /// <c>NameBlock</c> buys precisely nothing, because the event never gets past the node under
+    /// them.
+    /// </para>
+    /// <para>
+    /// It is pinned rather than trusted because a missing property reads as nothing at all: the
+    /// scene said in a comment that the hero band "passes the pointer" while it did not, and the
+    /// only way that is visible from the file is by asking. The failure mode is silent by
+    /// construction — the first thing on this screen to listen for an unhandled input would be
+    /// debugged against a scene that ate its events.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_overlay_root_passes_every_pointer_event_no_band_above_it_took()
+    {
+        var screen = SceneText.Node(HomeScene, "Screen").ShouldNotBeNull(
+            "Home.tscn declares no single node named 'Screen'. It is the root of the overlay and " +
+            "everything drawn on this page is under it.");
+
+        screen.Body.ShouldContain(
+            "mouse_filter = 2",
+            "the overlay root does not ignore the pointer, so it STOPS every event the bands above " +
+            "it did not take — over the whole viewport, including the diorama.");
+    }
+
+    /// <summary>
+    /// 🔴 The screen carries a line to answer a tap on a destination it has no screen for.
+    /// </summary>
+    /// <remarks>
+    /// Eleven controls here lead nowhere yet, and until this node existed each of them answered a
+    /// press by printing to the engine log. A log line is not feedback: to the player it is a
+    /// control that was tapped and did nothing, which is the shape they read as broken. Hidden and
+    /// empty on the way in, and it may never take a pointer of its own — a sentence a finger can
+    /// land on is a control, and there is nothing behind this one.
+    /// </remarks>
+    [Fact]
+    public void The_screen_carries_a_line_to_answer_a_tap_on_a_destination_it_has_no_screen_for()
+    {
+        var notice = SceneText.Node(HomeScene, "StubNotice").ShouldNotBeNull(
+            "Home.tscn declares no single node named 'StubNotice', so eleven destinations answer a " +
+            "tap with nothing the player can see.");
+
+        notice.Body.ShouldContain(
+            "unique_name_in_owner = true",
+            "the scene resolves it by '%StubNotice' and pushes an error when that names nothing.");
+        notice.Body.ShouldContain(
+            "visible = false",
+            "a line that starts on the page is an apology the player is shown before they have " +
+            "tapped anything.");
+        notice.Body.ShouldContain(
+            "mouse_filter = 2",
+            "it is anchored over the hero band, so a filter of STOP would put a dead rectangle " +
+            "across the diorama for as long as the line is up — and it stays up after the tap.");
+    }
+
     [Theory]
     [InlineData("WorldEnvironment")]
     [InlineData("DirectionalLight3D")]
@@ -288,9 +351,12 @@ public sealed class HomeSceneRuleTests
     /// <summary>How many controls on this screen draw text a player reads.</summary>
     /// <remarks>
     /// A floor (steering S3): without it, a regex that stopped matching would state the rule below
-    /// over nothing at all and pass for ever.
+    /// over nothing at all and pass for ever. Raised to 20 by the acknowledgement line the screen
+    /// answers a tap on an unbuilt destination with — a Label carrying an authored sentence, so it
+    /// is exactly the kind of control this rule exists for, and the German build already draws every
+    /// one of them a third longer than the English one the layout was measured at.
     /// </remarks>
-    private const int CaptionedControlCount = 19;
+    private const int CaptionedControlCount = 20;
 
     /// <summary>
     /// 🔴 Every control that draws text says what it does when the text does not fit.
