@@ -27,6 +27,12 @@ internal static class PersistenceWorlds
     /// <summary>Cancellation none of these cases exercise, named once so the calls read.</summary>
     internal static readonly CancellationToken Cancel = CancellationToken.None;
 
+    /// <summary>The client version the fixture's <c>BEGIN_SESSION</c> announces. Never inspected by the domain.</summary>
+    private const string FixtureClientVersion = "0.0.0-fixture";
+
+    /// <summary>The content hash it announces. Checked at the wire tier, which no fixture here crosses.</summary>
+    private const string FixtureContentHash = "fixture-content-hash";
+
     /// <summary>A fresh player's profile — no run, straight off account creation.</summary>
     internal static PlayerProfile FreshProfile(string? displayName = null)
     {
@@ -42,6 +48,11 @@ internal static class PersistenceWorlds
         var game = Game();
         var player = game.CreatePlayer();
 
+        // A run is charged Energy, and a fresh profile opens both banks at zero, so the session's
+        // own refill is what makes the run affordable — the same order the client boots in.
+        Require(
+            game.Send(player, new BeginSessionCommand(FixtureClientVersion, FixtureContentHash)),
+            "BEGIN_SESSION");
         Require(game.Send(player, new StartRunCommand(1, DifficultyTier.NORMAL)), "START_RUN");
         Require(game.Send(player, new SkipDraftCommand()), "SKIP_DRAFT");
 

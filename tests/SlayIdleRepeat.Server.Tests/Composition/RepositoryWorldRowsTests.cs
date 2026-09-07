@@ -26,6 +26,12 @@ public sealed class RepositoryWorldRowsTests
     private static readonly Lazy<ContentSnapshot> Content = new(() =>
         ContentLoader.Load(new LocalFileContentSource(DataRoot())).Require());
 
+    /// <summary>The client version the fixture's <c>BEGIN_SESSION</c> announces. Never inspected by the domain.</summary>
+    private const string FixtureClientVersion = "0.0.0-fixture";
+
+    /// <summary>The content hash it announces. Checked at the wire tier, which no fixture here crosses.</summary>
+    private const string FixtureContentHash = "fixture-content-hash";
+
     private static (RepositoryWorldRows Rows, InMemoryPlayerRepository Players, InMemoryRunStateStore Runs) Build()
     {
         var players = new InMemoryPlayerRepository();
@@ -40,6 +46,9 @@ public sealed class RepositoryWorldRowsTests
             new DateTimeOffset(2026, 8, 12, 5, 0, 0, TimeSpan.Zero)));
         player = game.CreatePlayer();
 
+        // A run is charged Energy, and a fresh profile opens both banks at zero, so the session's
+        // own refill is what makes the run affordable — the same order the client boots in.
+        Accept(game.Send(player, new BeginSessionCommand(FixtureClientVersion, FixtureContentHash)));
         Accept(game.Send(player, new StartRunCommand(1, DifficultyTier.NORMAL)));
         Accept(game.Send(player, new SkipDraftCommand()));
 
