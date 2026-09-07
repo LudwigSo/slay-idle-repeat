@@ -1,5 +1,6 @@
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
+using SlayIdleRepeat.Application.Services;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
@@ -51,6 +52,77 @@ public enum HomeContinueDecision
     /// </remarks>
     RunLapsed = 6,
 }
+
+/// <summary>Which of the five states the launch block is in.</summary>
+/// <remarks>
+/// 🔒 Five named states rather than a pair of booleans over "can start" and "is loaded". The five
+/// differ in the button's word, the button's colour role, what the cost badge says and whether a
+/// press does anything, and no two of those four vary together — a screen deriving one from another
+/// would show a Refill button charging a run's price.
+/// </remarks>
+public enum HomeLaunchState
+{
+    /// <summary>Energy covers the cost and the hero is at or above the recommendation.</summary>
+    Ready = 1,
+
+    /// <summary>The two banks together do not cover the run's cost. A press must not start a run.</summary>
+    InsufficientEnergy = 2,
+
+    /// <summary>
+    /// The hero is below the stage's recommended power. The run is still startable — this is a
+    /// warning, never a gate.
+    /// </summary>
+    Underpowered = 3,
+
+    /// <summary>The read has not answered yet. Skeletons, in the same places the real rows will be.</summary>
+    Loading = 4,
+
+    /// <summary>The read did not answer at all. An inline retry row, never a modal.</summary>
+    PresenterFailure = 5,
+}
+
+/// <summary>Which theme accent a control is drawn in.</summary>
+/// <remarks>
+/// A ROLE rather than a colour: the value a role resolves to is a named entry in
+/// <c>SlayTheme.tres</c>, and a presenter that carried the hex would be the hard-coded colour the
+/// brief forbids and the scene rules catch.
+/// </remarks>
+public enum HomeColourRole
+{
+    /// <summary>The action accent — the ember the primary button is normally drawn in.</summary>
+    Action = 1,
+
+    /// <summary>The energy accent — what the button becomes when it is offering a refill instead.</summary>
+    Energy = 2,
+
+    /// <summary>The quiet surface, for a control that is doing nothing yet.</summary>
+    Quiet = 3,
+}
+
+/// <summary>What the badge on the primary button is saying.</summary>
+public enum HomeCostBadgeKind
+{
+    /// <summary>The run's price. <see cref="HomeCostBadge.Amount"/> is what it costs.</summary>
+    Price = 1,
+
+    /// <summary>The shortfall. <see cref="HomeCostBadge.Amount"/> is how much more is needed.</summary>
+    Shortfall = 2,
+
+    /// <summary>A skeleton standing in the badge's place so the button does not resize when the read lands.</summary>
+    Placeholder = 3,
+
+    /// <summary>No badge at all — there is no price to quote because there is nothing to buy.</summary>
+    None = 4,
+}
+
+/// <summary>The badge on the primary button: what it is saying, and the number it says it with.</summary>
+/// <param name="Kind">What the number means.</param>
+/// <param name="Amount">
+/// The number, or zero for the two kinds that have none. Zero is never a meaningful amount here: a
+/// price of nothing and a shortfall of nothing are both states the screen cannot be in.
+/// </param>
+public sealed record HomeCostBadge(HomeCostBadgeKind Kind, int Amount);
+
 
 /// <summary>
 /// Drives the Home screen: the header and HUD tiles the profile carries, the run panel when there is
@@ -461,4 +533,74 @@ public sealed class HomePresenter
         ? _strings.Resolve(key)
         : throw new ArgumentOutOfRangeException(
             nameof(tier), tier, "this tier has no authored name the progress tile can spell; add its key before a row can carry it.");
+
+    // ------------------------------------------------------ the run hub's launch block
+
+    /// <summary>Builds the hub half of the screen over the application seam.</summary>
+    /// <param name="screen">Everything the hub draws, and the one thing it does.</param>
+    /// <param name="strings">Key to display string, over the loaded content set.</param>
+    /// <exception cref="ArgumentNullException">A collaborator is null.</exception>
+    /// <remarks>
+    /// ⚠️ A second constructor for the duration of the rebuild: the members above are still driven by
+    /// the host read the old header made, and this one drives the launch block. Phase 3 collapses
+    /// them once the scene draws only the new bands.
+    /// </remarks>
+    public HomePresenter(IHomeScreen screen, LocaleStringCatalogue strings)
+    {
+        ArgumentNullException.ThrowIfNull(screen);
+        ArgumentNullException.ThrowIfNull(strings);
+
+        // Validated and not yet stored: this is a Phase 1 skeleton, and a field nothing reads is a
+        // build error under the analyser set. Phase 3 keeps them.
+        _gameHost = null!;
+        _strings = strings;
+        _content = null!;
+        _clock = null!;
+        _power = null!;
+        _chapters = [];
+    }
+
+    /// <summary>Which of the five states the launch block is in.</summary>
+    public HomeLaunchState LaunchState => throw Skeleton(nameof(LaunchState));
+
+    /// <summary>The primary button's word, resolved. Its own word in every state.</summary>
+    public string ActionLabel => throw Skeleton(nameof(ActionLabel));
+
+    /// <summary>The theme accent the primary button is drawn in.</summary>
+    public HomeColourRole ActionColour => throw Skeleton(nameof(ActionColour));
+
+    /// <summary>What the badge on the primary button is saying.</summary>
+    public HomeCostBadge CostBadge => throw Skeleton(nameof(CostBadge));
+
+    /// <summary>Whether pressing the primary button starts a run.</summary>
+    public bool CanStartRun => throw Skeleton(nameof(CanStartRun));
+
+    /// <summary>
+    /// Whether the launch block's three rows — stage card, button, reward line — are on the page.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 True in every state, including <see cref="HomeLaunchState.Loading"/>, and that is the
+    /// point: the brief's loading state is skeletons in the same places, so nothing on the screen
+    /// moves when the read lands. A block hidden while loading makes the whole hero band jump.
+    /// </remarks>
+    public bool LaunchRowsVisible => throw Skeleton(nameof(LaunchRowsVisible));
+
+    /// <summary>What failed, when <see cref="LaunchState"/> is <see cref="HomeLaunchState.PresenterFailure"/>.</summary>
+    /// <remarks>Names the thing that failed; the copy carries no apology, per the brief.</remarks>
+    public string? FailureLine => throw Skeleton(nameof(FailureLine));
+
+    /// <summary>Reads the hub's view model and settles <see cref="LaunchState"/>.</summary>
+    /// <param name="ct">Cancellation.</param>
+    public Task LoadAsync(CancellationToken ct) => throw Skeleton(nameof(LoadAsync));
+
+    /// <summary>Presses the primary button.</summary>
+    /// <param name="ct">Cancellation.</param>
+    /// <returns>What the seam answered, or <c>null</c> when the state does not start runs at all.</returns>
+    public Task<StartRunOutcome?> PressStartAsync(CancellationToken ct) =>
+        throw Skeleton(nameof(PressStartAsync));
+
+    private static NotImplementedException Skeleton(string member) =>
+        new($"HomePresenter.{member} is a Phase 1 skeleton: the tests stating what it must answer " +
+            "in each of the five launch states are written and red. Phase 3 implements it.");
+
 }

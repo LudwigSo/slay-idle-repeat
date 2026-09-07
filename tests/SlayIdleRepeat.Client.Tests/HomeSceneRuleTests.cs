@@ -196,4 +196,129 @@ public sealed class HomeSceneRuleTests
             "a texture path the catalogue does not list is one IconCatalogueTests does not check: " +
             "no grid, no scale, no flatness rule. Add the icon to the catalogue, then to the scene.");
     }
+    // ============================================================== the run hub's structure
+
+    /// <summary>The five tabs the hub reaches, in the order the reference puts them.</summary>
+    /// <remarks>
+    /// Named for the systems this build has rather than for the reference's captions: it says
+    /// Skills and Relics, and the screens behind them here are Talents and Collection.
+    /// </remarks>
+    private static readonly string[] Tabs = ["Home", "Gear", "Talents", "Collection", "Shop"];
+
+    private static readonly Regex TabNode = new(
+        @"^\[node name=""(?<name>[^""]+)""[^\]]*parent=""[^""]*TabBar""",
+        RegexOptions.Multiline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    private static readonly Regex AccentEntry = new(
+        @"^(?<key>[A-Za-z0-9_]+/colors/(?:action|energy|gain)_accent) = Color\((?<value>[^)]*)\)",
+        RegexOptions.Multiline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>Every script this screen is drawn by. A colour literal in any of them is the finding.</summary>
+    private static readonly string[] HomeScripts =
+    [
+        "src/SlayIdleRepeat.Client/game/scenes/Home.cs",
+        "src/SlayIdleRepeat.Client/game/presenters/HomePresenter.cs",
+        "src/SlayIdleRepeat.Client/game/presenters/HomeLayout.cs",
+    ];
+
+    /// <summary>
+    /// 🔒 Five tabs, exactly the five, and no sixth.
+    /// </summary>
+    /// <remarks>
+    /// Both halves matter and neither implies the other: a scene missing Collection has four tabs
+    /// the player can reach and one system they cannot, and a scene with a sixth has a tab leading
+    /// to a screen nobody has built. The brief forbids the sixth by name.
+    /// </remarks>
+    [Fact]
+    public void The_tab_bar_carries_the_five_tabs_and_no_sixth()
+    {
+        var declared = TabNode.Matches(SceneText.Read(HomeScene))
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
+
+        declared.ShouldBe(
+            Tabs,
+            ignoreOrder: false,
+            "the tab bar's children ARE the five destinations, in the reference's order. A missing " +
+            "one is a system with no way in; a sixth is a way in to a screen that does not exist.");
+    }
+
+    /// <summary>
+    /// 🔒 One primary button on the screen, and it is the one that starts a run.
+    /// </summary>
+    /// <remarks>
+    /// The variation is what makes a control read as THE action. A second control wearing it makes
+    /// the screen ask the player to choose between two things that both look like the only thing.
+    /// </remarks>
+    [Fact]
+    public void The_screen_declares_exactly_one_primary_button() =>
+        Occurrences(SceneText.Read(HomeScene), "theme_type_variation = &\"PrimaryButton\"").ShouldBe(
+            1,
+            "the brief forbids a second primary button in as many words, and the launch block is " +
+            "where the one lives.");
+
+    /// <summary>
+    /// 🔒 Not one colour is written in a script: every one is a theme entry.
+    /// </summary>
+    /// <remarks>
+    /// A hard-coded colour wins over the theme silently, so retuning the theme leaves exactly the
+    /// controls that were coloured in code looking like the old palette. The scan is over the whole
+    /// script set at once because the failure is a property of the screen, not of any one file.
+    /// </remarks>
+    [Theory]
+    [InlineData("new Color")]
+    [InlineData("Color(")]
+    [InlineData("Colors.")]
+    public void No_home_script_writes_a_colour_of_its_own(string spelling)
+    {
+        HomeScripts.Length.ShouldBe(
+            3, "a floor: the rule below is stated over the scripts this screen is really drawn by.");
+
+        HomeScripts.ShouldAllBe(
+            path => !SceneText.Read(path).Contains(spelling, StringComparison.Ordinal),
+            $"a script naming '{spelling}' is deciding a colour where no reviewer of the theme will " +
+            "ever see it. The screen names a theme entry; the theme owns the value.");
+    }
+
+    /// <summary>
+    /// 🔒 The three accent roles this screen needs exist in the theme, and are three DIFFERENT colours.
+    /// </summary>
+    /// <remarks>
+    /// The committed theme is a neutral grey-blue set with no accent hue at all, so all three of
+    /// these are new. Distinctness is the discriminating half: three entries pointing at one
+    /// existing grey satisfies every "the entry exists" check and draws a refill button, an action
+    /// button and a gain flash in the same colour.
+    /// </remarks>
+    [Fact]
+    public void The_theme_declares_three_distinct_accent_colours()
+    {
+        var accents = AccentEntry.Matches(SceneText.Read(Theme));
+
+        accents.Count.ShouldBe(
+            3,
+            "the screen needs an action accent for the start button, an energy accent for the refill " +
+            "offer and a gain accent for a power increase. Each is a named theme entry, and the " +
+            "committed theme has none of them yet.");
+        accents.Select(match => match.Groups["value"].Value).Distinct(StringComparer.Ordinal).Count()
+            .ShouldBe(
+                3,
+                "three roles sharing one value is a theme that cannot tell the player which of the " +
+                "two buttons they are looking at.");
+    }
+
+    private static int Occurrences(string text, string needle)
+    {
+        var count = 0;
+        var at = text.IndexOf(needle, StringComparison.Ordinal);
+
+        while (at >= 0)
+        {
+            count++;
+            at = text.IndexOf(needle, at + needle.Length, StringComparison.Ordinal);
+        }
+
+        return count;
+    }
 }

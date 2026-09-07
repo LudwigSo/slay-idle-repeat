@@ -1,5 +1,5 @@
-using System.Reflection;
 using Shouldly;
+using SlayIdleRepeat.Application.Services;
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
@@ -521,65 +521,16 @@ public sealed class HomePresenterTests
             "they cannot spend on a run.");
     }
 
-    // ------------------------------------------------------ 🔒 the absences, pinned as facts
+    // ---------------------------------------- 🔴 what USED to be pinned as absent, and is not
+    //
+    // Two cases lived here: one forbidding any member named Max / Denominator / Regen / Countdown /
+    // Percent / Cost, and its floor. Their own words said "if a later task genuinely gets one of
+    // these through the host seam, deleting this case is the deliberate act that records the
+    // change." That task is this one: HomeEnergyView is the public projection the rules layer now
+    // offers, IHomeScreen carries its numbers, and the screen below reads a cost badge and a
+    // maximum it does not compute. Deleted rather than weakened — a narrowed rule stating the same
+    // prohibition with exceptions would be a rule nobody could read.
 
-    /// <summary>
-    /// 🔒 The values this screen must NOT produce, pinned so that filling one means deleting a case
-    /// that says why it must not be filled.
-    /// </summary>
-    /// <remarks>
-    /// Every tuning reader that could answer these is <c>internal</c> to the rules assembly and the
-    /// host seam exposes no derived-value read, so a number produced here would be a second copy of
-    /// a formula the rules already own — and two copies of a balance formula disagree the first time
-    /// either is tuned. The layout the design calls for (an Energy bar with a maximum and a
-    /// regeneration countdown, a Legend XP percentage, a run's Energy cost) is therefore left absent
-    /// and greppable rather than filled with a plausible number.
-    /// <para>
-    /// A substring match, because what is forbidden is the <em>idea</em>: <c>MaxEnergy</c>,
-    /// <c>EnergyDenominator</c>, <c>RegenSecondsRemaining</c>, <c>LegendXpPercent</c> and
-    /// <c>RunEnergyCost</c> are the same mistake spelled five ways.
-    /// </para>
-    /// </remarks>
-    [Theory]
-    [InlineData("Max")]
-    [InlineData("Denominator")]
-    [InlineData("Regen")]
-    [InlineData("Countdown")]
-    [InlineData("Percent")]
-    [InlineData("Cost")]
-    public void The_home_screen_exposes_no_member_naming_a_value_only_the_rules_layer_can_compute(string fragment)
-    {
-        HomeMemberNames()
-            .Where(n => n.Contains(fragment, StringComparison.OrdinalIgnoreCase))
-            .ShouldBeEmpty(
-                $"a member naming '{fragment}' would be an Energy maximum, a regeneration countdown, " +
-                "a Legend-XP percentage or a run's Energy cost computed on the screen. Each is a " +
-                "function of tuning that only the rules layer can evaluate, and a client-side copy " +
-                "of it goes wrong silently on the first balance patch. If a later task genuinely " +
-                "gets one of these through the host seam, deleting this case is the deliberate act " +
-                "that records the change.");
-    }
-
-    /// <summary>
-    /// The floor under the rule above: it is stated over a member set that really is the screen's.
-    /// </summary>
-    /// <remarks>
-    /// Named members rather than a count, so a renamed property fails here rather than quietly
-    /// shrinking the set the absence rule scans.
-    /// </remarks>
-    [Fact]
-    public void The_absence_rule_is_stated_over_the_members_the_home_screen_actually_exposes()
-    {
-        var members = HomeMemberNames();
-
-        members.ShouldContain(nameof(HomePresenter.Energy), "the amount the absent maximum would have divided");
-        members.ShouldContain(nameof(HomePresenter.EnergyReserve), "the other bank, likewise without a capacity");
-        members.ShouldContain(nameof(HomePresenter.LegendLevel), "the level the absent XP percentage would have sat under");
-        members.ShouldContain(nameof(HomePresenter.Decision), "the decision the whole screen exists to make");
-        members.ShouldContain(nameof(HomePresenter.Crowns), "the balance the absent run cost would have been charged against");
-        members.ShouldContain(nameof(HomePresenter.Power), "the one derived number the screen DOES show, read through a source rather than computed here");
-        members.ShouldContain(nameof(HomePresenter.RunProgress), "the run panel's value, whose maximum lives on the record and not on the screen");
-    }
 
     // -------------------------------------------------------------------------- the strings
 
@@ -1259,10 +1210,222 @@ public sealed class HomePresenterTests
 
         return presenter.Decision;
     }
+    // =============================================== the run hub's launch block, state by state
 
-    private static IReadOnlyList<string> HomeMemberNames() =>
-        typeof(HomePresenter)
-            .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Select(m => m.Name)
-            .ToArray();
+    /// <summary>The state a presenter is in before the read answers: skeletons, not a blank screen.</summary>
+    [Fact]
+    public void LaunchState_is_Loading_before_the_view_model_has_been_read() =>
+        Hub(Ready()).LaunchState.ShouldBe(
+            HomeLaunchState.Loading,
+            "the first frame is drawn before the read lands, and a default of Ready offers a start " +
+            "button whose price nobody has read yet.");
+
+    /// <summary>Energy covers the cost and nothing is wrong: the ember button, and the price on it.</summary>
+    [Fact]
+    public async Task LaunchState_is_Ready_when_the_bar_covers_the_run_cost()
+    {
+        var presenter = await LoadedHub(Ready());
+
+        presenter.LaunchState.ShouldBe(HomeLaunchState.Ready);
+        presenter.ActionColour.ShouldBe(HomeColourRole.Action);
+        presenter.CostBadge.ShouldBe(
+            new HomeCostBadge(HomeCostBadgeKind.Price, RunCost),
+            "a ready button quotes what the run costs, which is the number that will be taken.");
+        presenter.CanStartRun.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// 🔒 A bar below the price becomes a refill offer, in the energy accent, quoting the SHORTFALL.
+    /// </summary>
+    /// <remarks>
+    /// The shortfall rather than the price is the discriminating half: a badge showing 20 to a
+    /// player holding 17 tells them to find twenty more.
+    /// </remarks>
+    [Fact]
+    public async Task LaunchState_is_InsufficientEnergy_when_the_bar_is_below_the_run_cost()
+    {
+        var presenter = await LoadedHub(
+            ScriptedHomeScreen.ViewModel(energy: RunCost - 3, energyCost: RunCost));
+
+        presenter.LaunchState.ShouldBe(HomeLaunchState.InsufficientEnergy);
+        presenter.ActionColour.ShouldBe(HomeColourRole.Energy);
+        presenter.CostBadge.ShouldBe(new HomeCostBadge(HomeCostBadgeKind.Shortfall, 3));
+    }
+
+    /// <summary>🔒 …and it must not be able to start a run, however hard the button is pressed.</summary>
+    /// <remarks>
+    /// Asserted on the seam's call count rather than on the presenter's own answer: a presenter that
+    /// reported <c>CanStartRun == false</c> and submitted anyway looks identical from outside, and
+    /// the run would be started with the Energy taken.
+    /// </remarks>
+    [Fact]
+    public async Task Pressing_start_without_the_energy_for_it_starts_nothing()
+    {
+        var screen = ScriptedHomeScreen.Answering(
+            ScriptedHomeScreen.ViewModel(energy: 0, energyCost: RunCost));
+        var presenter = new HomePresenter(screen, ScreenContent.Catalogue());
+
+        await presenter.LoadAsync(CancellationToken.None);
+        await presenter.PressStartAsync(CancellationToken.None);
+
+        presenter.CanStartRun.ShouldBeFalse();
+        screen.StartCallCount.ShouldBe(
+            0,
+            "the button in this state offers a refill, and a refill that quietly started a run " +
+            "would spend Energy the player was being told they did not have.");
+    }
+
+    /// <summary>A hero below the recommendation is warned, never stopped.</summary>
+    /// <remarks>
+    /// The brief is explicit that the run stays startable: this state is a warning tint on the stage
+    /// card, and a presenter that gated it would lock a player out of the only stage they have.
+    /// </remarks>
+    [Fact]
+    public async Task LaunchState_is_Underpowered_when_the_hero_is_below_the_recommendation()
+    {
+        var presenter = await LoadedHub(
+            ScriptedHomeScreen.ViewModel(
+                energy: RunCost, energyCost: RunCost, power: 9_400d, recommendedPower: 11_900d));
+
+        presenter.LaunchState.ShouldBe(HomeLaunchState.Underpowered);
+        presenter.CanStartRun.ShouldBeTrue("underpowered is a warning, not a gate.");
+        presenter.CostBadge.ShouldBe(
+            new HomeCostBadge(HomeCostBadgeKind.Price, RunCost),
+            "the run still costs what it costs; only the stage card changes.");
+    }
+
+    /// <summary>A read that does not answer becomes an inline retry row, and names what failed.</summary>
+    [Fact]
+    public async Task LaunchState_is_PresenterFailure_when_the_read_does_not_answer()
+    {
+        var presenter = new HomePresenter(
+            ScriptedHomeScreen.Faulting(new InvalidOperationException(ReadFailureDetail)),
+            ScreenContent.Catalogue());
+
+        await presenter.LoadAsync(CancellationToken.None);
+
+        presenter.LaunchState.ShouldBe(HomeLaunchState.PresenterFailure);
+        presenter.FailureLine.ShouldNotBeNull().ShouldContain(
+            ReadFailureDetail,
+            Case.Sensitive,
+            "the row names the thing that failed. A line that said only 'something went wrong' " +
+            "leaves the player with nothing to report and nothing to retry.");
+    }
+
+    /// <summary>Each of the five states says its own word on the button.</summary>
+    /// <remarks>
+    /// Pairwise distinct rather than five literals: the words are the locale's and this case is
+    /// about the mapping, which a presenter resolving one key for every state fails and a presenter
+    /// resolving five right keys passes whatever the copy says.
+    /// </remarks>
+    [Fact]
+    public async Task The_five_launch_states_each_put_their_own_word_on_the_button()
+    {
+        var labels = await LabelsOfEveryState();
+
+        labels.Length.ShouldBe(5, "a floor: the rule below is stated over all five states.");
+        labels.Distinct(StringComparer.Ordinal).Count().ShouldBe(
+            5,
+            "two states sharing a word are two states the player cannot tell apart — and one of " +
+            "them starts a run while the other refuses to.");
+    }
+
+    /// <summary>
+    /// 🔒 The launch block keeps its three rows in every state, so nothing on the screen jumps when
+    /// the read lands.
+    /// </summary>
+    /// <remarks>
+    /// The brief's loading state is skeletons in the same places. A block hidden while loading
+    /// changes the hero band's height, and the whole diorama moves the instant the read answers.
+    /// </remarks>
+    [Fact]
+    public async Task The_launch_block_keeps_its_rows_in_every_state()
+    {
+        var presenters = await EveryState();
+
+        presenters.Length.ShouldBe(5, "a floor: the rule below is stated over all five states.");
+        presenters.ShouldAllBe(
+            presenter => presenter.LaunchRowsVisible,
+            "a row that disappears while loading resizes the band above it, and the hero jumps.");
+    }
+
+    /// <summary>The loading badge holds the button's width without quoting a price nobody has read.</summary>
+    [Fact]
+    public void CostBadge_while_loading_is_a_placeholder_rather_than_a_number() =>
+        Hub(Ready()).CostBadge.ShouldBe(
+            new HomeCostBadge(HomeCostBadgeKind.Placeholder, 0),
+            "a badge showing a price before the read answers is a number the screen invented, and " +
+            "a badge that is not there at all makes the button resize when the read lands.");
+
+    /// <summary>🔒 The energy accent belongs to the refill offer, and to nothing else.</summary>
+    /// <remarks>
+    /// Stated as the complement rather than one more equality: the failure mode is a presenter that
+    /// picks the accent from "not ready" rather than from "cannot pay", which paints the loading and
+    /// failure states blue too.
+    /// </remarks>
+    [Fact]
+    public async Task Only_the_refill_offer_is_drawn_in_the_energy_accent()
+    {
+        var presenters = await EveryState();
+
+        presenters.Length.ShouldBe(5, "a floor: the rule below is stated over all five states.");
+        presenters
+            .Where(presenter => presenter.LaunchState != HomeLaunchState.InsufficientEnergy)
+            .ShouldAllBe(
+                presenter => presenter.ActionColour != HomeColourRole.Energy,
+                "the energy accent means 'this button buys Energy'. On any other state it is a " +
+                "button that does something else wearing the colour of the one that does not.");
+    }
+
+    // ---------------------------------------------------------------- the hub's fixtures
+
+    /// <summary>What a run costs in these cases. The screen is handed it; it never derives it.</summary>
+    private const int RunCost = 20;
+
+    private const string ReadFailureDetail = "the home view model could not be projected";
+
+    private static HomeViewModel Ready() =>
+        ScriptedHomeScreen.ViewModel(energy: RunCost * 2, energyCost: RunCost);
+
+    private static HomePresenter Hub(HomeViewModel view) =>
+        new(ScriptedHomeScreen.Answering(view), ScreenContent.Catalogue());
+
+    private static async Task<HomePresenter> LoadedHub(HomeViewModel view)
+    {
+        var presenter = Hub(view);
+
+        await presenter.LoadAsync(CancellationToken.None);
+
+        return presenter;
+    }
+
+    /// <summary>One presenter in each of the five states, reached the way the screen reaches them.</summary>
+    private static async Task<HomePresenter[]> EveryState()
+    {
+        var loading = Hub(Ready());
+
+        var failed = new HomePresenter(
+            ScriptedHomeScreen.Faulting(new InvalidOperationException(ReadFailureDetail)),
+            ScreenContent.Catalogue());
+
+        await failed.LoadAsync(CancellationToken.None);
+
+        return
+        [
+            await LoadedHub(Ready()),
+            await LoadedHub(ScriptedHomeScreen.ViewModel(energy: 0, energyCost: RunCost)),
+            await LoadedHub(
+                ScriptedHomeScreen.ViewModel(
+                    energy: RunCost, energyCost: RunCost, power: 9_400d, recommendedPower: 11_900d)),
+            loading,
+            failed,
+        ];
+    }
+
+    private static async Task<string[]> LabelsOfEveryState()
+    {
+        var presenters = await EveryState();
+
+        return [.. presenters.Select(presenter => presenter.ActionLabel)];
+    }
 }
