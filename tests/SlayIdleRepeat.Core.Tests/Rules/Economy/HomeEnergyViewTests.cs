@@ -127,6 +127,48 @@ public sealed class HomeEnergyViewTests
             "negative span here, and the pill hides a caption that is still counting.");
     }
 
+    // ------------------------------------------------------------------------ the shortfall
+
+    /// <summary>
+    /// 🔒 The shortfall is measured over BOTH banks, because a run is paid from both.
+    /// </summary>
+    /// <remarks>
+    /// The discriminating row is the middle one: a bar of 5 against a cost of 20 is short by 15 on
+    /// its own, and a Reserve of 40 covers it outright — so a projection subtracting the cost from
+    /// <c>Current</c> alone answers 15 where the rules answer nothing, and the screen refuses a tap
+    /// <c>EnergyMath.Spend</c> would have accepted. The last row is short in both banks together, so
+    /// the shortfall is the remainder after the Reserve has been counted, not the whole price.
+    /// </remarks>
+    [Theory]
+    [InlineData(40, 0, 0)]
+    [InlineData(5, 40, 0)]
+    [InlineData(5, 6, ProgressionDocuments.ShippedRunCost - 11)]
+    public void Shortfall_counts_the_reserve_the_run_would_be_paid_from(
+        int bar, int reserve, int expected) =>
+        Project(Row(energy: new EnergyBanks(bar, reserve), anchor: Now))
+            .Shortfall.ShouldBe(
+                expected,
+                "a run draws the main bar first and the Reserve for the remainder, so what the two " +
+                "hold together is what decides whether it can be afforded and by how much it falls " +
+                "short.");
+
+    /// <summary>The shortfall counts the Energy that has accrued since the anchor, not the stored bar.</summary>
+    /// <remarks>
+    /// Both banks are empty at the anchor and the whole run cost has regenerated since, so a
+    /// projection measuring the shortfall before accruing answers the full price of a run the
+    /// player can in fact afford the moment they look at the screen.
+    /// </remarks>
+    [Fact]
+    public void Shortfall_is_measured_after_accrual_rather_than_at_the_anchor() =>
+        Project(
+                Row(
+                    energy: new EnergyBanks(0, 0),
+                    anchor: Now - (ProgressionDocuments.ShippedRunCost * RegenInterval)))
+            .Shortfall.ShouldBe(
+                0,
+                "a whole run's worth of Energy has regenerated since the anchor, so nothing is " +
+                "missing by the time the screen is drawn.");
+
     // ------------------------------------------------------------------------ the run cost
 
     /// <summary>

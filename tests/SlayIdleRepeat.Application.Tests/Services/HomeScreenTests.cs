@@ -70,24 +70,56 @@ public sealed class HomeScreenTests
     /// <remarks>
     /// Asserted against the projection rather than against literals, because the claim is that the
     /// two agree — a view model computing its own maximum would agree with the shipped tuning today
-    /// and part company with the rules on the first retune. The maximum is floored first (steering
-    /// S32): two zeros agree as happily as two right answers.
+    /// and part company with the rules on the first retune. Every number compared is floored on the
+    /// projection's side first (steering S32): two zeros agree as happily as two right answers, and
+    /// the row is built short of a run's price precisely so the shortfall has something to be.
     /// </remarks>
     [Fact]
     public async Task GetViewModelAsync_takes_every_energy_number_from_the_core_projection()
     {
         var row = HomeWorlds.Row(
-            energy: new EnergyBanks(31, 0), energyAnchorUtc: HomeWorlds.Now - HomeWorlds.RegenInterval);
+            energy: new EnergyBanks(3, 0), energyAnchorUtc: HomeWorlds.Now - HomeWorlds.RegenInterval);
 
         var view = await HomeWorlds.Screen(row).GetViewModelAsync(Cancel);
 
         var expected = HomeEnergyView.Project(row, Worlds.Content, HomeWorlds.Now);
 
+        expected.Current.ShouldBeGreaterThan(0, "a floor under the comparison below.");
         expected.Max.ShouldBeGreaterThan(0, "a floor under the comparison below.");
+        expected.RunCost.ShouldBeGreaterThan(0, "a floor under the comparison below.");
+        expected.Shortfall.ShouldBeGreaterThan(0, "a floor under the comparison below.");
 
         view.Energy.ShouldBe(expected.Current);
         view.EnergyMax.ShouldBe(expected.Max);
         view.EnergyCost.ShouldBe(expected.RunCost);
+        view.EnergyShortfall.ShouldBe(expected.Shortfall);
+    }
+
+    /// <summary>
+    /// 🔒 The shortfall counts the Reserve, so a player whose Reserve covers the run is not told
+    /// they cannot afford it.
+    /// </summary>
+    /// <remarks>
+    /// The bar alone is three short of the price and the Reserve holds far more than the difference.
+    /// <c>EnergyMath.Spend</c> draws the bar first and the Reserve for the remainder, so this player
+    /// can start the run — and a view model subtracting <c>Energy</c> from <c>EnergyCost</c> answers
+    /// three, which is the launch block's instruction to offer a refill instead of a start.
+    /// </remarks>
+    [Fact]
+    public async Task GetViewModelAsync_reports_no_shortfall_when_the_reserve_covers_what_the_bar_cannot()
+    {
+        var row = HomeWorlds.Row(
+            energy: new EnergyBanks(HomeWorlds.RunCost - 3, HomeWorlds.RunCost),
+            energyAnchorUtc: HomeWorlds.Now);
+
+        var view = await HomeWorlds.Screen(row).GetViewModelAsync(Cancel);
+
+        view.Energy.ShouldBeLessThan(
+            view.EnergyCost, "the fixture is only discriminating while the bar alone is short.");
+        view.EnergyShortfall.ShouldBe(
+            0,
+            "the Reserve covers what the bar does not, so the run is affordable and nothing is " +
+            "missing. A screen reading affordability off the main bar refuses this player.");
     }
 
     // ------------------------------------------------------------------------ the countdown
@@ -214,15 +246,24 @@ public sealed class HomeScreenTests
     /// 🔒 A start refused for Energy says by how much, and does not throw.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// 🔒 The banks hold part of the price, so the shortfall and the price are DIFFERENT numbers —
+    /// which is the only fixture in which the claim can be checked. Six in the bar and three in the
+    /// Reserve against a price of twenty is a shortfall of eleven; a screen answering the price
+    /// instead of the difference answers twenty and tells a player holding nine that they need
+    /// twenty more.
+    /// </para>
+    /// <para>
     /// 🔴 Reached through a scripted host because no shipped command produces this refusal:
     /// <c>Handlers.StartRun</c> never reads the run cost. See <see cref="ScriptedHomeHost"/> — the
     /// fixture exists precisely so the mapping is tested before the rule that fires it lands
     /// (steering S25).
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task StartRunAsync_refuses_for_energy_with_the_shortfall_rather_than_throwing()
     {
-        var row = HomeWorlds.Row(energy: new EnergyBanks(0, 0), energyAnchorUtc: HomeWorlds.Now);
+        var row = HomeWorlds.Row(energy: new EnergyBanks(6, 3), energyAnchorUtc: HomeWorlds.Now);
         var host = ScriptedHomeHost.Refusing(row, RejectionReason.INSUFFICIENT_ENERGY, Worlds.Content);
 
         var outcome = await HomeWorlds.ScreenOver(host, row)
@@ -230,9 +271,10 @@ public sealed class HomeScreenTests
 
         outcome.Result.ShouldBe(StartRunResult.InsufficientEnergy);
         outcome.EnergyShortfall.ShouldBe(
-            HomeWorlds.RunCost,
-            "both banks are empty, so the whole price is the shortfall. A screen answering the " +
-            "price instead of the difference would tell a player with 19 of 20 that they need 20.");
+            HomeWorlds.RunCost - 9,
+            "the two banks hold nine of the price between them, so nine is what the refusal must " +
+            "subtract. Answering the price itself is the same number in every fixture where the " +
+            "banks are empty, and a different one for every player who is only nearly there.");
     }
 
     // ----------------------------------------------------------------------------- the badges

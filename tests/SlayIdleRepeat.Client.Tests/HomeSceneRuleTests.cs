@@ -211,8 +211,17 @@ public sealed class HomeSceneRuleTests
         TimeSpan.FromSeconds(5));
 
     private static readonly Regex AccentEntry = new(
-        @"^(?<key>[A-Za-z0-9_]+/colors/(?:action|energy|gain)_accent) = Color\((?<value>[^)]*)\)",
+        @"^[A-Za-z0-9_]+/colors/(?<role>action|energy|gain)_accent = Color\((?<value>[^)]*)\)",
         RegexOptions.Multiline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The three accent roles this screen needs, by the name each is written under.</summary>
+    private static readonly string[] AccentRoles = ["action", "energy", "gain"];
+
+    /// <summary>A colour written as a hex string: <c>#rgb</c>, <c>#rrggbb</c> or either with alpha.</summary>
+    private static readonly Regex HexColour = new(
+        @"#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b",
+        RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
     /// <summary>Every script this screen is drawn by. A colour literal in any of them is the finding.</summary>
@@ -268,9 +277,9 @@ public sealed class HomeSceneRuleTests
     /// script set at once because the failure is a property of the screen, not of any one file.
     /// </remarks>
     [Theory]
-    [InlineData("new Color")]
     [InlineData("Color(")]
     [InlineData("Colors.")]
+    [InlineData("Color.From")]
     public void No_home_script_writes_a_colour_of_its_own(string spelling)
     {
         HomeScripts.Length.ShouldBe(
@@ -283,27 +292,54 @@ public sealed class HomeSceneRuleTests
     }
 
     /// <summary>
+    /// 🔒 …and not as a hex string either, which is the spelling the reference itself uses.
+    /// </summary>
+    /// <remarks>
+    /// The three spellings above are all constructor calls, and every one of them misses
+    /// <c>"#e04b32"</c> — the exact form the reference HTML writes the three accents in, and so the
+    /// exact form a script transcribing them from the brief would carry. A hex string reaches a
+    /// colour through <c>Color.FromHtml</c>, a shader parameter or an exported property, none of
+    /// which the constructor spellings can see.
+    /// </remarks>
+    [Fact]
+    public void No_home_script_writes_a_colour_as_a_hex_string()
+    {
+        HomeScripts.Length.ShouldBe(
+            3, "a floor: the rule below is stated over the scripts this screen is really drawn by.");
+
+        HomeScripts.ShouldAllBe(
+            path => !HexColour.IsMatch(SceneText.Read(path)),
+            "a hex colour written into a script is the theme's value copied where no reviewer of " +
+            "the theme will look. The reference names #e04b32, #5aa9e6 and #41c294; the theme is " +
+            "where all three belong.");
+    }
+
+    /// <summary>
     /// 🔒 The three accent roles this screen needs exist in the theme, and are three DIFFERENT colours.
     /// </summary>
     /// <remarks>
     /// The committed theme is a neutral grey-blue set with no accent hue at all, so all three of
-    /// these are new. Distinctness is the discriminating half: three entries pointing at one
-    /// existing grey satisfies every "the entry exists" check and draws a refill button, an action
-    /// button and a gain flash in the same colour.
+    /// these are new. Two halves discriminate, and neither implies the other: the ROLES found are
+    /// the three named ones — a count of three satisfied by three <c>action_accent</c> entries under
+    /// three variations leaves the refill button with no colour to be drawn in and passes every
+    /// "there are three entries" check — and the three VALUES differ, since three roles pointing at
+    /// one existing grey draws a refill button, an action button and a gain flash the same.
     /// </remarks>
     [Fact]
     public void The_theme_declares_three_distinct_accent_colours()
     {
         var accents = AccentEntry.Matches(SceneText.Read(Theme));
 
-        accents.Count.ShouldBe(
-            3,
-            "the screen needs an action accent for the start button, an energy accent for the refill " +
-            "offer and a gain accent for a power increase. Each is a named theme entry, and the " +
-            "committed theme has none of them yet.");
+        accents.Select(match => match.Groups["role"].Value).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
+            .ShouldBe(
+                AccentRoles.Order(StringComparer.Ordinal),
+                "the screen needs an action accent for the start button, an energy accent for the " +
+                "refill offer and a gain accent for a power increase — each by that name, because a " +
+                "role the theme never declares is a control drawn in whatever the base type says. " +
+                "The committed theme has none of the three yet.");
         accents.Select(match => match.Groups["value"].Value).Distinct(StringComparer.Ordinal).Count()
             .ShouldBe(
-                3,
+                AccentRoles.Length,
                 "three roles sharing one value is a theme that cannot tell the player which of the " +
                 "two buttons they are looking at.");
     }

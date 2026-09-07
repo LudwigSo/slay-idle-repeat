@@ -4,8 +4,9 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 namespace SlayIdleRepeat.Core.Rules.Economy;
 
 /// <summary>
-/// The four Energy numbers the Home screen's energy pill draws: what the bar holds, what it holds
-/// out of, how long until the next point, and what a run costs.
+/// The five Energy numbers the Home screen draws: what the bar holds, what it holds out of, how
+/// long until the next point, what a run costs, and how much of that cost the two banks cannot
+/// cover.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -34,9 +35,22 @@ namespace SlayIdleRepeat.Core.Rules.Economy;
 /// is still running.
 /// </param>
 /// <param name="RunCost">What one run costs.</param>
-public sealed record HomeEnergyView(int Current, int Max, TimeSpan RefillIn, int RunCost)
+/// <param name="Shortfall">
+/// How much more Energy a run needs than the two banks hold together, or zero when they cover it.
+/// <para>
+/// 🔒 <b>Over the bar AND the Reserve, because that is what a run is paid from.</b>
+/// <c>EnergyMath.Spend</c> draws the main bar first and the Reserve for the remainder, so a screen
+/// deciding affordability from <see cref="Current"/> against <see cref="RunCost"/> refuses a tap the
+/// rules would have accepted — a player holding 17 in the bar and 100 in the Reserve can start a
+/// 20-cost run, and would be shown a refill offer instead. The <em>pill</em> still reads
+/// <see cref="Current"/> out of <see cref="Max"/>: the Reserve is a separate bank, not part of the
+/// bar's denominator.
+/// </para>
+/// </param>
+public sealed record HomeEnergyView(
+    int Current, int Max, TimeSpan RefillIn, int RunCost, int Shortfall)
 {
-    /// <summary>Projects the four numbers from a player's row at an instant.</summary>
+    /// <summary>Projects the five numbers from a player's row at an instant.</summary>
     /// <param name="player">The player's row — the banks, the anchor and the Legend Level.</param>
     /// <param name="content">The loaded content set the energy block is read from.</param>
     /// <param name="now">

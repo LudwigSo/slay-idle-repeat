@@ -1222,7 +1222,7 @@ public sealed class HomePresenterTests
 
     /// <summary>Energy covers the cost and nothing is wrong: the ember button, and the price on it.</summary>
     [Fact]
-    public async Task LaunchState_is_Ready_when_the_bar_covers_the_run_cost()
+    public async Task LaunchState_is_Ready_when_the_banks_cover_the_run_cost()
     {
         var presenter = await LoadedHub(Ready());
 
@@ -1235,21 +1235,55 @@ public sealed class HomePresenterTests
     }
 
     /// <summary>
-    /// 🔒 A bar below the price becomes a refill offer, in the energy accent, quoting the SHORTFALL.
+    /// 🔒 A shortfall the banks cannot cover becomes a refill offer, in the energy accent, quoting
+    /// the SHORTFALL.
     /// </summary>
     /// <remarks>
     /// The shortfall rather than the price is the discriminating half: a badge showing 20 to a
-    /// player holding 17 tells them to find twenty more.
+    /// player holding 17 tells them to find twenty more. The bar here is short by three and the
+    /// shortfall is two, so the two numbers a presenter could quote are different and only one of
+    /// them is what the rules say is missing.
     /// </remarks>
     [Fact]
-    public async Task LaunchState_is_InsufficientEnergy_when_the_bar_is_below_the_run_cost()
+    public async Task LaunchState_is_InsufficientEnergy_when_the_banks_do_not_cover_the_run_cost()
     {
         var presenter = await LoadedHub(
-            ScriptedHomeScreen.ViewModel(energy: RunCost - 3, energyCost: RunCost));
+            ScriptedHomeScreen.ViewModel(
+                energy: RunCost - 3, energyCost: RunCost, energyShortfall: 2));
 
         presenter.LaunchState.ShouldBe(HomeLaunchState.InsufficientEnergy);
         presenter.ActionColour.ShouldBe(HomeColourRole.Energy);
-        presenter.CostBadge.ShouldBe(new HomeCostBadge(HomeCostBadgeKind.Shortfall, 3));
+        presenter.CostBadge.ShouldBe(
+            new HomeCostBadge(HomeCostBadgeKind.Shortfall, 2),
+            "the badge is the shortfall the rules reported, not the difference between the two " +
+            "numbers the screen happens to be holding — the Reserve is covering the rest of it.");
+        presenter.CanStartRun.ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// 🔒 A bar below the price is NOT by itself a refusal: the Reserve pays the remainder.
+    /// </summary>
+    /// <remarks>
+    /// <c>EnergyMath.Spend</c> draws the main bar first and the Reserve for what is left, so a
+    /// player with 17 in a bar of 120 and a stocked Reserve starts a 20-cost run. The pill still
+    /// reads <c>17/120</c> — the Reserve is a separate bank, not part of the denominator — so a
+    /// presenter deciding the state from the two numbers it can see refuses this tap, offers a
+    /// refill for Energy the player already has, and no other case in this file would notice.
+    /// </remarks>
+    [Fact]
+    public async Task LaunchState_is_Ready_when_the_bar_is_short_but_nothing_is_missing()
+    {
+        var presenter = await LoadedHub(
+            ScriptedHomeScreen.ViewModel(
+                energy: RunCost - 3, energyCost: RunCost, energyShortfall: 0));
+
+        presenter.LaunchState.ShouldBe(
+            HomeLaunchState.Ready,
+            "a shortfall of nothing is a run the rules will accept, whatever the main bar reads.");
+        presenter.CanStartRun.ShouldBeTrue();
+        presenter.CostBadge.ShouldBe(
+            new HomeCostBadge(HomeCostBadgeKind.Price, RunCost),
+            "there is nothing to make up, so the badge quotes what will be taken.");
     }
 
     /// <summary>🔒 …and it must not be able to start a run, however hard the button is pressed.</summary>
@@ -1262,7 +1296,8 @@ public sealed class HomePresenterTests
     public async Task Pressing_start_without_the_energy_for_it_starts_nothing()
     {
         var screen = ScriptedHomeScreen.Answering(
-            ScriptedHomeScreen.ViewModel(energy: 0, energyCost: RunCost));
+            ScriptedHomeScreen.ViewModel(
+                energy: 0, energyCost: RunCost, energyShortfall: RunCost));
         var presenter = new HomePresenter(screen, ScreenContent.Catalogue());
 
         await presenter.LoadAsync(CancellationToken.None);
@@ -1368,13 +1403,19 @@ public sealed class HomePresenterTests
     {
         var presenters = await EveryState();
 
-        presenters.Length.ShouldBe(5, "a floor: the rule below is stated over all five states.");
-        presenters
+        var others = presenters
             .Where(presenter => presenter.LaunchState != HomeLaunchState.InsufficientEnergy)
-            .ShouldAllBe(
-                presenter => presenter.ActionColour != HomeColourRole.Energy,
-                "the energy accent means 'this button buys Energy'. On any other state it is a " +
-                "button that does something else wearing the colour of the one that does not.");
+            .ToArray();
+
+        // 🔒 The floor is on the FILTERED set, not on the five it was filtered from (steering S32):
+        // a presenter reporting InsufficientEnergy in every state filters this to nothing, and a
+        // rule stated over nothing is satisfied by anything.
+        others.Length.ShouldBe(
+            4, "a floor: four of the five states are not the refill offer, and this rule is theirs.");
+        others.ShouldAllBe(
+            presenter => presenter.ActionColour != HomeColourRole.Energy,
+            "the energy accent means 'this button buys Energy'. On any other state it is a " +
+            "button that does something else wearing the colour of the one that does not.");
     }
 
     // ---------------------------------------------------------------- the hub's fixtures
@@ -1413,7 +1454,9 @@ public sealed class HomePresenterTests
         return
         [
             await LoadedHub(Ready()),
-            await LoadedHub(ScriptedHomeScreen.ViewModel(energy: 0, energyCost: RunCost)),
+            await LoadedHub(
+                ScriptedHomeScreen.ViewModel(
+                    energy: 0, energyCost: RunCost, energyShortfall: RunCost)),
             await LoadedHub(
                 ScriptedHomeScreen.ViewModel(
                     energy: RunCost, energyCost: RunCost, power: 9_400d, recommendedPower: 11_900d)),

@@ -40,13 +40,25 @@ internal sealed class ScriptedHomeScreen : IHomeScreen
     /// <param name="fault">What went wrong.</param>
     internal static ScriptedHomeScreen Faulting(Exception fault) => new(null, fault, Outcomes.Refused);
 
-    /// <summary>A view model with the four fields the launch states are decided from.</summary>
+    /// <summary>A view model with the five fields the launch states are decided from.</summary>
+    /// <remarks>
+    /// 🔒 <c>energyShortfall</c> is its own argument rather than <c>energyCost - energy</c>, and that
+    /// is the point: a run is paid from the main bar and the Reserve together, the view model carries
+    /// only the bar, and so the two are independent. Passing them separately is what lets a case put
+    /// the screen in the state this build's rules can actually produce — a bar below the price with
+    /// nothing missing, because the Reserve holds the difference.
+    /// </remarks>
     /// <param name="energy">The main bar.</param>
     /// <param name="energyCost">What a run costs.</param>
+    /// <param name="energyShortfall">How much of the cost the two banks cannot cover. Zero when they can.</param>
     /// <param name="power">The hero's power, or <c>null</c> when there was no reading.</param>
     /// <param name="recommendedPower">The stage's recommendation, or <c>null</c> when there is none.</param>
     internal static HomeViewModel ViewModel(
-        int energy, int energyCost, double? power = null, double? recommendedPower = null) =>
+        int energy,
+        int energyCost,
+        int energyShortfall = 0,
+        double? power = null,
+        double? recommendedPower = null) =>
         new(
             PlayerName: "Ryn, Ashblade",
             PlayerLevel: 63,
@@ -59,6 +71,7 @@ internal sealed class ScriptedHomeScreen : IHomeScreen
             NextStageName: null,
             RecommendedPower: recommendedPower,
             EnergyCost: energyCost,
+            EnergyShortfall: energyShortfall,
             RewardTags: [],
             Badges: HomeBadges.None);
 

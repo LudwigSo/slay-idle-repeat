@@ -56,15 +56,26 @@ public sealed class HomeLayoutTests
     /// <summary>The regeneration countdown, in the shape the reference shows it.</summary>
     private const string LongestEnergyCaption = "4:12";
 
+    /// <summary>
+    /// ⚠️ <b>A stated per-character BUDGET, not a measured face.</b> Nothing in the design set
+    /// authors a font metric and no tier here can measure one, so these two numbers are this
+    /// fixture's own (steering S6) — named rather than inlined so the hole is greppable. They are
+    /// the width per character the shipped face must come in under; whether it does is a question
+    /// for <c>review-ui-quality</c> against the scene's exported metrics, not one this suite can
+    /// answer.
+    /// </summary>
+    private const float BudgetedValueCharacterAdvance = 15f;
+
+    /// <inheritdoc cref="BudgetedValueCharacterAdvance"/>
+    private const float BudgetedCaptionCharacterAdvance = 12f;
+
     private static readonly HomeLayoutMetrics Metrics = new(
         new HomeBandMetrics(TopBarHeight, LaunchHeight, TabBarHeight),
         new HomeTopBarMetrics(SidePadding, ItemGap, AvatarWidth, SettingsGlyphWidth),
-        // ⚠️ The two advances are this fixture's stated per-character budget, not a measured face:
-        // nothing in the design authors a font metric. They are what the scene's exported numbers
-        // will be checked against, and the case below is what says whether the shipped face fits.
         new HomePillMetrics(
             HorizontalPadding: 27f, IconWidth: 48f, InnerGap: 15f,
-            ValueCharacterAdvance: 15f, CaptionCharacterAdvance: 12f),
+            ValueCharacterAdvance: BudgetedValueCharacterAdvance,
+            CaptionCharacterAdvance: BudgetedCaptionCharacterAdvance),
         new HomeLaunchMetrics(
             SidePadding: 42f,
             RowGap: 30f,
@@ -77,12 +88,23 @@ public sealed class HomeLayoutTests
     // ------------------------------------------------------------------------ the four bands
 
     /// <summary>The four bands tile the canvas: each starts where the last ended, and nothing is left over.</summary>
+    /// <remarks>
+    /// 🔒 <b>Stated with insets as well as without, because that is where it breaks.</b> The two
+    /// safe-area cases below each check their own band and nothing else, so a layout that grew the
+    /// top bar by the notch and left the hero band starting at the bar's old bottom passes every one
+    /// of them — and paints the diorama under the status bar with a stripe of nothing beneath it.
+    /// The last row is the same failure at the other end.
+    /// </remarks>
     [Theory]
-    [InlineData(ShortCanvasHeight)]
-    [InlineData(TallCanvasHeight)]
-    public void For_stacks_the_four_bands_with_no_gap_and_no_overlap(float canvasHeight)
+    [InlineData(ShortCanvasHeight, 0f, 0f)]
+    [InlineData(TallCanvasHeight, 0f, 0f)]
+    [InlineData(ShortCanvasHeight, 132f, 96f)]
+    [InlineData(TallCanvasHeight, 0f, 400f)]
+    public void For_stacks_the_four_bands_with_no_gap_and_no_overlap(
+        float canvasHeight, float topInset, float bottomInset)
     {
-        var layout = Layout(canvasHeight);
+        var layout = HomeLayout.For(
+            CanvasWidth, canvasHeight, new SafeAreaInsets(topInset, 0f, bottomInset, 0f), Metrics);
 
         layout.TopBar.Y.ShouldBe(0f, "the top bar paints from the very top, safe inset included.");
         layout.Hero.Y.ShouldBe(layout.TopBar.Bottom, "a gap here is a stripe of background between two bands.");
@@ -226,16 +248,27 @@ public sealed class HomeLayoutTests
     }
 
     /// <summary>
-    /// 🔒 The three pills fit at the longest values the brief names: 999,999 Crowns, a full Energy
-    /// bar with its countdown, and 1.2M power.
+    /// The three pills fit at the longest values the brief names — 999,999 Crowns, a full Energy bar
+    /// with its countdown, and 1.2M power — at
+    /// <see cref="BudgetedValueCharacterAdvance">the fixture's stated character budget</see>.
     /// </summary>
     /// <remarks>
-    /// The value strings come from <see cref="PlayerNumber"/> rather than from literals, so this is
-    /// the rendering the screen will actually draw: 999,999 Crowns is shortened and 1.2M power is
-    /// shortened, and a case that transcribed "999,999" would be measuring a string no pill shows.
+    /// <para>
+    /// The value strings come from <see cref="PlayerNumber"/> rather than from literals, so the
+    /// character counts are the rendering the screen will actually draw: 999,999 Crowns is shortened
+    /// and 1.2M power is shortened, and a case that transcribed "999,999" would be measuring a
+    /// string no pill shows.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What it does NOT prove is that the shipped face fits</b>, and the name says so: the
+    /// verdict is a function of two numbers nothing authors. What it does prove is the row's
+    /// accounting — that <see cref="HomeLayout.PillWidth"/> charges for the padding, the icon, the
+    /// gaps and the caption, and that <c>PillRowWidth</c> reserves the settings TARGET rather than
+    /// its glyph — which is the half of the arithmetic a wrong implementation gets wrong.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_three_pills_fit_their_longest_values_in_the_row_they_are_given()
+    public void The_three_pills_fit_their_longest_values_at_the_budgeted_character_width()
     {
         var crowns = PlayerNumber.Abbreviated(999_999L);
         var power = PlayerNumber.Abbreviated(1_200_000L);

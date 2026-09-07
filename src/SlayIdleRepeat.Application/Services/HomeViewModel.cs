@@ -100,6 +100,17 @@ public sealed record HomeBadges(bool Home, bool Gear, bool Talents, bool Collect
 /// <param name="NextStageName">⚠️ Absent — see the type's remarks.</param>
 /// <param name="RecommendedPower">⚠️ Absent — see the type's remarks.</param>
 /// <param name="EnergyCost">What starting a run costs.</param>
+/// <param name="EnergyShortfall">
+/// How much more Energy a run needs than the player holds, or zero when they can afford it.
+/// <para>
+/// 🔒 <b>The one thing that decides whether the launch block offers a start or a refill.</b> It is
+/// carried rather than derived from <see cref="Energy"/> against <see cref="EnergyCost"/>, because
+/// a run is paid from the main bar AND the Reserve and this view model deliberately does not carry
+/// the Reserve — the pill reads <c>bar/max</c>, since the Reserve is a separate bank and not part
+/// of the bar's denominator. A screen subtracting the two numbers it can see would refuse a tap the
+/// rules accept, for every player whose Reserve is holding the difference.
+/// </para>
+/// </param>
 /// <param name="RewardTags">⚠️ Empty — see the type's remarks.</param>
 /// <param name="Badges">Which tabs are carrying a dot.</param>
 public sealed record HomeViewModel(
@@ -114,6 +125,7 @@ public sealed record HomeViewModel(
     string? NextStageName,
     double? RecommendedPower,
     int EnergyCost,
+    int EnergyShortfall,
     IReadOnlyList<string> RewardTags,
     HomeBadges Badges);
 
