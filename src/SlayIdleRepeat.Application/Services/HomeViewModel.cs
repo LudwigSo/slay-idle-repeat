@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Core.Primitives;
+﻿using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Application.Services;
 
@@ -74,13 +74,22 @@ public sealed record HomeBadges(bool Home, bool Gear, bool Talents, bool Collect
 /// decided.
 /// </para>
 /// <para>
-/// ⚠️ <b>Four fields have no authorised source yet and are deliberately absent rather than
-/// plausible</b> (steering S6): <see cref="NextStageId"/>, <see cref="NextStageName"/>,
-/// <see cref="RecommendedPower"/> and <see cref="RewardTags"/>. The par-power table and the chapter
-/// names are <c>internal</c> to <c>SlayIdleRepeat.Core</c> and the reference's reward line names no
-/// authored vocabulary at all, so a number here would be one this build invented. They are carried
-/// as nullable/empty so the day a route exists there is one place to fill in, and greppable so the
-/// hole cannot be mistaken for an answer.
+/// <see cref="NextStageId"/> and <see cref="RecommendedPower"/> are <c>Core.Rules.Board</c>'s
+/// <c>NextChapterView</c>, which is the par table's sanctioned public route out of
+/// <c>SlayIdleRepeat.Core</c> — the same construction, and the same reason, as the Energy numbers
+/// above. Both are still nullable: a player who has cleared every authored chapter is pointed at
+/// nothing, and a chapter the par table authors no cell for is passed over rather than
+/// extrapolated.
+/// </para>
+/// <para>
+/// ⚠️ <b>Two fields still have no authorised source and are deliberately absent rather than
+/// plausible</b> (steering S6). <see cref="NextStageName"/>: a chapter document authors its name as
+/// a loc key (<c>loc.chapter.1.name</c>) and resolving one is <c>LocaleStringCatalogue</c>'s job in
+/// the client assembly, which neither this layer nor <c>Core</c> may reference — so a key carried
+/// here would be drawn on screen as if it were a name, and the client names the chapter from
+/// <see cref="NextStageId"/> instead. <see cref="RewardTags"/>: nothing in <c>game-data/</c> authors
+/// a reward vocabulary at all, so the reference's reward line has nothing to name. Both stay
+/// nullable/empty and greppable, so the hole cannot be mistaken for an answer.
 /// </para>
 /// </remarks>
 /// <param name="PlayerName">The player's display name, as the row carries it.</param>
@@ -96,9 +105,9 @@ public sealed record HomeBadges(bool Home, bool Gear, bool Talents, bool Collect
 /// the pill's instruction to hide its caption.
 /// </param>
 /// <param name="Power">The hero's power index, or <c>null</c> when no reading could be taken.</param>
-/// <param name="NextStageId">⚠️ Absent — see the type's remarks.</param>
+/// <param name="NextStageId">The chapter the campaign offers next, or <c>null</c> — see the type's remarks.</param>
 /// <param name="NextStageName">⚠️ Absent — see the type's remarks.</param>
-/// <param name="RecommendedPower">⚠️ Absent — see the type's remarks.</param>
+/// <param name="RecommendedPower">The power that chapter is balanced against, or <c>null</c> — see the type's remarks.</param>
 /// <param name="EnergyCost">What starting a run costs.</param>
 /// <param name="EnergyShortfall">
 /// How much more Energy a run needs than the player holds, or zero when they can afford it.

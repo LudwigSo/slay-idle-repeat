@@ -103,6 +103,40 @@ internal static class Harnesses
         return (game, game.CreatePlayer(inventory: inventory));
     }
 
+    /// <summary>The attribution a fixture's Energy stock is written under.</summary>
+    /// <remarks>Named for what it is, so it can never be mistaken for a real income row in a report.</remarks>
+    internal const string FixtureStockReason = "fixture_energy_stock";
+
+    /// <summary>Fills both Energy banks straight onto the harness's player.</summary>
+    /// <param name="game">The harness.</param>
+    /// <param name="player">The player.</param>
+    /// <remarks>
+    /// 🔴 <b>The fixture for every case that starts a run and is not about Energy.</b>
+    /// <c>START_RUN</c> charges <c>EnergyTuning.RunCost</c>, and a created player starts with both
+    /// banks at zero — so a sweep that skipped this opens no run at all and every emptiness
+    /// assertion over it goes green having visited nothing.
+    /// <para>
+    /// Written onto the aggregate directly for the reason <see cref="HasCleared"/> is: the only
+    /// commands that hand a player Energy are the day's free refill and the passage of time, and a
+    /// fixture that drove either would be varying the login calendar or the clock — and the clock is
+    /// what the run seed is derived from.
+    /// </para>
+    /// </remarks>
+    internal static void CanPayForRuns(InMemoryGame game, PlayerId player)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+
+        var tuning = EnergyTuning.Read(game.Content);
+        var aggregate = game.State(player).Player;
+
+        aggregate.SetEnergy(
+            new EnergyBanks(
+                tuning.MaxEnergyAt(aggregate.LegendLevel),
+                tuning.ReserveCapacityAt(aggregate.LegendLevel)),
+            tuning,
+            FixtureStockReason);
+    }
+
     /// <summary>Records a chapter/tier clear straight onto the harness's player.</summary>
     /// <param name="game">The harness.</param>
     /// <param name="player">The player.</param>

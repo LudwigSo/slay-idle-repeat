@@ -9,6 +9,8 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Testing;
 
+using PlayerAggregate = SlayIdleRepeat.Core.Model.Player;
+
 namespace SlayIdleRepeat.Application.Tests.UseCases;
 
 /// <summary>
@@ -53,6 +55,65 @@ internal static class Worlds
     /// <summary>A harness over the shipped content, at <see cref="Start"/>, with <see cref="Seed"/>.</summary>
     internal static InMemoryGame Game() => new(Content, Seed, new VirtualClock(Start));
 
+    /// <summary>What a run costs, read from the shipped document rather than transcribed.</summary>
+    internal static int RunEnergyPrice { get; } =
+        Content.ReadInt32("tuning/progression.json#/energy/runCost");
+
+    /// <summary>The same player, holding exactly one run's price in the main Energy bar.</summary>
+    /// <remarks>
+    /// 🔴 The row-writing half of the fixture problem <see cref="Fund"/> describes. Where a fixture
+    /// stores a row rather than driving a harness, the price is written onto the row: sending
+    /// <c>BEGIN_SESSION</c> instead would consume a wire sequence number and shift every later
+    /// command in the case, which is a change to what the case is testing rather than to what it is
+    /// paying with.
+    /// </remarks>
+    /// <param name="player">The starting player.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="player"/> is null.</exception>
+    internal static PlayerAggregate HoldingARunsPrice(PlayerAggregate player)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+
+        var funded = PlayerAggregate.Rehydrate(
+            player.ToSnapshot() with { Energy = new EnergyBanks(RunEnergyPrice, 0) }, Content);
+
+        return funded.IsFailure
+            ? throw new InvalidOperationException(
+                "the funded fixture row does not rehydrate: " + funded.Error)
+            : funded.Value;
+    }
+
+    /// <summary>The day's free Energy refill, which is what pays for the runs the fixtures start.</summary>
+    /// <remarks>
+    /// 🔴 <b>A run costs Energy</b> — <c>Handlers.StartRun</c> charges <c>EnergyTuning.RunCost</c>
+    /// through <c>EnergyMath.Spend</c> — and <c>Player.CreateStarting</c> opens both banks at zero,
+    /// because every currency movement in this game has to be attributed by a <c>CurrencyChanged</c>
+    /// and a starting balance would be one no row explains. <c>BEGIN_SESSION</c>'s first-login refill
+    /// is the command that grants it, so the fixtures below send it exactly where a real profile
+    /// would: once, before the first run.
+    /// <para>
+    /// The real command rather than a written balance: <c>Application.Tests</c> cannot see
+    /// <c>Core</c>'s internals, so <c>Player.SetEnergy</c> is out of reach here — and driving the
+    /// clock forward instead would move <c>NowUtc</c>, which the run seed is derived from, and change
+    /// every board this suite generates.
+    /// </para>
+    /// </remarks>
+    /// <param name="game">The harness.</param>
+    /// <param name="player">The player to fund.</param>
+    internal static void Fund(InMemoryGame game, PlayerId player)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+
+        Accepted(
+            game.Send(player, new BeginSessionCommand(FixtureClientVersion, FixtureContentHash)),
+            "BEGIN_SESSION");
+    }
+
+    /// <summary>The client version the fixture's <c>BEGIN_SESSION</c> announces. Never inspected by the domain.</summary>
+    private const string FixtureClientVersion = "0.0.0-fixture";
+
+    /// <summary>The content hash it announces. Checked at the wire tier, which no fixture here crosses.</summary>
+    private const string FixtureContentHash = "fixture-content-hash";
+
     /// <summary>A player standing at the trailhead of a fresh run, its opening draft answered.</summary>
     /// <remarks>
     /// The skip is part of the fixture, not incidental: a run opens with a perk draft pending and
@@ -66,6 +127,7 @@ internal static class Worlds
         var game = Game();
         var player = game.CreatePlayer();
 
+        Fund(game, player);
         Accepted(game.Send(player, new StartRunCommand(Chapter, DifficultyTier.NORMAL)), "START_RUN");
         Accepted(game.Send(player, new SkipDraftCommand()), "SKIP_DRAFT");
 
@@ -82,6 +144,7 @@ internal static class Worlds
         var game = Game();
         var player = game.CreatePlayer();
 
+        Fund(game, player);
         Accepted(game.Send(player, new StartRunCommand(Chapter, DifficultyTier.NORMAL)), "START_RUN");
 
         return (game, player);
@@ -119,6 +182,7 @@ internal static class Worlds
         var asking = game.CreatePlayer();
         var other = game.CreatePlayer();
 
+        Fund(game, other);
         Accepted(game.Send(other, new StartRunCommand(Chapter, DifficultyTier.NORMAL)), "START_RUN (other player)");
 
         // ⚠️ The opening draft has to be answered before the run can be abandoned: the draft gate

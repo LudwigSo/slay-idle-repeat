@@ -1,7 +1,8 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Application.Services;
 using SlayIdleRepeat.Application.Tests.UseCases;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Economy;
 using Xunit;
 
@@ -329,23 +330,58 @@ public sealed class HomeScreenTests
     // -------------------------------------------------------------------- the declared holes
 
     /// <summary>
-    /// ⚠️ The stage recommendation and the reward line have no authorised source, and are absent
-    /// rather than plausible.
+    /// 🔒 The stage and its recommendation ARE authored, and both reach the view model — which is
+    /// what makes the launch block's Underpowered state reachable outside a test fake.
     /// </summary>
     /// <remarks>
-    /// <c>ParPowerTuning</c> and the chapter documents are <c>internal</c> to
-    /// <c>SlayIdleRepeat.Core</c>, and the reference's reward line names no authored vocabulary at
-    /// all. Steering S6: the hole stays greppable rather than being filled with a number that looks
-    /// precise. Deleting this case is what records the day a route exists.
+    /// <para>
+    /// The route is <c>Core.Rules.Board.NextChapterView</c>, the par table's public projection —
+    /// the same construction as <c>HomeEnergyView</c>. A brand-new profile has cleared nothing, so
+    /// the chapter it is pointed at is the campaign's first, and the recommendation is that
+    /// chapter's own Normal cell in <c>tuning/par_power.json</c>.
+    /// </para>
+    /// <para>
+    /// Asserted against the projection rather than against a literal, for the reason every Energy
+    /// number is: a view model carrying its own copy of the par table would agree with the shipped
+    /// file today and part company with it on the first retune. The floor is on the projection's
+    /// side (steering S32) — two nulls agree as happily as two right answers.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task GetViewModelAsync_carries_the_stage_the_campaign_offers_next_and_its_recommendation()
+    {
+        var row = HomeWorlds.Row();
+
+        var view = await HomeWorlds.Screen(row).GetViewModelAsync(Cancel);
+
+        var expected = NextChapterView.Project(row, Worlds.Content);
+
+        expected.ShouldNotBeNull("a floor: the comparison below is only evidence if there is a stage.");
+        expected.RecommendedPower.ShouldBeGreaterThan(0d, "a floor under the comparison below.");
+
+        view.NextStageId.ShouldBe(expected.ChapterId);
+        view.RecommendedPower.ShouldBe(expected.RecommendedPower);
+    }
+
+    /// <summary>
+    /// ⚠️ The stage's NAME and the reward line have no authorised source, and stay absent rather
+    /// than plausible.
+    /// </summary>
+    /// <remarks>
+    /// A chapter document authors its name as a loc key (<c>loc.chapter.1.name</c>) and resolving
+    /// one is <c>LocaleStringCatalogue</c>'s job in the client assembly, which neither this layer
+    /// nor <c>Core</c> may reference — so a key carried in a field called a name would be drawn on
+    /// screen as if it were one, and the client names the chapter from <c>NextStageId</c> instead.
+    /// Nothing in <c>game-data/</c> authors a reward vocabulary at all. Steering S6: both holes stay
+    /// greppable rather than being filled with something that looks precise. Deleting this case is
+    /// what records the day a route exists.
     /// </remarks>
     [Fact]
     public async Task GetViewModelAsync_leaves_the_unauthorised_stage_fields_absent()
     {
         var view = await HomeWorlds.Screen(HomeWorlds.Row()).GetViewModelAsync(Cancel);
 
-        view.NextStageId.ShouldBeNull();
         view.NextStageName.ShouldBeNull();
-        view.RecommendedPower.ShouldBeNull();
         view.RewardTags.ShouldBeEmpty();
     }
 

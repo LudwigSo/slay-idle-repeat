@@ -92,6 +92,34 @@ internal static class ChapterBoardTuning
         return content.ReadText($"{documentPath}#/miniBossIds/{index}");
     }
 
+    /// <summary>Every chapter the content set authors a document for, ascending.</summary>
+    /// <remarks>
+    /// The campaign's own order, not the content set's: document paths sort by file name, and the
+    /// files are named after the biome (<c>CH_01_GREENWOOD_VALE.json</c>), so a chapter renamed on
+    /// disk would otherwise move in the campaign. The id is read out of the document for the same
+    /// reason <see cref="FindChapterDocument"/> scans rather than deriving it from the path.
+    /// </remarks>
+    /// <param name="content">The loaded content set.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
+    internal static IReadOnlyList<int> AuthoredChapterIds(ContentSnapshot content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        var chapters = new List<int>();
+
+        foreach (var path in content.DocumentPaths)
+        {
+            if (path.StartsWith(ChaptersDirectory, StringComparison.Ordinal))
+            {
+                chapters.Add(content.ReadInt32($"{path}#/id"));
+            }
+        }
+
+        chapters.Sort();
+
+        return chapters;
+    }
+
     /// <summary>
     /// Finds the <c>content/chapters/</c> document whose <c>id</c> equals <paramref name="chapterId"/>.
     /// </summary>

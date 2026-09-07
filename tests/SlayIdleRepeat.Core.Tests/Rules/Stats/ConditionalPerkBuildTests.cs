@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
@@ -99,6 +99,7 @@ public sealed class ConditionalPerkBuildTests
         var player = game.CreatePlayer(inventory: Harnesses.FarAboveParStock());
 
         Harnesses.Equip(game, player);
+        Harnesses.CanPayForRuns(game, player);
         game.Send(player, new StartRunCommand(1, DifficultyTier.NORMAL));
 
         // The run opens with a draft, so the perk is taken before anything else happens. Which perk

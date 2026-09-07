@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Hosting;
@@ -70,7 +70,10 @@ internal static class HomeWorlds
         {
             DisplayName = displayName ?? starting.DisplayName,
             Wallet = crowns is { } balance ? WalletWith(starting.Wallet, balance) : starting.Wallet,
-            Energy = energy ?? starting.Energy,
+            // 🔴 A run is charged for, and a created player's banks are both zero — so the default
+            // row holds exactly one run's price. Without it every case that starts a run is refused
+            // for Energy, and the two that are ABOUT Energy override this anyway.
+            Energy = energy ?? new EnergyBanks(RunCost, 0),
             EnergyAnchorUtc = energyAnchorUtc ?? starting.EnergyAnchorUtc,
         };
     }

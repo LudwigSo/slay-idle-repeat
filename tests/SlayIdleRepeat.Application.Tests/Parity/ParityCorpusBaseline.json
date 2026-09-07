@@ -10,37 +10,37 @@
   ],
   "review": {
     "status": "reviewed",
-    "reviewedOn": "2026-08-30",
-    "reviewedBy": "integrate/M5-12",
-    "why": "A RE-BASELINE, NOT A TEST FIX, and the cause is named rather than guessed at: M5-08 turned CLAIM_INBOX from Deferred to Handled, and this corpus is built by a walker that drives every registered command except START_RUN. On M5-12's base that command refused unconditionally; on the merged tree it executes, so the sequences genuinely changed and the two pipelines had to be given the inbox projection the Application layer loads. What was read before this was stamped: 212 CLAIM_INBOX steps now exist across the corpus, 161 accepted and 51 refused, every one of them meta, and the single refusal reason is NOT_OWNED — the named-ids path against an inbox holding none, which is the honest answer rather than a swallowed one. 188 of the 1 000 sequences carry a claim, which is why all ten chunk hashes moved and none of them is a surprise — and the movement is in the COMMANDS as well as their answers, because the walker settles on the first candidate the domain accepts, so a claim that now accepts ends its step early and leaves the draw stream in a different place for every step after it. The two pipelines still agreed on every state hash of every step with ZERO mismatches, so nothing here is a divergence being baselined away. baselineState did not move (fnv1a:d6e2e8634485445d), so every sequence still starts from the same run and the change is confined to the walk. Five of the eight named rows kept their hash exactly — longest-sequence, shortest-sequence, every-step-accepted, every-step-refused and leaves-the-run — and each was checked to contain no CLAIM_INBOX, which is why they could not move. corpus-first and corpus-last kept their index and step count and moved their hash: both carry an accepted claim. accepts-on-both-endpoints moved from sequence 5 to sequence 2 because CLAIM_INBOX is a META command that now ACCEPTS, so sequence 2 — which already had an accepted ABANDON_RUN on the run endpoint — acquired its player-endpoint acceptance and claims the row ahead of 5. Step count is unchanged at 5 522 and the accepted share is 2 287/5 522, still above the floor. The LogHash corpus was deliberately NOT regenerated: it simulates combat, no inbox command reaches it, and it was green on this tree untouched."
+    "reviewedOn": "2026-09-07",
+    "reviewedBy": "home-run-hub/Phase 3a",
+    "why": "A RE-BASELINE, NOT A TEST FIX, and the cause is named rather than guessed at: this branch's Phase 3a made a run COST ENERGY. Handlers.StartRun now charges EnergyTuning.RunCost (20) through EnergyMath.Spend and emits the CurrencyChanged that attributes it, so the player row every sequence walks from holds a different Energy balance than it did before — and the row is inside the hashed wire projection. The corpus's own fixture had to move with it: a starting profile opens both Energy banks at zero, so GatewayWorld.WithAStartingPlayerAsync now stores a row holding exactly one run's price, or the START_RUN that opens the run every sequence acts inside would be refused and the whole corpus would walk a run-less slice. What was read before this was stamped: the WALK itself did not move. All eight named rows kept their sequence index AND their step count to the number (0/7, 999/6, 7/8, 26/3, 45/4, 44/4, 1/5, 2/7) and moved only their hash, which is the signature of a corpus whose commands and answers are unchanged and whose hashed STATE moved underneath them — as against M5-08's CLAIM_INBOX re-baseline, where a named row changed sequence outright. baselineState moved (fnv1a:d6e2e8634485445d -> fnv1a:1ae212469b1bb37f) for exactly that reason: it is the state after the fixture's START_RUN, which is now 20 Energy poorer. All ten chunk hashes and the aggregate moved, and none of them is a surprise. The two pipelines still agree on every state hash of every step with ZERO mismatches, so nothing here is a divergence being baselined away, and the corpus's own floors still hold: over 2 999 steps, refusals present, and the accepted share above 0.30. START_RUN remains the one excluded command; the change is to what it COSTS, not to which pipeline drives it. The LogHash corpus was deliberately NOT regenerated: it simulates combat, no Energy spend reaches it, and it was green on this tree untouched."
   },
   "table": {
     "sequences": 1000,
     "chunkSize": 100,
     "baselineSeed": "0x4d35313250415259",
-    "baselineState": "fnv1a:d6e2e8634485445d",
-    "aggregate": "fnv1a:7f3f449b50f09805",
+    "baselineState": "fnv1a:1ae212469b1bb37f",
+    "aggregate": "fnv1a:45824930e8f4b6be",
     "chunks": [
-      "fnv1a:6fce804f9c69fb95",
-      "fnv1a:38410e460406a262",
-      "fnv1a:87904717f7f3ce25",
-      "fnv1a:5b72587cd1938be0",
-      "fnv1a:151abbde7090f6bd",
-      "fnv1a:b8e25df2aa719475",
-      "fnv1a:43931100570de3ec",
-      "fnv1a:2d4eff82d576f3e6",
-      "fnv1a:8be38a150e3085a2",
-      "fnv1a:84521a55c984019b"
+      "fnv1a:47be713bbeb4fda9",
+      "fnv1a:bc0bab2b1506bca2",
+      "fnv1a:174af12288eb32c1",
+      "fnv1a:3727536826954c1c",
+      "fnv1a:e9e1500b426fb1cf",
+      "fnv1a:99124a01749e500b",
+      "fnv1a:6166ba31aaa5ed3f",
+      "fnv1a:0df9927e5f3d78d3",
+      "fnv1a:485003e7a241da20",
+      "fnv1a:3543a4c74777556e"
     ],
     "named": [
-      { "id": "corpus-first", "sequence": 0, "steps": 7, "hash": "fnv1a:69ca81cd595727b7", "why": "sequence 0 — the corpus's first row, and the first thing a change to the walker or to the seed derivation moves" },
-      { "id": "corpus-last", "sequence": 999, "steps": 6, "hash": "fnv1a:ed2a26029d329e12", "why": "sequence 999 — the last row, so a corpus silently truncated to fewer than 14 §13's one thousand cannot resolve this one" },
-      { "id": "longest-sequence", "sequence": 7, "steps": 8, "hash": "fnv1a:d3abd46ee4cbc735", "why": "the first sequence at the walker's maximum length — the deepest chain of dependent state either pipeline is asked to carry" },
-      { "id": "shortest-sequence", "sequence": 26, "steps": 3, "hash": "fnv1a:590e0f35e61122d2", "why": "the first sequence at the walker's minimum length, so both ends of the length band are pinned rather than only the middle" },
-      { "id": "every-step-accepted", "sequence": 45, "steps": 4, "hash": "fnv1a:fb2ee282bbdb2e32", "why": "the first sequence the domain accepted end to end — a whole walk of real state changes, with no refusal to mask a divergence by leaving the state untouched" },
-      { "id": "every-step-refused", "sequence": 44, "steps": 4, "hash": "fnv1a:ccebbb35a4fde157", "why": "the first sequence the domain refused end to end — the shape in which both pipelines must agree about state that did not move, which is a different claim from agreeing about state that did" },
-      { "id": "leaves-the-run", "sequence": 1, "steps": 5, "hash": "fnv1a:83fc93f6c9d5042a", "why": "the first sequence that ends or abandons its run mid-walk, so the run-already-ended gate and the hashing of a run that has stopped progressing are both pinned by a row" },
-      { "id": "accepts-on-both-endpoints", "sequence": 2, "steps": 7, "hash": "fnv1a:390f2f4fcecdac80", "why": "the first sequence with an accepted command on each endpoint — the wire's run/player split is the thing the in-process host has no equivalent of, and a corpus whose acceptances all landed on one side would compare half of it" }
+      { "id": "corpus-first", "sequence": 0, "steps": 7, "hash": "fnv1a:3a5b06913663d462", "why": "sequence 0 — the corpus's first row, and the first thing a change to the walker or to the seed derivation moves" },
+      { "id": "corpus-last", "sequence": 999, "steps": 6, "hash": "fnv1a:65d7867086301ae4", "why": "sequence 999 — the last row, so a corpus silently truncated to fewer than 14 §13's one thousand cannot resolve this one" },
+      { "id": "longest-sequence", "sequence": 7, "steps": 8, "hash": "fnv1a:1c16f9d4685eca43", "why": "the first sequence at the walker's maximum length — the deepest chain of dependent state either pipeline is asked to carry" },
+      { "id": "shortest-sequence", "sequence": 26, "steps": 3, "hash": "fnv1a:77f62a44f16f1624", "why": "the first sequence at the walker's minimum length, so both ends of the length band are pinned rather than only the middle" },
+      { "id": "every-step-accepted", "sequence": 45, "steps": 4, "hash": "fnv1a:173a42ce3bdcd47e", "why": "the first sequence the domain accepted end to end — a whole walk of real state changes, with no refusal to mask a divergence by leaving the state untouched" },
+      { "id": "every-step-refused", "sequence": 44, "steps": 4, "hash": "fnv1a:d60c3a702019bdaa", "why": "the first sequence the domain refused end to end — the shape in which both pipelines must agree about state that did not move, which is a different claim from agreeing about state that did" },
+      { "id": "leaves-the-run", "sequence": 1, "steps": 5, "hash": "fnv1a:d489c9c6e702c2ae", "why": "the first sequence that ends or abandons its run mid-walk, so the run-already-ended gate and the hashing of a run that has stopped progressing are both pinned by a row" },
+      { "id": "accepts-on-both-endpoints", "sequence": 2, "steps": 7, "hash": "fnv1a:912f368096403ab7", "why": "the first sequence with an accepted command on each endpoint — the wire's run/player split is the thing the in-process host has no equivalent of, and a corpus whose acceptances all landed on one side would compare half of it" }
     ]
   }
 }

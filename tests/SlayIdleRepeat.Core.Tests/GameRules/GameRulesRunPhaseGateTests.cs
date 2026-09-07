@@ -431,7 +431,7 @@ public sealed class GameRulesRunPhaseGateTests
     /// An ended run that has drawn from a stream — see
     /// <see cref="START_RUN_against_an_Ended_run_opens_a_fresh_run"/> for why the counters matter.
     /// </summary>
-    private static WorldSlice EndedRun() => Worlds.InARun(RunSnapshots.With(
+    private static WorldSlice EndedRun() => Worlds.InARunAbleToStartAnother(RunSnapshots.With(
         phase: RunPhase.Ended,
         rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, DrawsTaken))));
 
@@ -439,7 +439,7 @@ public sealed class GameRulesRunPhaseGateTests
     /// The same ended run with a perk draft never resolved — the one flag that can legitimately still
     /// be set on a finished run, since it is orthogonal to <see cref="RunPhase"/>.
     /// </summary>
-    private static WorldSlice EndedRunWithADraftStillOpen() => Worlds.InARun(RunSnapshots.With(
+    private static WorldSlice EndedRunWithADraftStillOpen() => Worlds.InARunAbleToStartAnother(RunSnapshots.With(
         phase: RunPhase.Ended,
         rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, DrawsTaken)),
         draftPending: true,

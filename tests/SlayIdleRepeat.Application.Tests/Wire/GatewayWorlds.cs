@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Hosting;
@@ -136,7 +136,12 @@ internal sealed class GatewayWorld
             throw new InvalidOperationException("The starting player does not rehydrate: " + starting.Error);
         }
 
-        await store.SaveAsync(new WorldSlice(starting.Value, null), Worlds.Cancel);
+        // Funded: START_RUN charges a run's price and a starting row holds nothing, so without this
+        // every case that opens a run through the gateway is refused for Energy. Written onto the
+        // row rather than granted by BEGIN_SESSION, which would consume the sequence number the
+        // cases below expect START_RUN to take.
+        await store.SaveAsync(
+            new WorldSlice(Worlds.HoldingARunsPrice(starting.Value), null), Worlds.Cancel);
 
         // The inbox seam is composed here rather than left null: without it CLAIM_INBOX faults as
         // the loading defect it is, and every case that submits one would be asserting on this
@@ -172,7 +177,8 @@ internal sealed class GatewayWorld
             throw new InvalidOperationException("The second player does not rehydrate: " + starting.Error);
         }
 
-        await Store.SaveAsync(new WorldSlice(starting.Value, null), Worlds.Cancel);
+        await Store.SaveAsync(
+            new WorldSlice(Worlds.HoldingARunsPrice(starting.Value), null), Worlds.Cancel);
 
         return player;
     }

@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Snapshots;
@@ -88,8 +88,14 @@ public sealed class RunStartLoadoutTests
         return result.NewState.Run!;
     }
 
+    /// <summary>The given row, funded for the one run every case here starts.</summary>
+    /// <remarks>
+    /// The Energy is the fixture's, not the case's subject: START_RUN charges a run's price, so a
+    /// row carrying the empty banks <c>PlayerSnapshots.Valid</c> holds is refused before it ever
+    /// reaches the loadout snapshot these cases are about.
+    /// </remarks>
     private static WorldSlice Outside(PlayerSnapshot player) =>
-        new(Worlds.Rehydrated(player), null);
+        new(Worlds.Rehydrated(player with { Energy = PlayerSnapshots.OneRunsWorth }), null);
 
     private static PlayerSnapshot Wearing(string itemId, GearSlot slot) =>
         PlayerSnapshots.With(

@@ -1,5 +1,6 @@
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Economy;
 
@@ -65,8 +66,68 @@ public sealed record HomeEnergyView(
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(content);
 
-        throw new NotImplementedException(
-            "HomeEnergyView.Project is a Phase 1 skeleton: the tests stating what it must answer " +
-            "are written and red. Phase 3 implements it over EnergyTuning and EnergyMath.");
+        var tuning = EnergyTuning.Read(content);
+        var level = player.LegendLevel;
+
+        // 🔒 Clamped HERE rather than in EnergyMath.Accrue, which throws on a negative span by
+        // design so a persisted anchor stuck in the future cannot go undetected in a command. This
+        // is a read, and a screen is the wrong place to surface that fault: the pill would take the
+        // whole Home screen down with it. GameRules.AdvanceTime clamps at its own seam for the same
+        // reason.
+        var sinceAnchor = now - player.EnergyAnchorUtc;
+        var elapsed = TimeSpan.FromTicks(Math.Max(0L, sinceAnchor.Ticks));
+
+        var banks = EnergyMath.Accrue(tuning, level, player.Energy, elapsed).Banks;
+
+        return new HomeEnergyView(
+            banks.Energy,
+            EnergyMath.MaxEnergy(tuning, level),
+            TimeToNextPoint(tuning, level, banks, elapsed),
+            tuning.RunCost,
+            UncoveredCost(banks, tuning.RunCost));
     }
+
+    /// <summary>
+    /// How long until the next whole point lands anywhere, or <see cref="TimeSpan.Zero"/> when both
+    /// banks are at capacity and no elapsed time can add one.
+    /// </summary>
+    /// <remarks>
+    /// Counted to the NEXT interval boundary, never from the last one: the remainder an accrual left
+    /// behind is <c>elapsed mod interval</c>, so what is left to wait is the interval less that
+    /// remainder. An elapsed span landing exactly on a boundary has a remainder of nothing and is
+    /// therefore a whole interval away from the point after it — subtracting the elapsed span from
+    /// the interval instead would answer zero (the caption hidden while it is still counting) or a
+    /// negative span (a caption counting backwards) for every anchor more than one interval old.
+    /// </remarks>
+    private static TimeSpan TimeToNextPoint(
+        EnergyTuning tuning, int legendLevel, EnergyBanks banks, TimeSpan elapsed)
+    {
+        var full = banks.Energy >= EnergyMath.MaxEnergy(tuning, legendLevel) &&
+            banks.Reserve >= EnergyMath.ReserveCapacity(tuning, legendLevel);
+
+        if (full)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var interval = tuning.RegenInterval.Ticks;
+
+        return TimeSpan.FromTicks(interval - (elapsed.Ticks % interval));
+    }
+
+    /// <summary>
+    /// How much of a run's price the two banks cannot cover together, or zero when they can.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Whether the price is covered is <see cref="EnergyMath.Spend"/>'s verdict, not this
+    /// type's.</b> A run draws the main bar first and the Reserve for the remainder, so asking the
+    /// rule that performs the draw is the only way this projection and the command that charges it
+    /// can be guaranteed to agree — a screen with its own affordability test refuses a tap the rules
+    /// would have accepted the day either changes. Only the size of the gap is arithmetic here, and
+    /// only on the branch the rule has already declared unaffordable.
+    /// </remarks>
+    private static int UncoveredCost(EnergyBanks banks, int runCost) =>
+        EnergyMath.Spend(banks, runCost).IsAffordable
+            ? 0
+            : (int)(runCost - ((long)banks.Energy + banks.Reserve));
 }

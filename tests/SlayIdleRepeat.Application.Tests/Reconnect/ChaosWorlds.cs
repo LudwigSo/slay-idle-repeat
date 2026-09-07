@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Server;
@@ -315,6 +315,11 @@ internal sealed class ChaosWorld
         var stocked = starting.Value.ToSnapshot() with
         {
             Inventory = new InventorySnapshot(0, OverParSix(Worlds.Content), []),
+
+            // 🔴 And the Energy a run is charged for. Written onto the row rather than granted by a
+            // BEGIN_SESSION, which would take a wire sequence number and shift every boundary the
+            // chaos driver counts.
+            Energy = new EnergyBanks(Worlds.RunEnergyPrice, 0),
         };
 
         await store.SaveAsync(new StoredSlice(stocked, null), Worlds.Cancel);

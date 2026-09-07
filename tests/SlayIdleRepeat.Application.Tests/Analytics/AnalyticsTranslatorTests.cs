@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Shouldly;
 using SlayIdleRepeat.Application.Services.Analytics;
 using SlayIdleRepeat.Application.Services.Events;
@@ -22,6 +22,9 @@ public sealed class AnalyticsTranslatorTests
     {
         var game = Worlds.Game();
         var player = game.CreatePlayer();
+
+        // Funded: a run is charged for, and a created player holds no Energy at all.
+        Worlds.Fund(game, player);
         var batch = AnalyticsWorlds.Sent(
             game, player, new StartRunCommand(Worlds.Chapter, DifficultyTier.NORMAL));
 

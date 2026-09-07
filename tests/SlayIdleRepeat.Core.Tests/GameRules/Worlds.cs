@@ -77,6 +77,29 @@ internal static class Worlds
     /// <summary>A slice with a player and a run.</summary>
     internal static WorldSlice InARun(RunSnapshot? run = null) => new(NewPlayer(), NewRun(run));
 
+    /// <summary>
+    /// A run-less slice whose player holds a run's price — the shape a <c>START_RUN</c> case needs.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Separate from <see cref="OutsideARun"/> rather than replacing it: <c>START_RUN</c> charges
+    /// <c>EnergyTuning.RunCost</c>, and the forty-odd other cases built on the run-less slice are
+    /// about commands that cost nothing — funding them all would put Energy in every fixture that
+    /// has no business holding any. See <see cref="PlayerSnapshots.OneRunsWorth"/>.
+    /// </remarks>
+    internal static WorldSlice AbleToStartARun() => new(PlayerHoldingARunsPrice(), null);
+
+    /// <summary>A slice carrying a run whose player can still pay for another.</summary>
+    /// <remarks>
+    /// The fixture for the ended-run exemption: <c>START_RUN</c> is the one run command that runs
+    /// over a finished run, and it charges for the run it opens like any other.
+    /// </remarks>
+    internal static WorldSlice InARunAbleToStartAnother(RunSnapshot? run = null) =>
+        new(PlayerHoldingARunsPrice(), NewRun(run));
+
+    /// <inheritdoc cref="AbleToStartARun"/>
+    internal static Player PlayerHoldingARunsPrice() =>
+        Rehydrated(PlayerSnapshots.With(energy: PlayerSnapshots.OneRunsWorth));
+
     /// <summary>A command that acts inside a run. Its wire name cannot be mistaken for a real one.</summary>
     internal sealed record RunFixtureCommand : GameCommand;
 

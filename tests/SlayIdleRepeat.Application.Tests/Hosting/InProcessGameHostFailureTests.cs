@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.Tests.Events;
@@ -74,7 +74,7 @@ public sealed class InProcessGameHostFailureTests
     public async Task SubmitAsync_answers_RUN_NOT_FOUND_when_the_command_names_a_run_the_player_is_not_in()
     {
         var host = Hosts.Over(new InMemoryLocalCache());
-        var player = await host.OpenProfileAsync(Worlds.Cancel);
+        var player = await Hosts.OpenFundedProfileAsync(host);
 
         var opened = await host.SubmitAsync(player, null, StartRun, Worlds.Cancel);
 
@@ -115,7 +115,7 @@ public sealed class InProcessGameHostFailureTests
     public async Task SubmitAsync_answers_with_the_domains_own_reason_when_a_rule_refuses_the_command()
     {
         var host = Hosts.Over(new InMemoryLocalCache());
-        var player = await host.OpenProfileAsync(Worlds.Cancel);
+        var player = await Hosts.OpenFundedProfileAsync(host);
 
         var opened = await host.SubmitAsync(player, null, StartRun, Worlds.Cancel);
 

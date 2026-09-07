@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Adapters.InMemory;
+﻿using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Server;
@@ -6,7 +6,9 @@ using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Events;
 using SlayIdleRepeat.Application.Tests.UseCases;
 using SlayIdleRepeat.Core;
+using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Application.Tests.Hosting;
 
@@ -21,6 +23,35 @@ namespace SlayIdleRepeat.Application.Tests.Hosting;
 /// </remarks>
 internal static class Hosts
 {
+    /// <summary>
+    /// Opens the profile and grants it the day's free Energy refill, so it can pay for a run.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>A run costs Energy</b> — <c>Handlers.StartRun</c> charges <c>EnergyTuning.RunCost</c> —
+    /// and a freshly opened profile holds none in either bank, because every currency movement has
+    /// to be attributed by a <c>CurrencyChanged</c> and a starting balance would be one no row
+    /// explains. <c>BEGIN_SESSION</c>'s first-login refill is the command that grants it, and this
+    /// helper sends it exactly where a real launch would: once, before the first run.
+    /// </remarks>
+    /// <param name="host">The host to open the profile on.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="host"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The refill was refused.</exception>
+    internal static async Task<PlayerId> OpenFundedProfileAsync(InProcessGameHost host)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+
+        var player = await host.OpenProfileAsync(Worlds.Cancel);
+
+        var funded = await host.SubmitAsync(
+            player, null, new BeginSessionCommand("0.0.0-fixture", "fixture-content-hash"), Worlds.Cancel);
+
+        return funded.Accepted
+            ? player
+            : throw new InvalidOperationException(
+                "the fixture's BEGIN_SESSION was refused " + funded.Rejection +
+                ", so the profile holds no Energy and every run it starts is refused for the price.");
+    }
+
     /// <summary>A host over one cache, defaulting everything a case is not about.</summary>
     /// <param name="cache">Where the profile and its runs are stored.</param>
     /// <param name="clock">The clock. Defaults to a fresh <see cref="AdjustableClock"/>.</param>

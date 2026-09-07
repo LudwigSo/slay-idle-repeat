@@ -1,11 +1,13 @@
 ﻿using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Perks;
 using SlayIdleRepeat.Core.Content.Perks;
+using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Model;
 using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
@@ -37,6 +39,11 @@ public sealed class StartRunTests
             Worlds.Rehydrated(PlayerSnapshots.With(
                 legendLevel: legendLevel,
                 runsStarted: runsStarted,
+
+                // Funded, because a run is charged for: the empty banks Valid carries are refused
+                // for Energy after the ladder has already let the request through, so every case
+                // built on this row would fail for a reason it is not about.
+                energy: PlayerSnapshots.OneRunsWorth,
                 clearedChapterTiers: PlayerSnapshots.Counters(
                     (PlayerAggregate.ChapterTierKey(clearedChapter, clearedTier), 1L)))),
             null);
@@ -58,7 +65,7 @@ public sealed class StartRunTests
     [Fact]
     public void A_run_opens_at_the_heros_composed_max_hit_points()
     {
-        var state = Worlds.OutsideARun();
+        var state = Worlds.AbleToStartARun();
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(
             state, new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
@@ -95,7 +102,11 @@ public sealed class StartRunTests
     private static int OpenedBy(int legendLevel)
     {
         var player = Worlds.Rehydrated(
-            SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.With(legendLevel: legendLevel));
+            SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.With(
+                legendLevel: legendLevel,
+
+                // Funded: a run is charged for, and this case is about Max HP.
+                energy: SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.OneRunsWorth));
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(
             new WorldSlice(player, null),
@@ -117,7 +128,16 @@ public sealed class StartRunTests
             state, new StartRunCommand(3, DifficultyTier.HEROIC), Worlds.Context);
 
         result.Accepted.ShouldBeTrue();
-        result.Events.ShouldBeEmpty("no event names a run's own creation.");
+
+        // 🔴 One event, and it is the PRICE rather than the run. START_RUN charges
+        // EnergyTuning.RunCost and every currency movement in this game is attributed by a
+        // CurrencyChanged, so this suite's original claim — that no event names a run's own
+        // creation — is now stated over the one row that is there instead of over an empty list.
+        var only = result.Events.ShouldHaveSingleItem().ShouldBeOfType<CurrencyChanged>();
+
+        only.Id.ShouldBe(CurrencyId.ENERGY, "still no event names a run's own creation.");
+        only.Delta.ShouldBe(
+            -ProgressionDocuments.ShippedRunCost, "the authored price, drawn from the two banks.");
 
         var run = result.NewState.Run;
         run.ShouldNotBeNull();
@@ -279,7 +299,7 @@ public sealed class StartRunTests
     public void A_fresh_run_opens_with_a_perk_draft_already_waiting()
     {
         var result = SlayIdleRepeat.Core.GameRules.Apply(
-            Worlds.OutsideARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
+            Worlds.AbleToStartARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
 
         result.Accepted.ShouldBeTrue("START_RUN was refused " + result.Rejection + ".");
 
@@ -300,7 +320,7 @@ public sealed class StartRunTests
     public void The_opening_draft_draws_against_stage_1_and_names_no_battle_tile()
     {
         var result = SlayIdleRepeat.Core.GameRules.Apply(
-            Worlds.OutsideARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
+            Worlds.AbleToStartARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
 
         var run = result.NewState.Run!;
 
@@ -362,7 +382,7 @@ public sealed class StartRunTests
     public void The_first_roll_is_refused_until_the_opening_draft_is_answered()
     {
         var opened = SlayIdleRepeat.Core.GameRules.Apply(
-            Worlds.OutsideARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
+            Worlds.AbleToStartARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
 
         var rolled = SlayIdleRepeat.Core.GameRules.Apply(
             opened.NewState, new RollDiceCommand(), Worlds.Drawing(commandSeed: 1UL));
@@ -399,7 +419,7 @@ public sealed class StartRunTests
             });
 
         var opened = SlayIdleRepeat.Core.GameRules.Execute(
-            table, Worlds.OutsideARun(), new StartRunCommand(1, DifficultyTier.NORMAL), ContextThatCanPayASkip);
+            table, Worlds.AbleToStartARun(), new StartRunCommand(1, DifficultyTier.NORMAL), ContextThatCanPayASkip);
 
         opened.Accepted.ShouldBeTrue();
         var committedSeed = opened.NewState.Run!.RunSeed;

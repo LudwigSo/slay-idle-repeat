@@ -8,6 +8,7 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Rules.Economy;
 using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Handlers;
@@ -20,10 +21,27 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// <para>
 /// In order: refuse a request that already has an active run; refuse a chapter/tier the seed
 /// derivation could not hash; refuse a tier whose authored clear the player has not earned; refuse
-/// one whose authored Legend Level they have not reached; spend the player's lifetime run counter
-/// and derive the seed from it; build the new <c>Run</c> via <c>Run.Rehydrate</c> — the only way to
-/// construct one — and attach it through <see cref="HandlerInput.OpenRun"/>. All four refusals sit
-/// ahead of <c>Player.BeginRun()</c>.
+/// one whose authored Legend Level they have not reached; refuse one the player's two Energy banks
+/// cannot pay for; charge that price; spend the player's lifetime run counter and derive the seed
+/// from it; build the new <c>Run</c> via <c>Run.Rehydrate</c> — the only way to construct one — and
+/// attach it through <see cref="HandlerInput.OpenRun"/>. All five refusals sit ahead of
+/// <c>Player.BeginRun()</c>.
+/// </para>
+/// <para>
+/// 🔒 <b>A run costs Energy, and this is the one place it is charged.</b> `10` §3 prices a run at
+/// <c>EnergyTuning.RunCost</c> and that price is the whole of the game's session pacing — without
+/// it Energy regenerates, overflows and is granted, and nothing anywhere ever spends it.
+/// <c>EnergyMath.Spend</c> owns the draw (main bar first, then the Reserve for the remainder) and
+/// its verdict is what this handler refuses on, so the screen's <c>HomeEnergyView.Shortfall</c> and
+/// this refusal can never disagree about who can afford a run.
+/// </para>
+/// <para>
+/// 🔒 <b>The price is charged LAST of the five gates, and deliberately.</b> A player who has not
+/// unlocked a chapter and is also out of Energy is owed the sentence about the chapter: the launch
+/// block only ever offers a stage the ladder has already opened, so <c>INSUFFICIENT_ENERGY</c>
+/// arriving for a locked chapter would send the screen to a refill offer for a run that would be
+/// refused at full Energy anyway. <c>HandlerResult.Reject</c> carries one reason and no payload, so
+/// exactly one of the five can be named.
 /// </para>
 /// <para>
 /// ⚠️ That ordering is defence in depth and nothing more: a refused command's working copy is
@@ -114,6 +132,14 @@ internal static class StartRun
     /// <summary>Gold is scoped to the run; a run that has picked up nothing holds none.</summary>
     private const long StartingGold = 0L;
 
+    /// <summary>The income-attribution reason a run's Energy price is logged under.</summary>
+    /// <remarks>
+    /// Its own token, kept distinct from <c>energy_regen</c> and <c>daily_free_refill</c>: those two
+    /// are where Energy comes from and this is the one place it goes, so conflating them would make
+    /// the Energy budget unauditable in exactly the direction the pacing depends on.
+    /// </remarks>
+    internal const string RunCostReason = "run_cost";
+
     private static readonly ReadOnlyDictionary<string, ulong> NoStreamPositions =
         new(new Dictionary<string, ulong>(0, StringComparer.Ordinal));
 
@@ -147,8 +173,10 @@ internal static class StartRun
     /// <param name="input">The cloned, already-caught-up, run-less slice.</param>
     /// <returns>
     /// A rejection if the player already has an active run, the command names a chapter/tier the
-    /// seed derivation could not hash, or the tier's authored rung demands a clear or a Legend Level
-    /// this player does not have; otherwise accepted, with the new <c>Run</c> attached and no events.
+    /// seed derivation could not hash, the tier's authored rung demands a clear or a Legend Level
+    /// this player does not have, or the two Energy banks together cannot cover
+    /// <c>EnergyTuning.RunCost</c>; otherwise accepted, with the new <c>Run</c> attached and the one
+    /// <c>CurrencyChanged</c> that attributes the price.
     /// </returns>
     internal static HandlerResult Handle(StartRunCommand command, HandlerInput input)
     {
@@ -188,6 +216,19 @@ internal static class StartRun
         {
             return HandlerResult.Reject(RejectionReason.LEGEND_LEVEL_TOO_LOW);
         }
+
+        // 🔒 The price of a run, charged LAST of the four gates — see this type's remarks. The banks
+        // read here are already accrued to now: GameRules.AdvanceTime regenerates before dispatch,
+        // so this is what the player holds at the instant they tapped, not at their last command.
+        var energyTuning = EnergyTuning.Read(input.Context.Content);
+        var charge = EnergyMath.Spend(player.Energy, energyTuning.RunCost);
+
+        if (!charge.IsAffordable)
+        {
+            return HandlerResult.Reject(RejectionReason.INSUFFICIENT_ENERGY);
+        }
+
+        var paid = player.SetEnergy(charge.Banks, energyTuning, RunCostReason);
 
         var runCounter = player.BeginRun();
 
@@ -250,7 +291,7 @@ internal static class StartRun
 
         input.OpenRun(run.Value);
 
-        return HandlerResult.Accept();
+        return HandlerResult.Accept(paid);
     }
 
     /// <summary>

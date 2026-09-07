@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Tests.Commands;
@@ -62,7 +62,7 @@ public sealed class AllocatedRunIdTests
     public void START_RUN_opens_the_run_at_the_allocated_identity_when_the_host_issued_one()
     {
         var result = GameRules.Apply(
-            Worlds.OutsideARun(),
+            Worlds.AbleToStartARun(),
             new StartRunCommand(1, DifficultyTier.NORMAL),
             Worlds.Context with { AllocatedRunId = WireIssued });
 
@@ -77,7 +77,7 @@ public sealed class AllocatedRunIdTests
     [Fact]
     public void START_RUN_falls_back_to_the_deterministic_mint_when_no_identity_was_issued()
     {
-        var slice = Worlds.OutsideARun();
+        var slice = Worlds.AbleToStartARun();
         var runsStartedBefore = slice.Player.RunsStarted;
 
         var result = GameRules.Apply(

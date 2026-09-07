@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
@@ -39,6 +39,11 @@ public sealed class StartRunChapterGateTests
         new(
             Worlds.Rehydrated(PlayerSnapshots.With(
                 legendLevel: legendLevel,
+
+                // A run is charged for, so a row with the empty banks Valid carries is refused for
+                // Energy before the ladder is ever consulted — and every acceptance case below would
+                // read as a gate that refuses everything.
+                energy: PlayerSnapshots.OneRunsWorth,
                 clearedChapterTiers: PlayerSnapshots.Counters(
                     cleared.Select(row => (PlayerAggregate.ChapterTierKey(row.Chapter, row.Tier), 1L)).ToArray()))),
             null);

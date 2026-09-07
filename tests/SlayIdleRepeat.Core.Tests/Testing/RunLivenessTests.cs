@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Primitives;
@@ -180,6 +180,7 @@ public sealed class RunLivenessTests
         var player = game.CreatePlayer(inventory: Harnesses.FarAboveParStock());
 
         Harnesses.Equip(game, player);
+        Harnesses.CanPayForRuns(game, player);
         game.Send(player, new StartRunCommand(1, DifficultyTier.NORMAL));
         game.Send(player, new AbandonRunCommand());
 
@@ -226,6 +227,11 @@ public sealed class RunLivenessTests
         var player = game.CreatePlayer(inventory: Harnesses.FarAboveParStock());
 
         Harnesses.Equip(game, player);
+
+        // ...and funded, because START_RUN charges a run's price and a created player holds none.
+        // Without it the walk below opens no run at all, stops on its first look, and reports no
+        // dead ends — every emptiness assertion in this file green over a sweep that visited nothing.
+        Harnesses.CanPayForRuns(game, player);
 
         // 10 §7's chapter ladder is enforced by START_RUN, and no command grants a clear — so a
         // sweep of chapter 2 has to be given one, or START_RUN refuses and the walk visits nothing

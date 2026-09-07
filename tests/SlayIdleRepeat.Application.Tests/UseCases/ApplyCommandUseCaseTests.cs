@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Services.Events;
 using SlayIdleRepeat.Application.Services.Persistence;
@@ -147,6 +147,12 @@ public sealed class ApplyCommandUseCaseTests
         // thing missing. Without this, a malformed chapter or an unregistered command would pass too.
         var runless = Worlds.Game();
         var newcomer = runless.CreatePlayer();
+
+        // ...and funded, because the control only discriminates while the ONLY thing missing is the
+        // live run: a run is charged for, so a newcomer holding nothing would be refused for Energy
+        // and the control would pass for the wrong reason.
+        Worlds.Fund(runless, newcomer);
+
         var opened = await new ApplyCommandUseCase(
                 new WorldSliceStore(Worlds.CacheHolding(runless.State(newcomer))),
                 new DomainEventDispatcher([]))

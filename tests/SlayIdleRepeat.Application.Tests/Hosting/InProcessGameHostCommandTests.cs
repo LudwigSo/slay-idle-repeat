@@ -76,7 +76,7 @@ public sealed class InProcessGameHostCommandTests
     {
         var ids = new RecordingIdGenerator(new CountingIdGenerator());
         var host = Hosts.Over(new InMemoryLocalCache(), ids: ids);
-        var player = await host.OpenProfileAsync(Worlds.Cancel);
+        var player = await Hosts.OpenFundedProfileAsync(host);
 
         var beforeRunCommand = ids.Guids;
         var opened = await host.SubmitAsync(player, null, StartRun, Worlds.Cancel);
@@ -199,7 +199,7 @@ public sealed class InProcessGameHostCommandTests
     {
         var store = new InMemoryLocalCache();
         var host = Hosts.Over(store);
-        var player = await host.OpenProfileAsync(Worlds.Cancel);
+        var player = await Hosts.OpenFundedProfileAsync(host);
 
         var opened = await host.SubmitAsync(player, null, StartRun, Worlds.Cancel);
 
@@ -218,7 +218,7 @@ public sealed class InProcessGameHostCommandTests
     public async Task ReadOwnStateAsync_answers_with_a_finished_run_after_the_next_run_has_started()
     {
         var host = Hosts.Over(new InMemoryLocalCache());
-        var player = await host.OpenProfileAsync(Worlds.Cancel);
+        var player = await Hosts.OpenFundedProfileAsync(host);
 
         var opened = await host.SubmitAsync(player, null, StartRun, Worlds.Cancel);
 
@@ -308,7 +308,7 @@ public sealed class InProcessGameHostCommandTests
     public async Task The_rows_the_host_commits_carry_at_least_the_schema_version_this_shape_was_frozen_at()
     {
         var host = Hosts.Over(new InMemoryLocalCache());
-        var player = await host.OpenProfileAsync(Worlds.Cancel);
+        var player = await Hosts.OpenFundedProfileAsync(host);
 
         var opened = await host.SubmitAsync(player, null, StartRun, Worlds.Cancel);
 

@@ -30,6 +30,18 @@ internal static class PlayerSnapshots
     /// <summary>The identity every fixture uses unless a test is about identity.</summary>
     internal static readonly PlayerId Id = new("PLAYER_TEST");
 
+    /// <summary>Exactly one run's authored price, in the main bar and nothing in the Reserve.</summary>
+    /// <remarks>
+    /// 🔴 <b>A run costs Energy.</b> <c>Handlers.StartRun</c> charges
+    /// <c>EnergyTuning.RunCost</c> through <c>EnergyMath.Spend</c>, so the empty banks
+    /// <see cref="Valid"/> carries buy no runs at all and every <c>START_RUN</c> fixture has to say
+    /// what it is paying with. Exactly the price rather than a full bar, so a fixture that opened
+    /// two runs off one row is refused loudly instead of quietly paying twice; and the price is read
+    /// from the same document the handler reads rather than transcribed here.
+    /// </remarks>
+    internal static EnergyBanks OneRunsWorth { get; } =
+        new(SlayIdleRepeat.Core.Tests.Content.ProgressionDocuments.ShippedRunCost, 0);
+
     /// <summary>
     /// A wallet holding every player-scoped currency, with the named ones overridden. Built from
     /// <c>Player.WalletCurrencies</c> so a currency added to the aggregate cannot leave the
