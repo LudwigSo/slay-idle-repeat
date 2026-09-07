@@ -21,11 +21,13 @@ public sealed class ComposedHomeScreen
     /// <param name="board">Builds the board for a run, once there is a run to build one for.</param>
     /// <param name="gear">Builds the Inventory screen, which needs no run at all.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <param name="reducedMotion">Whether the pills' count-up and gain flash are skipped.</param>
     public ComposedHomeScreen(
         HomePresenter home,
         ChapterSelectPresenter chapterSelect,
         Func<RunId, ComposedBoardScreen> board,
-        Func<ComposedInventoryScreen> gear)
+        Func<ComposedInventoryScreen> gear,
+        bool reducedMotion)
     {
         ArgumentNullException.ThrowIfNull(home);
         ArgumentNullException.ThrowIfNull(chapterSelect);
@@ -36,7 +38,18 @@ public sealed class ComposedHomeScreen
         ChapterSelect = chapterSelect;
         Board = board;
         Gear = gear;
+        ReducedMotion = reducedMotion;
     }
+
+    /// <summary>
+    /// Whether the Home screen's two animations are skipped.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ An argument rather than a constant, so the store that will own the preference has a seam
+    /// to arrive at — the same shape <c>ComposedBattleScreen.ReducedMotion</c> already carries, and
+    /// the same gap: no settings screen writes it yet, so every shipped build composes it false.
+    /// </remarks>
+    public bool ReducedMotion { get; }
 
     /// <summary>Drives the Home screen.</summary>
     public HomePresenter Home { get; }
@@ -96,8 +109,10 @@ public static class HomeComposition
     /// <summary>Wires both screens over an already-composed client.</summary>
     /// <param name="composed">The graph the application root built and holds.</param>
     /// <param name="player">The profile the boot opened.</param>
+    /// <param name="reducedMotion">Whether the pills' count-up and gain flash are skipped.</param>
     /// <exception cref="ArgumentNullException"><paramref name="composed"/> is null.</exception>
-    public static ComposedHomeScreen CreateHomeScreen(ComposedGodotClient composed, PlayerId player)
+    public static ComposedHomeScreen CreateHomeScreen(
+        ComposedGodotClient composed, PlayerId player, bool reducedMotion = false)
     {
         ArgumentNullException.ThrowIfNull(composed);
 
@@ -114,6 +129,7 @@ public static class HomeComposition
                 player),
             new ChapterSelectPresenter(composed.Client.GameHost, strings, content, player),
             run => BoardComposition.CreateBoardScreen(composed, player, run),
-            () => InventoryComposition.CreateInventoryScreen(composed, player));
+            () => InventoryComposition.CreateInventoryScreen(composed, player),
+            reducedMotion);
     }
 }

@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/TabBar.cs" id="1_tabbar"]
+
+; The strip, and only the strip. The five tabs are Home.tscn's children of this node, because which
+; five destinations exist is a fact about the game rather than about a row of buttons — and it is
+; read there by HomeSceneRuleTests.
+[node name="TabBar" type="HBoxContainer"]
+theme_override_constants/separation = 0
+alignment = 1
+script = ExtResource("1_tabbar")

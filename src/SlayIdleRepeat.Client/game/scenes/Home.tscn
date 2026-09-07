@@ -1,16 +1,11 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/Home.cs" id="1_home"]
 [ext_resource type="PackedScene" path="res://game/scenes/Hero.tscn" id="2_hero"]
 [ext_resource type="Theme" path="res://game/theme/SlayTheme.tres" id="3_theme"]
-[ext_resource type="Texture2D" uid="uid://cb62ullengmah" path="res://game/art/icons/hud_energy.svg" id="4_energy"]
-[ext_resource type="Texture2D" uid="uid://cuiclihrei01f" path="res://game/art/icons/hud_energy_reserve.svg" id="5_energy_reserve"]
-[ext_resource type="Texture2D" uid="uid://cqqm5ue38r4ba" path="res://game/art/icons/hud_crowns.svg" id="6_crowns"]
-[ext_resource type="Texture2D" uid="uid://cmj2t5ue0ocnf" path="res://game/art/icons/hud_soul_shards.svg" id="7_soul_shards"]
-[ext_resource type="Texture2D" uid="uid://dafdllac8coav" path="res://game/art/icons/hud_power.svg" id="8_power"]
-[ext_resource type="Texture2D" uid="uid://cohg8jd2o3a8d" path="res://game/art/icons/hud_chapter.svg" id="9_chapter"]
-[ext_resource type="Texture2D" uid="uid://c35adril6hdok" path="res://game/art/icons/hud_hp.svg" id="10_hp"]
-[ext_resource type="Texture2D" uid="uid://cjpn42toohmdq" path="res://game/art/icons/hud_gold.svg" id="11_gold"]
+[ext_resource type="Texture2D" uid="uid://cohg8jd2o3a8d" path="res://game/art/icons/hud_chapter.svg" id="4_chapter"]
+[ext_resource type="PackedScene" path="res://game/scenes/ResourcePill.tscn" id="5_pill"]
+[ext_resource type="PackedScene" path="res://game/scenes/TabBar.tscn" id="6_tabbar"]
 
 [sub_resource type="QuadMesh" id="QuadMesh_ground"]
 size = Vector2(24, 42)
@@ -19,8 +14,31 @@ size = Vector2(24, 42)
 shading_mode = 0
 albedo_color = Color(0.07, 0.07, 0.09, 1)
 
+; Every number below is an [Export] this screen hands to HomeLayout, and not one of them is decided
+; in a script: a band height or a per-character budget baked into the renderer is a design decision
+; hidden where no reviewer looks for it. The three band heights are the reference's 64 / 156 / 66
+; logical at this canvas's 3x scale; the hero band is whatever is left.
 [node name="Home" type="Node3D"]
 script = ExtResource("1_home")
+TopBarHeight = 192.0
+LaunchHeight = 468.0
+TabBarHeight = 198.0
+TopBarSidePadding = 36.0
+TopBarItemGap = 18.0
+AvatarWidth = 108.0
+SettingsGlyphWidth = 90.0
+PillHorizontalPadding = 27.0
+PillIconWidth = 48.0
+PillInnerGap = 15.0
+PillValueCharacterAdvance = 15.0
+PillCaptionCharacterAdvance = 12.0
+LaunchSidePadding = 42.0
+LaunchRowGap = 30.0
+StageCardHeight = 156.0
+StartButtonHeight = 168.0
+RewardLineHeight = 78.0
+ChangeButtonWidth = 96.0
+ChangeButtonHeight = 78.0
 
 [node name="World" type="Node3D" parent="."]
 unique_name_in_owner = true
@@ -37,12 +55,12 @@ mesh = SubResource("QuadMesh_ground")
 material_override = SubResource("StandardMaterial3D_ground")
 
 ; Home's framing of the hero, and Home's alone: scale 1.32, a 22-degree turn toward the light and
-; a drop of 2.0 so the diorama sits in the lower half of the portrait frame, below the tile band
-; the HUD now puts across the upper half. It used to be baked into Hero.tscn's Model, where every
-; other screen had to cancel it (see BoardWorld's history).
+; a drop of 1.1 so the diorama sits inside the hero band, between the top bar and the launch block
+; the run hub now puts across the bottom third. It used to be baked into Hero.tscn's Model, where
+; every other screen had to cancel it (see BoardWorld's history).
 [node name="Hero" parent="World" instance=ExtResource("2_hero")]
 unique_name_in_owner = true
-transform = Transform3D(1.22388, 0, -0.49449, 0, 1.32, 0, 0.49449, 0, 1.22388, 0, -2, 0)
+transform = Transform3D(1.22388, 0, -0.49449, 0, 1.32, 0, 0.49449, 0, 1.22388, 0, -1.1, 0)
 
 [node name="Ui" type="CanvasLayer" parent="."]
 unique_name_in_owner = true
@@ -57,421 +75,401 @@ grow_horizontal = 2
 grow_vertical = 2
 theme = ExtResource("3_theme")
 
-[node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
+; The four bands, stacked with no separation. Three are pinned to their exported heights and the
+; hero band expands into whatever is left, which is HomeLayout's one rule expressed in containers —
+; the layout is what states it in numbers a test can read.
+[node name="Bands" type="VBoxContainer" parent="Ui/Screen"]
 unique_name_in_owner = true
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 64
-theme_override_constants/margin_top = 128
-theme_override_constants/margin_right = 64
-theme_override_constants/margin_bottom = 128
+mouse_filter = 2
+theme_override_constants/separation = 0
 
-[node name="Column" type="VBoxContainer" parent="Ui/Screen/SafeArea"]
-layout_mode = 2
-theme_override_constants/separation = 48
-
-[node name="Header" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
+; ------------------------------------------------------------------------------- the top bar
+;
+; The top safe inset lands inside this band: the margin below grows and the row moves down with it,
+; so nothing is ever drawn under a notch and the band still paints behind the status bar.
+[node name="TopBar" type="MarginContainer" parent="Ui/Screen/Bands"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 192)
 layout_mode = 2
-theme_override_constants/separation = 24
+mouse_filter = 2
+theme_override_constants/margin_left = 36
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 36
+theme_override_constants/margin_bottom = 0
 
-[node name="DisplayNameLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Header"]
-unique_name_in_owner = true
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar"]
 layout_mode = 2
-theme_type_variation = &"HudTitle"
-autowrap_mode = 3
+mouse_filter = 2
+theme_override_constants/separation = 18
 
-[node name="LegendLevelRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Header"]
+[node name="Avatar" type="PanelContainer" parent="Ui/Screen/Bands/TopBar/Row"]
+custom_minimum_size = Vector2(108, 108)
 layout_mode = 2
-theme_override_constants/separation = 24
-
-[node name="LegendLevelLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Header/LegendLevelRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_type_variation = &"HudCaption"
-vertical_alignment = 2
-autowrap_mode = 3
-
-[node name="LegendLevelValue" type="Label" parent="Ui/Screen/SafeArea/Column/Header/LegendLevelRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudValue"
-horizontal_alignment = 2
-
-; The tile band: two equal columns over whatever width the safe area leaves, with a 16 gutter —
-; 468 each of the 952 a 1080 canvas has at the authored margins, less once a device reports a wider
-; inset. Each tile stops the pointer so a long press on it reaches Home.cs; the icon and the
-; containers inside it ignore the pointer so the press lands on the tile rather than on a child.
-; A value wraps rather than trims: the long press exists to show the exact figure, and a figure
-; cut to "12345…" reads as a smaller number than the one the rows hold.
-[node name="Tiles" type="GridContainer" parent="Ui/Screen/SafeArea/Column"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_constants/h_separation = 16
-theme_override_constants/v_separation = 16
-columns = 2
-
-[node name="EnergyTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 0
+size_flags_vertical = 4
+mouse_filter = 2
 theme_type_variation = &"HudTile"
 
-[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile"]
+[node name="AvatarLevel" type="Label" parent="Ui/Screen/Bands/TopBar/Row/Avatar"]
+unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 24
-
-[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row"]
-custom_minimum_size = Vector2(96, 96)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("4_energy")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-mouse_filter = 2
-
-[node name="EnergyValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudValue"
-autowrap_mode = 3
-
-[node name="EnergyLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/EnergyTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudCaption"
-autowrap_mode = 3
-
-[node name="ReserveTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 0
-theme_type_variation = &"HudTile"
-
-[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 24
-
-[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row"]
-custom_minimum_size = Vector2(96, 96)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("5_energy_reserve")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-mouse_filter = 2
-
-[node name="EnergyReserveValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudValue"
-autowrap_mode = 3
-
-[node name="EnergyReserveLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ReserveTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudCaption"
-autowrap_mode = 3
-
-[node name="CrownsTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 0
-theme_type_variation = &"HudTile"
-
-[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 24
-
-[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row"]
-custom_minimum_size = Vector2(96, 96)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("6_crowns")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-mouse_filter = 2
-
-[node name="CrownsValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudValue"
-autowrap_mode = 3
-
-[node name="CrownsLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/CrownsTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudCaption"
-autowrap_mode = 3
-
-[node name="SoulShardsTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 0
-theme_type_variation = &"HudTile"
-
-[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 24
-
-[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row"]
-custom_minimum_size = Vector2(96, 96)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("7_soul_shards")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-mouse_filter = 2
-
-[node name="SoulShardsValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudValue"
-autowrap_mode = 3
-
-[node name="SoulShardsLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/SoulShardsTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudCaption"
-autowrap_mode = 3
-
-[node name="PowerTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 0
-theme_type_variation = &"HudTile"
-
-[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 24
-
-[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row"]
-custom_minimum_size = Vector2(96, 96)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("8_power")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-mouse_filter = 2
-
-[node name="PowerValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudValue"
-autowrap_mode = 3
-
-[node name="PowerLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/PowerTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudCaption"
-autowrap_mode = 3
-
-[node name="ProgressTile" type="PanelContainer" parent="Ui/Screen/SafeArea/Column/Tiles"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 0
-theme_type_variation = &"HudTile"
-
-[node name="Row" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 24
-
-[node name="Icon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row"]
-custom_minimum_size = Vector2(96, 96)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("9_chapter")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="Text" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-mouse_filter = 2
-
-[node name="HighestClearValue" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudValueSmall"
-autowrap_mode = 3
-
-[node name="ProgressLabel" type="Label" parent="Ui/Screen/SafeArea/Column/Tiles/ProgressTile/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudCaption"
-autowrap_mode = 3
-
-; The run panel: the run there is to go back to, on two lines, and hidden when there is none. Line
-; one is the chapter and the stage it stands in; line two the hero's hit points and the run's Gold.
-; One line could not hold them: three glyphs, a chapter name, a stage, a full HP readout and a Gold
-; readout are wider than the 880 the panel has, and the chapter name is what would have given way.
-; The card's numbers and words are set in HudValueSmall: a compact register under the tile band.
-[node name="RunPanel" type="PanelContainer" parent="Ui/Screen/SafeArea/Column"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
-layout_mode = 2
-mouse_filter = 0
-theme_type_variation = &"HudTile"
-
-[node name="Lines" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 12
-
-[node name="ChapterRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 24
-
-[node name="ChapterIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/ChapterRow"]
-custom_minimum_size = Vector2(96, 96)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("9_chapter")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="RunChapterValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/ChapterRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_type_variation = &"HudValueSmall"
-vertical_alignment = 1
-text_overrun_behavior = 3
-
-[node name="StageLabel" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/ChapterRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudCaption"
-vertical_alignment = 1
-
-[node name="RunStageValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/ChapterRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudValueSmall"
-vertical_alignment = 1
-
-[node name="VitalsRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 24
-
-[node name="HpIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/VitalsRow"]
-custom_minimum_size = Vector2(96, 96)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("10_hp")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="RunHitPointsValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/VitalsRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_type_variation = &"HudValueSmall"
-vertical_alignment = 1
-text_overrun_behavior = 3
-
-[node name="GoldIcon" type="TextureRect" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/VitalsRow"]
-custom_minimum_size = Vector2(96, 96)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("11_gold")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="RunGoldValue" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/VitalsRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudValueSmall"
-vertical_alignment = 1
-
-[node name="GoldLabel" type="Label" parent="Ui/Screen/SafeArea/Column/RunPanel/Lines/VitalsRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudCaption"
-vertical_alignment = 1
-
-[node name="StatusFrame" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
-layout_mode = 2
-size_flags_vertical = 3
-size_flags_stretch_ratio = 1.0
-alignment = 2
-
-[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column/StatusFrame"]
-unique_name_in_owner = true
-layout_mode = 2
 theme_type_variation = &"HudCaption"
 horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CrownsPill" parent="Ui/Screen/Bands/TopBar/Row" instance=ExtResource("5_pill")]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+Glyph = 2
+
+[node name="EnergyPill" parent="Ui/Screen/Bands/TopBar/Row" instance=ExtResource("5_pill")]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+Glyph = 0
+
+[node name="PowerPill" parent="Ui/Screen/Bands/TopBar/Row" instance=ExtResource("5_pill")]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+Glyph = 5
+
+; The slack between the pills and the settings control. HomeLayout charges the pill row for the
+; settings TARGET rather than its glyph, and this is where the difference goes.
+[node name="Slack" type="Control" parent="Ui/Screen/Bands/TopBar/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="SettingsButton" type="Button" parent="Ui/Screen/Bands/TopBar/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(144, 144)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"QuietButton"
+
+; ----------------------------------------------------------------------------- the hero band
+;
+; The band that flexes, and the one the diorama shows through: it paints nothing of its own and
+; passes the pointer, so what the player taps here is the 3D world behind it — except for the rail
+; at one corner and the name block at the bottom, which are the only two things allowed over it.
+[node name="HeroBand" type="Control" parent="Ui/Screen/Bands"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="Rail" type="VBoxContainer" parent="Ui/Screen/Bands/HeroBand"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -174.0
+offset_top = 36.0
+offset_right = -30.0
+grow_horizontal = 0
+theme_override_constants/separation = 24
+
+[node name="MailButton" type="Button" parent="Ui/Screen/Bands/HeroBand/Rail"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(144, 144)
+layout_mode = 2
+theme_type_variation = &"RailButton"
 autowrap_mode = 3
 
-[node name="ActionButton" type="Button" parent="Ui/Screen/SafeArea/Column"]
+[node name="RankingButton" type="Button" parent="Ui/Screen/Bands/HeroBand/Rail"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(144, 144)
+layout_mode = 2
+theme_type_variation = &"RailButton"
+autowrap_mode = 3
+
+[node name="QuestsButton" type="Button" parent="Ui/Screen/Bands/HeroBand/Rail"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(144, 144)
+layout_mode = 2
+theme_type_variation = &"RailButton"
+autowrap_mode = 3
+
+[node name="NameBlock" type="VBoxContainer" parent="Ui/Screen/Bands/HeroBand"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -168.0
+offset_bottom = -36.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="HeroName" type="Label" parent="Ui/Screen/Bands/HeroBand/NameBlock"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudTitle"
+horizontal_alignment = 1
+
+[node name="HeroCaption" type="Label" parent="Ui/Screen/Bands/HeroBand/NameBlock"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+horizontal_alignment = 1
+
+; -------------------------------------------------------------------------- the launch block
+;
+; Three rows, and they are on the page in every one of the five states — the loading state draws
+; skeletons in the same places rather than hiding the block, because a block that comes and goes
+; resizes the hero band above it and the whole diorama jumps when the read lands.
+[node name="Launch" type="MarginContainer" parent="Ui/Screen/Bands"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 468)
+layout_mode = 2
+theme_override_constants/margin_left = 42
+theme_override_constants/margin_right = 42
+
+[node name="Rows" type="VBoxContainer" parent="Ui/Screen/Bands/Launch"]
+layout_mode = 2
+theme_override_constants/separation = 30
+
+[node name="StageCard" type="PanelContainer" parent="Ui/Screen/Bands/Launch/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 156)
+layout_mode = 2
+theme_type_variation = &"StageCard"
+
+[node name="CardRow" type="HBoxContainer" parent="Ui/Screen/Bands/Launch/Rows/StageCard"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="StageGlyph" type="TextureRect" parent="Ui/Screen/Bands/Launch/Rows/StageCard/CardRow"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("4_chapter")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StageText" type="VBoxContainer" parent="Ui/Screen/Bands/Launch/Rows/StageCard/CardRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="StageTitle" type="Label" parent="Ui/Screen/Bands/Launch/Rows/StageCard/CardRow/StageText"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudValueSmall"
+text_overrun_behavior = 3
+
+[node name="StageSubtitle" type="Label" parent="Ui/Screen/Bands/Launch/Rows/StageCard/CardRow/StageText"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+text_overrun_behavior = 3
+
+; The inline notice, in the stage card's own row rather than in a fourth row or a modal: a read that
+; did not answer says what failed HERE, and the primary button beside it offers the retry. A row of
+; its own would move everything under it the moment a read faulted.
+[node name="NoticeLabel" type="Label" parent="Ui/Screen/Bands/Launch/Rows/StageCard/CardRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="ChangeButton" type="Button" parent="Ui/Screen/Bands/Launch/Rows/StageCard/CardRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(144, 144)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"QuietButton"
+
+[node name="StartButton" type="Button" parent="Ui/Screen/Bands/Launch/Rows"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 theme_type_variation = &"PrimaryButton"
 autowrap_mode = 3
 
-[node name="GearButton" type="Button" parent="Ui/Screen/SafeArea/Column"]
+; The price, or the shortfall, or a placeholder holding the width while the read is still out. Drawn
+; over the button as a child so the word stays centred whatever the badge says.
+[node name="CostBadge" type="Label" parent="Ui/Screen/Bands/Launch/Rows/StartButton"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -240.0
+offset_top = -36.0
+offset_right = -42.0
+offset_bottom = 36.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+; ⚠️ Informational, and empty until something authors a reward vocabulary. The row is here so the
+; block's height does not change on the day one is.
+[node name="RewardLine" type="Label" parent="Ui/Screen/Bands/Launch/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 78)
 layout_mode = 2
-theme_type_variation = &"QuietButton"
-autowrap_mode = 3
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+; --------------------------------------------------------------------------------- the tabs
+;
+; The bottom safe inset lands BELOW the tab row: the dock grows and the five targets keep their
+; height, so a handset with a tall gesture bar does not shrink them under a thumb.
+[node name="TabDock" type="PanelContainer" parent="Ui/Screen/Bands"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 198)
+layout_mode = 2
+theme_type_variation = &"TabDeck"
+
+[node name="Margins" type="MarginContainer" parent="Ui/Screen/Bands/TabDock"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/margin_bottom = 0
+
+[node name="TabBar" parent="Ui/Screen/Bands/TabDock/Margins" instance=ExtResource("6_tabbar")]
+unique_name_in_owner = true
+layout_mode = 2
+
+; 🔒 The five destinations, in the reference's order, declared HERE rather than inside TabBar.tscn:
+; which five exist is a fact about the game, and this is the file the rule that pins them reads.
+; Each carries a dot and never a number, and the dot's colour is the theme's accent written on at
+; render time — a fifth tab with no dot is a system that can never announce anything.
+[node name="Home" type="Button" parent="Ui/Screen/Bands/TabDock/Margins/TabBar"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+theme_type_variation = &"TabButton"
+
+[node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Home"]
+visible = false
+custom_minimum_size = Vector2(27, 27)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 12.0
+offset_right = -33.0
+offset_bottom = 39.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"TabDot"
+
+[node name="Gear" type="Button" parent="Ui/Screen/Bands/TabDock/Margins/TabBar"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+theme_type_variation = &"TabButton"
+
+[node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Gear"]
+visible = false
+custom_minimum_size = Vector2(27, 27)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 12.0
+offset_right = -33.0
+offset_bottom = 39.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"TabDot"
+
+[node name="Talents" type="Button" parent="Ui/Screen/Bands/TabDock/Margins/TabBar"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+theme_type_variation = &"TabButton"
+
+[node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Talents"]
+visible = false
+custom_minimum_size = Vector2(27, 27)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 12.0
+offset_right = -33.0
+offset_bottom = 39.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"TabDot"
+
+[node name="Collection" type="Button" parent="Ui/Screen/Bands/TabDock/Margins/TabBar"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+theme_type_variation = &"TabButton"
+
+[node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Collection"]
+visible = false
+custom_minimum_size = Vector2(27, 27)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 12.0
+offset_right = -33.0
+offset_bottom = 39.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"TabDot"
+
+[node name="Shop" type="Button" parent="Ui/Screen/Bands/TabDock/Margins/TabBar"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+theme_type_variation = &"TabButton"
+
+[node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Shop"]
+visible = false
+custom_minimum_size = Vector2(27, 27)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 12.0
+offset_right = -33.0
+offset_bottom = 39.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"TabDot"

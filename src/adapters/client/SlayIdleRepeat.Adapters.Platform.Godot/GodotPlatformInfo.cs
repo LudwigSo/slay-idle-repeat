@@ -28,6 +28,25 @@ public sealed class GodotPlatformInfo
     /// </remarks>
     private const string UnidentifiedDeviceLiteral = "GenericDevice";
 
+    /// <summary>Where the engine keeps the build's own version.</summary>
+    /// <remarks>
+    /// ⚠️ <b>The SECOND home of the assembly version</b>, and the one the store reads:
+    /// <c>project.godot</c> says so beside the setting, and the export writes it into
+    /// <c>versionName</c>. <c>Directory.Build.props</c>' <c>Version</c> is the first, and the two
+    /// are kept in step by hand. This reads the engine's, because that is the number stamped on the
+    /// artefact a player actually installed.
+    /// </remarks>
+    private const string VersionSetting = "application/config/version";
+
+    /// <summary>The version of the build the player is running, as the project states it.</summary>
+    /// <remarks>
+    /// ⚠️ Empty when the setting is absent, which is a project that did not state one — never a
+    /// placeholder version invented here (steering S6). Its one reader is the game-day
+    /// <c>BEGIN_SESSION</c>, where the field is free-form text and an empty one is answerable.
+    /// </remarks>
+    public string AppVersion =>
+        global::Godot.ProjectSettings.GetSetting(VersionSetting, "").AsString();
+
     /// <summary>The player's locale, as a BCP-47 tag.</summary>
     /// <remarks>
     /// 🔒 <b>The translation is <see cref="HostAnswers.ToLocale"/>'s, not this class's.</b> The

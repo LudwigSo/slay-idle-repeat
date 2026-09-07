@@ -1,3 +1,4 @@
+using System.Globalization;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services;
@@ -79,6 +80,24 @@ public enum HomeLaunchState
 
     /// <summary>The read did not answer at all. An inline retry row, never a modal.</summary>
     PresenterFailure = 5,
+}
+
+/// <summary>The three entries the hero band's side rail reaches.</summary>
+/// <remarks>
+/// ⚠️ Named rather than counted. The reference draws a numeric badge on two of them, and nothing in
+/// this build records what would feed those counts — so the rail carries the three destinations and
+/// no numbers at all (steering S6).
+/// </remarks>
+public enum HomeRailEntry
+{
+    /// <summary>The inbox.</summary>
+    Mail = 1,
+
+    /// <summary>The leaderboards.</summary>
+    Ranking = 2,
+
+    /// <summary>The quest slate.</summary>
+    Quests = 3,
 }
 
 /// <summary>Which theme accent a control is drawn in.</summary>
@@ -228,6 +247,12 @@ public sealed class HomePresenter
         _power = power;
         _player = player;
         _chapters = ChapterDocuments.Read(content, strings);
+
+        // 🔒 The launch block's seam is a projection over the five collaborators this constructor
+        // already takes, so it is built here rather than demanded a second time as a parameter: a
+        // sixth argument would be the same host, clock, content, power source and profile handed
+        // over twice, and the two copies would be free to disagree about which player they are for.
+        _screen = new HomeScreen(gameHost, clock, content, power, player);
     }
 
     /// <summary>What the primary action does, and why.</summary>
@@ -536,44 +561,133 @@ public sealed class HomePresenter
 
     // ------------------------------------------------------ the run hub's launch block
 
+    private const string LaunchRefillActionKey = "loc.home.launch.refill.action";
+    private const string LaunchUnderpoweredActionKey = "loc.home.launch.start_underpowered.action";
+    private const string LaunchLoadingActionKey = "loc.home.launch.loading.action";
+    private const string LaunchRetryActionKey = "loc.home.launch.retry.action";
+    private const string ChangeStageActionKey = "loc.home.launch.change.action";
+    private const string SettingsActionKey = "loc.home.settings.action";
+    private const string NextUpLabelKey = "loc.home.launch.next_up.label";
+    private const string RecommendedPowerLabelKey = "loc.home.launch.recommended_power.label";
+    private const string NoStageLabelKey = "loc.home.launch.no_stage.label";
+    private const string HeroInspectLabelKey = "loc.home.hero.inspect.label";
+    private const string TabHomeLabelKey = "loc.home.tab.home.label";
+    private const string TabGearLabelKey = "loc.home.tab.gear.label";
+    private const string TabTalentsLabelKey = "loc.home.tab.talents.label";
+    private const string TabCollectionLabelKey = "loc.home.tab.collection.label";
+    private const string TabShopLabelKey = "loc.home.tab.shop.label";
+    private const string RailMailLabelKey = "loc.home.rail.mail.label";
+    private const string RailRankingLabelKey = "loc.home.rail.ranking.label";
+    private const string RailQuestsLabelKey = "loc.home.rail.quests.label";
+
+    /// <summary>How the Energy pill joins its bar to the bar's own capacity. Punctuation, not copy.</summary>
+    private const string BarSeparator = "/";
+
+    /// <summary>What separates two halves of one line. Punctuation, not copy.</summary>
+    private const string LineSeparator = " · ";
+
+    /// <summary>Thousands-separated, which is what the reference draws the power pill in.</summary>
+    private const string GroupedFormat = "N0";
+
+    /// <summary>The countdown under an hour, and the one over it. Neither is ever a bare second count.</summary>
+    private const string ShortCountdownFormat = @"m\:ss";
+
+    private const string LongCountdownFormat = @"h\:mm\:ss";
+
+    /// <summary>The seam the whole launch block is drawn from.</summary>
+    private readonly IHomeScreen _screen;
+
+    private HomeViewModel? _view;
+
+    /// <summary>
+    /// Whether a <c>START_RUN</c> is outstanding.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The double-tap latch, and it is not a nicety.</b> The seam raises rather than translates
+    /// a refusal it has no sentence for, and the plainest one a player can produce is
+    /// <c>ILLEGAL_STATE</c> from a second <c>START_RUN</c> submitted while the first is still in
+    /// flight — the run is already open by the time the second lands. Taken BEFORE the await, so the
+    /// second press finds it set while the first is genuinely outstanding.
+    /// </remarks>
+    private bool _startInFlight;
+
+    /// <summary>The power the previous read carried, so a rise can be told from a first reading.</summary>
+    private double? _powerBefore;
+
     /// <summary>Builds the hub half of the screen over the application seam.</summary>
     /// <param name="screen">Everything the hub draws, and the one thing it does.</param>
     /// <param name="strings">Key to display string, over the loaded content set.</param>
-    /// <exception cref="ArgumentNullException">A collaborator is null.</exception>
+    /// <param name="content">
+    /// The loaded content set the chapter documents are read from, or <c>null</c> when this
+    /// presenter is not naming a chapter. With none, <see cref="StageName"/> is absent and
+    /// <see cref="StageTitle"/> falls back to the authored unnamed-stage line rather than inventing
+    /// a name from an id.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="screen"/> or <paramref name="strings"/> is null.</exception>
     /// <remarks>
-    /// ⚠️ A second constructor for the duration of the rebuild: the members above are still driven by
-    /// the host read the old header made, and this one drives the launch block. Phase 3 collapses
-    /// them once the scene draws only the new bands.
+    /// ⚠️ The narrow constructor: it drives the launch block, the pills and the tab bar, and it is
+    /// the one the header's own read is NOT wired through — a presenter built this way answers
+    /// <see cref="HomeContinueDecision.NotYetRead"/> for ever, because there is no host to read.
+    /// The wide constructor above drives both halves and builds this one's seam out of the
+    /// collaborators it already takes.
     /// </remarks>
-    public HomePresenter(IHomeScreen screen, LocaleStringCatalogue strings)
+    public HomePresenter(
+        IHomeScreen screen, LocaleStringCatalogue strings, ContentSnapshot? content = null)
     {
         ArgumentNullException.ThrowIfNull(screen);
         ArgumentNullException.ThrowIfNull(strings);
 
-        // Validated and not yet stored: this is a Phase 1 skeleton, and a field nothing reads is a
-        // build error under the analyser set. Phase 3 keeps them.
+        _screen = screen;
         _gameHost = null!;
         _strings = strings;
-        _content = null!;
+        _content = content!;
         _clock = null!;
         _power = null!;
-        _chapters = [];
+        _chapters = content is null ? [] : ChapterDocuments.Read(content, strings);
     }
 
     /// <summary>Which of the five states the launch block is in.</summary>
-    public HomeLaunchState LaunchState => throw Skeleton(nameof(LaunchState));
+    public HomeLaunchState LaunchState { get; private set; } = HomeLaunchState.Loading;
 
     /// <summary>The primary button's word, resolved. Its own word in every state.</summary>
-    public string ActionLabel => throw Skeleton(nameof(ActionLabel));
+    public string ActionLabel => _strings.Resolve(LaunchState switch
+    {
+        HomeLaunchState.Ready => StartRunActionKey,
+        HomeLaunchState.InsufficientEnergy => LaunchRefillActionKey,
+        HomeLaunchState.Underpowered => LaunchUnderpoweredActionKey,
+        HomeLaunchState.Loading => LaunchLoadingActionKey,
+        _ => LaunchRetryActionKey,
+    });
 
-    /// <summary>The theme accent the primary button is drawn in.</summary>
-    public HomeColourRole ActionColour => throw Skeleton(nameof(ActionColour));
+    /// <summary>
+    /// The theme accent the primary button is drawn in.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Decided from "cannot pay" rather than from "not ready": the energy accent means <em>this
+    /// button buys Energy</em>, and a state that merely has nothing to offer yet wearing it is a
+    /// button promising something it does not do.
+    /// </remarks>
+    public HomeColourRole ActionColour => LaunchState switch
+    {
+        HomeLaunchState.Ready or HomeLaunchState.Underpowered => HomeColourRole.Action,
+        HomeLaunchState.InsufficientEnergy => HomeColourRole.Energy,
+        _ => HomeColourRole.Quiet,
+    };
 
     /// <summary>What the badge on the primary button is saying.</summary>
-    public HomeCostBadge CostBadge => throw Skeleton(nameof(CostBadge));
+    public HomeCostBadge CostBadge => LaunchState switch
+    {
+        HomeLaunchState.Ready or HomeLaunchState.Underpowered =>
+            new HomeCostBadge(HomeCostBadgeKind.Price, _view?.EnergyCost ?? 0),
+        HomeLaunchState.InsufficientEnergy =>
+            new HomeCostBadge(HomeCostBadgeKind.Shortfall, _view?.EnergyShortfall ?? 0),
+        HomeLaunchState.Loading => new HomeCostBadge(HomeCostBadgeKind.Placeholder, 0),
+        _ => new HomeCostBadge(HomeCostBadgeKind.None, 0),
+    };
 
     /// <summary>Whether pressing the primary button starts a run.</summary>
-    public bool CanStartRun => throw Skeleton(nameof(CanStartRun));
+    public bool CanStartRun =>
+        LaunchState is HomeLaunchState.Ready or HomeLaunchState.Underpowered;
 
     /// <summary>
     /// Whether the launch block's three rows — stage card, button, reward line — are on the page.
@@ -583,24 +697,242 @@ public sealed class HomePresenter
     /// point: the brief's loading state is skeletons in the same places, so nothing on the screen
     /// moves when the read lands. A block hidden while loading makes the whole hero band jump.
     /// </remarks>
-    public bool LaunchRowsVisible => throw Skeleton(nameof(LaunchRowsVisible));
+    public bool LaunchRowsVisible => true;
 
     /// <summary>What failed, when <see cref="LaunchState"/> is <see cref="HomeLaunchState.PresenterFailure"/>.</summary>
     /// <remarks>Names the thing that failed; the copy carries no apology, per the brief.</remarks>
-    public string? FailureLine => throw Skeleton(nameof(FailureLine));
+    public string? FailureLine { get; private set; }
+
+    /// <summary>The player's display name, for the hero band's name block.</summary>
+    public string HubPlayerName => _view?.PlayerName ?? NoValue;
+
+    /// <summary>The Legend Level on the avatar's badge.</summary>
+    public string HubLevelText => _view is { } view ? PlayerNumber.Full(view.PlayerLevel) : NoValue;
+
+    /// <summary>The line under the hero's name. No gear count: nothing in this build authors one.</summary>
+    public string HeroCaption => _strings.Resolve(HeroInspectLabelKey);
+
+    /// <summary>
+    /// The Crowns balance behind the pill.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The pills carry NUMBERS as well as the strings they are written as, and both come from
+    /// here. A pill counting up from one value to another has to interpolate the number and write
+    /// each step by the same rule the settled value is written by — so the rule is a function this
+    /// layer hands over, and the scene never learns how a number is spelt.
+    /// </remarks>
+    public long HubCrowns => _view?.Crowns ?? 0L;
+
+    /// <summary>How the Crowns pill writes an amount — abbreviated above ten thousand.</summary>
+    /// <param name="crowns">The amount, which mid-count-up is not yet the settled one.</param>
+    public string CrownsPillTextFor(long crowns) => PlayerNumber.Abbreviated(crowns);
+
+    /// <summary>The Crowns pill's value, settled. Never captioned.</summary>
+    public string CrownsPillText => _view is null ? NoValue : CrownsPillTextFor(HubCrowns);
+
+    /// <summary>The main Energy bar behind the pill.</summary>
+    public long HubEnergy => _view?.Energy ?? 0L;
+
+    /// <summary>How the Energy pill writes a bar: over what the bar holds.</summary>
+    /// <remarks>
+    /// 🔒 The BAR's denominator, not the two banks' — the Reserve is a separate bank, which is why
+    /// affordability is <see cref="HomeViewModel.EnergyShortfall"/>'s answer and not this readout's.
+    /// </remarks>
+    /// <param name="bar">The bar, which mid-count-up is not yet the settled one.</param>
+    public string EnergyPillTextFor(long bar) => _view is { } view
+        ? string.Create(CultureInfo.InvariantCulture, $"{bar}{BarSeparator}{view.EnergyMax}")
+        : NoValue;
+
+    /// <summary>The Energy pill's value, settled.</summary>
+    public string EnergyPillText => EnergyPillTextFor(HubEnergy);
+
+    /// <summary>The regeneration countdown in the Energy pill's caption slot. Blank at full.</summary>
+    public string EnergyPillCaption => _view is { EnergyRefillIn.Ticks: > 0 } view
+        ? view.EnergyRefillIn.ToString(
+            view.EnergyRefillIn.TotalHours >= 1d ? LongCountdownFormat : ShortCountdownFormat,
+            CultureInfo.InvariantCulture)
+        : NoValue;
+
+    /// <summary>Whether the Energy pill shows a caption at all — hidden at full, per the brief.</summary>
+    public bool EnergyCaptionVisible => EnergyPillCaption.Length > 0;
+
+    /// <summary>
+    /// The power index behind the pill, floored — the power a player HAS rather than the one
+    /// nearest, the same direction every other number on this screen is shortened in.
+    /// </summary>
+    public long HubPower => _view?.Power is { } power ? (long)Math.Floor(power) : 0L;
+
+    /// <summary>Whether a power reading exists at all. A pill with none is blank, never a zero.</summary>
+    public bool PowerReadable => _view?.Power is not null;
+
+    /// <summary>How the Power pill writes an index — thousands-separated.</summary>
+    /// <param name="power">The index, which mid-count-up is not yet the settled one.</param>
+    public string PowerPillTextFor(long power) => PowerReadable
+        ? power.ToString(GroupedFormat, CultureInfo.InvariantCulture)
+        : NoValue;
+
+    /// <summary>The Power pill's value, settled.</summary>
+    public string PowerPillText => PowerPillTextFor(HubPower);
+
+    /// <summary>
+    /// Whether the power reading rose since the previous one, which is the gain accent's trigger.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A FIRST reading is not a rise. A screen that flashed the gain accent on its opening frame
+    /// would tell a player who had only just opened the game that they had gained something.
+    /// </remarks>
+    public bool PowerRose { get; private set; }
+
+    /// <summary>The stage card's first line: the chapter the campaign offers next, by name.</summary>
+    public string StageTitle => StageName ?? _strings.Resolve(NoStageLabelKey);
+
+    /// <summary>
+    /// The next chapter's authored name, or <c>null</c> when the campaign offers no next chapter —
+    /// or when this presenter holds no chapter documents to name one from.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Resolved HERE rather than carried across the seam. A chapter document authors its name as
+    /// a loc key, and the catalogue that turns one into words lives in this assembly — so a
+    /// name-shaped field filled with a key at the layer below would be drawn as if it were a name.
+    /// </remarks>
+    public string? StageName => _view?.NextStageId is { } stage
+        ? _chapters.FirstOrDefault(chapter => chapter.ChapterId == stage)?.ChapterName
+        : null;
+
+    /// <summary>The stage card's second line: what is next, and what it is balanced against.</summary>
+    public string StageSubtitle
+    {
+        get
+        {
+            var nextUp = _strings.Resolve(NextUpLabelKey);
+
+            return _view?.RecommendedPower is { } recommended
+                ? nextUp + LineSeparator + _strings.Resolve(RecommendedPowerLabelKey) + " " +
+                  Math.Floor(recommended).ToString(GroupedFormat, CultureInfo.InvariantCulture)
+                : nextUp;
+        }
+    }
+
+    /// <summary>Whether the stage card wears the warning that the hero is under the recommendation.</summary>
+    public bool StageCardWarned => LaunchState == HomeLaunchState.Underpowered;
+
+    /// <summary>
+    /// The reward line under the button.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Empty, and deliberately so</b> (steering S6). Nothing in <c>game-data/</c> authors a
+    /// reward vocabulary, so there is nothing for this line to name; the row is kept anyway so the
+    /// block's height does not change on the day one is authored.
+    /// </remarks>
+    public string RewardLineText => string.Join(LineSeparator, _view?.RewardTags ?? []);
+
+    /// <summary>The stage card's own control.</summary>
+    public string ChangeLabel => _strings.Resolve(ChangeStageActionKey);
+
+    /// <summary>The top bar's settings control.</summary>
+    public string SettingsLabel => _strings.Resolve(SettingsActionKey);
+
+    /// <summary>One tab's caption.</summary>
+    /// <param name="tab">The tab asked about.</param>
+    /// <exception cref="ArgumentOutOfRangeException">A tab this screen has no caption for.</exception>
+    public string TabLabel(HomeTab tab) => _strings.Resolve(tab switch
+    {
+        HomeTab.Home => TabHomeLabelKey,
+        HomeTab.Gear => TabGearLabelKey,
+        HomeTab.Talents => TabTalentsLabelKey,
+        HomeTab.Collection => TabCollectionLabelKey,
+        HomeTab.Shop => TabShopLabelKey,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(tab), tab,
+            "this tab has no caption. Author one before the bar carries it — an unnamed tab draws " +
+            "its own key in front of a player."),
+    });
+
+    /// <summary>Whether a tab is carrying a dot. Nothing lights one until something authorises it.</summary>
+    /// <param name="tab">The tab asked about.</param>
+    public bool TabBadgeOn(HomeTab tab) => _view?.Badges.On(tab) ?? false;
+
+    /// <summary>One side-rail entry's caption.</summary>
+    /// <param name="entry">The entry asked about.</param>
+    /// <exception cref="ArgumentOutOfRangeException">An entry this screen has no caption for.</exception>
+    public string RailLabel(HomeRailEntry entry) => _strings.Resolve(entry switch
+    {
+        HomeRailEntry.Mail => RailMailLabelKey,
+        HomeRailEntry.Ranking => RailRankingLabelKey,
+        HomeRailEntry.Quests => RailQuestsLabelKey,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(entry), entry,
+            "this rail entry has no caption. Author one before the rail carries it."),
+    });
 
     /// <summary>Reads the hub's view model and settles <see cref="LaunchState"/>.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task LoadAsync(CancellationToken ct) => throw Skeleton(nameof(LoadAsync));
+    public async Task LoadAsync(CancellationToken ct)
+    {
+        try
+        {
+            // Awaited inside the guard rather than merely called inside it: the seam's read is an
+            // async method, so its failure arrives as a faulted task and a try around the call alone
+            // would never see it.
+            Settle(await _screen.GetViewModelAsync(ct).ConfigureAwait(false));
+        }
+        catch (Exception failure)
+        {
+            _view = null;
+            PowerRose = false;
+            LaunchState = HomeLaunchState.PresenterFailure;
+            FailureLine = $"{failure.GetType().Name}: {failure.Message}";
+        }
+    }
 
     /// <summary>Presses the primary button.</summary>
     /// <param name="ct">Cancellation.</param>
-    /// <returns>What the seam answered, or <c>null</c> when the state does not start runs at all.</returns>
-    public Task<StartRunOutcome?> PressStartAsync(CancellationToken ct) =>
-        throw Skeleton(nameof(PressStartAsync));
+    /// <returns>What the seam answered, or <c>null</c> when the press starts nothing at all.</returns>
+    public async Task<StartRunOutcome?> PressStartAsync(CancellationToken ct)
+    {
+        // 🔒 Three separate refusals, and none of them is a reason to invent a stage id: a state
+        // that offers something else, a submission already outstanding, and a campaign with no next
+        // chapter to run.
+        if (!CanStartRun || _startInFlight || _view?.NextStageId is not { } stage)
+        {
+            return null;
+        }
 
-    private static NotImplementedException Skeleton(string member) =>
-        new($"HomePresenter.{member} is a Phase 1 skeleton: the tests stating what it must answer " +
-            "in each of the five launch states are written and red. Phase 3 implements it.");
+        _startInFlight = true;
 
+        try
+        {
+            return await _screen.StartRunAsync(stage, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _startInFlight = false;
+        }
+    }
+
+    /// <summary>Settles every launch-block answer from one view model.</summary>
+    private void Settle(HomeViewModel view)
+    {
+        // A rise is measured against the reading BEFORE this one, and a first reading has none.
+        PowerRose = _powerBefore is { } before && view.Power is { } now && now > before;
+        _powerBefore = view.Power ?? _powerBefore;
+
+        _view = view;
+        FailureLine = null;
+
+        // 🔒 The shortfall the rules reported, never the difference between the two numbers on this
+        // screen: a run is paid from the main bar AND the Reserve, and the pill carries only the bar.
+        if (view.EnergyShortfall > 0)
+        {
+            LaunchState = HomeLaunchState.InsufficientEnergy;
+            return;
+        }
+
+        // Underpowered is a warning and never a gate, so it is decided last and changes nothing but
+        // the card. Both numbers must exist: an unread power is not a hero below a recommendation.
+        LaunchState =
+            view.Power is { } power && view.RecommendedPower is { } recommended && power < recommended
+                ? HomeLaunchState.Underpowered
+                : HomeLaunchState.Ready;
+    }
 }

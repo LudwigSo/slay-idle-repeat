@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/home.schema.json",
   "title": "content/home/home.json",
-  "description": "M7-04 — the loc keys the Home screen (S03) renders. What is fixed here is that the screen shows a Legend Level label, an Energy label, an Energy Reserve label, the HUD tiles' captions (Crowns, Soul Shards, Gold, Power, Progress, Stage, and the three tier names the progress tile spells a clear with), one primary action caption per run decision, one status line per state the screen can be in while it has nothing to act on, and the line a progress tile shows before anything is cleared — and that every one of them is a key rather than a literal (X-04). The currency and tier captions are keys other documents own; they are named here as well so that Home's dependence on them is a reference the loader checks rather than a literal in a presenter. Every value is a loc key, so ContentInvariants.CheckLocaleKeyReferences resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed: there is no member for an Energy maximum, a regeneration countdown, a Legend-XP percentage or a run Energy cost, because those are functions of tuning that only Core can evaluate and a slot here would invite a second copy of the formula.",
+  "description": "M7-04 — the loc keys the Home screen (S03) renders. What is fixed here is that the screen shows a Legend Level label, an Energy label, an Energy Reserve label, the HUD tiles' captions (Crowns, Soul Shards, Gold, Power, Progress, Stage, and the three tier names the progress tile spells a clear with), one primary action caption per run decision, one status line per state the screen can be in while it has nothing to act on, and the line a progress tile shows before anything is cleared — and that every one of them is a key rather than a literal (X-04). The currency and tier captions are keys other documents own; they are named here as well so that Home's dependence on them is a reference the loader checks rather than a literal in a presenter. Every value is a loc key, so ContentInvariants.CheckLocaleKeyReferences resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed: there is no member for an Energy maximum, a regeneration countdown, a Legend-XP percentage or a run Energy cost, because those are functions of tuning that only Core can evaluate and a slot here would invite a second copy of the formula. home-run-hub Phase 3b added the run hub's own strings: the stage card's two lines and its no-next-chapter stand-in, the hero band's caption, the five tab captions, the three side-rail captions, and one action word per launch state the primary button can be in plus the stage card's Change and the top bar's Settings. additionalProperties stays false, so the absences are still enforced: there is no member for a reward tag, because no reward vocabulary is authored anywhere in game-data/, and none for a tab or rail badge, because a dot is a flag over stored state and carries no words.",
   "type": "object",
   "additionalProperties": false,
   "required": ["$schema", "_doc", "label", "action", "status"],
@@ -24,7 +24,10 @@
         "legendLevel", "energy", "energyReserve",
         "crowns", "soulShards", "gold",
         "power", "progress", "stage",
-        "tierNormal", "tierHeroic", "tierMythic"
+        "tierNormal", "tierHeroic", "tierMythic",
+        "nextUp", "recommendedPower", "noStage", "heroInspect",
+        "tabHome", "tabGear", "tabTalents", "tabCollection", "tabShop",
+        "railMail", "railRanking", "railQuests"
       ],
       "properties": {
         "legendLevel": { "$ref": "#/$defs/locKey" },
@@ -38,18 +41,36 @@
         "stage": { "$ref": "#/$defs/locKey" },
         "tierNormal": { "$ref": "#/$defs/locKey" },
         "tierHeroic": { "$ref": "#/$defs/locKey" },
-        "tierMythic": { "$ref": "#/$defs/locKey" }
+        "tierMythic": { "$ref": "#/$defs/locKey" },
+        "nextUp": { "$ref": "#/$defs/locKey" },
+        "recommendedPower": { "$ref": "#/$defs/locKey" },
+        "noStage": { "$ref": "#/$defs/locKey" },
+        "heroInspect": { "$ref": "#/$defs/locKey" },
+        "tabHome": { "$ref": "#/$defs/locKey" },
+        "tabGear": { "$ref": "#/$defs/locKey" },
+        "tabTalents": { "$ref": "#/$defs/locKey" },
+        "tabCollection": { "$ref": "#/$defs/locKey" },
+        "tabShop": { "$ref": "#/$defs/locKey" },
+        "railMail": { "$ref": "#/$defs/locKey" },
+        "railRanking": { "$ref": "#/$defs/locKey" },
+        "railQuests": { "$ref": "#/$defs/locKey" }
       }
     },
     "action": {
       "description": "The primary button, in the two shapes the run decision can take. Two captions rather than one parameterised caption: 'start a new run' and 'resume the run you are in' send the player to different places, and a screen that says the same word for both is a screen a player cannot read.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["startRun", "continueRun", "gear"],
+      "required": ["startRun", "continueRun", "gear", "launchRefill", "launchUnderpowered", "launchLoading", "launchRetry", "changeStage", "settings"],
       "properties": {
         "startRun": { "$ref": "#/$defs/locKey" },
         "continueRun": { "$ref": "#/$defs/locKey" },
-        "gear": { "$ref": "#/$defs/locKey" }
+        "gear": { "$ref": "#/$defs/locKey" },
+        "launchRefill": { "$ref": "#/$defs/locKey" },
+        "launchUnderpowered": { "$ref": "#/$defs/locKey" },
+        "launchLoading": { "$ref": "#/$defs/locKey" },
+        "launchRetry": { "$ref": "#/$defs/locKey" },
+        "changeStage": { "$ref": "#/$defs/locKey" },
+        "settings": { "$ref": "#/$defs/locKey" }
       }
     },
     "status": {

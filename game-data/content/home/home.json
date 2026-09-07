@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/home.schema.json",
-  "_doc": "M7-04 — the strings the Home screen (S03) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. Deliberately narrow, and the narrowness is the design: Home shows the two Energy amounts the player snapshot literally carries and no denominator, no regeneration countdown, no Legend-XP percentage and no run Energy cost, because every tuning reader that could compute one is internal to Core and IGameHost exposes no derived-value read — a label authored here would invite a second copy of a formula Core already owns. The `status.runLapsed` line is the one place the two-day run window is admitted to the player (`16` D70): a run left untouched past `tuning/progression.json#/runLifetime/expiryHours` is refused by every run command, and Home offers a NEW run because START_RUN is the one command that settles the lapsed one. Without this line the screen simply shows a different button, which reads as lost progress rather than as an authored window. It names no number — the window is tuning, and a sentence that transcribed it would be a second copy of it. The HUD tiles add their own captions — Power, Progress, Stage — and borrow the rest: the Crowns, Soul Shards and Gold tiles are captioned with the currency names and the progress tile spells its tier with Chapter Select's tier names, and each borrowed key is named here under `label` even though its owning document already keeps it alive, because that naming is the only place Home's dependence on it is stated — retire or rename the key and the content load fails at this reference, where the presenter's literal would have rendered as itself on the screen. The hero diorama, daily quests, ad widgets, chest pity, event and guild cards, the inbox envelope, the account-link banner, the bottom navigation and the Dungeons entry are later milestones' and author no strings here.",
+  "_doc": "M7-04 — the strings the Home screen (S03) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. Deliberately narrow, and the narrowness is the design: Home shows the two Energy amounts the player snapshot literally carries and no denominator, no regeneration countdown, no Legend-XP percentage and no run Energy cost, because every tuning reader that could compute one is internal to Core and IGameHost exposes no derived-value read — a label authored here would invite a second copy of a formula Core already owns. The `status.runLapsed` line is the one place the two-day run window is admitted to the player (`16` D70): a run left untouched past `tuning/progression.json#/runLifetime/expiryHours` is refused by every run command, and Home offers a NEW run because START_RUN is the one command that settles the lapsed one. Without this line the screen simply shows a different button, which reads as lost progress rather than as an authored window. It names no number — the window is tuning, and a sentence that transcribed it would be a second copy of it. The HUD tiles add their own captions — Power, Progress, Stage — and borrow the rest: the Crowns, Soul Shards and Gold tiles are captioned with the currency names and the progress tile spells its tier with Chapter Select's tier names, and each borrowed key is named here under `label` even though its owning document already keeps it alive, because that naming is the only place Home's dependence on it is stated — retire or rename the key and the content load fails at this reference, where the presenter's literal would have rendered as itself on the screen. The hero diorama, daily quests, ad widgets, chest pity, event and guild cards, the inbox envelope, the account-link banner, the bottom navigation and the Dungeons entry are later milestones' and author no strings here. home-run-hub Phase 3b rebuilt the screen as the run hub the design reference draws, and the strings that arrived with it are named here for the same reason as everything above. `label` gains the stage card's two lines (nextUp, recommendedPower), the line that stands in when the campaign offers no next chapter (noStage), the hero band's one caption (heroInspect) \u2014 which says only tap to inspect, because the reference's 3 gear slots empty is a count nothing in this build records \u2014 the five tab captions and the three side-rail captions. `action` gains one word per launch state the primary button can be in: startRun already existed and stays the ready state's, launchRefill is the refill offer, launchUnderpowered is the start a hero under the recommendation still gets, launchLoading is the skeleton's word and launchRetry is the inline retry a failed read offers; changeStage is the stage card's own control and settings is the top bar's. There is still NO reward vocabulary here: the reference's reward line names three tags and nothing in game-data/ authors one, so the line is drawn empty rather than filled with plausible words (steering S6). There is no key for a side-rail or tab BADGE either \u2014 a dot is a fact about stored state, carried as a flag, and it has no words.",
   "label": {
     "legendLevel": "loc.home.legend_level.label",
     "energy": "loc.home.energy.label",
@@ -13,12 +13,30 @@
     "stage": "loc.home.stage.label",
     "tierNormal": "loc.chapter_select.tier_normal.name",
     "tierHeroic": "loc.chapter_select.tier_heroic.name",
-    "tierMythic": "loc.chapter_select.tier_mythic.name"
+    "tierMythic": "loc.chapter_select.tier_mythic.name",
+    "nextUp": "loc.home.launch.next_up.label",
+    "recommendedPower": "loc.home.launch.recommended_power.label",
+    "noStage": "loc.home.launch.no_stage.label",
+    "heroInspect": "loc.home.hero.inspect.label",
+    "tabHome": "loc.home.tab.home.label",
+    "tabGear": "loc.home.tab.gear.label",
+    "tabTalents": "loc.home.tab.talents.label",
+    "tabCollection": "loc.home.tab.collection.label",
+    "tabShop": "loc.home.tab.shop.label",
+    "railMail": "loc.home.rail.mail.label",
+    "railRanking": "loc.home.rail.ranking.label",
+    "railQuests": "loc.home.rail.quests.label"
   },
   "action": {
     "startRun": "loc.home.start_run.action",
     "continueRun": "loc.home.continue_run.action",
-    "gear": "loc.home.gear.action"
+    "gear": "loc.home.gear.action",
+    "launchRefill": "loc.home.launch.refill.action",
+    "launchUnderpowered": "loc.home.launch.start_underpowered.action",
+    "launchLoading": "loc.home.launch.loading.action",
+    "launchRetry": "loc.home.launch.retry.action",
+    "changeStage": "loc.home.launch.change.action",
+    "settings": "loc.home.settings.action"
   },
   "status": {
     "loading": "loc.home.loading.status",

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Godot;
 using SlayIdleRepeat.Client.Composition;
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -151,6 +152,15 @@ public partial class Boot : Node3D
     /// stored state and nothing this screen carries forward.
     /// </para>
     /// </remarks>
+    /// <summary>The one line a launch's game-day open is read off, beside the boot's own.</summary>
+    private const string GameDayMarker = "SIR_GAME_DAY";
+
+    /// <summary>What the day-open line prints where a refusal would have gone.</summary>
+    private const string DayWasNotRefused = "none";
+
+    /// <summary>…and where a fault would have.</summary>
+    private const string DayDidNotFault = "none";
+
     private async Task RunAsync()
     {
         try
@@ -178,6 +188,8 @@ public partial class Boot : Node3D
 
             if (presenter.Stage == BootStage.Ready && presenter.PlayerId is { } player)
             {
+                await OpenGameDayAsync(player);
+
                 ShowHome(player);
             }
         }
@@ -185,6 +197,49 @@ public partial class Boot : Node3D
         {
             GD.PushError($"The boot screen stopped unexpectedly: {failure}");
         }
+    }
+
+    /// <summary>
+    /// Opens the game day before any screen reads the profile.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Before, and not after.</b> <c>BEGIN_SESSION</c> grants the daily free Energy refill, and
+    /// the very first thing the home screen does is read the Energy bar and decide whether a run is
+    /// affordable. Sent afterwards, the grant would land behind a screen that had already drawn the
+    /// balance without it — and the player would be told they cannot afford a run they can.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Awaited, and never fatal.</b> The command is idempotent per game day, so a launch whose
+    /// call did not land loses that day's refill and nothing else. A boot that stopped here would
+    /// trade a missing grant for an unstartable app, which is the worse of the two by a distance.
+    /// The outcome is printed on the boot's own greppable line rather than swallowed.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The composition root is where this belongs.</b> It is a command, not a presenter's
+    /// read; it is sent once per launch rather than once per screen; and it carries the content hash,
+    /// which only the root knows the real value of. A presenter sending it would send it again on
+    /// every screen that composed one.
+    /// </para>
+    /// </remarks>
+    /// <param name="player">The profile the boot opened.</param>
+    private async Task OpenGameDayAsync(PlayerId player)
+    {
+        if (_composed is not { } composed)
+        {
+            return;
+        }
+
+        var opener = new GameDayOpener(
+            composed.Client.GameHost,
+            composed.Capabilities.PlatformInfo.AppVersion,
+            composed.Client.Content.Current.Version);
+
+        await opener.OpenAsync(player, _lifetime);
+
+        GD.Print(
+            $"{GameDayMarker} opened={opener.Opened} refusal={opener.Refusal?.ToString() ?? DayWasNotRefused} " +
+            $"failure={opener.Failure ?? DayDidNotFault}");
     }
 
     /// <summary>Puts the home screen beside this one and stands down.</summary>
@@ -232,7 +287,13 @@ public partial class Boot : Node3D
 
         var home = scene.Instantiate<Home>();
 
-        home.Drive(screen.Home, screen.ChapterSelect, screen.Board, screen.Gear, _lifetime);
+        home.Drive(
+            screen.Home,
+            screen.ChapterSelect,
+            screen.Board,
+            screen.Gear,
+            screen.ReducedMotion,
+            _lifetime);
 
         ScreenStage.Hide(this);
 

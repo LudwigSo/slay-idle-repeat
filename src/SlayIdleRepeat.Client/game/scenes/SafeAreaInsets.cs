@@ -52,13 +52,37 @@ internal static class SafeAreaInsets
     {
         ArgumentNullException.ThrowIfNull(margins);
 
+        if (Resolve(canvas) is not { } insets)
+        {
+            return;
+        }
+
+        margins.AddThemeConstantOverride(MarginLeftConstant, (int)insets.Left);
+        margins.AddThemeConstantOverride(MarginTopConstant, (int)insets.Top);
+        margins.AddThemeConstantOverride(MarginRightConstant, (int)insets.Right);
+        margins.AddThemeConstantOverride(MarginBottomConstant, (int)insets.Bottom);
+    }
+
+    /// <summary>
+    /// The resolved insets in canvas units, or <c>null</c> when the display server answered nothing
+    /// a measurement could be taken from.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The same resolution <see cref="ApplyTo"/> applies, handed back as NUMBERS — because a
+    /// screen laid out by <c>HomeLayout</c> needs the insets themselves rather than a container with
+    /// them written on it: the inset decides which band grows, and that is arithmetic done away from
+    /// the engine. One reading, two callers; a second query would be a second answer to drift from.
+    /// </remarks>
+    /// <param name="canvas">The viewport rect's size, in canvas units.</param>
+    internal static Presenters.SafeAreaInsets? Resolve(Vector2 canvas)
+    {
         var window = DisplayServer.WindowGetSize();
         var safeArea = DisplayServer.GetDisplaySafeArea();
 
         if (window.X <= 0 || window.Y <= 0 || safeArea.Size.X <= 0 || safeArea.Size.Y <= 0 ||
             canvas.X <= 0 || canvas.Y <= 0)
         {
-            return;
+            return null;
         }
 
         // The display server answers in SCREEN coordinates, and the window is only ever part of one
@@ -70,16 +94,11 @@ internal static class SafeAreaInsets
         var horizontal = canvas.X / window.X;
         var vertical = canvas.Y / window.Y;
 
-        margins.AddThemeConstantOverride(
-            MarginLeftConstant, Inset((safeArea.Position.X - origin.X) * horizontal, canvas.X));
-        margins.AddThemeConstantOverride(
-            MarginTopConstant, Inset((safeArea.Position.Y - origin.Y) * vertical, canvas.Y));
-        margins.AddThemeConstantOverride(
-            MarginRightConstant,
-            Inset((window.X - (safeArea.End.X - origin.X)) * horizontal, canvas.X));
-        margins.AddThemeConstantOverride(
-            MarginBottomConstant,
-            Inset((window.Y - (safeArea.End.Y - origin.Y)) * vertical, canvas.Y));
+        return new Presenters.SafeAreaInsets(
+            Inset((safeArea.Position.Y - origin.Y) * vertical, canvas.Y),
+            Inset((window.X - (safeArea.End.X - origin.X)) * horizontal, canvas.X),
+            Inset((window.Y - (safeArea.End.Y - origin.Y)) * vertical, canvas.Y),
+            Inset((safeArea.Position.X - origin.X) * horizontal, canvas.X));
     }
 
     /// <summary>
