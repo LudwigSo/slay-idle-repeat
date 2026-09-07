@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Shouldly;
 using SlayIdleRepeat.Client.Game.Presenters;
@@ -276,6 +277,106 @@ public sealed class HomeSceneRuleTests
             ignoreOrder: false,
             "the tab bar's children ARE the five destinations, in the reference's order. A missing " +
             "one is a system with no way in; a sixth is a way in to a screen that does not exist.");
+    }
+
+    /// <summary>Every control in the scene that draws text, with the properties it declares.</summary>
+    private static readonly Regex CaptionedControl = new(
+        @"^\[node name=""(?<name>[A-Za-z]+)"" type=""(?<type>Label|Button)""[^\]]*\]\r?\n(?<block>(?:[^\[\r\n].*\r?\n)*)",
+        RegexOptions.Multiline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>How many controls on this screen draw text a player reads.</summary>
+    /// <remarks>
+    /// A floor (steering S3): without it, a regex that stopped matching would state the rule below
+    /// over nothing at all and pass for ever.
+    /// </remarks>
+    private const int CaptionedControlCount = 19;
+
+    /// <summary>
+    /// 🔴 Every control that draws text says what it does when the text does not fit.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is not a nicety on a screen laid out in containers. A Godot <c>Label</c> or
+    /// <c>Button</c> with neither <c>autowrap_mode</c> nor <c>text_overrun_behavior</c> reports its
+    /// WHOLE text as its minimum width, and a minimum width propagates: the caption grows the row,
+    /// the row grows the band, and the band grows past the canvas — so an over-long caption does not
+    /// clip, it drags the avatar and the settings control off both edges of the screen. That is the
+    /// same mechanism the settings button's own variation was introduced to stop, and it is one
+    /// localised string away from happening again.
+    /// </para>
+    /// <para>
+    /// ⚠️ Every German string this build ships is the English one behind an eleven-character
+    /// untranslated marker, so the shipped scene already meets captions a third longer than the
+    /// ones the layout was measured at.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_control_that_draws_text_says_what_it_does_when_the_text_does_not_fit()
+    {
+        var controls = CaptionedControl.Matches(SceneText.Read(HomeScene))
+            .Select(match => (Name: match.Groups["name"].Value, Block: match.Groups["block"].Value))
+            .ToArray();
+
+        controls.Length.ShouldBe(
+            CaptionedControlCount,
+            "a floor: the rule below is stated over every Label and Button the scene declares.");
+
+        var silent = controls
+            .Where(control =>
+                !control.Block.Contains("autowrap_mode = ", StringComparison.Ordinal)
+                && !control.Block.Contains("text_overrun_behavior = ", StringComparison.Ordinal))
+            .Select(control => control.Name)
+            .ToArray();
+
+        silent.ShouldBeEmpty(
+            "each of these draws text and states nothing about what happens when it is too wide, " +
+            "so each reports its whole caption as a minimum width the containers above it must " +
+            "honour. Wrap it or trim it — either is a decision; neither is a screen that grows.");
+    }
+
+    /// <summary>Where the one pill scene the top bar instances three times lives.</summary>
+    private const string PillScene = "src/SlayIdleRepeat.Client/game/scenes/ResourcePill.tscn";
+
+    /// <summary>The pill's authored minimum size.</summary>
+    private static readonly Regex PillMinimumSize = new(
+        @"^custom_minimum_size = Vector2\((?<width>[0-9.]+), (?<height>[0-9.]+)\)",
+        RegexOptions.Multiline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// 🔴 A resource pill is a tap target, and it is drawn as one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The pill is a <c>Button</c>: a tap opens the resource's detail sheet and a hold reveals every
+    /// figure on the screen in full. It was authored 84 units tall — twenty-eight logical, well
+    /// under half a thumb — while <c>HomeLayout</c> padded the settings glyph and the stage card's
+    /// Change control out to <see cref="HomeLayout.MinimumTouchTarget"/> for exactly this rule.
+    /// Three of the screen's six tap targets were the three nobody measured, and nothing in
+    /// <c>HomeLayoutTests</c> could have noticed: the layout places no pill rectangle at all, only
+    /// the row's WIDTH.
+    /// </para>
+    /// <para>
+    /// Asserted off the scene rather than off a presenter, because the height is the scene's own
+    /// number and the scene is the file that can drift.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_resource_pill_is_at_least_a_tap_target_tall()
+    {
+        var authored = PillMinimumSize.Match(SceneText.Read(PillScene));
+
+        authored.Success.ShouldBeTrue(
+            "ResourcePill.tscn states no minimum size, so the pill is whatever its label happens " +
+            "to need — which on a short value is a target no thumb can find.");
+
+        float.Parse(authored.Groups["height"].Value, CultureInfo.InvariantCulture)
+            .ShouldBeGreaterThanOrEqualTo(
+                HomeLayout.MinimumTouchTarget,
+                "48 dp at this canvas's 3x scale, the same floor the settings control and the " +
+                "stage card's Change control are padded to. The top bar is 192 tall, so a 144 " +
+                "pill sits inside it with 24 clear above and below.");
     }
 
     /// <summary>

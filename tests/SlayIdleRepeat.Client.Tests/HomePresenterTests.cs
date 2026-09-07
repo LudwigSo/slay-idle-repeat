@@ -1161,6 +1161,297 @@ public sealed class HomePresenterTests
             "the launch block's read did not happen, so the hub half is still showing skeletons.");
     }
 
+    // ------------------------------------------------------ 🔴 the surface the bands actually draw
+    //
+    // Every member below was read by NO case at all until Phase 7 — the captions, the two name-block
+    // lines, the avatar's badge, the stage card's second line and its warning, the reward row and
+    // all three of the Energy pill's caption answers. They are not "covered elsewhere": Loop-back 1
+    // enumerated them as untested and they are what the four bands put on the screen.
+
+    /// <summary>The five tabs each carry their own caption, and no two carry the same one.</summary>
+    /// <remarks>
+    /// 🔒 Stated as an identity per tab AND as a set of five distinct strings. The identity alone
+    /// would pass a switch that answered the right key for the one tab a case happened to ask about;
+    /// the distinctness alone would pass five keys none of which is the tab's own.
+    /// </remarks>
+    [Fact]
+    public async Task Every_tab_carries_its_own_caption_and_no_two_carry_the_same_one()
+    {
+        var strings = ScreenContent.Catalogue();
+        var presenter = await LoadedHub(Ready());
+
+        var captions = new[]
+        {
+            (HomeTab.Home, "loc.home.tab.home.label"),
+            (HomeTab.Gear, "loc.home.tab.gear.label"),
+            (HomeTab.Talents, "loc.home.tab.talents.label"),
+            (HomeTab.Collection, "loc.home.tab.collection.label"),
+            (HomeTab.Shop, "loc.home.tab.shop.label"),
+        };
+
+        captions.Length.ShouldBe(TabCount, "a floor: the bar carries five tabs and this states all five.");
+
+        foreach (var (tab, key) in captions)
+        {
+            presenter.TabLabel(tab).ShouldBe(
+                strings.Resolve(key),
+                $"{tab} draws the caption authored for {tab}. A bar whose captions came from the " +
+                "wrong arm of the switch would send a player to Shop by tapping Collection.");
+        }
+
+        captions
+            .Select(caption => presenter.TabLabel(caption.Item1))
+            .Distinct(StringComparer.Ordinal)
+            .Count()
+            .ShouldBe(TabCount, "five destinations, five words. Two tabs reading alike is one tab.");
+    }
+
+    /// <summary>A tab is badged when the row says that tab is, and never because another one is.</summary>
+    [Fact]
+    public async Task A_tab_is_badged_when_the_row_badges_that_tab_and_no_other()
+    {
+        var presenter = await LoadedHub(
+            Ready() with { Badges = new HomeBadges(false, true, false, false, false) });
+
+        presenter.TabBadgeOn(HomeTab.Gear).ShouldBeTrue("the row lit Gear and only Gear.");
+
+        new[] { HomeTab.Home, HomeTab.Talents, HomeTab.Collection, HomeTab.Shop }
+            .ShouldAllBe(
+                tab => !presenter.TabBadgeOn(tab),
+                "and a dot on a tab nothing announced sends a player looking for something that " +
+                "is not there. A presenter reading one flag for all five would light every tab.");
+    }
+
+    /// <summary>Nothing is badged before the read lands.</summary>
+    [Fact]
+    public void No_tab_is_badged_while_the_read_is_still_out()
+    {
+        var presenter = Hub(Ready());
+
+        Enum.GetValues<HomeTab>().ShouldAllBe(
+            tab => !presenter.TabBadgeOn(tab),
+            "a skeleton screen announcing unlocks it has not read is announcing nothing.");
+    }
+
+    /// <summary>The three rail entries each carry their own caption, and no two carry the same one.</summary>
+    [Fact]
+    public async Task Every_rail_entry_carries_its_own_caption_and_no_two_carry_the_same_one()
+    {
+        var strings = ScreenContent.Catalogue();
+        var presenter = await LoadedHub(Ready());
+
+        var captions = new[]
+        {
+            (HomeRailEntry.Mail, "loc.home.rail.mail.label"),
+            (HomeRailEntry.Ranking, "loc.home.rail.ranking.label"),
+            (HomeRailEntry.Quests, "loc.home.rail.quests.label"),
+        };
+
+        captions.Length.ShouldBe(RailEntryCount, "a floor: the rail carries three entries.");
+
+        foreach (var (entry, key) in captions)
+        {
+            presenter.RailLabel(entry).ShouldBe(
+                strings.Resolve(key), $"{entry} draws the caption authored for {entry}.");
+        }
+
+        captions
+            .Select(caption => presenter.RailLabel(caption.Item1))
+            .Distinct(StringComparer.Ordinal)
+            .Count()
+            .ShouldBe(RailEntryCount, "three entries, three words.");
+    }
+
+    /// <summary>The screen's three chrome captions are each their own authored line.</summary>
+    /// <remarks>
+    /// The stage card's Change control, the top bar's settings control and the line under the hero's
+    /// name. All three are drawn by the scene from these members and were read by nothing.
+    /// </remarks>
+    [Fact]
+    public async Task The_chrome_captions_are_the_lines_authored_for_them()
+    {
+        var strings = ScreenContent.Catalogue();
+        var presenter = await LoadedHub(Ready());
+
+        presenter.ChangeLabel.ShouldBe(
+            strings.Resolve("loc.home.launch.change.action"),
+            "the stage card's own control.");
+        presenter.SettingsLabel.ShouldBe(
+            strings.Resolve("loc.home.settings.action"), "and the top bar's.");
+        presenter.HeroCaption.ShouldBe(
+            strings.Resolve("loc.home.hero.inspect.label"),
+            "and the line under the hero's name — which names no gear count, because nothing in " +
+            "this build authors one.");
+    }
+
+    /// <summary>The name block and the avatar's badge carry the row's own name and Legend Level.</summary>
+    /// <remarks>
+    /// 🔴 The level is written in FULL rather than shortened: a Legend Level is a rank, not a
+    /// balance, and a badge reading <c>1.2k</c> would be a rank nobody can compare.
+    /// </remarks>
+    [Fact]
+    public async Task The_name_block_and_the_avatar_badge_carry_the_rows_own_figures()
+    {
+        var presenter = await LoadedHub(
+            Ready() with { PlayerName = "Sorrel of the Fen", PlayerLevel = 41 });
+
+        presenter.HubPlayerName.ShouldBe(
+            "Sorrel of the Fen",
+            "the name the row holds. A presenter answering a constant would put the same name on " +
+            "every player's screen.");
+        presenter.HubLevelText.ShouldBe(
+            "41",
+            "and the Legend Level the row holds, in full. A hard zero here reads as an unranked " +
+            "player for everybody in the game.");
+    }
+
+    /// <summary>Before the read lands there is no name and no level, rather than a placeholder one.</summary>
+    [Fact]
+    public void The_name_block_and_the_avatar_badge_are_blank_while_the_read_is_still_out()
+    {
+        var presenter = Hub(Ready());
+
+        presenter.HubPlayerName.ShouldBeEmpty("no row has been read, so there is no name to draw.");
+        presenter.HubLevelText.ShouldBeEmpty(
+            "and no level. A skeleton badge reading '0' is a rank the screen invented.");
+    }
+
+    /// <summary>The stage card's second line names what is next, and the recommendation when there is one.</summary>
+    /// <remarks>
+    /// 🔒 Both arms, because they are two different sentences: a chapter the par table authors no
+    /// cell for has a next-up line and no recommendation, and a card that printed an empty
+    /// recommendation would read "Recommended power " with nothing after it.
+    /// </remarks>
+    [Fact]
+    public async Task The_stage_cards_second_line_names_the_recommendation_only_when_there_is_one()
+    {
+        var strings = ScreenContent.Catalogue();
+        var nextUp = strings.Resolve("loc.home.launch.next_up.label");
+        var recommended = strings.Resolve("loc.home.launch.recommended_power.label");
+
+        var withOne = await LoadedHub(
+            ScriptedHomeScreen.ViewModel(
+                energy: RunCost * 2, energyCost: RunCost, power: 99_000d,
+                recommendedPower: 11_999.9d));
+        var without = await LoadedHub(Ready());
+
+        withOne.StageSubtitle.ShouldBe(
+            $"{nextUp} · {recommended} 11.9k",
+            "the next-up line, the recommendation's own caption, and the recommendation itself — " +
+            "shortened above ten thousand and FLOORED like every other figure on this screen. " +
+            "11,999.9 straddles a rung of the shortened form, so a card that rounded would quote " +
+            "12.0k and send a hero the stage does not want.");
+        without.StageSubtitle.ShouldBe(
+            nextUp,
+            "and with no recommendation the line is the next-up half alone, not that half followed " +
+            "by a caption with nothing after it.");
+    }
+
+    /// <summary>The stage card wears its warning in exactly one of the five states.</summary>
+    [Fact]
+    public async Task The_stage_card_is_warned_in_the_underpowered_state_and_in_no_other()
+    {
+        var presenters = await EveryState();
+
+        presenters.Length.ShouldBe(LaunchStateCount, "a floor: stated over all five states.");
+
+        foreach (var presenter in presenters)
+        {
+            presenter.StageCardWarned.ShouldBe(
+                presenter.LaunchState == HomeLaunchState.Underpowered,
+                $"{presenter.LaunchState}. The warning tint says one thing — the hero is under the " +
+                "stage's recommendation — and a card wearing it while the read is still out, or " +
+                "while the player simply cannot pay, says something the screen does not know.");
+        }
+    }
+
+    /// <summary>The reward row names what the row named, and is empty when the row named nothing.</summary>
+    /// <remarks>
+    /// ⚠️ Empty is what production draws today: nothing in <c>game-data/</c> authors a reward
+    /// vocabulary. The row is still on the page, so the block's height does not change on the day
+    /// one is — and this case is what says the line will carry them when it is.
+    /// </remarks>
+    [Fact]
+    public async Task The_reward_row_names_the_rows_own_tags_and_is_empty_when_there_are_none()
+    {
+        var withTags = await LoadedHub(Ready() with { RewardTags = ["gold", "marsh cores"] });
+        var without = await LoadedHub(Ready());
+
+        withTags.RewardLineText.ShouldBe(
+            "gold · marsh cores",
+            "the tags the row carried, joined by the screen's own separator and in the order the " +
+            "row gave them.");
+        without.RewardLineText.ShouldBeEmpty(
+            "and no tags is an empty row rather than a separator with nothing on either side of it.");
+    }
+
+    /// <summary>
+    /// 🔴 The Energy pill's caption is the regeneration countdown, and it is GONE at full.
+    /// </summary>
+    /// <remarks>
+    /// Both branches, because only one of them was reachable: the shared builder's countdown was
+    /// always 252 seconds, so nothing anywhere drew the pill in the state the brief names in as
+    /// many words — "hidden at full". A presenter that captioned <c>0:00</c> instead would tell a
+    /// player with a full bar that a point of Energy is one moment away for ever.
+    /// </remarks>
+    [Fact]
+    public async Task The_energy_pill_captions_the_countdown_and_shows_no_caption_at_all_at_full()
+    {
+        var regenerating = await LoadedHub(Ready());
+        var full = await LoadedHub(
+            ScriptedHomeScreen.ViewModel(
+                energy: ScriptedHomeScreen.FixtureEnergyMax,
+                energyCost: RunCost,
+                energyRefillIn: TimeSpan.Zero));
+
+        regenerating.EnergyPillCaption.ShouldBe(
+            "4:12", "minutes and seconds, and never a bare count of seconds.");
+        regenerating.EnergyCaptionVisible.ShouldBeTrue("so the caption slot is on the page.");
+
+        full.EnergyPillCaption.ShouldBeEmpty(
+            "at full there is nothing to count down to, and the brief says the caption is hidden " +
+            "rather than zeroed.");
+        full.EnergyCaptionVisible.ShouldBeFalse(
+            "and the pill is drawn without a caption slot at all — a slot holding an empty string " +
+            "still reserves the width the countdown had.");
+    }
+
+    /// <summary>A countdown over an hour keeps its hours; one under it never grows a leading zero.</summary>
+    /// <remarks>
+    /// The Reserve refills at the same four minutes a point of the bar does, so a bar that is full
+    /// with an empty Reserve counts down for hours. A pill writing <c>7:30</c> for seven and a half
+    /// hours is a pill a player reads as seven minutes.
+    /// </remarks>
+    [Fact]
+    public async Task A_countdown_past_an_hour_says_so_and_one_under_it_does_not()
+    {
+        var hours = await LoadedHub(
+            ScriptedHomeScreen.ViewModel(
+                energy: RunCost * 2,
+                energyCost: RunCost,
+                energyRefillIn: new TimeSpan(7, 30, 9)));
+
+        hours.EnergyPillCaption.ShouldBe(
+            "7:30:09",
+            "hours, minutes and seconds. The short form would read 30:09 and lose seven hours.");
+    }
+
+    /// <summary>A power pill with no reading behind it is blank, and never a zero.</summary>
+    [Fact]
+    public async Task The_power_pill_is_readable_only_when_a_reading_arrived()
+    {
+        var read = await LoadedHub(Ready() with { Power = 9_400d });
+        var unread = await LoadedHub(Ready() with { Power = null });
+
+        read.PowerReadable.ShouldBeTrue("the source answered a number.");
+        read.PowerPillText.ShouldBe("9400", "which the pill writes, exact under ten thousand.");
+
+        unread.PowerReadable.ShouldBeFalse("the source could not read one.");
+        unread.PowerPillText.ShouldBeEmpty(
+            "so the pill is blank. A zero there is a hero with no power at all, which is a " +
+            "different claim from 'this build could not work out your power'.");
+    }
+
     // ------------------------------------------------------------------------- null guards
 
     [Fact]
@@ -1603,6 +1894,12 @@ public sealed class HomePresenterTests
 
     /// <summary>How many launch states there are — the floor every set of all of them is stated over.</summary>
     private const int LaunchStateCount = 5;
+
+    /// <summary>How many tabs the bar carries — the floor the caption and badge cases are stated over.</summary>
+    private const int TabCount = 5;
+
+    /// <summary>How many entries the side rail carries.</summary>
+    private const int RailEntryCount = 3;
 
     private static HomeViewModel Ready() =>
         ScriptedHomeScreen.ViewModel(energy: RunCost * 2, energyCost: RunCost);

@@ -41,7 +41,13 @@ public sealed class HomeRunHubTests
     /// one input for which flooring and rounding agree — which left the pill's stated rule ("the
     /// power a player HAS rather than the one nearest") pinned by nothing at all.
     /// </remarks>
-    private const double SettledPower = 12_480.7d;
+    /// <remarks>
+    /// 🔴 The fraction alone is not enough now that the pill SHORTENS what it writes: at 12,480.7
+    /// the floor and the ceiling both shorten to <c>12.4k</c>, so the rule would be unpinned again.
+    /// This reading straddles a rung of the shortened form — 12,999 writes <c>12.9k</c> and 13,000
+    /// writes <c>13.0k</c> — so a ceiling is visible in the pill's own text.
+    /// </remarks>
+    private const double SettledPower = 12_999.7d;
 
     // ------------------------------------------------------------------- 🔒 the double tap
 
@@ -346,7 +352,7 @@ public sealed class HomeRunHubTests
 
     /// <summary>
     /// 🔴 Each pill spells its value by its own rule: Crowns shortened, Energy as the bar over its
-    /// maximum, and power thousands-separated and FLOORED.
+    /// maximum, and power shortened and FLOORED.
     /// </summary>
     /// <remarks>
     /// The case above compares each settled text against the rule the pill is HANDED — which is
@@ -373,10 +379,12 @@ public sealed class HomeRunHubTests
             "the bar over the bar's own maximum, and nothing else on either side of the separator. " +
             "The Reserve is a separate bank and is deliberately not in the denominator.");
         presenter.PowerPillText.ShouldBe(
-            "12,480",
-            "thousands-separated, and floored rather than rounded: a pill that rounded up would " +
-            "quote a player a power they do not have, and 12,480.7 is the reading that tells the " +
-            "two apart.");
+            "12.9k",
+            "shortened above ten thousand like every other number this client draws — a pill " +
+            "writing '12,999' would be the only number in the game outside PlayerNumber's rule, " +
+            "and NINE characters wide at the 1.2M the brief names. Floored rather than rounded " +
+            "too: 12,999.7 rounds up over a rung of the shortened form and would read 13.0k, " +
+            "quoting a player a power they do not have.");
     }
 
     // ------------------------------------------------- 🔒 the chapter the client names for itself
@@ -469,6 +477,147 @@ public sealed class HomeRunHubTests
         exported["Caption"].ShouldBeLessThanOrEqualTo(
             12f, "and the same for the Energy pill's countdown.");
     }
+
+    /// <summary>
+    /// The root node's own property block: everything between its header and the next node's.
+    /// </summary>
+    /// <remarks>
+    /// Scoped to the root rather than scanned over the whole file, because the three pill instances
+    /// each export a <c>Glyph</c> and a whole-file scan cannot tell an export the layout is built
+    /// from apart from one an instance overrides.
+    /// </remarks>
+    private static readonly Regex RootProperties = new(
+        @"^\[node name=""Home"" type=""Node3D""\]\r?\n(?<block>(?:.*\r?\n)*?)\r?\n\[node ",
+        RegexOptions.Multiline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>Every number Home.tscn hands HomeLayout, read back off the scene.</summary>
+    private static readonly Regex ExportedNumber = new(
+        @"^(?<name>[A-Z][A-Za-z]*) = (?<value>[0-9]+(?:\.[0-9]+)?)",
+        RegexOptions.Multiline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The canvas the project declares, and the short shipping profile's height.</summary>
+    private const float CanvasWidth = 1080f;
+
+    private const float CanvasHeight = 1920f;
+
+    /// <summary>
+    /// 🔴 The three pills fit the row at the widest values THE PRESENTER ACTUALLY WRITES, measured
+    /// against the numbers THE SCENE ACTUALLY EXPORTS.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>This is the case <c>HomeLayoutTests</c> could not be.</b> That one measures a fixture's
+    /// own metrics against strings a case chose, and both halves drifted from the shipped screen at
+    /// once: it took the power pill's width from <c>PlayerNumber.Abbreviated(1_200_000)</c> — four
+    /// characters — while <c>PowerPillTextFor</c> wrote a thousands-separated <c>1,200,000</c>, nine.
+    /// Nine characters reserve 252 units; the three pills came to 744 against the 684 the bar had,
+    /// and the widest pill was drawn past the screen edge with every case green. Here the strings
+    /// come from a loaded presenter and the budget from <c>Home.tscn</c>, so neither can drift
+    /// without this going red.
+    /// </para>
+    /// <para>
+    /// ⚠️ The values are the widest each pill REACHES, not the widest the brief happens to name: the
+    /// shortened form is longest just below a suffix rung ("999.9k"), not at the brief's 1.2M, which
+    /// is four characters.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The revealed row is not covered and does not fit.</b> Under a long press the same three
+    /// pills reserve 714 against 708 at the brief's own values, and 729 at a seven-digit Crowns
+    /// balance. It is a transient gesture state and closing it means changing what
+    /// <c>PlayerNumber.Full</c> writes or what the band geometry reserves — both functional, both
+    /// pinned elsewhere. Stated rather than asserted, so nobody reads this case as covering it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task The_scenes_own_numbers_hold_the_three_pills_at_the_widest_values_they_reach()
+    {
+        var metrics = SceneMetrics();
+        var presenter = new HomePresenter(
+            GatedHomeScreen.Answering(Widest()), ScreenContent.Catalogue());
+
+        await presenter.LoadAsync(CancellationToken.None);
+
+        var crowns = presenter.CrownsPillText;
+        var energy = presenter.EnergyPillText;
+        var caption = presenter.EnergyPillCaption;
+        var power = presenter.PowerPillText;
+
+        var total =
+            HomeLayout.PillWidth(crowns.Length, 0, metrics.Pill)
+            + HomeLayout.PillWidth(energy.Length, caption.Length, metrics.Pill)
+            + HomeLayout.PillWidth(power.Length, 0, metrics.Pill);
+
+        total.ShouldBeLessThanOrEqualTo(
+            HomeLayout.For(CanvasWidth, CanvasHeight, default, metrics).PillRowWidth,
+            $"'{crowns}', '{energy} {caption}' and '{power}' are what the three pills write at " +
+            "their widest, and the bar has the canvas less its own padding, the avatar, the " +
+            "settings TARGET and four gaps. A row that cannot hold them does not clip — the " +
+            "container grows past the canvas and the avatar and the settings control are drawn " +
+            "off both edges.");
+    }
+
+    /// <summary>The exports Home.tscn actually holds, as the metrics the layout is built from.</summary>
+    /// <remarks>
+    /// Read off the scene rather than restated, because a fixture restating them is a second copy
+    /// that drifts — which is exactly how the budget above came to be checked against numbers the
+    /// screen was not laid out from.
+    /// </remarks>
+    private static HomeLayoutMetrics SceneMetrics()
+    {
+        var root = RootProperties.Match(SceneText.Read(HomeScene));
+
+        root.Success.ShouldBeTrue(
+            "Home.tscn no longer opens with a Node3D root called Home, so the exports the layout " +
+            "is built from cannot be told apart from an instance's overrides.");
+
+        var exported = ExportedNumber.Matches(root.Groups["block"].Value)
+            .ToDictionary(
+                match => match.Groups["name"].Value,
+                match => float.Parse(match.Groups["value"].Value, CultureInfo.InvariantCulture),
+                StringComparer.Ordinal);
+
+        float Of(string name) => exported.TryGetValue(name, out var value)
+            ? value
+            : throw new InvalidOperationException(
+                $"Home.tscn exports no '{name}', so the screen is laid out from a default " +
+                "HomeLayoutMetrics does not offer.");
+
+        return new HomeLayoutMetrics(
+            new HomeBandMetrics(Of("TopBarHeight"), Of("LaunchHeight"), Of("TabBarHeight")),
+            new HomeTopBarMetrics(
+                Of("TopBarSidePadding"),
+                Of("TopBarItemGap"),
+                Of("AvatarWidth"),
+                Of("SettingsGlyphWidth")),
+            new HomePillMetrics(
+                Of("PillHorizontalPadding"),
+                Of("PillIconWidth"),
+                Of("PillInnerGap"),
+                Of("PillValueCharacterAdvance"),
+                Of("PillCaptionCharacterAdvance")),
+            new HomeLaunchMetrics(
+                Of("LaunchSidePadding"),
+                Of("LaunchRowGap"),
+                Of("StageCardHeight"),
+                Of("StartButtonHeight"),
+                Of("RewardLineHeight"),
+                Of("ChangeButtonWidth"),
+                Of("ChangeButtonHeight")));
+    }
+
+    /// <summary>
+    /// The row at every pill's widest: a Crowns balance and a power index one unit below the next
+    /// suffix rung, and a bar one point short of full so the countdown is on the page.
+    /// </summary>
+    private static HomeViewModel Widest() =>
+        Ready() with
+        {
+            Crowns = 999_999L,
+            Energy = ScriptedHomeScreen.FixtureEnergyMax - 1,
+            Power = 999_999d,
+        };
 
     // ---------------------------------------------------------------------------- fixtures
 

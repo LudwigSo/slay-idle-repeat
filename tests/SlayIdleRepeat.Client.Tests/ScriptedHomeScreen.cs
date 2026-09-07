@@ -74,6 +74,9 @@ internal sealed class ScriptedHomeScreen : IHomeScreen
     /// <summary>The bar's maximum every fixture here draws over. Named so a case can spell it.</summary>
     internal const int FixtureEnergyMax = 120;
 
+    /// <summary>The countdown a fixture carries unless it says otherwise — the reference's 4:12.</summary>
+    internal static readonly TimeSpan DefaultRefillIn = TimeSpan.FromSeconds(252);
+
     /// <summary>A view model with the five fields the launch states are decided from.</summary>
     /// <remarks>
     /// 🔒 <c>energyShortfall</c> is its own argument rather than <c>energyCost - energy</c>, and that
@@ -91,20 +94,33 @@ internal sealed class ScriptedHomeScreen : IHomeScreen
     /// The chapter the campaign offers next, or <c>null</c> for a player it offers nothing. See
     /// <see cref="OfferedChapter"/> for why the default is a chapter rather than an absence.
     /// </param>
+    /// <param name="energyRefillIn">
+    /// How long until the next point of Energy, and <see cref="TimeSpan.Zero"/> when both banks are
+    /// full.
+    /// </param>
+    /// <remarks>
+    /// 🔴 <paramref name="energyRefillIn"/> is a knob because it was not one. Every case built on
+    /// this builder got the same 252 seconds, so <c>EnergyPillCaption</c>'s other branch — hidden at
+    /// full, which is a requirement the brief states in as many words — was UNREACHABLE from the
+    /// shared fixture, and nothing anywhere drew the pill without a caption. The default is the
+    /// countdown, because the countdown is the state the pill is in for all but the last minutes of
+    /// a full bar; a case about being full says <c>TimeSpan.Zero</c> out loud.
+    /// </remarks>
     internal static HomeViewModel ViewModel(
         int energy,
         int energyCost,
         int energyShortfall = 0,
         double? power = null,
         double? recommendedPower = null,
-        int? nextStageId = OfferedChapter) =>
+        int? nextStageId = OfferedChapter,
+        TimeSpan? energyRefillIn = null) =>
         new(
             PlayerName: "Ryn, Ashblade",
             PlayerLevel: 63,
             Crowns: 412_345L,
             Energy: energy,
             EnergyMax: FixtureEnergyMax,
-            EnergyRefillIn: TimeSpan.FromSeconds(252),
+            EnergyRefillIn: energyRefillIn ?? DefaultRefillIn,
             Power: power,
             NextStageId: nextStageId,
             NextStageName: null,

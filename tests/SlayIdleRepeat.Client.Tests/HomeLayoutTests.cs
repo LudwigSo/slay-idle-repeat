@@ -47,7 +47,18 @@ public sealed class HomeLayoutTests
     /// <summary>What the three pinned bands take together, leaving the hero band the rest.</summary>
     private const float PinnedTotal = TopBarHeight + LaunchHeight + TabBarHeight;
 
-    private const float SidePadding = 36f;
+    /// <summary>
+    /// The bar's outer padding — the reference's 12 logical, less the four this build spends
+    /// padding the settings glyph out to a tap target.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The reference draws a 30-logical settings glyph and pads the bar 12; this build pads that
+    /// glyph to a 48-logical TARGET, which costs the pill row 54 canvas units the reference never
+    /// spends. At 36 the row held 684 against the 699 the three pills reserve at their longest
+    /// values, so the widest pill was drawn past the screen edge.
+    /// </remarks>
+    private const float SidePadding = 24f;
+
     private const float ItemGap = 18f;
     private const float AvatarWidth = 108f;
 
@@ -298,7 +309,16 @@ public sealed class HomeLayoutTests
     public void The_three_pills_fit_their_longest_values_at_the_budgeted_character_width()
     {
         var crowns = PlayerNumber.Abbreviated(999_999L);
-        var power = PlayerNumber.Abbreviated(1_200_000L);
+
+        // 🔴 NOT the brief's 1.2M, which shortens to four characters — the shortened form is at its
+        // WIDEST just under the next suffix, at "999.9k". A case measuring 1.2M measures the
+        // narrowest the power pill ever gets and calls it the longest.
+        var power = PlayerNumber.Abbreviated(999_999L);
+
+        PlayerNumber.Abbreviated(1_200_000L).Length.ShouldBeLessThan(
+            power.Length,
+            "the guard on the sentence above: if 1.2M ever became the wider of the two, this case " +
+            "would be measuring the wrong end of the range again.");
 
         var total =
             HomeLayout.PillWidth(crowns.Length, 0, Metrics.Pill)

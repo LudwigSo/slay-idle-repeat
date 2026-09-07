@@ -5,8 +5,15 @@
 ; One pill, three instances. The width is written by ResourcePill.Show out of
 ; HomeLayout.PillWidth, so nothing here states one: the row's arithmetic is checked under a test
 ; runner, and a minimum authored here would quietly win over it.
+;
+; 🔴 The HEIGHT is HomeLayout.MinimumTouchTarget and not the reference's 26 logical. This control
+; is a Button: a tap opens the resource's detail sheet and a hold reveals every figure on the screen
+; in full. It was authored at 84 — twenty-eight logical units, well under half a thumb — while the
+; very same layout padded the settings glyph and the stage card's Change control out to 144 for
+; exactly this rule. Three of the screen's six tap targets were the three nobody measured. The bar
+; is 192 tall, so 144 sits inside it with 24 clear above and below.
 [node name="ResourcePill" type="Button"]
-custom_minimum_size = Vector2(0, 84)
+custom_minimum_size = Vector2(0, 144)
 theme_type_variation = &"ResourcePill"
 script = ExtResource("1_pill")
 

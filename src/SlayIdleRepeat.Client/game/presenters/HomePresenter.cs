@@ -677,9 +677,6 @@ public sealed class HomePresenter
     /// <summary>What separates two halves of one line. Punctuation, not copy.</summary>
     private const string LineSeparator = " · ";
 
-    /// <summary>Thousands-separated, which is what the reference draws the power pill in.</summary>
-    private const string GroupedFormat = "N0";
-
     /// <summary>The countdown under an hour, and the one over it. Neither is ever a bare second count.</summary>
     private const string ShortCountdownFormat = @"m\:ss";
 
@@ -866,11 +863,22 @@ public sealed class HomePresenter
     /// <summary>Whether a power reading exists at all. A pill with none is blank, never a zero.</summary>
     public bool PowerReadable => _view?.Power is not null;
 
-    /// <summary>How the Power pill writes an index — thousands-separated.</summary>
+    /// <summary>
+    /// How the Power pill writes an index — by the same rule every other number in this client is
+    /// written by: shortened above ten thousand, and exact while a finger is holding the pill.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>It used to be thousands-separated, and that was two defects in one.</b> The reference
+    /// draws <c>12,480</c>, but a grouped index is (a) the only number anywhere in this client not
+    /// written by <see cref="PlayerNumber"/> — a second number rule introduced by one screen — and
+    /// (b) NINE characters at the 1.2M the reference itself names as the value that must not push a
+    /// pill off the row. Nine characters reserve 252 units of a 684-unit row that also owes 207 to
+    /// Crowns and 285 to a captioned Energy bar, which is 744 against 684: the widest pill was drawn
+    /// off the screen edge. Shortened, the same index is at most six characters, and the long press
+    /// this pill already carries is what gives the exact figure back.
+    /// </remarks>
     /// <param name="power">The index, which mid-count-up is not yet the settled one.</param>
-    public string PowerPillTextFor(long power) => PowerReadable
-        ? power.ToString(GroupedFormat, CultureInfo.InvariantCulture)
-        : NoValue;
+    public string PowerPillTextFor(long power) => PowerReadable ? Number(power) : NoValue;
 
     /// <summary>The Power pill's value, settled.</summary>
     public string PowerPillText => PowerPillTextFor(HubPower);
@@ -907,9 +915,13 @@ public sealed class HomePresenter
         {
             var nextUp = _strings.Resolve(NextUpLabelKey);
 
+            // Written by the screen's own number rule, exactly as the power pill above it is: the
+            // recommendation and the index the player compares it against are two readings of the
+            // same quantity, and two spellings of one quantity on one card is a comparison the
+            // player has to do twice.
             return _view?.RecommendedPower is { } recommended
                 ? nextUp + LineSeparator + _strings.Resolve(RecommendedPowerLabelKey) + " " +
-                  Math.Floor(recommended).ToString(GroupedFormat, CultureInfo.InvariantCulture)
+                  Number((long)Math.Floor(recommended))
                 : nextUp;
         }
     }

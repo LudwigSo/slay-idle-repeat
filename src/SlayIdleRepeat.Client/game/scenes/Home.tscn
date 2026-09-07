@@ -18,12 +18,20 @@ albedo_color = Color(0.07, 0.07, 0.09, 1)
 ; in a script: a band height or a per-character budget baked into the renderer is a design decision
 ; hidden where no reviewer looks for it. The three band heights are the reference's 64 / 156 / 66
 ; logical at this canvas's 3x scale; the hero band is whatever is left.
+;
+; ⚠️ TopBarSidePadding is 24 rather than the reference's 36 (12 logical), and it is the one number
+; on this list that deviates from the reference on purpose. The reference draws its settings glyph
+; 30 logical wide and pads the bar 12; this build pads that glyph out to a 48-logical TAP TARGET,
+; which takes 54 canvas units straight out of the pill row and leaves 684 where the reference has
+; 738. At the longest values the brief itself names the three pills reserve 699, so the row was
+; over-subscribed by 15 and the widest pill was drawn past the screen edge. The tap target may not
+; move; four logical units of outer padding may.
 [node name="Home" type="Node3D"]
 script = ExtResource("1_home")
 TopBarHeight = 192.0
 LaunchHeight = 468.0
 TabBarHeight = 198.0
-TopBarSidePadding = 36.0
+TopBarSidePadding = 24.0
 TopBarItemGap = 18.0
 AvatarWidth = 108.0
 SettingsGlyphWidth = 90.0
@@ -97,9 +105,9 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 192)
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 36
+theme_override_constants/margin_left = 24
 theme_override_constants/margin_top = 0
-theme_override_constants/margin_right = 36
+theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 0
 
 [node name="Row" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar"]
@@ -126,6 +134,7 @@ mouse_filter = 2
 theme_type_variation = &"HudCaption"
 horizontal_alignment = 1
 vertical_alignment = 1
+text_overrun_behavior = 3
 
 [node name="CrownsPill" parent="Ui/Screen/Bands/TopBar/Row" instance=ExtResource("5_pill")]
 unique_name_in_owner = true
@@ -162,6 +171,7 @@ layout_mode = 2
 size_flags_horizontal = 10
 size_flags_vertical = 4
 theme_type_variation = &"ChromeButton"
+text_overrun_behavior = 3
 
 ; ----------------------------------------------------------------------------- the hero band
 ;
@@ -226,12 +236,19 @@ theme_override_constants/separation = 6
 ; HeroSubtitle are HudTitle and HudCaption with the theme's darkest ink drawn round the glyphs,
 ; which is the one contrast a flat font colour cannot give over a picture. The reference solves the
 ; same problem with a vignette; an outline needs no node and cannot bleed onto the diorama.
+;
+; ⚠️ Both trim with an ellipsis, exactly as the stage card's two lines do, and for the same reason
+; twice over: the first line is a PLAYER-SUPPLIED display name and the second is a localised
+; sentence, and this block is positioned by anchors inside a band of fixed height. A Label with no
+; trimming reports its whole text as its minimum width, so a long name would push this container
+; wider than the canvas and draw the name off both edges rather than shortening it.
 [node name="HeroName" type="Label" parent="Ui/Screen/Bands/HeroBand/NameBlock"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_type_variation = &"HeroTitle"
 horizontal_alignment = 1
+text_overrun_behavior = 3
 
 [node name="HeroCaption" type="Label" parent="Ui/Screen/Bands/HeroBand/NameBlock"]
 unique_name_in_owner = true
@@ -239,6 +256,7 @@ layout_mode = 2
 mouse_filter = 2
 theme_type_variation = &"HeroSubtitle"
 horizontal_alignment = 1
+text_overrun_behavior = 3
 
 ; -------------------------------------------------------------------------- the launch block
 ;
@@ -320,6 +338,7 @@ custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
 size_flags_vertical = 4
 theme_type_variation = &"ChromeButton"
+text_overrun_behavior = 3
 
 [node name="StartButton" type="Button" parent="Ui/Screen/Bands/Launch/Rows"]
 unique_name_in_owner = true
@@ -354,6 +373,7 @@ mouse_filter = 2
 theme_type_variation = &"CostBadge"
 horizontal_alignment = 2
 vertical_alignment = 1
+text_overrun_behavior = 3
 
 ; ⚠️ Informational, and empty until something authors a reward vocabulary. The row is here so the
 ; block's height does not change on the day one is.
@@ -365,6 +385,7 @@ mouse_filter = 2
 theme_type_variation = &"HudCaption"
 horizontal_alignment = 1
 vertical_alignment = 1
+text_overrun_behavior = 3
 
 ; --------------------------------------------------------------------------------- the tabs
 ;
@@ -395,6 +416,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 toggle_mode = true
 theme_type_variation = &"TabButton"
+autowrap_mode = 3
 
 [node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Home"]
 visible = false
@@ -417,6 +439,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 toggle_mode = true
 theme_type_variation = &"TabButton"
+autowrap_mode = 3
 
 [node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Gear"]
 visible = false
@@ -439,6 +462,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 toggle_mode = true
 theme_type_variation = &"TabButton"
+autowrap_mode = 3
 
 [node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Talents"]
 visible = false
@@ -461,6 +485,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 toggle_mode = true
 theme_type_variation = &"TabButton"
+autowrap_mode = 3
 
 [node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Collection"]
 visible = false
@@ -483,6 +508,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 toggle_mode = true
 theme_type_variation = &"TabButton"
+autowrap_mode = 3
 
 [node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Shop"]
 visible = false

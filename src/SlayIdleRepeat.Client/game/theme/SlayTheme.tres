@@ -336,13 +336,23 @@ corner_radius_bottom_right = 63
 corner_radius_bottom_left = 63
 corner_detail = 12
 
+; 🔴 It differs from StageCard by its border's WIDTH as well as its hue, and the width is not a
+; flourish: the warning that the hero is under the stage's recommendation is status information, and
+; this project's rule is that status is never carried by colour alone. Ember against the card's
+; grey-violet edge is a hue swap and very little else — the two edges are 0.41 and 0.24 relative
+; luminance, so a player who cannot separate the hues is reading a 1.7:1 difference on an 8-unit
+; line. A 24-unit rule down the leading edge is a shape, and it reads on any palette.
+;
+; Left edge only, because the card is 156 tall and holds a 144 tap target: a heavier top or bottom
+; border would draw over the Change control. The left content margin is 33, so a 24 border sits
+; inside padding the card already spends.
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stage_card_warned"]
 content_margin_left = 33.0
 content_margin_top = 6.0
 content_margin_right = 33.0
 content_margin_bottom = 6.0
 bg_color = Color(0.14, 0.1, 0.24, 1)
-border_width_left = 8
+border_width_left = 24
 border_width_top = 8
 border_width_right = 8
 border_width_bottom = 8

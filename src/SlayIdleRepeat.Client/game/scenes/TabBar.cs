@@ -23,6 +23,17 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// ⚠️ Dots, never numbers: the reference is explicit, and this build records nothing that could
 /// feed a count anyway.
 /// </para>
+/// <para>
+/// 🔴 <b>One accent for every dot, and it may not become two.</b> The reference gives the dot two
+/// meanings in two colours — jade for a new unlock, ember for everything else — and a dot carries
+/// no text, so a second meaning expressed that way would be signalled by HUE ALONE. This project's
+/// accessibility floor forbids exactly that, and it is the reason
+/// <see cref="Show(Func{HomeTab, string}, Func{HomeTab, bool}, Color, HomeTab)"/> takes ONE colour
+/// and <see cref="Application.Services.HomeBadges"/> carries a flag per tab rather than a kind.
+/// Nothing in this build authors what a "new unlock" is (steering S6), so the distinction is absent
+/// rather than half-drawn; the day something does, it needs a second SHAPE — a ring, a size, a
+/// glyph — and not a second colour.
+/// </para>
 /// </remarks>
 public partial class TabBar : HBoxContainer
 {
