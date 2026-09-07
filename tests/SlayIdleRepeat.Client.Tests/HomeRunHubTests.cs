@@ -27,6 +27,12 @@ public sealed class HomeRunHubTests
     /// <summary>The line the stage card shows when the campaign offers no next chapter.</summary>
     private const string NoStageKey = "loc.home.launch.no_stage.label";
 
+    /// <summary>What a refusal the launch block has no sentence for arrives as.</summary>
+    private const string UnsayableRefusal = "START_RUN was refused ILLEGAL_STATE";
+
+    /// <summary>A Crowns balance well past the point the shortened form takes over.</summary>
+    private const long HeldCrowns = 412_345L;
+
     // ------------------------------------------------------------------- 🔒 the double tap
 
     /// <summary>
@@ -139,6 +145,119 @@ public sealed class HomeRunHubTests
 
         screen.StartCallCount.ShouldBe(
             0, "there is no stage to name, and inventing one starts a run nobody was offered.");
+    }
+
+    /// <summary>
+    /// 🔴 A submission the seam RAISED on leaves the block saying what failed, never the offer it
+    /// had already made.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>HomeScreen.StartRunAsync</c> raises for every refusal it has no sentence for, and two of
+    /// them are reachable without a double tap: a run opened on another device, and a stage this
+    /// screen read before the ladder moved under it. A press that faulted and changed nothing is a
+    /// dead control — the button keeps the word it had, the player presses it again, and nothing
+    /// on the screen ever says why. The failure state is the one state that offers a way out, since
+    /// its button is Retry.
+    /// </para>
+    /// <para>
+    /// 🔒 The screen is loaded into a startable state FIRST, so the state it ends in cannot be the
+    /// state it began in — a presenter that did nothing at all with the fault would leave Ready
+    /// behind and this case would be satisfied by the wrong thing.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_submission_the_seam_raised_on_leaves_the_block_saying_what_failed()
+    {
+        var screen = ScriptedHomeScreen.RaisingOnStart(
+            Ready(), new InvalidOperationException(UnsayableRefusal));
+        var presenter = new HomePresenter(screen, ScreenContent.Catalogue());
+
+        await presenter.LoadAsync(CancellationToken.None);
+
+        presenter.LaunchState.ShouldBe(
+            HomeLaunchState.Ready, "the press below has to be made from a state that offers one.");
+
+        var outcome = await presenter.PressStartAsync(CancellationToken.None);
+
+        outcome.ShouldBeNull("nothing was started, so there is no outcome to carry.");
+        presenter.LaunchState.ShouldBe(
+            HomeLaunchState.PresenterFailure,
+            "a press that raised has to move the block. Left in Ready it is a button that was " +
+            "pressed, did nothing, and still offers the same run.");
+        var line = presenter.FailureLine.ShouldNotBeNull(
+            "the line names what failed, so a log is not the only place the refusal exists.");
+
+        line.ShouldContain(UnsayableRefusal);
+    }
+
+    /// <summary>
+    /// 🔒 A press that raised may be made again — the in-flight latch is released either way.
+    /// </summary>
+    /// <remarks>
+    /// The latch is taken before the await and dropped in a <c>finally</c>. A fault that escaped
+    /// past it would leave it set for the rest of the session, and the Retry the failure state
+    /// offers would be a second dead press on top of the first.
+    /// </remarks>
+    [Fact]
+    public async Task A_press_that_raised_does_not_leave_the_latch_set()
+    {
+        var screen = ScriptedHomeScreen.RaisingOnStart(
+            Ready(), new InvalidOperationException(UnsayableRefusal));
+        var presenter = new HomePresenter(screen, ScreenContent.Catalogue());
+
+        await presenter.LoadAsync(CancellationToken.None);
+        await presenter.PressStartAsync(CancellationToken.None);
+
+        await presenter.LoadAsync(CancellationToken.None);
+        await presenter.PressStartAsync(CancellationToken.None);
+
+        screen.StartCallCount.ShouldBe(
+            2,
+            "the second press reached the seam. A latch left set by the first would make every " +
+            "later press a control that does nothing at all.");
+    }
+
+    // ---------------------------------------------------- 🔒 the long press's full figures
+
+    /// <summary>
+    /// 🔒 A pill held down writes the Crowns figure in full; letting go shortens it again.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The project's number rule is one rule for every screen: shortened above ten thousand, exact
+    /// on a long press. <c>PerkDraft</c> and <c>EventScreen</c> both hold it, and the pills are
+    /// where this screen's shortened figures are.
+    /// </para>
+    /// <para>
+    /// 🔒 Asserted through <c>CrownsPillTextFor</c> — the rule the pill is HANDED, and the one a
+    /// count-up interpolates each step with — rather than through the settled text alone, so a
+    /// reveal that reached the settled value and not the rule would still be caught.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_held_pill_writes_the_Crowns_figure_in_full()
+    {
+        var presenter = new HomePresenter(
+            ScriptedHomeScreen.Answering(Ready() with { Crowns = HeldCrowns }),
+            ScreenContent.Catalogue());
+
+        await presenter.LoadAsync(CancellationToken.None);
+
+        presenter.CrownsPillTextFor(HeldCrowns).ShouldBe(
+            "412.3k", "nobody is holding anything yet, so the pill is shortened.");
+
+        presenter.RevealFullValues();
+
+        presenter.CrownsPillTextFor(HeldCrowns).ShouldBe(
+            "412345",
+            "a long press is how a player asks 'how many, exactly?', and a pill that answered the " +
+            "shortened figure to it leaves the gesture with nothing to reveal.");
+
+        presenter.ConcealFullValues();
+
+        presenter.CrownsPillTextFor(HeldCrowns).ShouldBe(
+            "412.3k", "the release of the press ends the reveal; a reveal that never ends is not one.");
     }
 
     // ------------------------------------------------------------- 🔒 the gain accent's reading

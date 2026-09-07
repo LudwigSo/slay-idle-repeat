@@ -16,13 +16,16 @@ internal sealed class ScriptedHomeScreen : IHomeScreen
 {
     private readonly HomeViewModel? _view;
     private readonly Exception? _fault;
+    private readonly Exception? _startFault;
     private readonly StartRunOutcome _outcome;
 
-    private ScriptedHomeScreen(HomeViewModel? view, Exception? fault, StartRunOutcome outcome)
+    private ScriptedHomeScreen(
+        HomeViewModel? view, Exception? fault, StartRunOutcome outcome, Exception? startFault = null)
     {
         _view = view;
         _fault = fault;
         _outcome = outcome;
+        _startFault = startFault;
     }
 
     /// <summary>How many times the presenter asked to start a run.</summary>
@@ -39,6 +42,19 @@ internal sealed class ScriptedHomeScreen : IHomeScreen
     /// <summary>A seam whose read does not answer.</summary>
     /// <param name="fault">What went wrong.</param>
     internal static ScriptedHomeScreen Faulting(Exception fault) => new(null, fault, Outcomes.Refused);
+
+    /// <summary>
+    /// A seam whose read answers, and whose <c>START_RUN</c> raises rather than refusing.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The real seam does exactly this for every refusal it has no sentence for — a run opened
+    /// on another device, most plainly. It is not a fixture convenience: it is the one behaviour of
+    /// the shipped <c>HomeScreen</c> that a press can meet and that no outcome describes.
+    /// </remarks>
+    /// <param name="view">What the screen draws.</param>
+    /// <param name="startFault">What the submission raises.</param>
+    internal static ScriptedHomeScreen RaisingOnStart(HomeViewModel view, Exception startFault) =>
+        new(view, null, Outcomes.Refused, startFault);
 
     /// <summary>A view model with the five fields the launch states are decided from.</summary>
     /// <remarks>
@@ -87,7 +103,9 @@ internal sealed class ScriptedHomeScreen : IHomeScreen
         StartCallCount++;
         LastStageStarted = stageId;
 
-        return Task.FromResult(_outcome);
+        return _startFault is { } fault
+            ? Task.FromException<StartRunOutcome>(fault)
+            : Task.FromResult(_outcome);
     }
 
     private static class Outcomes

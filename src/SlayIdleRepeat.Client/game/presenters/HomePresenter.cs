@@ -202,12 +202,23 @@ public sealed class HomePresenter
     /// <summary>What a tile's text is when there is no value behind it — blank, never a zero.</summary>
     private const string NoValue = "";
 
-    private readonly IGameHost _gameHost;
+    /// <summary>
+    /// The collaborators the header's own read needs, or <c>null</c> when this presenter was built
+    /// over the launch block's seam alone.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>One nullable field rather than five fields assigned <c>null!</c>.</b> The narrow
+    /// constructor genuinely has no host, no clock, no power source and no player to name, and
+    /// writing five null-forgiving assignments would state the opposite — the compiler would stop
+    /// asking, and <see cref="StartAsync"/> would answer
+    /// <see cref="HomeContinueDecision.ReadUnavailable"/> off the back of a
+    /// <c>NullReferenceException</c>, which says the read failed when there was never a read to
+    /// make. Absent as a whole, the absence is checked once and the contract this class documents —
+    /// a hub answers <see cref="HomeContinueDecision.NotYetRead"/> for ever — is the one it keeps.
+    /// </remarks>
+    private readonly HeaderReads? _header;
+
     private readonly LocaleStringCatalogue _strings;
-    private readonly ContentSnapshot _content;
-    private readonly IClockPort _clock;
-    private readonly IHeroPowerSource _power;
-    private readonly PlayerId _player;
     private readonly IReadOnlyList<ChapterDocument> _chapters;
 
     /// <summary>Builds the screen over the host, the strings and the profile boot opened.</summary>
@@ -240,12 +251,8 @@ public sealed class HomePresenter
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(power);
 
-        _gameHost = gameHost;
+        _header = new HeaderReads(gameHost, content, clock, power, player);
         _strings = strings;
-        _content = content;
-        _clock = clock;
-        _power = power;
-        _player = player;
         _chapters = ChapterDocuments.Read(content, strings);
 
         // 🔒 The launch block's seam is a projection over the five collaborators this constructor
@@ -456,14 +463,23 @@ public sealed class HomePresenter
     /// <param name="ct">Cancellation.</param>
     public async Task StartAsync(CancellationToken ct)
     {
+        // A presenter built over the launch block's seam alone has no host to read: it stays at
+        // NotYetRead, which is what its own constructor's remarks say it does. Answering
+        // ReadUnavailable here would report a read that failed when none was ever attempted.
+        if (_header is not { } header)
+        {
+            return;
+        }
+
         try
         {
             // Awaited inside the guard rather than merely called inside it: a real host's read is an
             // async method, so its failure arrives as a faulted task and a try around the call alone
             // would never see it.
-            var state = await _gameHost.ReadOwnStateAsync(_player, run: null, ct).ConfigureAwait(false);
+            var state = await header.GameHost
+                .ReadOwnStateAsync(header.Player, run: null, ct).ConfigureAwait(false);
 
-            Settle(state);
+            Settle(header, state);
         }
         catch (Exception failure)
         {
@@ -472,7 +488,7 @@ public sealed class HomePresenter
         }
     }
 
-    private void Settle(OwnStateResult state)
+    private void Settle(HeaderReads header, OwnStateResult state)
     {
         // Every read starts from "nothing to continue": this screen is re-read when a run ends, and
         // a run panel left standing from the previous read would draw a finished run under START.
@@ -499,23 +515,23 @@ public sealed class HomePresenter
             // offered to resume this one sent the player into a screen where every control is
             // refused and none of them goes back: the perk draft has Pick, Reroll and Skip, all
             // three are run commands, and closing the game returns to this same offer. `16` D70.
-            if (RunExpiry.HasLapsed(open, _clock.UtcNow, _content))
+            if (RunExpiry.HasLapsed(open, header.Clock.UtcNow, header.Content))
             {
                 Decision = HomeContinueDecision.RunLapsed;
-                ReadPower(view.Player, run: null);
+                ReadPower(header, view.Player, run: null);
                 return;
             }
 
             Decision = HomeContinueDecision.ContinueRun;
             ContinuableRun = open.Id;
             RunGold = open.Gold;
-            RunProgress = ChapterProgressReadout.RunProgress(open, _content, _chapters);
-            ReadPower(view.Player, open);
+            RunProgress = ChapterProgressReadout.RunProgress(open, header.Content, _chapters);
+            ReadPower(header, view.Player, open);
             return;
         }
 
         Decision = HomeContinueDecision.StartNewRun;
-        ReadPower(view.Player, run: null);
+        ReadPower(header, view.Player, run: null);
     }
 
     private void Carry(PlayerSnapshot player)
@@ -534,9 +550,9 @@ public sealed class HomePresenter
     /// the between-runs hero when there is nothing to continue. A lapsed run counts as nothing to
     /// continue, so its drafted perks are left out: nobody will stand on that board again.
     /// </summary>
-    private void ReadPower(PlayerSnapshot player, RunSnapshot? run)
+    private void ReadPower(HeaderReads header, PlayerSnapshot player, RunSnapshot? run)
     {
-        var reading = _power.Read(player, run);
+        var reading = header.Power.Read(player, run);
 
         PowerStanding = reading.Standing;
 
@@ -638,11 +654,8 @@ public sealed class HomePresenter
         ArgumentNullException.ThrowIfNull(strings);
 
         _screen = screen;
-        _gameHost = null!;
+        _header = null;
         _strings = strings;
-        _content = content!;
-        _clock = null!;
-        _power = null!;
         _chapters = content is null ? [] : ChapterDocuments.Read(content, strings);
     }
 
@@ -723,9 +736,19 @@ public sealed class HomePresenter
     /// </remarks>
     public long HubCrowns => _view?.Crowns ?? 0L;
 
-    /// <summary>How the Crowns pill writes an amount — abbreviated above ten thousand.</summary>
+    /// <summary>
+    /// How the Crowns pill writes an amount — abbreviated above ten thousand, and in full while a
+    /// finger is holding it.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The one pill on this screen whose figure is shortened, so the one the long press has
+    /// anything to reveal: the Energy pill already reads <c>bar/max</c> in full and the Power pill is
+    /// thousands-separated rather than abbreviated. Written through
+    /// <see cref="FullValuesRevealed"/> rather than around it, so the reveal is one state for the
+    /// whole screen and not a second rule per pill.
+    /// </remarks>
     /// <param name="crowns">The amount, which mid-count-up is not yet the settled one.</param>
-    public string CrownsPillTextFor(long crowns) => PlayerNumber.Abbreviated(crowns);
+    public string CrownsPillTextFor(long crowns) => Number(crowns);
 
     /// <summary>The Crowns pill's value, settled. Never captioned.</summary>
     public string CrownsPillText => _view is null ? NoValue : CrownsPillTextFor(HubCrowns);
@@ -904,6 +927,22 @@ public sealed class HomePresenter
         {
             return await _screen.StartRunAsync(stage, ct).ConfigureAwait(false);
         }
+        catch (Exception failure)
+        {
+            // 🔴 <b>A press that faulted has to say so.</b> The seam RAISES a refusal it has no
+            // sentence for — a run opened on another device, or a stage this screen last read before
+            // the ladder moved — and every one of them arrives here. Left to propagate, the scene
+            // logs it and returns, and the button keeps the word it already had: a primary action
+            // that was pressed, did nothing, and offers nothing to press next. Settled into the
+            // failure state instead, the block says what failed and its button becomes Retry, which
+            // is the one state on this screen that can get the player out of it.
+            _view = null;
+            PowerRose = false;
+            LaunchState = HomeLaunchState.PresenterFailure;
+            FailureLine = $"{failure.GetType().Name}: {failure.Message}";
+
+            return null;
+        }
         finally
         {
             _startInFlight = false;
@@ -935,4 +974,17 @@ public sealed class HomePresenter
                 ? HomeLaunchState.Underpowered
                 : HomeLaunchState.Ready;
     }
+
+    /// <summary>Everything the header's own read needs, held together so its absence is one fact.</summary>
+    /// <param name="GameHost">The seam the player's own state is read through.</param>
+    /// <param name="Content">The loaded content set the run window and the chapter names come from.</param>
+    /// <param name="Clock">The one sanctioned reading of now.</param>
+    /// <param name="Power">Where the power tile's number comes from.</param>
+    /// <param name="Player">The profile this screen is about.</param>
+    private sealed record HeaderReads(
+        IGameHost GameHost,
+        ContentSnapshot Content,
+        IClockPort Clock,
+        IHeroPowerSource Power,
+        PlayerId Player);
 }

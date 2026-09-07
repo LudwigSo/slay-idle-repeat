@@ -63,6 +63,15 @@ public partial class Boot : Node3D
     /// <summary>What a field reports when this build composed no such stage, or it produced nothing.</summary>
     private const string StageWasNotComposed = "none";
 
+    /// <summary>The one line a launch's game-day open is read off, beside the boot's own.</summary>
+    private const string GameDayMarker = "SIR_GAME_DAY";
+
+    /// <summary>What the day-open line prints where a refusal would have gone.</summary>
+    private const string DayWasNotRefused = "none";
+
+    /// <summary>…and where a fault would have.</summary>
+    private const string DayDidNotFault = "none";
+
     private const string SafeAreaPath = "%SafeArea";
     private const string TitleLabelPath = "%TitleLabel";
     private const string StatusLabelPath = "%StatusLabel";
@@ -152,15 +161,6 @@ public partial class Boot : Node3D
     /// stored state and nothing this screen carries forward.
     /// </para>
     /// </remarks>
-    /// <summary>The one line a launch's game-day open is read off, beside the boot's own.</summary>
-    private const string GameDayMarker = "SIR_GAME_DAY";
-
-    /// <summary>What the day-open line prints where a refusal would have gone.</summary>
-    private const string DayWasNotRefused = "none";
-
-    /// <summary>…and where a fault would have.</summary>
-    private const string DayDidNotFault = "none";
-
     private async Task RunAsync()
     {
         try

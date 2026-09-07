@@ -4,6 +4,7 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
+
 /// <summary>
 /// The real source: the rules' own hero, measured by the rules' own calculator, over the loaded
 /// content set.

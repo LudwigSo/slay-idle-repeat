@@ -365,6 +365,9 @@ public partial class Home : Node3D
         _crownsPill.ResourceTapped += OnResourceTapped;
         _energyPill.ResourceTapped += OnResourceTapped;
         _powerPill.ResourceTapped += OnResourceTapped;
+        _crownsPill.Held += OnPillHeld;
+        _energyPill.Held += OnPillHeld;
+        _powerPill.Held += OnPillHeld;
         _tabBar.TabSelected += OnTabSelected;
 
         // Claims the viewport for this screen's own camera and puts its overlay up. Every screen
@@ -398,8 +401,14 @@ public partial class Home : Node3D
             if (pill is not null && IsInstanceValid(pill))
             {
                 pill.ResourceTapped -= OnResourceTapped;
+                pill.Held -= OnPillHeld;
             }
         }
+
+        // The presenter outlives this node — it is the composition root's, and Resume brings the
+        // screen back over the same one. A reveal left standing would come back with the figures a
+        // finger once held for and nobody holding anything.
+        _presenter?.ConcealFullValues();
 
         if (_tabBar is not null && IsInstanceValid(_tabBar))
         {
@@ -723,6 +732,12 @@ public partial class Home : Node3D
 
             if (outcome is null)
             {
+                // A press that started nothing may still have MOVED the block: the seam raises a
+                // refusal it has no sentence for — a run opened on another device, most plainly —
+                // and the presenter settles into its failure state for it. Returning without
+                // redrawing would leave the button reading Start with nothing behind it.
+                Render();
+
                 return;
             }
 
@@ -755,6 +770,32 @@ public partial class Home : Node3D
 
     private void OnResourceTapped(HudIcon resource) =>
         Stub("resource_sheet_" + resource.ToString().ToLowerInvariant());
+
+    /// <summary>A pill held down shows the screen's figures in full; letting go shortens them again.</summary>
+    /// <remarks>
+    /// 🔒 One state for all three pills, not one per pill: the gesture asks "how many, exactly?"
+    /// of the whole screen, and the presenter answers it once. Which form each number then takes is
+    /// the presenter's rule, so what this file forwards is the single fact the engine event carries.
+    /// </remarks>
+    /// <param name="held">Whether a finger is holding a pill.</param>
+    private void OnPillHeld(bool held)
+    {
+        if (_presenter is not { } presenter)
+        {
+            return;
+        }
+
+        if (held)
+        {
+            presenter.RevealFullValues();
+        }
+        else
+        {
+            presenter.ConcealFullValues();
+        }
+
+        Render();
+    }
 
     /// <remarks>
     /// The tab this screen already IS goes nowhere on purpose — a navigation control that reloads

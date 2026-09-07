@@ -1288,16 +1288,28 @@ public sealed class HomePresenterTests
 
     /// <summary>🔒 …and it must not be able to start a run, however hard the button is pressed.</summary>
     /// <remarks>
+    /// <para>
     /// Asserted on the seam's call count rather than on the presenter's own answer: a presenter that
     /// reported <c>CanStartRun == false</c> and submitted anyway looks identical from outside, and
     /// the run would be started with the Energy taken.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The stage is the half that makes this discriminate.</b> A press is refused for three
+    /// separate reasons — a state that offers something else, a submission already outstanding, and
+    /// a campaign with no chapter to run — and the shared fixture carries no chapter, so a
+    /// presenter that had lost the state check entirely would still start nothing and this case
+    /// would still pass. It has to hold a chapter for the state to be the reason it is refused.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task Pressing_start_without_the_energy_for_it_starts_nothing()
     {
         var screen = ScriptedHomeScreen.Answering(
             ScriptedHomeScreen.ViewModel(
-                energy: 0, energyCost: RunCost, energyShortfall: RunCost));
+                energy: 0, energyCost: RunCost, energyShortfall: RunCost) with
+            {
+                NextStageId = OfferedChapter,
+            });
         var presenter = new HomePresenter(screen, ScreenContent.Catalogue());
 
         await presenter.LoadAsync(CancellationToken.None);
@@ -1424,6 +1436,17 @@ public sealed class HomePresenterTests
     private const int RunCost = 20;
 
     private const string ReadFailureDetail = "the home view model could not be projected";
+
+    /// <summary>
+    /// The chapter a fixture offers when the case is about whether a press is refused for the
+    /// launch STATE.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A press is refused for three reasons and the shared view model carries no chapter, so a
+    /// case that leaves it absent is refused before the state is ever consulted — and would pass
+    /// against a presenter with no state check at all.
+    /// </remarks>
+    private const int OfferedChapter = 7;
 
     private static HomeViewModel Ready() =>
         ScriptedHomeScreen.ViewModel(energy: RunCost * 2, energyCost: RunCost);

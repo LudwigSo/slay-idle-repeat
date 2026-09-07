@@ -56,6 +56,9 @@ public partial class ResourcePill : Button
     /// <summary>How long the gain accent stays on a value that rose.</summary>
     [Export] public double GainFlashSeconds { get; set; } = 0.6;
 
+    /// <summary>How long a press is held before it counts as a hold rather than a tap.</summary>
+    [Export] public double LongPressSeconds { get; set; } = 0.4;
+
     /// <summary>Raised when the pill is tapped, naming the resource it is about.</summary>
     /// <remarks>
     /// The pill knows which resource it is and nothing about what that resource's sheet looks like.
@@ -63,11 +66,39 @@ public partial class ResourcePill : Button
     /// </remarks>
     public event Action<HudIcon>? ResourceTapped;
 
+    /// <summary>Raised <c>true</c> when a press becomes a hold, and <c>false</c> when that hold ends.</summary>
+    /// <remarks>
+    /// 🔒 <b>Only the gesture is here.</b> What a hold MEANS to a number — that it is written in
+    /// full rather than shortened — is <see cref="HomePresenter.FullValuesRevealed"/>'s answer, and
+    /// it is one state for the whole screen rather than one per pill, because the gesture asks "how
+    /// many, exactly?" of all of them. This half owns the single fact an engine event carries:
+    /// whether the finger is still down.
+    /// </remarks>
+    public event Action<bool>? Held;
+
     private TextureRect? _icon;
     private Label? _value;
     private Label? _caption;
     private Tween? _countUp;
     private Tween? _flash;
+
+    /// <summary>Whether a finger is currently down on this pill.</summary>
+    private bool _down;
+
+    /// <summary>Whether that press has already been reported as a hold.</summary>
+    private bool _holding;
+
+    /// <summary>
+    /// Whether the release that just happened ended a hold.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The engine emits <c>button_up</c> and then <c>pressed</c> for one release, so a hold
+    /// that ends over the control would also open the resource sheet under the finger that was
+    /// reading the exact figure — two answers to one gesture. Cleared on the next press down as
+    /// well as when it is spent, so a release that lands off the control cannot swallow the tap
+    /// after it.
+    /// </remarks>
+    private bool _releaseEndedAHold;
 
     /// <summary>How the amount is written. The presenter's rule, never this file's.</summary>
     private Func<long, string> _format = PlayerNumber.Full;
@@ -92,12 +123,35 @@ public partial class ResourcePill : Button
         _icon.Texture = GD.Load<Texture2D>(IconCatalogue.PathOf(Glyph));
 
         Pressed += OnPressed;
+        ButtonDown += OnDown;
+        ButtonUp += OnUp;
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// 🔒 <b>Hiding the screen ends the hold.</b> A pill held while another finger taps Start
+    /// hands the screen over, and a hidden control never receives the release the gesture is waiting
+    /// for — so the finger-down and the revealed figures would both survive the handover and come
+    /// back with nobody holding anything. The visibility change is the one event that does arrive.
+    /// </remarks>
+    public override void _Notification(int what)
+    {
+        base._Notification(what);
+
+        if (what == NotificationVisibilityChanged && _down && !IsVisibleInTree())
+        {
+            EndPress();
+        }
     }
 
     /// <inheritdoc/>
     public override void _ExitTree()
     {
         Pressed -= OnPressed;
+        ButtonDown -= OnDown;
+        ButtonUp -= OnUp;
+
+        EndPress();
 
         Stop(ref _countUp);
         Stop(ref _flash);
@@ -186,7 +240,72 @@ public partial class ResourcePill : Button
         }
     }
 
-    private void OnPressed() => ResourceTapped?.Invoke(Glyph);
+    private void OnPressed()
+    {
+        if (_releaseEndedAHold)
+        {
+            _releaseEndedAHold = false;
+
+            return;
+        }
+
+        ResourceTapped?.Invoke(Glyph);
+    }
+
+    private void OnDown()
+    {
+        _down = true;
+        _releaseEndedAHold = false;
+
+        // The tree's timer rather than a node of this pill's own: it is one shot, it is created on
+        // the press and it is gone after it, so a timer node would be a permanent child kept for a
+        // gesture most players never make.
+        var hold = GetTree()?.CreateTimer(LongPressSeconds);
+
+        if (hold is null)
+        {
+            return;
+        }
+
+        hold.Timeout += OnHoldElapsed;
+    }
+
+    private void OnUp()
+    {
+        _releaseEndedAHold = _holding;
+
+        EndPress();
+    }
+
+    /// <remarks>
+    /// The flag is read FIRST, and it is cleared on teardown and on a hide as well as on release:
+    /// this timer belongs to the tree and fires whether or not the pill that asked for it is still
+    /// there, or still the one being pressed.
+    /// </remarks>
+    private void OnHoldElapsed()
+    {
+        if (!_down || _holding || !IsInstanceValid(this))
+        {
+            return;
+        }
+
+        _holding = true;
+        Held?.Invoke(true);
+    }
+
+    /// <summary>Ends the press, and the hold with it when the press had become one.</summary>
+    private void EndPress()
+    {
+        _down = false;
+
+        if (!_holding)
+        {
+            return;
+        }
+
+        _holding = false;
+        Held?.Invoke(false);
+    }
 
     private static void Stop(ref Tween? tween)
     {

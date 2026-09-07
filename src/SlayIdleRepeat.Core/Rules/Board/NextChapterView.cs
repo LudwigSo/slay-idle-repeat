@@ -56,8 +56,9 @@ public sealed record NextChapterView(int ChapterId, double RecommendedPower)
     /// <para>
     /// 🔒 <b>Absent rather than approximated in both of the two ways this can run out</b> (steering
     /// S6): a player who has cleared every authored chapter is pointed at nothing, and a chapter the
-    /// par table authors no cell for is passed over rather than extrapolated — extrapolating would
-    /// invent the balance point of a chapter nobody has tuned, which is exactly what
+    /// par table authors no cell for is answered as no chapter at all rather than extrapolated —
+    /// nor is it skipped for a LATER one, which would offer a chapter the ladder has not opened.
+    /// Extrapolating would invent the balance point of a chapter nobody has tuned, which is what
     /// <see cref="ParPowerTuning.ChapterPowerTarget"/> refuses to do.
     /// </para>
     /// </remarks>

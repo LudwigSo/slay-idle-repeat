@@ -217,7 +217,7 @@ internal static class StartRun
             return HandlerResult.Reject(RejectionReason.LEGEND_LEVEL_TOO_LOW);
         }
 
-        // 🔒 The price of a run, charged LAST of the four gates — see this type's remarks. The banks
+        // 🔒 The price of a run, charged LAST of the five gates — see this type's remarks. The banks
         // read here are already accrued to now: GameRules.AdvanceTime regenerates before dispatch,
         // so this is what the player holds at the instant they tapped, not at their last command.
         var energyTuning = EnergyTuning.Read(input.Context.Content);

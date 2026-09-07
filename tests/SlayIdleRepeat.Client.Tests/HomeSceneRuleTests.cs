@@ -224,13 +224,37 @@ public sealed class HomeSceneRuleTests
         RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
-    /// <summary>Every script this screen is drawn by. A colour literal in any of them is the finding.</summary>
+    /// <summary>
+    /// Every script this screen is drawn by. A colour literal in any of them is the finding.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The set is the rule's whole reach, so a script left out of it is a script the rule
+    /// cannot see</b> (steering S3). <c>ResourcePill</c> and <c>TabBar</c> arrived with the run hub
+    /// and drew the top bar and the tab strip for a whole review cycle from outside this list — both
+    /// of them controls whose entire job is to be COLOURED, and either could have carried the
+    /// reference's ember or jade with nothing to say so. The floor below moves with this array on
+    /// purpose: adding a file without raising it is what let the omission be invisible.
+    /// </remarks>
     private static readonly string[] HomeScripts =
     [
         "src/SlayIdleRepeat.Client/game/scenes/Home.cs",
+        "src/SlayIdleRepeat.Client/game/scenes/ResourcePill.cs",
+        "src/SlayIdleRepeat.Client/game/scenes/TabBar.cs",
         "src/SlayIdleRepeat.Client/game/presenters/HomePresenter.cs",
         "src/SlayIdleRepeat.Client/game/presenters/HomeLayout.cs",
     ];
+
+    /// <summary>
+    /// How many scripts the two rules below must be stated over.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b><c>HomeAccents.cs</c> is deliberately NOT among them, and the reason is the rule's own
+    /// blunt edge:</b> it exists to hold the theme lookup, and <c>GetThemeColor(</c> contains the
+    /// literal text <c>Color(</c> that the first spelling scans for. It decides no colour — it names
+    /// a role and hands back whatever the theme says — so including it would fail the rule for the
+    /// one file written to keep every other one clean.
+    /// </remarks>
+    private const int HomeScriptFloor = 5;
 
     /// <summary>
     /// 🔒 Five tabs, exactly the five, and no sixth.
@@ -283,7 +307,9 @@ public sealed class HomeSceneRuleTests
     public void No_home_script_writes_a_colour_of_its_own(string spelling)
     {
         HomeScripts.Length.ShouldBe(
-            3, "a floor: the rule below is stated over the scripts this screen is really drawn by.");
+            HomeScriptFloor,
+            "a floor: the rule below is stated over the scripts this screen is really drawn by, and " +
+            "a screen that grew a control without growing this list is a control nothing scans.");
 
         HomeScripts.ShouldAllBe(
             path => !SceneText.Read(path).Contains(spelling, StringComparison.Ordinal),
@@ -305,7 +331,9 @@ public sealed class HomeSceneRuleTests
     public void No_home_script_writes_a_colour_as_a_hex_string()
     {
         HomeScripts.Length.ShouldBe(
-            3, "a floor: the rule below is stated over the scripts this screen is really drawn by.");
+            HomeScriptFloor,
+            "a floor: the rule below is stated over the scripts this screen is really drawn by, and " +
+            "a screen that grew a control without growing this list is a control nothing scans.");
 
         HomeScripts.ShouldAllBe(
             path => !HexColour.IsMatch(SceneText.Read(path)),
