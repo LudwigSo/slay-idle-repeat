@@ -1,7 +1,6 @@
 using System.Globalization;
 using Godot;
 using SlayIdleRepeat.Client.Composition;
-using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -219,7 +218,9 @@ public partial class Boot : Node3D
     /// 🔒 <b>The composition root is where this belongs.</b> It is a command, not a presenter's
     /// read; it is sent once per launch rather than once per screen; and it carries the content hash,
     /// which only the root knows the real value of. A presenter sending it would send it again on
-    /// every screen that composed one.
+    /// every screen that composed one. The opener itself is assembled by
+    /// <c>BootComposition.CreateGameDayOpener</c> and not here: this scene renders and forwards, and
+    /// naming a host, a build version and a content hash is composition wherever it is written.
     /// </para>
     /// </remarks>
     /// <param name="player">The profile the boot opened.</param>
@@ -230,10 +231,7 @@ public partial class Boot : Node3D
             return;
         }
 
-        var opener = new GameDayOpener(
-            composed.Client.GameHost,
-            composed.Capabilities.PlatformInfo.AppVersion,
-            composed.Client.Content.Current.Version);
+        var opener = BootComposition.CreateGameDayOpener(composed);
 
         await opener.OpenAsync(player, _lifetime);
 

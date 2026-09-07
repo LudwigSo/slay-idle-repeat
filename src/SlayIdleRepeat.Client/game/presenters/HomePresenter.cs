@@ -82,6 +82,53 @@ public enum HomeLaunchState
     PresenterFailure = 5,
 }
 
+/// <summary>What one press of the screen's single primary button actually does.</summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>This is where the screen's TWO state models meet, and it exists because that meeting is a
+/// rule.</b> <see cref="HomeContinueDecision"/> answers <em>what is there to go back to</em> — a
+/// question about the stored profile and the run under it. <see cref="HomeLaunchState"/> answers
+/// <em>what shape is the launch block in</em> — a question about the hub's view model, the price of
+/// a run and the hero's power. Neither derives from the other and neither is redundant: a player
+/// mid-run has a launch state, and a player with no run still has a decision.
+/// </para>
+/// <para>
+/// 🔴 <b>But one button cannot be in two states, so something has to say which model wins, and that
+/// something used to be <c>Home.cs</c> — a <c>Node</c>, which this repository has no tier that can
+/// test.</b> The scene read <c>Decision == ContinueRun</c> and, off the back of it, overrode the
+/// button's word, its colour, its badge and what a press did. That is a decision about the screen,
+/// not a rendering of one, and Rule A10 puts it here. Stated once, in one enum, it is a fact the
+/// suite can hold and a reader can find; four separate overrides in a scene were neither.
+/// </para>
+/// <para>
+/// The precedence is: <b>an open run wins over everything.</b> A launch block that is loading, out
+/// of Energy or reporting a failed read still must not offer to throw away a board the player is
+/// standing on — the run is the thing with progress in it, and START_RUN is what destroys it.
+/// </para>
+/// </remarks>
+public enum HomePrimaryAction
+{
+    /// <summary>
+    /// Nothing yet — the hub's read is still out. The button is on the page and disabled, never
+    /// hidden: a primary action that vanishes reads as a screen that lost its purpose.
+    /// </summary>
+    Wait = 1,
+
+    /// <summary>
+    /// Go back to the run that is already open. <see cref="HomePresenter.ContinuableRun"/> names it.
+    /// </summary>
+    Resume = 2,
+
+    /// <summary>Submit a <c>START_RUN</c> for the chapter the campaign offers next.</summary>
+    StartRun = 3,
+
+    /// <summary>Open the sheet that sells Energy — the two banks cannot pay for a run.</summary>
+    OfferRefill = 4,
+
+    /// <summary>Read again. The one action that gets a player off a screen whose read faulted.</summary>
+    Retry = 5,
+}
+
 /// <summary>The three entries the hero band's side rail reaches.</summary>
 /// <remarks>
 /// ⚠️ Named rather than counted. The reference draws a numeric badge on two of them, and nothing in
@@ -144,9 +191,8 @@ public sealed record HomeCostBadge(HomeCostBadgeKind Kind, int Amount);
 
 
 /// <summary>
-/// Drives the Home screen: the header and HUD tiles the profile carries, the run panel when there is
-/// a run to go back to, and the one decision the screen exists to make — start a run, or resume the
-/// one already open.
+/// Drives the Home screen: the profile's own readouts, the run hub's launch block, and the one
+/// decision the screen exists to make — start a run, or resume the one already open.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -155,15 +201,26 @@ public sealed record HomeCostBadge(HomeCostBadgeKind Kind, int Amount);
 /// composition root below decides what the collaborators actually are.
 /// </para>
 /// <para>
+/// 🔒 <b>TWO state models live here, they answer different questions, and the file is laid out in
+/// the three sections that say so.</b> <see cref="HomeContinueDecision"/> and the readouts under it
+/// are settled by <see cref="StartAsync"/> from the profile's own row — <em>what is there to go back
+/// to</em>. <see cref="HomeLaunchState"/> and the hub's pills, tabs and stage card are settled by
+/// <see cref="LoadAsync"/> from <see cref="IHomeScreen"/>'s view model — <em>what shape is the
+/// launch block in</em>. Where the two meet is <see cref="PrimaryAction"/> and the four members
+/// beside it, in the last section, and that meeting is a rule rather than a rendering:
+/// <see cref="HomePrimaryAction"/>'s own remarks carry the argument. Use
+/// <see cref="RefreshAsync"/> rather than the two reads separately, so the models a single frame is
+/// drawn from were settled from one pass over the same row.
+/// </para>
+/// <para>
 /// 🔒 <b>What is shown is carried or read through a seam; what is absent is absent on purpose.</b>
-/// The Energy amounts, the wallet balances and the run's Gold are the numbers the rows literally
-/// hold. Power is the one derived number on the screen, and it comes through
-/// <see cref="IHeroPowerSource"/> — behind which sits <c>PowerCalculator</c>, the one public rules
-/// type built for exactly this readout — so it is not a second copy of a formula either. There is
-/// still no Energy maximum, no denominator, no regeneration countdown, no Legend-XP percentage and
-/// no run Energy cost: every tuning reader that could compute one is internal to
-/// <c>SlayIdleRepeat.Core</c> and the host seam exposes no derived-value read, so a value produced
-/// here would be a copy that disagrees with the rules the first time either is tuned.
+/// The wallet balances and the run's Gold are the numbers the rows literally hold. The three derived
+/// numbers on the screen each come out of the layer that owns the arithmetic rather than out of a
+/// copy of it: power through <see cref="IHeroPowerSource"/>, behind which sits
+/// <c>PowerCalculator</c>; and the Energy maximum, the regeneration countdown and a run's price
+/// through <c>Core.Rules.Economy.HomeEnergyView</c>, the public projection over the tuning readers
+/// that are otherwise <c>internal</c> to <c>SlayIdleRepeat.Core</c>. ⚠️ Still absent, and still for
+/// the original reason — no route out of <c>Core</c> exists — is the Legend-XP percentage.
 /// </para>
 /// <para>
 /// ⚠️ Also absent, each because a later row owns it: daily quests, ad widgets, chest pity, event
@@ -261,6 +318,21 @@ public sealed class HomePresenter
         // over twice, and the two copies would be free to disagree about which player they are for.
         _screen = new HomeScreen(gameHost, clock, content, power, player);
     }
+
+    // ==================================================== MODEL 1 — what is there to go back to
+    //
+    // Settled by StartAsync from the profile's own row, read straight through IGameHost. Everything
+    // from here to the "run hub's launch block" divider belongs to this model, and nothing below
+    // that divider reads any of it.
+    //
+    // ⚠️ Several of these readouts fed the header tile grid and run panel the run-hub rebuild
+    // replaced with bands, so no production code renders them today — CrownsText, EnergyText,
+    // EnergyReserveText, SoulShardsText, RunGoldText, PowerText, HighestClearText, RunChapterText,
+    // RunStageText, RunHitPointsText, GearText and their captions. They are kept, not deleted:
+    // Decision, ContinuableRun, ActionText, StatusText and ProfileCarried in the same model are the
+    // resume feature, which is live and which the bands do not replace, and the readouts are the
+    // same read's other answers. Whether the rebuilt Home still owes a run panel and a progress
+    // readout is a design question and it is stated here rather than settled by a deletion.
 
     /// <summary>What the primary action does, and why.</summary>
     public HomeContinueDecision Decision { get; private set; } = HomeContinueDecision.NotYetRead;
@@ -575,7 +647,10 @@ public sealed class HomePresenter
         : throw new ArgumentOutOfRangeException(
             nameof(tier), tier, "this tier has no authored name the progress tile can spell; add its key before a row can carry it.");
 
-    // ------------------------------------------------------ the run hub's launch block
+    // ============================== MODEL 2 — what shape is the launch block in (the run hub)
+    //
+    // Settled by LoadAsync from IHomeScreen's view model. Everything from here to the third section
+    // belongs to this model, and none of it reads Decision or any readout above.
 
     private const string LaunchRefillActionKey = "loc.home.launch.refill.action";
     private const string LaunchUnderpoweredActionKey = "loc.home.launch.start_underpowered.action";
@@ -695,8 +770,11 @@ public sealed class HomePresenter
         HomeLaunchState.InsufficientEnergy =>
             new HomeCostBadge(HomeCostBadgeKind.Shortfall, _view?.EnergyShortfall ?? 0),
         HomeLaunchState.Loading => new HomeCostBadge(HomeCostBadgeKind.Placeholder, 0),
-        _ => new HomeCostBadge(HomeCostBadgeKind.None, 0),
+        _ => NoBadge,
     };
+
+    /// <summary>No badge at all: there is no price to quote because there is nothing to buy.</summary>
+    private static HomeCostBadge NoBadge { get; } = new(HomeCostBadgeKind.None, 0);
 
     /// <summary>Whether pressing the primary button starts a run.</summary>
     public bool CanStartRun =>
@@ -974,6 +1052,99 @@ public sealed class HomePresenter
                 ? HomeLaunchState.Underpowered
                 : HomeLaunchState.Ready;
     }
+
+    // ================================================ THE ONE SCREEN — where the two models meet
+    //
+    // One button, one notice line, two models. Which one wins is a rule, and HomePrimaryAction's
+    // remarks carry the argument for it living here rather than in the scene that used to hold it.
+
+    /// <summary>
+    /// Settles both models from one pass.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The screen's one entry point, and the reason is that the two reads can disagree.</b>
+    /// <see cref="StartAsync"/> and <see cref="LoadAsync"/> each read the same profile row through
+    /// the same host, and a frame drawn after only one of them shows one model's answer beside the
+    /// other's from some earlier moment. The retry a failed read offers is exactly that case: it
+    /// re-read the launch block alone, so a hub that came back green was still drawn under the
+    /// notice line the header's failed read had left standing, and the player pressed Retry on a
+    /// screen that had already succeeded.
+    /// <para>
+    /// The header first, because <see cref="LoadAsync"/> is the read that can leave the launch block
+    /// in <see cref="HomeLaunchState.PresenterFailure"/>, and a failure settled last is the one the
+    /// screen is actually in.
+    /// </para>
+    /// </remarks>
+    /// <param name="ct">Cancellation.</param>
+    public async Task RefreshAsync(CancellationToken ct)
+    {
+        await StartAsync(ct).ConfigureAwait(false);
+        await LoadAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>What one press of the primary button does.</summary>
+    /// <remarks>
+    /// 🔒 An open run outranks every launch state, including the two that offer something else: a
+    /// button that started a fresh run because the hub's read was still out would destroy a board
+    /// the player was standing on, and the two presses look identical.
+    /// </remarks>
+    public HomePrimaryAction PrimaryAction => Decision == HomeContinueDecision.ContinueRun
+        ? HomePrimaryAction.Resume
+        : LaunchState switch
+        {
+            HomeLaunchState.Ready or HomeLaunchState.Underpowered => HomePrimaryAction.StartRun,
+            HomeLaunchState.InsufficientEnergy => HomePrimaryAction.OfferRefill,
+            HomeLaunchState.PresenterFailure => HomePrimaryAction.Retry,
+            HomeLaunchState.Loading => HomePrimaryAction.Wait,
+
+            // Throws rather than waiting, for ProfileCarried's reason: a sixth launch state answered
+            // by accident would disable the only control on the screen and nothing would fail.
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(LaunchState), LaunchState,
+                "this launch state says nothing about what the primary button does. Answer it here " +
+                "— a default would decide by accident, and the accident is a dead primary action."),
+        };
+
+    /// <summary>The primary button's word for <see cref="PrimaryAction"/>, resolved.</summary>
+    public string PrimaryActionLabel => PrimaryAction == HomePrimaryAction.Resume
+        ? ActionText
+        : ActionLabel;
+
+    /// <summary>The theme accent the primary button is drawn in.</summary>
+    /// <remarks>
+    /// Resuming wears the action ember whatever the launch block would have worn: going back to a
+    /// board is the screen's ordinary business, and the energy accent means <em>this button buys
+    /// Energy</em>, which it does not.
+    /// </remarks>
+    public HomeColourRole PrimaryActionColour => PrimaryAction == HomePrimaryAction.Resume
+        ? HomeColourRole.Action
+        : ActionColour;
+
+    /// <summary>What the badge on the primary button is saying.</summary>
+    /// <remarks>
+    /// 🔒 No badge at all while resuming, rather than the price of the run that is not being
+    /// started: a figure beside Continue reads as what continuing costs, and continuing is free.
+    /// </remarks>
+    public HomeCostBadge PrimaryActionBadge => PrimaryAction == HomePrimaryAction.Resume
+        ? NoBadge
+        : CostBadge;
+
+    /// <summary>
+    /// The one sentence shown in place of a stage, or empty when there is a stage to show.
+    /// </summary>
+    /// <remarks>
+    /// Four states produce one and each has its own authored line: a read that faulted, a read that
+    /// has not answered, a profile the device has lost, and a run left alone past its window. The
+    /// launch block's own failure is asked about FIRST because it is the more recent read and it is
+    /// the one whose button offers a way out of it.
+    /// </remarks>
+    public string Notice => LaunchState == HomeLaunchState.PresenterFailure
+        ? FailureLine ?? NothingLeftToSay
+        : Decision is HomeContinueDecision.RunLapsed
+            or HomeContinueDecision.ProfileMissing
+            or HomeContinueDecision.ReadUnavailable
+            ? StatusText
+            : NothingLeftToSay;
 
     /// <summary>Everything the header's own read needs, held together so its absence is one fact.</summary>
     /// <param name="GameHost">The seam the player's own state is read through.</param>

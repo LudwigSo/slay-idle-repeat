@@ -1012,6 +1012,155 @@ public sealed class HomePresenterTests
         presenter.RunStageText.ShouldBeEmpty();
     }
 
+    // ------------------------------- the two state models meet here: one button, one notice
+
+    /// <summary>
+    /// 🔒 An open run outranks every launch state, and this case is the pair that disagree most.
+    /// </summary>
+    /// <remarks>
+    /// The two models are settled from two reads, so they can and do answer different things at
+    /// once: here the header found a run in progress and the launch block's own read faulted. Left
+    /// to the launch block, the one control on the screen would say Retry — and a player standing on
+    /// a board with perks drafted would have no way back to it. The rule lived in <c>Home.cs</c>
+    /// until Phase 5, where no case could reach it: this repository boots no <c>Node</c>.
+    /// </remarks>
+    [Fact]
+    public async Task The_primary_action_resumes_an_open_run_whatever_the_launch_block_says()
+    {
+        var presenter = Home(
+            RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.InProgress)));
+
+        await presenter.RefreshAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldBe(
+            HomeContinueDecision.ContinueRun,
+            "the precondition this case rests on: the header's read found a run to go back to.");
+        presenter.LaunchState.ShouldBe(
+            HomeLaunchState.PresenterFailure,
+            "and the second precondition, which is what makes the assertion below discriminate: the " +
+            "launch block's own read did NOT answer, so its state says Retry. A launch block that " +
+            "happened to agree with the header would prove nothing about which model wins.");
+
+        presenter.PrimaryAction.ShouldBe(
+            HomePrimaryAction.Resume,
+            "the run is the thing with progress in it. A button reading Retry — or Start — over an " +
+            "open run either strands the player or throws the board away, and the two presses look " +
+            "identical.");
+        presenter.PrimaryActionLabel.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.ContinueRunActionKey),
+            "and it says so: the word is the resume word, not the launch block's.");
+        presenter.PrimaryActionColour.ShouldBe(
+            HomeColourRole.Action,
+            "resuming wears the action ember. The quiet role a failed read would have given it reads " +
+            "as a control that does nothing.");
+        presenter.PrimaryActionBadge.Kind.ShouldBe(
+            HomeCostBadgeKind.None,
+            "and it carries no badge: a figure beside Continue reads as what continuing costs, and " +
+            "continuing is free.");
+    }
+
+    /// <summary>
+    /// 🔒 …and with nothing to resume, the launch state's own answer is the one that stands.
+    /// </summary>
+    /// <remarks>
+    /// The floor is on the five states, because the precedence is only interesting if the model it
+    /// defers to still has five different things to say (steering S3).
+    /// </remarks>
+    [Fact]
+    public async Task With_no_run_to_resume_the_primary_action_is_the_launch_states_own()
+    {
+        var presenters = await EveryState();
+
+        presenters.Length.ShouldBe(
+            LaunchStateCount,
+            "a floor: the claim below is that each launch state decides the button for itself, and " +
+            "a set that lost a state would state it over the four that were left.");
+        presenters.ShouldAllBe(
+            presenter => presenter.Decision == HomeContinueDecision.NotYetRead,
+            "the precondition: a hub presenter has no host to read, so none of these has a run to " +
+            "resume and the launch state is the only model with an answer.");
+
+        presenters.Select(presenter => presenter.PrimaryAction).ShouldBe(
+            [
+                HomePrimaryAction.StartRun,
+                HomePrimaryAction.OfferRefill,
+                HomePrimaryAction.StartRun,
+                HomePrimaryAction.Wait,
+                HomePrimaryAction.Retry,
+            ],
+            ignoreOrder: false,
+            "Ready and Underpowered both start a run — the warning is never a gate; a shortfall " +
+            "offers the refill sheet instead; a read still out does nothing and says so with a " +
+            "disabled button; and a failed read is the one state whose press gets the player out of " +
+            "it.");
+    }
+
+    /// <summary>
+    /// 🔒 The notice line prefers the launch block's own failure to the header's.
+    /// </summary>
+    /// <remarks>
+    /// Both models can produce a sentence and only one line shows it. The launch block's is the more
+    /// recent read AND the one whose button offers a way out of itself, so it is the one shown; the
+    /// header's generic unavailable line under a Retry button would name a failure nothing on the
+    /// screen could act on.
+    /// </remarks>
+    [Fact]
+    public async Task The_notice_is_the_launch_blocks_own_failure_when_the_launch_block_failed()
+    {
+        var presenter = Home(
+            RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.InProgress)));
+
+        await presenter.RefreshAsync(CancellationToken.None);
+
+        presenter.FailureLine.ShouldNotBeNullOrEmpty(
+            "the precondition: the launch block's read faulted and named what failed.");
+
+        presenter.Notice.ShouldBe(
+            presenter.FailureLine,
+            "the sentence the stage card shows in place of a stage is the one naming what actually " +
+            "went wrong.");
+    }
+
+    /// <summary>🔒 …and there is no notice at all when there is a stage to draw.</summary>
+    [Fact]
+    public async Task The_notice_is_empty_when_the_screen_has_a_stage_to_show()
+    {
+        var presenter = await LoadedHub(Ready());
+
+        presenter.LaunchState.ShouldBe(
+            HomeLaunchState.Ready,
+            "the precondition: nothing on this screen has anything to apologise for.");
+
+        presenter.Notice.ShouldBeEmpty(
+            "a notice line that is never empty is a stage card that never shows a stage: the scene " +
+            "hides the stage rows whenever this says anything at all.");
+    }
+
+    /// <summary>
+    /// 🔴 One refresh settles BOTH models, so a frame is never drawn from two different moments.
+    /// </summary>
+    /// <remarks>
+    /// The retry a failed read offers used to re-read the launch block alone, which left the
+    /// header's decision at whatever the previous pass said — so a hub that came back green was
+    /// still drawn under the notice line the header's failed read had put there.
+    /// </remarks>
+    [Fact]
+    public async Task RefreshAsync_settles_both_models_rather_than_one()
+    {
+        var presenter = Home(
+            RecordingGameHost.Finding(PlayerRow(), PlayerState.Run(OpenRun, Profile, RunPhase.InProgress)));
+
+        await presenter.RefreshAsync(CancellationToken.None);
+
+        presenter.Decision.ShouldNotBe(
+            HomeContinueDecision.NotYetRead,
+            "the header's own read did not happen, so the resume half of the screen is still " +
+            "reporting the state a freshly built presenter reports.");
+        presenter.LaunchState.ShouldNotBe(
+            HomeLaunchState.Loading,
+            "the launch block's read did not happen, so the hub half is still showing skeletons.");
+    }
+
     // ------------------------------------------------------------------------- null guards
 
     [Fact]
@@ -1451,6 +1600,9 @@ public sealed class HomePresenterTests
     /// precondition the assertion rests on is written where the assertion is.
     /// </remarks>
     private const int OfferedChapter = ScriptedHomeScreen.OfferedChapter;
+
+    /// <summary>How many launch states there are — the floor every set of all of them is stated over.</summary>
+    private const int LaunchStateCount = 5;
 
     private static HomeViewModel Ready() =>
         ScriptedHomeScreen.ViewModel(energy: RunCost * 2, energyCost: RunCost);

@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Adapters.Ambient.System;
+using SlayIdleRepeat.Client.Game.Net;
 using SlayIdleRepeat.Client.Game.Presenters;
 
 namespace SlayIdleRepeat.Client.Composition;
@@ -51,5 +52,32 @@ public static class BootComposition
             // A null skips the stage entirely, which is what keeps that arm's boot as it was.
             contentSync: composed.Client.ContentSync,
             session: composed.Client.Session);
+    }
+
+    /// <summary>
+    /// Wires the launch's game-day open — the one <c>BEGIN_SESSION</c> a launch sends.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Here rather than in the boot scene, for the reason every other collaborator on this
+    /// screen is here.</b> A scene renders and forwards input; naming the host, the platform's build
+    /// version and the loaded content set's hash is composition, and a scene that assembled its own
+    /// collaborator out of the graph would be the one place in the client that did. Its sibling in
+    /// <c>game/net/</c>, <c>SessionOpener</c>, is composed in <see cref="ClientComposition"/> for the
+    /// same reason.
+    /// </remarks>
+    /// <param name="composed">The graph the application root built and holds.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="composed"/> is null.</exception>
+    public static GameDayOpener CreateGameDayOpener(ComposedGodotClient composed)
+    {
+        ArgumentNullException.ThrowIfNull(composed);
+
+        return new GameDayOpener(
+            composed.Client.GameHost,
+            composed.Capabilities.PlatformInfo.AppVersion,
+
+            // The version of the content set this client actually LOADED, never the one it was
+            // built against: BEGIN_SESSION is the one command carrying a content hash, and the
+            // composition root is the only place that knows the real value.
+            composed.Client.Content.Current.Version);
     }
 }

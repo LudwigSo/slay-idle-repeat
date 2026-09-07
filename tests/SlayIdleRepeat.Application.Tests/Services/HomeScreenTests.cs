@@ -234,6 +234,58 @@ public sealed class HomeScreenTests
         view.Power.ShouldBeNull();
     }
 
+    /// <summary>
+    /// 🔒 A reading cannot carry a number beside an absence, and the TYPE is what refuses it.
+    /// </summary>
+    /// <remarks>
+    /// <c>HeroPowerReading</c> says "the index when — and only when — one was computed", and two
+    /// callers depend on that sentence differently: <c>HomeScreen</c> takes <c>PowerIndex</c>
+    /// without consulting the standing at all, while <c>HomePresenter.ReadPower</c> guards on it.
+    /// While the invariant was upheld only by the implementations and a test fake, a source that
+    /// broke it would have put a stale power on one of the two screens and an absence on the other,
+    /// and neither reader could have been called wrong. Stated on the type, both are right by
+    /// construction.
+    /// </remarks>
+    /// <param name="standing">Each of the four standings that means no reading was taken.</param>
+    [Theory]
+    [InlineData(HeroPowerStanding.BuildNotAggregable)]
+    [InlineData(HeroPowerStanding.RowNotRehydratable)]
+    [InlineData(HeroPowerStanding.LegendLevelOutsideCurve)]
+    [InlineData(HeroPowerStanding.ContentUnavailable)]
+    public void A_reading_that_took_no_measurement_refuses_to_carry_a_number(HeroPowerStanding standing) =>
+        Should.Throw<ArgumentException>(() => new HeroPowerReading(standing, HomeWorlds.DefaultPowerIndex))
+              .ParamName.ShouldBe(
+                  "PowerIndex",
+                  "a number beside an absence is drawn on the pill as a power the source never " +
+                  "measured, and the screen that reads the index without the standing cannot tell.");
+
+    /// <summary>…and a computed reading cannot carry nothing, which is the same defect inverted.</summary>
+    /// <remarks>
+    /// Both arms are needed and neither implies the other: a rule stated only over the absences
+    /// would let <c>Computed</c> with no index through, and that is a screen reporting a hero it did
+    /// not measure — to the reader that trusts the standing rather than the number.
+    /// </remarks>
+    [Fact]
+    public void A_computed_reading_refuses_to_carry_no_number() =>
+        Should.Throw<ArgumentException>(
+                  () => new HeroPowerReading(HeroPowerStanding.Computed, PowerIndex: null))
+              .ParamName.ShouldBe("PowerIndex");
+
+    /// <summary>The two shapes a reading legitimately takes are both still constructible.</summary>
+    /// <remarks>
+    /// A negative control on the two rules above: a guard that refused every reading would satisfy
+    /// both of them and take the power pill off the screen entirely.
+    /// </remarks>
+    [Fact]
+    public void The_two_readings_a_source_can_legitimately_take_are_both_accepted()
+    {
+        new HeroPowerReading(HeroPowerStanding.Computed, HomeWorlds.DefaultPowerIndex).PowerIndex
+            .ShouldBe(HomeWorlds.DefaultPowerIndex);
+
+        new HeroPowerReading(HeroPowerStanding.ContentUnavailable, PowerIndex: null).PowerIndex
+            .ShouldBeNull();
+    }
+
     // ------------------------------------------------------------------- the three outcomes
 
     /// <summary>A start that the rules accept reports the run it started.</summary>

@@ -440,8 +440,7 @@ public partial class Home : Node3D
 
             // No ConfigureAwait(false): the continuation writes to nodes, and only the thread the
             // engine runs the scene tree on may do that.
-            await presenter.StartAsync(_lifetime);
-            await presenter.LoadAsync(_lifetime);
+            await presenter.RefreshAsync(_lifetime);
             await picker.StartAsync(_lifetime);
 
             Render();
@@ -453,7 +452,15 @@ public partial class Home : Node3D
         }
     }
 
-    /// <summary>Re-reads the launch block alone, for the retry a failed read offers.</summary>
+    /// <summary>
+    /// Re-reads the screen, for the retry a failed read offers and for a run that has just ended.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Both models, never one.</b> This used to re-read the launch block alone, which left the
+    /// header's decision at whatever the last pass said: a Retry that succeeded came back under the
+    /// notice line the header's failed read had put there, and a run that had just ended came back
+    /// still offering to resume it.
+    /// </remarks>
     private async Task ReloadAsync()
     {
         try
@@ -463,7 +470,7 @@ public partial class Home : Node3D
                 return;
             }
 
-            await presenter.LoadAsync(_lifetime);
+            await presenter.RefreshAsync(_lifetime);
 
             Render();
         }
@@ -585,8 +592,7 @@ public partial class Home : Node3D
     /// </remarks>
     private void RenderLaunch(HomePresenter presenter)
     {
-        var continuing = presenter.Decision == HomeContinueDecision.ContinueRun;
-        var notice = NoticeFor(presenter);
+        var notice = presenter.Notice;
         var sayingSomethingWentWrong = notice.Length > 0;
 
         Write(_noticeLabel, notice);
@@ -606,43 +612,21 @@ public partial class Home : Node3D
                 : StageCardVariation;
         }
 
-        // A run already open is the one thing this screen offers ahead of a new one, so the button
-        // is its word and its colour: throwing a drafted board away is not what the ember is for.
-        Write(_startButton, continuing ? presenter.ActionText : presenter.ActionLabel);
-        Write(_costBadge, continuing ? "" : BadgeText(presenter.CostBadge));
+        // 🔒 Which of the two state models the button answers to is the PRESENTER's rule, not this
+        // scene's: a run already open outranks every launch state, and the argument for it lives on
+        // HomePrimaryAction where a test can hold it. This half only draws what it was told.
+        Write(_startButton, presenter.PrimaryActionLabel);
+        Write(_costBadge, BadgeText(presenter.PrimaryActionBadge));
 
         if (_startButton is not null && IsInstanceValid(_startButton))
         {
-            _startButton.ThemeTypeVariation = VariationFor(
-                continuing ? HomeColourRole.Action : presenter.ActionColour);
+            _startButton.ThemeTypeVariation = VariationFor(presenter.PrimaryActionColour);
 
             // Disabled rather than hidden while the read is still out: a primary action that
             // vanishes reads as a screen that lost its purpose, while a disabled one reads as a
             // screen waiting, which is what it is.
-            _startButton.Disabled = !continuing && presenter.LaunchState == HomeLaunchState.Loading;
+            _startButton.Disabled = presenter.PrimaryAction == HomePrimaryAction.Wait;
         }
-    }
-
-    /// <summary>
-    /// The one sentence the stage card shows in place of a stage, or empty when there is a stage.
-    /// </summary>
-    /// <remarks>
-    /// Four states can produce one, and each has its own authored line: a read that did not answer,
-    /// a profile the device has lost, a read that faulted, and a run left alone past its window.
-    /// None of them is a stage, and none of them may be drawn as one.
-    /// </remarks>
-    private static string NoticeFor(HomePresenter presenter)
-    {
-        if (presenter.LaunchState == HomeLaunchState.PresenterFailure)
-        {
-            return presenter.FailureLine ?? "";
-        }
-
-        return presenter.Decision is HomeContinueDecision.RunLapsed
-            or HomeContinueDecision.ProfileMissing
-            or HomeContinueDecision.ReadUnavailable
-            ? presenter.StatusText
-            : "";
     }
 
     /// <summary>
@@ -680,32 +664,28 @@ public partial class Home : Node3D
             return;
         }
 
-        if (presenter.Decision == HomeContinueDecision.ContinueRun)
+        switch (presenter.PrimaryAction)
         {
-            if (presenter.ContinuableRun is not { } run)
-            {
-                GD.PushError($"Continue was taken · {TheRunToResumeWasNotNamed}");
+            case HomePrimaryAction.Resume:
+                if (presenter.ContinuableRun is not { } run)
+                {
+                    GD.PushError($"Continue was taken · {TheRunToResumeWasNotNamed}");
 
-                return;
-            }
+                    return;
+                }
 
-            ShowBoard(run);
+                ShowBoard(run);
+                break;
 
-            return;
-        }
-
-        switch (presenter.LaunchState)
-        {
-            case HomeLaunchState.Ready:
-            case HomeLaunchState.Underpowered:
+            case HomePrimaryAction.StartRun:
                 _ = StartRunAsync();
                 break;
 
-            case HomeLaunchState.InsufficientEnergy:
+            case HomePrimaryAction.OfferRefill:
                 Stub("refill_sheet");
                 break;
 
-            case HomeLaunchState.PresenterFailure:
+            case HomePrimaryAction.Retry:
                 _ = ReloadAsync();
                 break;
 
