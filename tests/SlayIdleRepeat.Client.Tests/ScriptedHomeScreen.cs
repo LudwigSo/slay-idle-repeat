@@ -56,6 +56,24 @@ internal sealed class ScriptedHomeScreen : IHomeScreen
     internal static ScriptedHomeScreen RaisingOnStart(HomeViewModel view, Exception startFault) =>
         new(view, null, Outcomes.Refused, startFault);
 
+    /// <summary>The chapter this fixture offers unless a case says otherwise.</summary>
+    /// <remarks>
+    /// 🔴 <b>A real chapter, and the default is the whole point.</b> A press is refused for three
+    /// separate reasons - a state that offers something else, a submission already outstanding, and a
+    /// campaign with NO chapter to run - and this builder used to answer the third one for every case
+    /// built on it. A case about the launch STATE was then turned away before the state was ever
+    /// consulted, and stayed green against a presenter carrying no state check at all. That defect
+    /// survived a whole review phase, because a fixture default that disarms a case looks exactly
+    /// like a case that passes.
+    /// So the default is the state in which the assertions discriminate, and a case that wants a
+    /// campaign offering nothing says so out loud - <c>with { NextStageId = null }</c> - which is a
+    /// line a reader can see.
+    /// </remarks>
+    internal const int OfferedChapter = 7;
+
+    /// <summary>The bar's maximum every fixture here draws over. Named so a case can spell it.</summary>
+    internal const int FixtureEnergyMax = 120;
+
     /// <summary>A view model with the five fields the launch states are decided from.</summary>
     /// <remarks>
     /// 🔒 <c>energyShortfall</c> is its own argument rather than <c>energyCost - energy</c>, and that
@@ -69,21 +87,26 @@ internal sealed class ScriptedHomeScreen : IHomeScreen
     /// <param name="energyShortfall">How much of the cost the two banks cannot cover. Zero when they can.</param>
     /// <param name="power">The hero's power, or <c>null</c> when there was no reading.</param>
     /// <param name="recommendedPower">The stage's recommendation, or <c>null</c> when there is none.</param>
+    /// <param name="nextStageId">
+    /// The chapter the campaign offers next, or <c>null</c> for a player it offers nothing. See
+    /// <see cref="OfferedChapter"/> for why the default is a chapter rather than an absence.
+    /// </param>
     internal static HomeViewModel ViewModel(
         int energy,
         int energyCost,
         int energyShortfall = 0,
         double? power = null,
-        double? recommendedPower = null) =>
+        double? recommendedPower = null,
+        int? nextStageId = OfferedChapter) =>
         new(
             PlayerName: "Ryn, Ashblade",
             PlayerLevel: 63,
             Crowns: 412_345L,
             Energy: energy,
-            EnergyMax: 120,
+            EnergyMax: FixtureEnergyMax,
             EnergyRefillIn: TimeSpan.FromSeconds(252),
             Power: power,
-            NextStageId: null,
+            NextStageId: nextStageId,
             NextStageName: null,
             RecommendedPower: recommendedPower,
             EnergyCost: energyCost,

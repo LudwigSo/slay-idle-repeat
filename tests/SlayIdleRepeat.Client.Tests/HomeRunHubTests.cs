@@ -33,6 +33,16 @@ public sealed class HomeRunHubTests
     /// <summary>A Crowns balance well past the point the shortened form takes over.</summary>
     private const long HeldCrowns = 412_345L;
 
+    /// <summary>
+    /// A power reading with a fraction in it, so a floor can be told apart from a rounding.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Every other power fixture on this screen is a whole number, and a whole number is the
+    /// one input for which flooring and rounding agree — which left the pill's stated rule ("the
+    /// power a player HAS rather than the one nearest") pinned by nothing at all.
+    /// </remarks>
+    private const double SettledPower = 12_480.7d;
+
     // ------------------------------------------------------------------- 🔒 the double tap
 
     /// <summary>
@@ -316,7 +326,8 @@ public sealed class HomeRunHubTests
     public async Task Every_pill_reads_its_settled_value_without_any_animation_having_run()
     {
         var presenter = new HomePresenter(
-            GatedHomeScreen.Answering(Ready() with { Power = 12_480d }), ScreenContent.Catalogue());
+            GatedHomeScreen.Answering(Ready() with { Power = SettledPower }),
+            ScreenContent.Catalogue());
 
         await presenter.LoadAsync(CancellationToken.None);
 
@@ -331,6 +342,41 @@ public sealed class HomeRunHubTests
                 "the settled text IS the text the last step of a count-up would write. A pill that " +
                 "reached its real value only through an animation would be blank, or wrong, for " +
                 "every player who has motion turned off.");
+    }
+
+    /// <summary>
+    /// 🔴 Each pill spells its value by its own rule: Crowns shortened, Energy as the bar over its
+    /// maximum, and power thousands-separated and FLOORED.
+    /// </summary>
+    /// <remarks>
+    /// The case above compares each settled text against the rule the pill is HANDED — which is
+    /// what the production property is defined as, so it pins the delegation and says nothing
+    /// whatever about the spelling. Proved by mutation: an Energy pill writing <c>40/120X</c>, and
+    /// a power pill formatted to three decimals, each left all 1413 cases green. The three
+    /// spellings are the screen's own number rules, and this is where they are stated.
+    /// </remarks>
+    [Fact]
+    public async Task Each_pill_spells_its_value_by_the_rule_that_pill_is_written_by()
+    {
+        var presenter = new HomePresenter(
+            GatedHomeScreen.Answering(Ready() with { Power = SettledPower }),
+            ScreenContent.Catalogue());
+
+        await presenter.LoadAsync(CancellationToken.None);
+
+        presenter.CrownsPillText.ShouldBe(
+            "412.3k",
+            "Crowns is the one pill the shortening rule reaches, and it is shortened above ten " +
+            "thousand for every screen in this game.");
+        presenter.EnergyPillText.ShouldBe(
+            $"{RunCost * 2}/{ScriptedHomeScreen.FixtureEnergyMax}",
+            "the bar over the bar's own maximum, and nothing else on either side of the separator. " +
+            "The Reserve is a separate bank and is deliberately not in the denominator.");
+        presenter.PowerPillText.ShouldBe(
+            "12,480",
+            "thousands-separated, and floored rather than rounded: a pill that rounded up would " +
+            "quote a player a power they do not have, and 12,480.7 is the reading that tells the " +
+            "two apart.");
     }
 
     // ------------------------------------------------- 🔒 the chapter the client names for itself

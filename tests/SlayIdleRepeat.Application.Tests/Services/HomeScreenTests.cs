@@ -32,6 +32,12 @@ public sealed class HomeScreenTests
 
     private const long FixtureCrowns = 412_345L;
 
+    /// <summary>
+    /// A Legend Level a starting player is nowhere near, so the badge's number has to have come
+    /// off the row.
+    /// </summary>
+    private const int FixtureLegendLevel = 37;
+
     // ------------------------------------------------------------------- what the header carries
 
     [Fact]
@@ -45,6 +51,30 @@ public sealed class HomeScreenTests
             FixtureName,
             "the name beside the avatar is the row's, not the host's idea of a default. A screen " +
             "drawing someone else's name is a screen about someone else.");
+    }
+
+    /// <summary>
+    /// 🔴 The Legend Level on the avatar's badge is the row's, and not a number this layer settled
+    /// on.
+    /// </summary>
+    /// <remarks>
+    /// Its own case because nothing had one: the criterion says the view model carries the name
+    /// AND the Legend Level, the case above asserts only the name, and every fixture here was a
+    /// starting player. Proved by mutation — the view model handing out a hard <c>0</c> left all
+    /// 1857 cases green, and the badge on the avatar would have read zero for every player in the
+    /// game.
+    /// </remarks>
+    [Fact]
+    public async Task GetViewModelAsync_carries_the_Legend_Level_the_row_holds()
+    {
+        var screen = HomeWorlds.Screen(HomeWorlds.Row(legendLevel: FixtureLegendLevel));
+
+        var view = await screen.GetViewModelAsync(Cancel);
+
+        view.PlayerLevel.ShouldBe(
+            FixtureLegendLevel,
+            "the badge on the avatar is the row's level. A screen answering the starting level to " +
+            "everyone tells a player who has earned thirty-six of them that they have earned none.");
     }
 
     /// <summary>

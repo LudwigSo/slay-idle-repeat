@@ -57,11 +57,18 @@ internal static class HomeWorlds
         Worlds.Content.ReadInt32("tuning/progression.json#/energy/baseMax");
 
     /// <summary>A real starting player's row, with the named fields replaced.</summary>
+    /// <remarks>
+    /// ⚠️ <b>Every field the hub draws needs a knob here, or the case that claims the hub carries
+    /// it cannot vary it.</b> <c>legendLevel</c> arrived late for exactly that reason: without it
+    /// every row was the starting level, and the view model could have carried a hard zero with
+    /// all 1857 cases green.
+    /// </remarks>
     internal static PlayerSnapshot Row(
         string? displayName = null,
         long? crowns = null,
         EnergyBanks? energy = null,
-        DateTimeOffset? energyAnchorUtc = null)
+        DateTimeOffset? energyAnchorUtc = null,
+        int? legendLevel = null)
     {
         var game = Worlds.Game();
         var starting = game.State(game.CreatePlayer()).Player.ToSnapshot();
@@ -69,6 +76,7 @@ internal static class HomeWorlds
         return starting with
         {
             DisplayName = displayName ?? starting.DisplayName,
+            LegendLevel = legendLevel ?? starting.LegendLevel,
             Wallet = crowns is { } balance ? WalletWith(starting.Wallet, balance) : starting.Wallet,
             // 🔴 A run is charged for, and a created player's banks are both zero — so the default
             // row holds exactly one run's price. Without it every case that starts a run is refused

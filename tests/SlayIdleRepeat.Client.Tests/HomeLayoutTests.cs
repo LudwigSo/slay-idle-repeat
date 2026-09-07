@@ -24,6 +24,15 @@ public sealed class HomeLayoutTests
 {
     private const float CanvasWidth = 1080f;
 
+    /// <summary>The width the reference HTML is authored at, in logical units.</summary>
+    private const float ReferenceWidth = 360f;
+
+    /// <summary>What one logical unit of the reference is worth in canvas units.</summary>
+    private const float CanvasScale = CanvasWidth / ReferenceWidth;
+
+    /// <summary>The smallest target either platform's guidelines allow, in logical units.</summary>
+    private const float MinimumLogicalTouchTarget = 48f;
+
     /// <summary>9:16 — the short shipping profile, and the canvas the project declares.</summary>
     private const float ShortCanvasHeight = 1920f;
 
@@ -198,6 +207,24 @@ public sealed class HomeLayoutTests
     // ------------------------------------------------------------------- the tap targets
 
     /// <summary>
+    /// 🔴 The minimum target IS 48 logical dp at the canvas's scale — and this is the only case
+    /// that says which number that is.
+    /// </summary>
+    /// <remarks>
+    /// Every other target rule in this file reads <see cref="HomeLayout.MinimumTouchTarget"/> on
+    /// BOTH sides of its comparison, so the value cancels and the rules agree with themselves
+    /// whatever it is. Proved by mutation: at 100f — 33 logical units, two thirds of a thumb — all
+    /// 1413 cases stayed green. This case is what gives the three below a subject (steering S32).
+    /// </remarks>
+    [Fact]
+    public void The_minimum_tap_target_is_the_platform_minimum_at_the_canvas_scale() =>
+        HomeLayout.MinimumTouchTarget.ShouldBe(
+            MinimumLogicalTouchTarget * CanvasScale,
+            "48 dp is the smallest target the platform guidelines allow and the canvas is three " +
+            "times the reference's 360 logical units. A constant below it leaves every other target " +
+            "rule here agreeing with itself about a target a thumb misses.");
+
+    /// <summary>
     /// Every control the layout places is at least 48 dp on both axes — the settings glyph and the
     /// Change control included, which the reference draws at 30 and 34 logical.
     /// </summary>
@@ -299,6 +326,35 @@ public sealed class HomeLayoutTests
         (withCaption - without).ShouldBe(
             Metrics.Pill.InnerGap + (LongestEnergyCaption.Length * Metrics.Pill.CaptionCharacterAdvance),
             "the caption costs its own characters plus the one gap that separates it from the value.");
+    }
+
+    /// <summary>
+    /// 🔴 A pill costs its own chrome as well as its characters: two paddings, the icon, the gap
+    /// after it, and one advance per character.
+    /// </summary>
+    /// <remarks>
+    /// The fit case above is a one-sided inequality, so every UNDERCHARGE satisfies it more easily
+    /// than the real width does. Proved by mutation: a <c>PillWidth</c> that stopped charging for
+    /// the icon left all 1413 cases green, and three pills drawn that way overlap their own glyphs
+    /// on a handset. Two facts, which together pin every term — what one more character costs, and
+    /// what the pill costs before any character at all.
+    /// </remarks>
+    [Fact]
+    public void PillWidth_charges_for_the_pills_own_chrome_as_well_as_its_characters()
+    {
+        var oneCharacter = HomeLayout.PillWidth(1, 0, Metrics.Pill);
+
+        (HomeLayout.PillWidth(2, 0, Metrics.Pill) - oneCharacter).ShouldBe(
+            Metrics.Pill.ValueCharacterAdvance,
+            "one more character costs one more advance, and nothing else.");
+        oneCharacter.ShouldBe(
+            (2f * Metrics.Pill.HorizontalPadding)
+            + Metrics.Pill.IconWidth
+            + Metrics.Pill.InnerGap
+            + Metrics.Pill.ValueCharacterAdvance,
+            "and the rest of a pill is its two paddings, its icon and the gap that separates the " +
+            "icon from the value. A width that charged for none of them fits three pills into a row " +
+            "that cannot hold them, and the fit case above would never notice.");
     }
 
     private static HomeLayout Layout(float canvasHeight) =>

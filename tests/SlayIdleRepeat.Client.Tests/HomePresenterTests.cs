@@ -1296,9 +1296,10 @@ public sealed class HomePresenterTests
     /// <para>
     /// 🔴 <b>The stage is the half that makes this discriminate.</b> A press is refused for three
     /// separate reasons — a state that offers something else, a submission already outstanding, and
-    /// a campaign with no chapter to run — and the shared fixture carries no chapter, so a
-    /// presenter that had lost the state check entirely would still start nothing and this case
-    /// would still pass. It has to hold a chapter for the state to be the reason it is refused.
+    /// a campaign with no chapter to run — and the shared fixture used to carry no chapter, so a
+    /// presenter that had lost the state check entirely still started nothing and this case still
+    /// passed. It has to hold a chapter for the state to be the reason it is refused; the builder
+    /// now offers one by default so that no later case can be disarmed the same way.
     /// </para>
     /// </remarks>
     [Fact]
@@ -1442,11 +1443,14 @@ public sealed class HomePresenterTests
     /// launch STATE.
     /// </summary>
     /// <remarks>
-    /// 🔒 A press is refused for three reasons and the shared view model carries no chapter, so a
-    /// case that leaves it absent is refused before the state is ever consulted — and would pass
-    /// against a presenter with no state check at all.
+    /// 🔒 A press is refused for three reasons, and one of them is a campaign with no chapter to
+    /// run. A case that left the stage absent would be turned away by THAT arm before the state was
+    /// ever consulted, and would pass against a presenter carrying no state check at all — which is
+    /// what this case did until Phase 4 caught it. <see cref="ScriptedHomeScreen.OfferedChapter"/>
+    /// is now the builder's own default for that reason; this case names it anyway, so the
+    /// precondition the assertion rests on is written where the assertion is.
     /// </remarks>
-    private const int OfferedChapter = 7;
+    private const int OfferedChapter = ScriptedHomeScreen.OfferedChapter;
 
     private static HomeViewModel Ready() =>
         ScriptedHomeScreen.ViewModel(energy: RunCost * 2, energyCost: RunCost);
