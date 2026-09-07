@@ -107,12 +107,17 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 18
 
+; HudTile's 36-unit side padding made this tile as wide as the Legend Level written in it — 113 at
+; two digits and 134 at three — so the avatar quietly took width HomeLayout had budgeted to the
+; pills. HubAvatar pads it by 12, which leaves four digits inside the 108 the layout charges for,
+; and rounds it as the reference draws it: a square with an 11/36 corner, not the circle a 72
+; radius clamps to on a 108 box.
 [node name="Avatar" type="PanelContainer" parent="Ui/Screen/Bands/TopBar/Row"]
 custom_minimum_size = Vector2(108, 108)
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
-theme_type_variation = &"HudTile"
+theme_type_variation = &"HubAvatar"
 
 [node name="AvatarLevel" type="Label" parent="Ui/Screen/Bands/TopBar/Row/Avatar"]
 unique_name_in_owner = true
@@ -140,19 +145,23 @@ layout_mode = 2
 size_flags_vertical = 4
 Glyph = 5
 
-; The slack between the pills and the settings control. HomeLayout charges the pill row for the
-; settings TARGET rather than its glyph, and this is where the difference goes.
-[node name="Slack" type="Control" parent="Ui/Screen/Bands/TopBar/Row"]
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 2
-
+; The settings control takes the bar's slack itself and stays its own size inside it — EXPAND for
+; the leftover width, SHRINK_END to sit at the far end of it, which is the reference's
+; margin-left:auto. A spacer node between the pills and this one would be a SIXTH item in the row
+; and so a FIFTH gap, and HomeLayout charges the bar for four: at the longest values that one
+; uncounted 18 put the row three units over the width the pills were promised.
+;
+; ⚠️ ChromeButton rather than QuietButton, and the reason is arithmetic rather than taste: this
+; control is drawn as a 144 target and captioned 'Settings', and QuietButton's 48-unit font inside
+; 80 units of padding makes that word 291 wide — 147 units taken straight out of the pill row with
+; nothing anywhere to say so. ChromeButton fits the caption inside the target the layout measured.
 [node name="SettingsButton" type="Button" parent="Ui/Screen/Bands/TopBar/Row"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
+size_flags_horizontal = 10
 size_flags_vertical = 4
-theme_type_variation = &"QuietButton"
+theme_type_variation = &"ChromeButton"
 
 ; ----------------------------------------------------------------------------- the hero band
 ;
@@ -174,6 +183,7 @@ anchor_right = 1.0
 offset_left = -174.0
 offset_top = 36.0
 offset_right = -30.0
+offset_bottom = 516.0
 grow_horizontal = 0
 theme_override_constants/separation = 24
 
@@ -211,18 +221,23 @@ grow_vertical = 0
 mouse_filter = 2
 theme_override_constants/separation = 6
 
+; 🔒 These two are the only labels on the screen with nothing of the theme's behind them: what is
+; behind them is the diorama, whose brightness is the hero's and the ground's. HeroTitle and
+; HeroSubtitle are HudTitle and HudCaption with the theme's darkest ink drawn round the glyphs,
+; which is the one contrast a flat font colour cannot give over a picture. The reference solves the
+; same problem with a vignette; an outline needs no node and cannot bleed onto the diorama.
 [node name="HeroName" type="Label" parent="Ui/Screen/Bands/HeroBand/NameBlock"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_type_variation = &"HudTitle"
+theme_type_variation = &"HeroTitle"
 horizontal_alignment = 1
 
 [node name="HeroCaption" type="Label" parent="Ui/Screen/Bands/HeroBand/NameBlock"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_type_variation = &"HudCaption"
+theme_type_variation = &"HeroSubtitle"
 horizontal_alignment = 1
 
 ; -------------------------------------------------------------------------- the launch block
@@ -295,12 +310,16 @@ mouse_filter = 2
 theme_type_variation = &"HudCaption"
 autowrap_mode = 3
 
+; ⚠️ ChromeButton for the same reason the settings control wears it, and one more: this 144 target
+; has to fit INSIDE a 156-unit card. StageCard's own padding was 18 top and bottom, which left 120
+; of interior for a control the touch-target rule pads to 144 — so the card grew to 180, the launch
+; block to 486, and the hero band lost the 18 HomeLayout says it has. The card now pads by 6.
 [node name="ChangeButton" type="Button" parent="Ui/Screen/Bands/Launch/Rows/StageCard/CardRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
 size_flags_vertical = 4
-theme_type_variation = &"QuietButton"
+theme_type_variation = &"ChromeButton"
 
 [node name="StartButton" type="Button" parent="Ui/Screen/Bands/Launch/Rows"]
 unique_name_in_owner = true
@@ -311,6 +330,12 @@ autowrap_mode = 3
 
 ; The price, or the shortfall, or a placeholder holding the width while the read is still out. Drawn
 ; over the button as a child so the word stays centred whatever the badge says.
+;
+; ⚠️ Its own variation rather than HudCaption, because this is the one label on the screen whose
+; background CHANGES UNDER IT: the button behind it is the action ember in state 1 and the energy
+; sky in state 2. HudCaption's muted grey reads at about 1.7:1 on the ember and 1.1:1 on the sky —
+; and on the sky the shortfall is the whole information the state carries. CostBadge is the
+; button's own near-white with the theme's darkest ink drawn round it, which holds on both fills.
 [node name="CostBadge" type="Label" parent="Ui/Screen/Bands/Launch/Rows/StartButton"]
 unique_name_in_owner = true
 layout_mode = 1
@@ -326,7 +351,7 @@ offset_bottom = 36.0
 grow_horizontal = 0
 grow_vertical = 2
 mouse_filter = 2
-theme_type_variation = &"HudCaption"
+theme_type_variation = &"CostBadge"
 horizontal_alignment = 2
 vertical_alignment = 1
 

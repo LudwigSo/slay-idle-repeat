@@ -12,6 +12,19 @@ script = ExtResource("1_pill")
 
 ; The contents ignore the pointer so the press lands on the pill rather than on a child, which is
 ; the same arrangement the HUD tiles already use.
+;
+; 🔒 What is DRAWN here is deliberately narrower than what HomeLayout RESERVES, and that gap is the
+; whole tolerance this row has. The reserve charges the exported chrome — 27 of padding each side,
+; a 48 icon, a 15 gap — and 15 units per value character; the drawing spends 12 of padding, the same
+; 48 icon and a 9 gap, and its characters cost whatever the shipped face says. The exports may not
+; move: HomeRunHubTests pins them at or under the 15 and 12 the pill row's fit was proved at. So the
+; slack has to be bought on this side, and it is: at the longest values the brief names — 999.9k
+; Crowns, 120/120 with a 4:12 countdown, 1.2M power, and each of them again in full under a long
+; press — the drawn row comes in 4 to 10 percent inside the reserve at the sizes below.
+;
+; ⚠️ That verdict is arithmetic over the default face's advances (a digit is 0.572 em in the
+; engine's Open Sans, which is what this project ships with — it declares no font of its own), not a
+; measurement. A bundled face with wider digits eats the margin, and nothing here would say so.
 [node name="Row" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -21,7 +34,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 alignment = 1
-theme_override_constants/separation = 15
+theme_override_constants/separation = 9
 
 [node name="Icon" type="TextureRect" parent="Row"]
 unique_name_in_owner = true
@@ -32,12 +45,17 @@ mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
 
+; PillValue and PillCaption are HudValueSmall and HudCaption at the sizes this row's own budget can
+; pay for — 11 and 9 logical units, which is what the reference sets a pill and its caption in.
+; HudValueSmall's own 40 spends 22.9 units on a digit against a 15-unit reserve, so every pill
+; overflowed its own rounded background, and at the longest values the Crowns figure and the Energy
+; glyph beside it overlapped.
 [node name="Value" type="Label" parent="Row"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
-theme_type_variation = &"HudValueSmall"
+theme_type_variation = &"PillValue"
 vertical_alignment = 1
 
 [node name="Caption" type="Label" parent="Row"]
@@ -46,5 +64,5 @@ visible = false
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
-theme_type_variation = &"HudCaption"
+theme_type_variation = &"PillCaption"
 vertical_alignment = 1
