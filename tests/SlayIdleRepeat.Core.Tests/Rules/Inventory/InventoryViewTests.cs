@@ -2,7 +2,10 @@ using Shouldly;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Forge;
+using SlayIdleRepeat.Core.Rules.Gear;
 using SlayIdleRepeat.Core.Rules.Inventory;
+using SlayIdleRepeat.Core.Tests.Rules.Forge;
 using SlayIdleRepeat.Core.Tests.TestSupport;
 using SlayIdleRepeat.Core.Tests.Model;
 using SlayIdleRepeat.Core.Tests.Model.Gear;
@@ -177,6 +180,10 @@ public sealed class InventoryViewTests
             item => item.Deltas.Count == 0,
             "an item in overflow cannot be equipped, so a delta for it describes an action EQUIP " +
             "refuses with INVENTORY_FULL.");
+        view.Held.ShouldAllBe(
+            item => item.Stats.Count == 2 && item.Power > 0.0,
+            "a player deciding what to make room for needs to know what is waiting; only the " +
+            "comparison is withheld from a held item, not its figures.");
     }
 
     // ------------------------------------------------------------------------------------------
@@ -211,8 +218,245 @@ public sealed class InventoryViewTests
     }
 
     // ------------------------------------------------------------------------------------------
+    // The item's own figures — power, stats, affixes — each the rules' own number.
+    // ------------------------------------------------------------------------------------------
+
+    // `08` §4.2: the fixture wears +15, a 2.05 multiplier, so a projection reading the raw derivation
+    // is out by more than double on every stat and cannot pass by accident.
+    [Fact]
+    public void Stats_are_the_figures_the_hero_receives_with_enhancement_folded_in()
+    {
+        var view = InventoryView.Project(GearedRow(), Content);
+        var blade = RunBattleWorlds.FarAbovePar[0];
+        var projected = view.Stored.Single(item => item.InstanceId == blade.InstanceId);
+
+        var raw = GearStatDerivation.Primary(Inventories.Par, Inventories.Drops, blade);
+
+        projected.Stats[0].Stat.ShouldBe(raw.Stat);
+        projected.Stats[0].Value.ShouldBe(
+            GearStatDerivation.AsWorn(raw, Inventories.Forge, blade.EnhanceLevel).Value,
+            "the stat a screen shows is the stat the fight adds — the derivation under the Forge multiplier.");
+        projected.Stats[0].Value.ShouldNotBe(raw.Value, "the fixture is +15, so the two figures differ.");
+    }
+
+    [Fact]
+    public void Power_is_the_figure_the_POWER_ordering_sorts_by()
+    {
+        var view = InventoryView.Project(GearedRow(), Content);
+
+        view.Stored.ShouldNotBeEmpty();
+        view.Stored.ShouldAllBe(
+            item => item.Power == InventorySorting.PowerOf(
+                Inventories.Par, Inventories.Drops, Inventories.Forge,
+                RunBattleWorlds.FarAbovePar.Single(worn => worn.InstanceId == item.InstanceId)),
+            "a screen sorting by a number it draws has to be sorting by the number it draws.");
+    }
+
+    [Fact]
+    public void An_affix_carries_the_pools_name_key_and_is_written_as_a_share()
+    {
+        var view = InventoryView.Project(RunBattleWorlds.PlayerRow(), Content);
+        var blade = view.Stored.Single(item => item.InstanceId == RunBattleWorlds.Worn[0].InstanceId);
+        var roll = RunBattleWorlds.Worn[0].Affixes[0];
+
+        var affix = blade.Affixes.ShouldHaveSingleItem("the fixture blade rolls exactly one affix.");
+
+        affix.AffixId.ShouldBe(roll.AffixId);
+        affix.Value.ShouldBe(roll.Value);
+        affix.NameKey.ShouldBe(
+            Inventories.Drops.Affix(roll.AffixId).DisplayNameKey,
+            "the name is the pool's, not a spelling the projection invents from the id.");
+        affix.IsPercent.ShouldBeTrue("a STAT_ADD_PCT roll is a share whatever stat it adds onto.");
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // The Forge's three previews — each the command's own arithmetic, none decided here.
+    // ------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void The_enhance_preview_is_absent_at_the_ceiling_and_prices_the_rung_below_it()
+    {
+        var below = Inventories.Item(
+            "below", GearFamily.BLADE, Rarity.S, enhanceLevel: Inventories.Forge.MaxEnhanceLevel - 1);
+        var view = InventoryView.Project(WithCandidates(below), Content);
+
+        view.Stored.Single(item => item.IsEquipped && item.Slot == GearSlot.WEAPON).Enhance.ShouldBeNull(
+            "the fixture wears +15, the ceiling, and ENHANCE answers CAP_REACHED there.");
+
+        var preview = view.Stored.Single(item => item.InstanceId == below.InstanceId).Enhance
+            .ShouldNotBeNull("one rung below the ceiling there is still an attempt to price.");
+
+        preview.NextLevel.ShouldBe(Inventories.Forge.MaxEnhanceLevel);
+        preview.StoneCost.ShouldBe(Inventories.Forge.EnhanceStoneCost(preview.NextLevel));
+        preview.SuccessRate.ShouldBe(GearEnhancement.EffectiveRate(
+            below.EnhanceLevel, below.EnhanceFailures, GearEnhancement.NoLuckyBonus, Inventories.Forge, Forges.Mercy));
+        preview.NextPower.ShouldBe(InventorySorting.PowerOf(
+            Inventories.Par, Inventories.Drops, Inventories.Forge, below, preview.NextLevel));
+        preview.NextStats[0].Value.ShouldBe(
+            GearStatDerivation.AsWorn(
+                GearStatDerivation.Primary(Inventories.Par, Inventories.Drops, below),
+                Inventories.Forge,
+                preview.NextLevel).Value,
+            "the stat after the attempt is the same derivation one multiplier step up.");
+    }
+
+    // `24` §4.6: a failed attempt raises the next rate, so a preview reading the ladder alone would
+    // show a player who has failed three times the same odds as one who has not.
+    [Fact]
+    public void The_enhance_preview_counts_the_items_own_failures()
+    {
+        var fresh = Inventories.Item("fresh", GearFamily.AXE, Rarity.A, enhanceLevel: 6);
+        var unlucky = Inventories.Item("unlucky", GearFamily.AXE, Rarity.A, enhanceLevel: 6, enhanceFailures: 3);
+        var view = InventoryView.Project(WithCandidates(fresh, unlucky), Content);
+
+        var freshRate = view.Stored.Single(item => item.InstanceId == fresh.InstanceId).Enhance!.SuccessRate;
+        var unluckyRate = view.Stored.Single(item => item.InstanceId == unlucky.InstanceId).Enhance!.SuccessRate;
+
+        unluckyRate.ShouldBeGreaterThan(
+            freshRate, "mercy is earned per item, and the preview is the rate the handler will draw against.");
+    }
+
+    [Fact]
+    public void The_salvage_preview_is_the_payout_the_command_pays()
+    {
+        var enhanced = Inventories.Item("enhanced", GearFamily.HOOD, Rarity.S, enhanceLevel: 7);
+        var view = InventoryView.Project(WithCandidates(enhanced), Content);
+
+        var (dust, stones) = GearSalvage.Payout(enhanced, Inventories.Forge);
+        var preview = view.Stored.Single(item => item.InstanceId == enhanced.InstanceId).Salvage;
+
+        stones.ShouldBeGreaterThan(0, "the premise: seven landed rungs refund something, so the two figures differ.");
+        preview.Dust.ShouldBe(dust);
+        preview.Stones.ShouldBe(stones);
+    }
+
+    // The key mirrors GearMerge.Refusal's identity check, so it is asserted AGAINST that check rather
+    // than against a spelling: for each pair, keys agree exactly when a triple of them would fuse.
+    [Theory]
+    [InlineData("quality and chapter differ", 0.9, 5, 0, Rarity.A, GearFamily.BLADE, false, true)]
+    [InlineData("the lock differs", 0.5, 1, 0, Rarity.A, GearFamily.BLADE, true, true)]
+    [InlineData("the enhancement differs", 0.5, 1, 3, Rarity.A, GearFamily.BLADE, false, false)]
+    [InlineData("the band differs", 0.5, 1, 0, Rarity.B, GearFamily.BLADE, false, false)]
+    [InlineData("the item differs", 0.5, 1, 0, Rarity.A, GearFamily.AXE, false, false)]
+    public void Merge_keys_agree_exactly_when_MERGE_would_accept_the_pair(
+        string why,
+        double quality,
+        int chapter,
+        int enhanceLevel,
+        Rarity rarity,
+        GearFamily family,
+        bool locked,
+        bool fuses)
+    {
+        var keeper = Inventories.Item("keeper", GearFamily.BLADE, Rarity.A);
+        var other = Inventories.Item(
+            "other", family, rarity, chapterOrigin: chapter, quality: quality, enhanceLevel: enhanceLevel, locked: locked);
+        var third = Inventories.Item("third", GearFamily.BLADE, Rarity.A);
+
+        var view = InventoryView.Project(WithCandidates(keeper, other, third), Content);
+        var keys = view.Stored.ToDictionary(item => item.InstanceId, item => item.Merge.Key);
+
+        (GearMerge.Refusal([keeper, other, third], dustSubstituted: false, Inventories.Forge) is null)
+            .ShouldBe(fuses, "the premise of this row: " + why);
+        (keys[keeper.InstanceId] == keys[other.InstanceId]).ShouldBe(
+            fuses,
+            "the key has to agree with the rule when " + why + ", or the screen offers a merge the rules " +
+            "refuse — or hides one they accept.");
+    }
+
+    [Fact]
+    public void The_merge_preview_names_the_next_band_and_its_prices_and_nothing_above_the_top()
+    {
+        var bottom = Inventories.Item("bottom", GearFamily.BLADE, Rarity.C);
+        var view = InventoryView.Project(WithCandidates(bottom), Content);
+
+        var fromBottom = view.Stored.Single(item => item.InstanceId == bottom.InstanceId).Merge;
+        var fromTop = view.Stored.Single(item => item.IsEquipped && item.Slot == GearSlot.WEAPON).Merge;
+
+        fromBottom.OutputRarity.ShouldBe(Rarity.B);
+        fromBottom.CrownCost.ShouldBe(Inventories.Forge.MergeCrownCost(Rarity.B));
+        fromBottom.DustSubstituteCost.ShouldBe(Inventories.Forge.MergeDustSubstituteCost(Rarity.C));
+
+        fromTop.OutputRarity.ShouldBeNull("the fixture wears SS, and MERGE answers NO_HIGHER_RARITY there.");
+        fromTop.CrownCost.ShouldBe(0);
+        fromTop.DustSubstituteCost.ShouldBeNull("no fusion exists for dust to stand in for.");
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Sets and orderings.
+    // ------------------------------------------------------------------------------------------
+
+    // The over-par six are all BALANCED families, so the fixture is one complete set — and the
+    // five-piece variant is what tells a resolver that counts pieces from one that counts slots.
+    [Fact]
+    public void Active_sets_count_the_SS_pieces_worn_per_axis()
+    {
+        var full = InventoryView.Project(GearedRow(), Content);
+
+        var set = full.ActiveSets.ShouldHaveSingleItem();
+
+        set.Set.ShouldBe(GearFamilyAxis.BALANCED);
+        set.Pieces.ShouldBe(RunBattleWorlds.FarAbovePar.Count);
+        set.BreakpointsMet.ShouldBe(full.SetBreakpoints);
+        set.NameKey.ShouldBe(Inventories.Drops.SetNameKey(GearFamilyAxis.BALANCED));
+
+        var fiveWorn = RunBattleWorlds.FarAboveParRow() with
+        {
+            Loadout = new LoadoutSnapshot(
+                RunBattleWorlds.FarAbovePar.Skip(1).ToDictionary(item => item.Slot, item => item.InstanceId)),
+        };
+
+        InventoryView.Project(fiveWorn, Content).ActiveSets.Single().BreakpointsMet.ShouldBe(
+            [2, 4], "five pieces reach the two-piece and four-piece bonuses and not the six-piece one.");
+
+        InventoryView.Project(RunBattleWorlds.PlayerRow(geared: false), Content).ActiveSets.ShouldBeEmpty(
+            "nothing worn, nothing built.");
+    }
+
+    [Fact]
+    public void The_order_asked_for_is_the_order_answered()
+    {
+        var weak = Inventories.Item("weak", GearFamily.BLADE, Rarity.C);
+        var strong = Inventories.Item("strong", GearFamily.BLADE, Rarity.S, enhanceLevel: 9);
+        var row = WithCandidates(weak, strong);
+
+        var byPower = InventoryView.Project(row, Content, InventorySortKey.POWER);
+        var byGrant = InventoryView.Project(row, Content);
+
+        byPower.Stored.Select(item => item.Power).ShouldBeInOrder(
+            SortDirection.Descending, "POWER lists the strongest first.");
+        byGrant.Stored.Select(item => item.InstanceId).TakeLast(2).ShouldBe(
+            [weak.InstanceId, strong.InstanceId], "the two-argument door is grant order, as it always was.");
+        byPower.Stored.Select(item => item.InstanceId).ShouldBe(
+            InventorySorting.Sort(
+                    [.. RunBattleWorlds.FarAbovePar, weak, strong],
+                    InventorySortKey.POWER,
+                    Inventories.Par,
+                    Inventories.Drops,
+                    Inventories.Forge,
+                    Inventories.Catalogue)
+                .Select(item => item.InstanceId),
+            "the projection orders through the one sorter rather than a second one.");
+    }
+
+    [Fact]
+    public void An_order_outside_the_vocabulary_is_refused() =>
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => InventoryView.Project(GearedRow(), Content, (InventorySortKey)0)).ParamName.ShouldBe("order");
+
+    // ------------------------------------------------------------------------------------------
     // Fixtures.
     // ------------------------------------------------------------------------------------------
+
+    /// <summary>The over-par six worn, plus the given items lying in the bag.</summary>
+    private static PlayerSnapshot WithCandidates(params Core.Model.Gear.GearInstance[] candidates) =>
+        RunBattleWorlds.FarAboveParRow() with
+        {
+            Inventory = new InventorySnapshot(
+                0,
+                RunBattleWorlds.FarAbovePar.Concat(candidates).Select(Inventories.Persist).ToArray(),
+                []),
+        };
 
     private static PlayerSnapshot GearedRow() => RunBattleWorlds.FarAboveParRow();
 }

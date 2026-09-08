@@ -188,19 +188,45 @@ public sealed class InventoryComparisonTests
         var candidate = Inventories.Item("candidate");
 
         Should.Throw<ArgumentNullException>(() => InventoryComparison.Compare(
-                null!, Inventories.Drops, candidate, null))
+                null!, Inventories.Drops, Inventories.Forge, candidate, null))
             .ParamName.ShouldBe("par");
 
         Should.Throw<ArgumentNullException>(() => InventoryComparison.Compare(
-                Inventories.Par, null!, candidate, null))
+                Inventories.Par, null!, Inventories.Forge, candidate, null))
             .ParamName.ShouldBe("drops");
 
         Should.Throw<ArgumentNullException>(() => InventoryComparison.Compare(
-                Inventories.Par, Inventories.Drops, null!, null))
+                Inventories.Par, Inventories.Drops, null!, candidate, null))
+            .ParamName.ShouldBe("forge");
+
+        Should.Throw<ArgumentNullException>(() => InventoryComparison.Compare(
+                Inventories.Par, Inventories.Drops, Inventories.Forge, null!, null))
             .ParamName.ShouldBe("candidate");
+    }
+
+    // `08` §4.2: +1 is a 7 % step, so an enhanced twin of the worn item is a gain on every stat — the
+    // raw derivation calls the two a tie, which is the answer this case exists to refuse.
+    [Fact]
+    public void An_enhanced_twin_of_the_worn_item_gains_by_the_forge_multiplier()
+    {
+        var worn = Inventories.Item("worn", rarity: Rarity.A, quality: 0.5);
+        var enhanced = Inventories.Item("enhanced", rarity: Rarity.A, quality: 0.5, enhanceLevel: 5);
+
+        var deltas = Compare(enhanced, worn);
+
+        deltas.ShouldNotBeEmpty("the assertions below live inside a loop (steering S3)");
+
+        foreach (var delta in deltas)
+        {
+            delta.Delta.ShouldBeGreaterThan(0.0, $"{delta.Stat}: +5 beats +0 on the same item");
+            delta.Candidate.ShouldBe(
+                DeterminismRounding.Round(delta.Equipped * Inventories.Forge.StatMultiplier(5)),
+                $"{delta.Stat}: the candidate is the worn figure under the +5 multiplier, and nothing else");
+        }
     }
 
     private static IReadOnlyList<GearStatDelta> Compare(
         Core.Model.Gear.GearInstance candidate, Core.Model.Gear.GearInstance? equipped) =>
-        InventoryComparison.Compare(Inventories.Par, Inventories.Drops, candidate, equipped);
+        InventoryComparison.Compare(
+            Inventories.Par, Inventories.Drops, Inventories.Forge, candidate, equipped);
 }

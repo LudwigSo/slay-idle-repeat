@@ -77,6 +77,7 @@ internal readonly record struct GearAffixDefinition(
     double Minimum,
     double Maximum,
     IReadOnlyList<GearSlot> Slots,
+    string DisplayNameKey,
     EffectCondition? Condition = null)
 {
     /// <summary>Whether a roll of this affix contributes anything a stat block can hold.</summary>
@@ -133,6 +134,9 @@ internal sealed class DropsTuning
     /// <summary>The 2/4/6 set breakpoints.</summary>
     internal const string SetBreakpointsReference = DocumentPath + "#/sets/breakpoints";
 
+    /// <summary>The four sets, one per family axis, each naming the locale key it is called by.</summary>
+    internal const string SetsReference = DocumentPath + "#/sets/sets";
+
     /// <summary>The percentages of one chapter band must add up to this.</summary>
     internal const double ShareTotal = 100.0;
 
@@ -150,6 +154,7 @@ internal sealed class DropsTuning
     private readonly IReadOnlyList<SlotCoefficients> _slotCoefficients;
     private readonly IReadOnlyDictionary<string, IReadOnlyDictionary<Rarity, double>> _percentStats;
     private readonly IReadOnlyList<(GearAffixDefinition Definition, Rarity? MinimumRarity)> _affixes;
+    private readonly IReadOnlyDictionary<GearFamilyAxis, string> _setNames;
 
     private DropsTuning(
         IReadOnlyDictionary<Rarity, RarityBandRow> bands,
@@ -159,7 +164,8 @@ internal sealed class DropsTuning
         IReadOnlyList<SlotCoefficients> slotCoefficients,
         IReadOnlyDictionary<string, IReadOnlyDictionary<Rarity, double>> percentStats,
         IReadOnlyList<(GearAffixDefinition Definition, Rarity? MinimumRarity)> affixes,
-        IReadOnlyList<int> setBreakpoints)
+        IReadOnlyList<int> setBreakpoints,
+        IReadOnlyDictionary<GearFamilyAxis, string> setNames)
     {
         _bands = bands;
         _dropShares = dropShares;
@@ -169,6 +175,7 @@ internal sealed class DropsTuning
         _percentStats = percentStats;
         _affixes = affixes;
         SetBreakpoints = setBreakpoints;
+        _setNames = setNames;
     }
 
     /// <summary>The fraction of a chapter's power target one item carries.</summary>
@@ -179,6 +186,20 @@ internal sealed class DropsTuning
 
     /// <summary>The piece counts a set bonus fires at, ascending.</summary>
     internal IReadOnlyList<int> SetBreakpoints { get; }
+
+    /// <summary>
+    /// The locale key one set is called by. A set IS its family axis (<c>08</c> §3.2 authors no
+    /// setId), so the axis is the whole of its identity and the name is the one thing left to look up.
+    /// </summary>
+    /// <param name="set">The set, by the axis that identifies it.</param>
+    /// <exception cref="MissingContentException">The document authors no row for that axis.</exception>
+    internal string SetNameKey(GearFamilyAxis set) =>
+        _setNames.TryGetValue(set, out var key)
+            ? key
+            : throw new MissingContentException(
+                SetsReference,
+                $"The set table authors no row for the {set} axis. Every family axis is a set, so an " +
+                "axis with no row is a set a screen can show pieces of and cannot name.");
 
     /// <summary>How many rarity bands the ladder authors.</summary>
     internal int BandCount => _bands.Count;
@@ -357,7 +378,8 @@ internal sealed class DropsTuning
             ReadSlotCoefficients(content),
             ReadPercentStats(content),
             ReadAffixes(content),
-            ReadSetBreakpoints(content));
+            ReadSetBreakpoints(content),
+            ReadSetNames(content));
     }
 
     // The drop bands and the affix rows are held as named tuples rather than as record types of
@@ -663,6 +685,7 @@ internal sealed class DropsTuning
                     minimum,
                     maximum,
                     ReadSlots(content, pointer + "/slots"),
+                    content.ReadText(pointer + "/displayName"),
 
                     // The context gate the bucket rides on, carried onto the synthesised effect
                     // untouched. The damage-vs-Elites affix is target-gated; the other twelve are
@@ -773,6 +796,29 @@ internal sealed class DropsTuning
         }
 
         return Array.AsReadOnly(breakpoints);
+    }
+
+    /// <summary>One display-name key per family axis, each axis exactly once.</summary>
+    private static IReadOnlyDictionary<GearFamilyAxis, string> ReadSetNames(ContentSnapshot content)
+    {
+        var array = RequireArray(content, SetsReference, "the set table");
+        var names = new Dictionary<GearFamilyAxis, string>(array.Items.Count);
+
+        for (var i = 0; i < array.Items.Count; i++)
+        {
+            var pointer = SetsReference + "/" + AuthoredToken.Render(i);
+            var axis = AuthoredToken.Parse<GearFamilyAxis>(content, pointer + "/familyAxis", "a family axis");
+
+            if (!names.TryAdd(axis, content.ReadText(pointer + "/displayName")))
+            {
+                throw new InvalidTunableException(
+                    pointer + "/familyAxis",
+                    $"{axis} is authored twice, so which name the set is shown under depends on which " +
+                    "row a reader reaches first.");
+            }
+        }
+
+        return names;
     }
 
     private static ContentValue RequireArray(ContentSnapshot content, string reference, string what)

@@ -157,7 +157,8 @@ public sealed class GearAffixRollerTests
                 EffectOp.STAT_ADD_FLAT,
                 1.0,
                 1.0,
-                [GearSlot.RING])], 1, draws);
+                [GearSlot.RING],
+                "loc.affix.zero_width.name")], 1, draws);
 
         rolled[0].Value.ShouldBe(1.0);
         draws.Position.ShouldBe(

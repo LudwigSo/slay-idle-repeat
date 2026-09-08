@@ -56,10 +56,15 @@ internal static class InventoryComparison
     /// unrelated quantities.
     /// </exception>
     internal static IReadOnlyList<GearStatDelta> Compare(
-        ParPowerTuning par, DropsTuning drops, GearInstance candidate, GearInstance? equipped)
+        ParPowerTuning par,
+        DropsTuning drops,
+        ForgeTuning forge,
+        GearInstance candidate,
+        GearInstance? equipped)
     {
         ArgumentNullException.ThrowIfNull(par);
         ArgumentNullException.ThrowIfNull(drops);
+        ArgumentNullException.ThrowIfNull(forge);
         ArgumentNullException.ThrowIfNull(candidate);
 
         if (equipped is not null && equipped.Slot != candidate.Slot)
@@ -72,16 +77,22 @@ internal static class InventoryComparison
                 nameof(equipped));
         }
 
+        // 🔒 Both sides AS WORN — enhancement folded in by the same helper the hero build uses — so a
+        // +10 blade beats a +0 blade here exactly as it does in the fight. The raw derivation would
+        // call the two a tie, and a player reading that would salvage the wrong one.
         return Array.AsReadOnly(new[]
         {
             Delta(
-                GearStatDerivation.Primary(par, drops, candidate),
-                equipped is null ? null : GearStatDerivation.Primary(par, drops, equipped)),
+                Worn(GearStatDerivation.Primary(par, drops, candidate), forge, candidate),
+                equipped is null ? null : Worn(GearStatDerivation.Primary(par, drops, equipped), forge, equipped)),
             Delta(
-                GearStatDerivation.Secondary(par, drops, candidate),
-                equipped is null ? null : GearStatDerivation.Secondary(par, drops, equipped)),
+                Worn(GearStatDerivation.Secondary(par, drops, candidate), forge, candidate),
+                equipped is null ? null : Worn(GearStatDerivation.Secondary(par, drops, equipped), forge, equipped)),
         });
     }
+
+    private static DerivedGearStat Worn(DerivedGearStat derived, ForgeTuning forge, GearInstance item) =>
+        GearStatDerivation.AsWorn(derived, forge, item.EnhanceLevel);
 
     /// <summary>One stat's three figures, with the difference rounded like the two it came from.</summary>
     private static GearStatDelta Delta(DerivedGearStat candidate, DerivedGearStat? equipped)

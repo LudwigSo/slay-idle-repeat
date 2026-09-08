@@ -1,28 +1,34 @@
 namespace SlayIdleRepeat.Core.Rules.Inventory;
 
-/// <summary>The five orderings a player can read their stock in.</summary>
+/// <summary>
+/// The five orderings a player can ask the gear stock to be listed in.
+/// </summary>
 /// <remarks>
-/// Rarity, power and quality sort <em>best first</em> and <see cref="NEWEST"/> sorts newest first:
-/// these exist so a player looking for the item worth acting on finds it at the top.
-/// <see cref="SLOT"/> is the exception, and deliberately — it is a grouping rather than a ranking, so
-/// it follows the declared order of the slots themselves. Every tie falls back to grant order, which
-/// is the order the stock is already in, so each ordering is total and a second pass never reshuffles
-/// the first.
+/// <para>
+/// Public because the Inventory screen offers the choice and <c>InventoryView.Project</c> takes it;
+/// the ordering itself stays <c>InventorySorting</c>'s, which is internal, so a caller can name an
+/// order and cannot re-implement one. Every ordering is total — each ends in arrival order — so the
+/// same stock in the same order always draws the same grid.
+/// </para>
+/// <para>
+/// No <c>0</c> member, matching every other vocabulary in <c>Primitives/</c>: a default-initialised
+/// key is not an order the player asked for, and the sorter refuses it rather than guessing.
+/// </para>
 /// </remarks>
-internal enum InventorySortKey
+public enum InventorySortKey
 {
-    /// <summary>Grouped by slot, in the order the gear catalogue declares its grid.</summary>
-    SLOT,
+    /// <summary>Grouped by slot, in the order the base-item grid authors the slots.</summary>
+    SLOT = 1,
 
-    /// <summary>Best band first.</summary>
-    RARITY,
+    /// <summary>Highest band first.</summary>
+    RARITY = 2,
 
-    /// <summary>Strongest first: the item's own power scalar, which the chapter it dropped in moves.</summary>
-    POWER,
+    /// <summary>Highest item power first — band, chapter and enhancement together — then the better roll.</summary>
+    POWER = 3,
 
     /// <summary>Best roll first.</summary>
-    QUALITY,
+    QUALITY = 4,
 
-    /// <summary>Newest first — the exact reverse of grant order.</summary>
-    NEWEST,
+    /// <summary>Most recently granted first.</summary>
+    NEWEST = 5,
 }

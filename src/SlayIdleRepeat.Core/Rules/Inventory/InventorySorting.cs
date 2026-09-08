@@ -124,14 +124,31 @@ internal static class InventorySorting
     /// block scales each derived stat and this scales the item's power scalar.
     /// </para>
     /// </remarks>
-    private static double PowerOf(
+    /// <summary>
+    /// One item's power: the drop table's item power for its band and chapter, scaled by the Forge's
+    /// enhancement multiplier, rounded. The figure the POWER ordering sorts by, and the figure the
+    /// inventory projection shows as the item's one number.
+    /// </summary>
+    /// <remarks>
+    /// Internal rather than private since the projection began showing it: a screen sorting by a number
+    /// it draws has to be sorting by the number it draws, which is only certain if both read one method.
+    /// </remarks>
+    internal static double PowerOf(
         ParPowerTuning par, DropsTuning drops, ForgeTuning forge, GearInstance item) =>
+        PowerOf(par, drops, forge, item, item.EnhanceLevel);
+
+    /// <summary>
+    /// The same figure at a stated enhancement level — what the item would be worth one rung up, for a
+    /// preview that must not mint an item to ask.
+    /// </summary>
+    internal static double PowerOf(
+        ParPowerTuning par, DropsTuning drops, ForgeTuning forge, GearInstance item, int enhanceLevel) =>
         DeterminismRounding.Round(
             ItemPower.For(
                 par.ChapterPowerTarget(item.ChapterOrigin),
                 drops.ItemPowerCoefficient,
                 drops.Band(item.Rarity).StatMultiplier) *
-            forge.StatMultiplier(item.EnhanceLevel));
+            forge.StatMultiplier(enhanceLevel));
 
     /// <summary>Where a slot sits in the catalogue's declared grid.</summary>
     /// <remarks>

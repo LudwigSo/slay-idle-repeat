@@ -90,6 +90,32 @@ internal static class GearStatDerivation
             drops.Quality.Secondary(item.Quality));
     }
 
+    /// <summary>
+    /// A derived stat as the hero actually receives it: the item's own figure scaled by the Forge's
+    /// enhancement multiplier, rounded once.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>One place applies the multiplier, and the hero build, the comparison and the inventory
+    /// projection all call it.</b> <see cref="Primary"/> and <see cref="Secondary"/> deliberately answer
+    /// the UNENHANCED figure — enhancement is the Forge's and the derivation is the drop table's — so
+    /// the fold used to live only in the gear effect source. A comparison that read the raw figures
+    /// beside a hero that read the folded ones would show a +10 blade tying a +0 one while the fight
+    /// said otherwise, which is the exact disagreement the projection exists to rule out.
+    /// </remarks>
+    /// <param name="derived">The unenhanced figure, from <see cref="Primary"/> or <see cref="Secondary"/>.</param>
+    /// <param name="forge">The Forge tuning the multiplier ladder is read from.</param>
+    /// <param name="enhanceLevel">The item's <c>+N</c>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="forge"/> is null.</exception>
+    internal static DerivedGearStat AsWorn(DerivedGearStat derived, ForgeTuning forge, int enhanceLevel)
+    {
+        ArgumentNullException.ThrowIfNull(forge);
+
+        return derived with
+        {
+            Value = DeterminismRounding.Round(derived.Value * forge.StatMultiplier(enhanceLevel)),
+        };
+    }
+
     private static DerivedGearStat Derive(
         ParPowerTuning par,
         DropsTuning drops,

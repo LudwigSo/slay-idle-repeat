@@ -356,6 +356,7 @@ internal static class GearDocuments
         var members = new List<(string Name, ContentValue Value)>
         {
             ("id", ContentValue.Text(affix.AffixId)),
+            ("displayName", ContentValue.Text(AffixNameKey(affix.AffixId))),
             ("stat", affix.Stat is null ? ContentValue.Unauthorised : ContentValue.Text(affix.Stat)),
             ("op", affix.Op is null ? ContentValue.Unauthorised : ContentValue.Text(affix.Op)),
             ("min", ContentValue.Number(affix.Minimum)),
@@ -379,6 +380,29 @@ internal static class GearDocuments
     /// <summary>The shipped affix pool.</summary>
     internal static ContentValue Affixes() =>
         ContentValue.Array(ShippedAffixes.Select(AffixRow));
+
+    /// <summary>The locale key the fixture names an affix by — the shipped spelling, derived from the id.</summary>
+    internal static string AffixNameKey(string affixId) =>
+        "loc.affix." + affixId["AFX_".Length..].ToLowerInvariant() + ".name";
+
+    /// <summary>The four sets, one per axis, each named by the locale key the shipped table authors.</summary>
+    /// <remarks>
+    /// A method rather than a property: <see cref="Shipped"/> is built in this type's static
+    /// constructor, and a property declared after it would still be null when the document is first
+    /// assembled.
+    /// </remarks>
+    internal static IReadOnlyList<(string Axis, string NameKey)> ShippedSets() =>
+    [
+        ("BALANCED", "loc.set.bloodmoon.name"),
+        ("HEAVY", "loc.set.ironvow.name"),
+        ("CASTER", "loc.set.fateweave.name"),
+        ("AGILE", "loc.set.stormcall.name"),
+    ];
+
+    internal static ContentValue Sets() => ContentValue.Array(ShippedSets().Select(set => Members(
+        ("id", ContentValue.Unauthorised),
+        ("displayName", ContentValue.Text(set.NameKey)),
+        ("familyAxis", ContentValue.Text(set.Axis)))));
 
     private static ContentValue Drops(
         ContentValue? rarities,
@@ -408,7 +432,9 @@ internal static class GearDocuments
             ("slotCoefficients", slotCoefficients ?? SlotCoefficients()),
             ("percentStatsByRarity", percentStats ?? PercentStats()),
             ("affixPool", Members(("affixes", affixes ?? Affixes()))),
-            ("sets", Members(("breakpoints", setBreakpoints ?? Breakpoints()))));
+            ("sets", Members(
+                ("breakpoints", setBreakpoints ?? Breakpoints()),
+                ("sets", Sets()))));
 
     private static ContentValue Rarities() => ContentValue.Array(
     [

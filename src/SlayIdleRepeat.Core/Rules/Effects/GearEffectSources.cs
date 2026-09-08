@@ -140,12 +140,18 @@ internal sealed class GearEffectSource : IEffectSource
 
         foreach (var item in GearEffectNames.InSlotOrder(equipped))
         {
-            var multiplier = forge.StatMultiplier(item.EnhanceLevel);
-
+            // The multiplier is folded in by GearStatDerivation.AsWorn rather than here, so the figure
+            // the fight aggregates is byte-for-byte the figure the inventory's comparison shows.
             effects.Add(Contribution(
-                GearStatDerivation.Primary(par, drops, item), item, multiplier, primary: true));
+                GearStatDerivation.AsWorn(
+                    GearStatDerivation.Primary(par, drops, item), forge, item.EnhanceLevel),
+                item,
+                primary: true));
             effects.Add(Contribution(
-                GearStatDerivation.Secondary(par, drops, item), item, multiplier, primary: false));
+                GearStatDerivation.AsWorn(
+                    GearStatDerivation.Secondary(par, drops, item), forge, item.EnhanceLevel),
+                item,
+                primary: false));
         }
 
         _effects = new ReadOnlyCollection<SourcedEffect>(effects);
@@ -157,17 +163,16 @@ internal sealed class GearEffectSource : IEffectSource
     /// <inheritdoc />
     public IReadOnlyList<SourcedEffect> Effects => _effects;
 
-    private static SourcedEffect Contribution(
-        DerivedGearStat derived, GearInstance item, double multiplier, bool primary)
+    private static SourcedEffect Contribution(DerivedGearStat worn, GearInstance item, bool primary)
     {
         var effect = new EffectDefinition
         {
             Id = GearEffectNames.StatEffectId(item.Slot, primary),
             Op = EffectOp.STAT_ADD_FLAT,
-            Stat = StatSelector.Of(StatOf(derived, item)),
+            Stat = StatSelector.Of(StatOf(worn, item)),
             Trigger = EffectDefaults.Always,
             Target = EffectDefaults.AbsentTarget,
-            Value = DeterminismRounding.Round(derived.Value * multiplier),
+            Value = worn.Value,
         };
 
         return new SourcedEffect(effect, GearEffectNames.StatHolding(item, primary));
