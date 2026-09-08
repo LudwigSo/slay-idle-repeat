@@ -1,28 +1,138 @@
 {
   "$schema": "../../schema/inventory.schema.json",
-  "_doc": "M7-11 — the strings the Inventory screen (S16) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences treats a key referenced only from C# as an orphan, which is fatal. 🔒 The `label` group carries CAPTIONS only: the bag's occupancy and every per-stat delta are numbers read at render time and drawn beside these words, never written into them — a magnitude inside a translated string cannot be tuned and would be wrong in two languages at once. 08 §5's green/red arrows are the SIGN of a delta and carry no wording at all, which is why no key here names one. Deliberately absent, each because it is unreachable rather than forgotten: sorting, filters, the lock control and the Forge tabs are M9-01's, so no caption offers any of them; and there is no key for buying bag space, because 08 §5's errata made capacity a flat 1000 and the same ruling declined to add EXPAND_INVENTORY to 14 §2.3's vocabulary — nothing can move the ceiling, so nothing may offer to. `block.heldNotEquippable` is the one absence with a sentence: an item in overflow is owned and shown but cannot be worn, and EQUIP refuses it with INVENTORY_FULL.",
+  "_doc": "S16 — the strings the Gear screen shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences treats a key referenced only from C# as an orphan, which is fatal. The screen is the hero and the six slots above, the bag below, and the Forge's three operations — merge, enhance, salvage — plus the lock, in a sheet that opens on an item. Every group carries CAPTIONS only: the bag's occupancy, every stat and its comparison, every item's power, every price, every chance and every payout are numbers read at render time off Core's InventoryView and drawn beside these words, never written into them — a magnitude inside a translated string cannot be tuned and would be wrong in two languages at once. Where a line does carry a number it carries a runtime parameter — {item}, {level}, {count}, {dust}, {stones}, {slot} — replaced by the presenter. `sort` names the four orderings the sort control cycles; QUALITY exists in the rules and is not offered, so it is not named. `slot`, `family` and `stat` are the vocabulary no gear definition authors a display name for: content/gear/gear.json deliberately claims no loc key, so the words a player reads for a slot, a family and the eight stats gear can carry are named here, by the one screen that reads them. Deliberately absent, each because it is unreachable rather than forgotten: reforge and retune are deferred commands that answer ILLEGAL_STATE, so no caption offers them; and there is no key for buying bag space, because 08 §5's errata made capacity a flat 1000 and the same ruling declined to add EXPAND_INVENTORY to 14 §2.3's vocabulary — nothing can move the ceiling, so nothing may offer to. The tab captions and the not-open-yet line are Home's keys, borrowed rather than re-authored so the bar reads the same on both screens; they stay named in content/home/home.json.",
   "name": {
     "title": "loc.inventory.title.name"
   },
   "label": {
     "capacity": "loc.inventory.capacity.label",
-    "held": "loc.inventory.held.label"
+    "held": "loc.inventory.held.label",
+    "power": "loc.inventory.power.label",
+    "sort": "loc.inventory.sort.label",
+    "heroPower": "loc.inventory.hero_power.label",
+    "emptySlot": "loc.inventory.empty_slot.label",
+    "affixes": "loc.inventory.affixes.label",
+    "set": "loc.inventory.set.label",
+    "setPieces": "loc.inventory.set_pieces.label",
+    "quality": "loc.inventory.quality.label",
+    "chapterOrigin": "loc.inventory.chapter_origin.label",
+    "enhanceCost": "loc.inventory.enhance_cost.label",
+    "enhanceOdds": "loc.inventory.enhance_odds.label",
+    "enhanceMaxed": "loc.inventory.enhance_maxed.label",
+    "mergeKeeper": "loc.inventory.merge_keeper.label",
+    "mergeInputs": "loc.inventory.merge_inputs.label",
+    "mergeResult": "loc.inventory.merge_result.label",
+    "mergeCost": "loc.inventory.merge_cost.label",
+    "mergeDust": "loc.inventory.merge_dust.label",
+    "salvageReturns": "loc.inventory.salvage_returns.label",
+    "selectedCount": "loc.inventory.selected_count.label",
+    "quickPick": "loc.inventory.quick_pick.label"
+  },
+  "sort": {
+    "power": "loc.inventory.sort.power.name",
+    "rarity": "loc.inventory.sort.rarity.name",
+    "slot": "loc.inventory.sort.slot.name",
+    "newest": "loc.inventory.sort.newest.name"
   },
   "badge": {
-    "equipped": "loc.inventory.equipped.badge"
+    "equipped": "loc.inventory.equipped.badge",
+    "locked": "loc.inventory.locked.badge",
+    "held": "loc.inventory.held.badge",
+    "upgrade": "loc.inventory.upgrade.badge"
   },
   "action": {
     "equip": "loc.inventory.equip.action",
-    "close": "loc.inventory.close.action"
+    "close": "loc.inventory.close.action",
+    "unequip": "loc.inventory.unequip.action",
+    "enhance": "loc.inventory.enhance.action",
+    "enhanceOnce": "loc.inventory.enhance_once.action",
+    "merge": "loc.inventory.merge.action",
+    "mergeConfirm": "loc.inventory.merge_confirm.action",
+    "salvage": "loc.inventory.salvage.action",
+    "salvageConfirm": "loc.inventory.salvage_confirm.action",
+    "lock": "loc.inventory.lock.action",
+    "unlock": "loc.inventory.unlock.action",
+    "select": "loc.inventory.select.action",
+    "cancel": "loc.inventory.cancel.action",
+    "back": "loc.inventory.back.action",
+    "clearFilter": "loc.inventory.clear_filter.action"
   },
   "block": {
-    "heldNotEquippable": "loc.inventory.held_not_equippable.block"
+    "heldNotEquippable": "loc.inventory.held_not_equippable.block",
+    "lockedNoForge": "loc.inventory.locked_no_forge.block",
+    "topBandNoMerge": "loc.inventory.top_band_no_merge.block",
+    "mergeNeedsInputs": "loc.inventory.merge_needs_inputs.block",
+    "mergeConsumesWorn": "loc.inventory.merge_consumes_worn.block",
+    "mergeConsumesBetterRoll": "loc.inventory.merge_consumes_better_roll.block",
+    "mergeRerollsAffixes": "loc.inventory.merge_rerolls_affixes.block",
+    "notEnoughCrowns": "loc.inventory.not_enough_crowns.block",
+    "notEnoughStones": "loc.inventory.not_enough_stones.block",
+    "notEnoughDust": "loc.inventory.not_enough_dust.block",
+    "salvageIncludesEpic": "loc.inventory.salvage_includes_epic.block",
+    "salvageIncludesEnhanced": "loc.inventory.salvage_includes_enhanced.block",
+    "salvageNothingSelectable": "loc.inventory.salvage_nothing_selectable.block"
   },
   "status": {
     "loading": "loc.inventory.loading.status",
     "empty": "loc.inventory.empty.status",
     "unavailable": "loc.inventory.unavailable.status",
     "refused": "loc.inventory.refused.status",
-    "hostUnavailable": "loc.inventory.host_unavailable.status"
+    "hostUnavailable": "loc.inventory.host_unavailable.status",
+    "filterEmpty": "loc.inventory.filter_empty.status",
+    "refusedFunds": "loc.inventory.refused_funds.status",
+    "refusedBattle": "loc.inventory.refused_battle.status",
+    "refusedNotOwned": "loc.inventory.refused_not_owned.status",
+    "equipped": "loc.inventory.equipped.status",
+    "unequipped": "loc.inventory.unequipped.status",
+    "enhanceLanded": "loc.inventory.enhance_landed.status",
+    "enhanceFailed": "loc.inventory.enhance_failed.status",
+    "merged": "loc.inventory.merged.status",
+    "salvaged": "loc.inventory.salvaged.status",
+    "locked": "loc.inventory.locked.status",
+    "unlocked": "loc.inventory.unlocked.status"
+  },
+  "slot": {
+    "weapon": "loc.gear.slot.weapon.name",
+    "helmet": "loc.gear.slot.helmet.name",
+    "armor": "loc.gear.slot.armor.name",
+    "boots": "loc.gear.slot.boots.name",
+    "ring": "loc.gear.slot.ring.name",
+    "amulet": "loc.gear.slot.amulet.name"
+  },
+  "family": {
+    "blade": "loc.gear.family.blade.name",
+    "axe": "loc.gear.family.axe.name",
+    "staff": "loc.gear.family.staff.name",
+    "bow": "loc.gear.family.bow.name",
+    "hood": "loc.gear.family.hood.name",
+    "helm": "loc.gear.family.helm.name",
+    "circlet": "loc.gear.family.circlet.name",
+    "mask": "loc.gear.family.mask.name",
+    "leathers": "loc.gear.family.leathers.name",
+    "plate": "loc.gear.family.plate.name",
+    "robe": "loc.gear.family.robe.name",
+    "scalemail": "loc.gear.family.scalemail.name",
+    "treads": "loc.gear.family.treads.name",
+    "greaves": "loc.gear.family.greaves.name",
+    "slippers": "loc.gear.family.slippers.name",
+    "sandals": "loc.gear.family.sandals.name",
+    "band": "loc.gear.family.band.name",
+    "signet": "loc.gear.family.signet.name",
+    "loop": "loc.gear.family.loop.name",
+    "seal": "loc.gear.family.seal.name",
+    "pendant": "loc.gear.family.pendant.name",
+    "talisman": "loc.gear.family.talisman.name",
+    "charm": "loc.gear.family.charm.name",
+    "idol": "loc.gear.family.idol.name"
+  },
+  "stat": {
+    "atk": "loc.gear.stat.atk.name",
+    "def": "loc.gear.stat.def.name",
+    "maxHp": "loc.gear.stat.max_hp.name",
+    "aspd": "loc.gear.stat.aspd.name",
+    "crit": "loc.gear.stat.crit.name",
+    "dodge": "loc.gear.stat.dodge.name",
+    "pen": "loc.gear.stat.pen.name",
+    "lifesteal": "loc.gear.stat.lifesteal.name"
   }
 }

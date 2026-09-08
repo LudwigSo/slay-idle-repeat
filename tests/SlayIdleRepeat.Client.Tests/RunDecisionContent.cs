@@ -103,6 +103,16 @@ internal static class RunDecisionContent
     internal const string InventoryUnavailableStatusKey = "loc.inventory.unavailable.status";
     internal const string InventoryRefusedStatusKey = "loc.inventory.refused.status";
     internal const string InventoryHostUnavailableStatusKey = "loc.inventory.host_unavailable.status";
+    internal const string InventoryMergedStatusKey = "loc.inventory.merged.status";
+    internal const string InventoryEnhanceLandedStatusKey = "loc.inventory.enhance_landed.status";
+    internal const string InventoryEnhanceFailedStatusKey = "loc.inventory.enhance_failed.status";
+    internal const string InventorySalvagedStatusKey = "loc.inventory.salvaged.status";
+    internal const string InventoryEquippedStatusKey = "loc.inventory.equipped.status";
+    internal const string InventoryRefusedFundsStatusKey = "loc.inventory.refused_funds.status";
+    internal const string InventoryNotEnoughStonesBlockKey = "loc.inventory.not_enough_stones.block";
+    internal const string InventoryMergeNeedsInputsBlockKey = "loc.inventory.merge_needs_inputs.block";
+    internal const string InventoryMergeConsumesWornBlockKey = "loc.inventory.merge_consumes_worn.block";
+    internal const string InventoryLockedNoForgeBlockKey = "loc.inventory.locked_no_forge.block";
 
     // ---- run end: the death offer and the tally (S13 / S14) -----------------------------------
 
@@ -150,17 +160,44 @@ internal static class RunDecisionContent
         RunEndRefusedStatusKey, RunEndHostUnavailableStatusKey,
     ];
 
-    /// <summary>Every string key the Inventory screen (S16) renders.</summary>
-    internal static IReadOnlyList<string> InventoryKeys { get; } =
+    /// <summary>Every string key the Gear screen (S16) renders, the vocabulary it borrows aside.</summary>
+    /// <remarks>
+    /// Read off the shipped document rather than transcribed: the document is the one statement of
+    /// which keys the screen is about, and a list here that drifted from it would prove the presenter
+    /// against strings the content set does not carry.
+    /// </remarks>
+    internal static IReadOnlyList<string> InventoryKeys { get; } = ReadInventoryDocumentKeys();
+
+    /// <summary>The tab captions and the not-open-yet line the Gear screen borrows from Home.</summary>
+    internal static IReadOnlyList<string> InventoryBorrowedKeys { get; } =
     [
-        InventoryTitleNameKey,
-        InventoryCapacityLabelKey, InventoryHeldLabelKey,
-        InventoryEquippedBadgeKey,
-        InventoryEquipActionKey, InventoryCloseActionKey,
-        InventoryHeldNotEquippableBlockKey,
-        InventoryLoadingStatusKey, InventoryEmptyStatusKey, InventoryUnavailableStatusKey,
-        InventoryRefusedStatusKey, InventoryHostUnavailableStatusKey,
+        "loc.home.tab.home.label", "loc.home.tab.gear.label", "loc.home.tab.talents.label",
+        "loc.home.tab.collection.label", "loc.home.tab.shop.label", "loc.home.not_open_yet.status",
+        "loc.rarity.c.name", "loc.rarity.b.name", "loc.rarity.a.name", "loc.rarity.s.name", "loc.rarity.ss.name",
     ];
+
+    private static IReadOnlyList<string> ReadInventoryDocumentKeys()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RepoPaths.ContentDataRoot, "content", "inventory", "inventory.json")));
+
+        var keys = new List<string>();
+
+        foreach (var group in document.RootElement.EnumerateObject())
+        {
+            if (group.Value.ValueKind != System.Text.Json.JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            foreach (var member in group.Value.EnumerateObject())
+            {
+                keys.Add(member.Value.GetString() ?? "");
+            }
+        }
+
+        return keys;
+    }
 
     /// <summary>Every string key the Perk Draft screen renders.</summary>
     internal static IReadOnlyList<string> DraftKeys { get; } =
@@ -262,7 +299,9 @@ internal static class RunDecisionContent
             .Concat(CampfireKeys)
             .Concat(ShrineBuffNameKeys)
             .Concat(InventoryKeys)
+            .Concat(InventoryBorrowedKeys)
             .Concat(RunEndKeys)
+            .Distinct(StringComparer.Ordinal)
             .ToArray();
 
         return

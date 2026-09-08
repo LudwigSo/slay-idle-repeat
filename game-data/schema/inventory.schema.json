@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/inventory.schema.json",
   "title": "content/inventory/inventory.json",
-  "description": "M7-11 — the loc keys the Inventory screen (S16) renders. What is fixed here is that the screen heads the stock, captions the bag's occupancy and the overflow band, marks the item worn in a slot, offers an equip and a way back, carries one sentence for the one absence that has a reason, and carries one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object, so the absences are enforced rather than merely observed. 🔒 There is no member for sorting, filtering, locking or the Forge, because those are M9-01's and a caption offering one would be a control this screen does not have. 🔒 There is no member for buying bag space: 08 §5's errata makes capacity a flat 1000 and the ruling that set it declined to add EXPAND_INVENTORY to 14 §2.3's vocabulary, so nothing can move the ceiling and nothing may offer to. And no member carries a MAGNITUDE — the occupancy and every per-stat delta are read at render time and drawn beside these captions, because a number written into a translated string cannot be tuned.",
+  "description": "S16 — the loc keys the Gear screen renders. What is fixed here is that the screen heads the stock, captions the bag's occupancy and the overflow band, names the six slots and the hero's power, offers the sort orderings, marks the item worn in a slot and the locked and held ones, offers equip, unequip, lock, enhance, merge and salvage with a confirmation on the two destructive ones, carries one sentence per reason a control is not live, and one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object, so the absences are enforced rather than merely observed. 🔒 There is no member for reforge or retune, because both commands are deferred and a caption offering one would be a control that cannot succeed. 🔒 There is no member for buying bag space: 08 §5's errata makes capacity a flat 1000 and the ruling that set it declined to add EXPAND_INVENTORY to 14 §2.3's vocabulary, so nothing can move the ceiling and nothing may offer to. And no member carries a MAGNITUDE — every figure is read at render time and drawn beside these captions; a line that needs one carries a runtime parameter in braces.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,10 +10,14 @@
     "_doc",
     "name",
     "label",
+    "sort",
     "badge",
     "action",
     "block",
-    "status"
+    "status",
+    "slot",
+    "family",
+    "stat"
   ],
   "$defs": {
     "locKey": {
@@ -44,12 +48,32 @@
       }
     },
     "label": {
-      "description": "🔒 Captions only. `capacity` is the words the bag's occupancy is drawn BESIDE — the two numbers are the stock's size and 08 §5's authored ceiling, read at render time, because a ceiling written into a translated string could not be retuned. `held` heads the overflow band, which exists because a drop arriving at a full stock is held rather than refused.",
+      "description": "🔒 Captions only. `capacity` is the words the bag's occupancy is drawn BESIDE; `heroPower` and `power` caption figures the rules compute; `setPieces`, `salvageReturns` and `selectedCount` carry runtime parameters the presenter fills. `held` heads the overflow band, which exists because a drop arriving at a full stock is held rather than refused.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "capacity",
-        "held"
+        "held",
+        "power",
+        "sort",
+        "heroPower",
+        "emptySlot",
+        "affixes",
+        "set",
+        "setPieces",
+        "quality",
+        "chapterOrigin",
+        "enhanceCost",
+        "enhanceOdds",
+        "enhanceMaxed",
+        "mergeKeeper",
+        "mergeInputs",
+        "mergeResult",
+        "mergeCost",
+        "mergeDust",
+        "salvageReturns",
+        "selectedCount",
+        "quickPick"
       ],
       "properties": {
         "capacity": {
@@ -57,29 +81,139 @@
         },
         "held": {
           "$ref": "#/$defs/locKey"
+        },
+        "power": {
+          "$ref": "#/$defs/locKey"
+        },
+        "sort": {
+          "$ref": "#/$defs/locKey"
+        },
+        "heroPower": {
+          "$ref": "#/$defs/locKey"
+        },
+        "emptySlot": {
+          "$ref": "#/$defs/locKey"
+        },
+        "affixes": {
+          "$ref": "#/$defs/locKey"
+        },
+        "set": {
+          "$ref": "#/$defs/locKey"
+        },
+        "setPieces": {
+          "$ref": "#/$defs/locKey"
+        },
+        "quality": {
+          "$ref": "#/$defs/locKey"
+        },
+        "chapterOrigin": {
+          "$ref": "#/$defs/locKey"
+        },
+        "enhanceCost": {
+          "$ref": "#/$defs/locKey"
+        },
+        "enhanceOdds": {
+          "$ref": "#/$defs/locKey"
+        },
+        "enhanceMaxed": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mergeKeeper": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mergeInputs": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mergeResult": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mergeCost": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mergeDust": {
+          "$ref": "#/$defs/locKey"
+        },
+        "salvageReturns": {
+          "$ref": "#/$defs/locKey"
+        },
+        "selectedCount": {
+          "$ref": "#/$defs/locKey"
+        },
+        "quickPick": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "sort": {
+      "description": "The four orderings the sort control cycles, by the rules' own key names in lower case. QUALITY is a rules ordering the screen does not offer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "power",
+        "rarity",
+        "slot",
+        "newest"
+      ],
+      "properties": {
+        "power": {
+          "$ref": "#/$defs/locKey"
+        },
+        "rarity": {
+          "$ref": "#/$defs/locKey"
+        },
+        "slot": {
+          "$ref": "#/$defs/locKey"
+        },
+        "newest": {
+          "$ref": "#/$defs/locKey"
         }
       }
     },
     "badge": {
-      "description": "The mark on the item worn in a slot. A word rather than an icon, because the client ships no atlas and a coloured shape alone would carry the fact by appearance only.",
+      "description": "The marks on an item: worn, locked, held, and the slot badge that says the bag holds something stronger. Words rather than icons alone, because a coloured shape by itself would carry the fact by appearance only.",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "equipped"
+        "equipped",
+        "locked",
+        "held",
+        "upgrade"
       ],
       "properties": {
         "equipped": {
+          "$ref": "#/$defs/locKey"
+        },
+        "locked": {
+          "$ref": "#/$defs/locKey"
+        },
+        "held": {
+          "$ref": "#/$defs/locKey"
+        },
+        "upgrade": {
           "$ref": "#/$defs/locKey"
         }
       }
     },
     "action": {
-      "description": "Every control the screen offers, which is two. `equip` is the only command it submits; `close` is the way back. 🔒 No salvage, no merge and no lock: this screen is the equip path M7's exit criterion names, and the forge is M9-01's.",
+      "description": "Every control the screen offers. `equip`/`unequip`/`lock`/`unlock` submit one command each; `enhance` and `merge` open a page and `enhanceOnce` and `mergeConfirm` submit from it; `salvage` asks and `salvageConfirm` submits; `select` enters the batch mode, `cancel` leaves it, `back` turns the sheet a page back, `close` leaves the screen, `clearFilter` widens the grid.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "equip",
-        "close"
+        "close",
+        "unequip",
+        "enhance",
+        "enhanceOnce",
+        "merge",
+        "mergeConfirm",
+        "salvage",
+        "salvageConfirm",
+        "lock",
+        "unlock",
+        "select",
+        "cancel",
+        "back",
+        "clearFilter"
       ],
       "properties": {
         "equip": {
@@ -87,24 +221,111 @@
         },
         "close": {
           "$ref": "#/$defs/locKey"
+        },
+        "unequip": {
+          "$ref": "#/$defs/locKey"
+        },
+        "enhance": {
+          "$ref": "#/$defs/locKey"
+        },
+        "enhanceOnce": {
+          "$ref": "#/$defs/locKey"
+        },
+        "merge": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mergeConfirm": {
+          "$ref": "#/$defs/locKey"
+        },
+        "salvage": {
+          "$ref": "#/$defs/locKey"
+        },
+        "salvageConfirm": {
+          "$ref": "#/$defs/locKey"
+        },
+        "lock": {
+          "$ref": "#/$defs/locKey"
+        },
+        "unlock": {
+          "$ref": "#/$defs/locKey"
+        },
+        "select": {
+          "$ref": "#/$defs/locKey"
+        },
+        "cancel": {
+          "$ref": "#/$defs/locKey"
+        },
+        "back": {
+          "$ref": "#/$defs/locKey"
+        },
+        "clearFilter": {
+          "$ref": "#/$defs/locKey"
         }
       }
     },
     "block": {
-      "description": "🔒 One sentence for the one absence that has a reason. An item in overflow is owned and is shown — hiding it would hide exactly what a player needs to see to make room — but it cannot be worn, and EQUIP refuses it with INVENTORY_FULL. Saying so on the card is what stops the refusal arriving as a surprise.",
+      "description": "One sentence per reason a control is not live or a player should read before pressing it: an item held in overflow, a locked item, the top band, a fusion missing inputs or a price, a fusion or a batch that would consume something worth keeping.",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "heldNotEquippable"
+        "heldNotEquippable",
+        "lockedNoForge",
+        "topBandNoMerge",
+        "mergeNeedsInputs",
+        "mergeConsumesWorn",
+        "mergeConsumesBetterRoll",
+        "mergeRerollsAffixes",
+        "notEnoughCrowns",
+        "notEnoughStones",
+        "notEnoughDust",
+        "salvageIncludesEpic",
+        "salvageIncludesEnhanced",
+        "salvageNothingSelectable"
       ],
       "properties": {
         "heldNotEquippable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "lockedNoForge": {
+          "$ref": "#/$defs/locKey"
+        },
+        "topBandNoMerge": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mergeNeedsInputs": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mergeConsumesWorn": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mergeConsumesBetterRoll": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mergeRerollsAffixes": {
+          "$ref": "#/$defs/locKey"
+        },
+        "notEnoughCrowns": {
+          "$ref": "#/$defs/locKey"
+        },
+        "notEnoughStones": {
+          "$ref": "#/$defs/locKey"
+        },
+        "notEnoughDust": {
+          "$ref": "#/$defs/locKey"
+        },
+        "salvageIncludesEpic": {
+          "$ref": "#/$defs/locKey"
+        },
+        "salvageIncludesEnhanced": {
+          "$ref": "#/$defs/locKey"
+        },
+        "salvageNothingSelectable": {
           "$ref": "#/$defs/locKey"
         }
       }
     },
     "status": {
-      "description": "One line per state the read can be in, plus the two a submission can come back with. `empty` is a stock with nothing in it, which is a real state for a fresh account and reads as a rendering fault if the grid is simply blank.",
+      "description": "One line per state the read can be in, one per way a submission can be refused that the player can act on, and one per thing a command did — each of the latter carrying the item's name as a runtime parameter.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -112,7 +333,19 @@
         "empty",
         "unavailable",
         "refused",
-        "hostUnavailable"
+        "hostUnavailable",
+        "filterEmpty",
+        "refusedFunds",
+        "refusedBattle",
+        "refusedNotOwned",
+        "equipped",
+        "unequipped",
+        "enhanceLanded",
+        "enhanceFailed",
+        "merged",
+        "salvaged",
+        "locked",
+        "unlocked"
       ],
       "properties": {
         "loading": {
@@ -128,6 +361,221 @@
           "$ref": "#/$defs/locKey"
         },
         "hostUnavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "filterEmpty": {
+          "$ref": "#/$defs/locKey"
+        },
+        "refusedFunds": {
+          "$ref": "#/$defs/locKey"
+        },
+        "refusedBattle": {
+          "$ref": "#/$defs/locKey"
+        },
+        "refusedNotOwned": {
+          "$ref": "#/$defs/locKey"
+        },
+        "equipped": {
+          "$ref": "#/$defs/locKey"
+        },
+        "unequipped": {
+          "$ref": "#/$defs/locKey"
+        },
+        "enhanceLanded": {
+          "$ref": "#/$defs/locKey"
+        },
+        "enhanceFailed": {
+          "$ref": "#/$defs/locKey"
+        },
+        "merged": {
+          "$ref": "#/$defs/locKey"
+        },
+        "salvaged": {
+          "$ref": "#/$defs/locKey"
+        },
+        "locked": {
+          "$ref": "#/$defs/locKey"
+        },
+        "unlocked": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "slot": {
+      "description": "The six slots' names — 08 §1's vocabulary, which gear.json deliberately authors no display name for.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "weapon",
+        "helmet",
+        "armor",
+        "boots",
+        "ring",
+        "amulet"
+      ],
+      "properties": {
+        "weapon": {
+          "$ref": "#/$defs/locKey"
+        },
+        "helmet": {
+          "$ref": "#/$defs/locKey"
+        },
+        "armor": {
+          "$ref": "#/$defs/locKey"
+        },
+        "boots": {
+          "$ref": "#/$defs/locKey"
+        },
+        "ring": {
+          "$ref": "#/$defs/locKey"
+        },
+        "amulet": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "family": {
+      "description": "The twenty-four families' names, four per slot, likewise unauthored anywhere else.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blade",
+        "axe",
+        "staff",
+        "bow",
+        "hood",
+        "helm",
+        "circlet",
+        "mask",
+        "leathers",
+        "plate",
+        "robe",
+        "scalemail",
+        "treads",
+        "greaves",
+        "slippers",
+        "sandals",
+        "band",
+        "signet",
+        "loop",
+        "seal",
+        "pendant",
+        "talisman",
+        "charm",
+        "idol"
+      ],
+      "properties": {
+        "blade": {
+          "$ref": "#/$defs/locKey"
+        },
+        "axe": {
+          "$ref": "#/$defs/locKey"
+        },
+        "staff": {
+          "$ref": "#/$defs/locKey"
+        },
+        "bow": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hood": {
+          "$ref": "#/$defs/locKey"
+        },
+        "helm": {
+          "$ref": "#/$defs/locKey"
+        },
+        "circlet": {
+          "$ref": "#/$defs/locKey"
+        },
+        "mask": {
+          "$ref": "#/$defs/locKey"
+        },
+        "leathers": {
+          "$ref": "#/$defs/locKey"
+        },
+        "plate": {
+          "$ref": "#/$defs/locKey"
+        },
+        "robe": {
+          "$ref": "#/$defs/locKey"
+        },
+        "scalemail": {
+          "$ref": "#/$defs/locKey"
+        },
+        "treads": {
+          "$ref": "#/$defs/locKey"
+        },
+        "greaves": {
+          "$ref": "#/$defs/locKey"
+        },
+        "slippers": {
+          "$ref": "#/$defs/locKey"
+        },
+        "sandals": {
+          "$ref": "#/$defs/locKey"
+        },
+        "band": {
+          "$ref": "#/$defs/locKey"
+        },
+        "signet": {
+          "$ref": "#/$defs/locKey"
+        },
+        "loop": {
+          "$ref": "#/$defs/locKey"
+        },
+        "seal": {
+          "$ref": "#/$defs/locKey"
+        },
+        "pendant": {
+          "$ref": "#/$defs/locKey"
+        },
+        "talisman": {
+          "$ref": "#/$defs/locKey"
+        },
+        "charm": {
+          "$ref": "#/$defs/locKey"
+        },
+        "idol": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "stat": {
+      "description": "The eight stats gear can carry as a primary or secondary — the ones drops.json's slotCoefficients name. Affix names are the affix pool's own displayName keys and are not repeated here.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "atk",
+        "def",
+        "maxHp",
+        "aspd",
+        "crit",
+        "dodge",
+        "pen",
+        "lifesteal"
+      ],
+      "properties": {
+        "atk": {
+          "$ref": "#/$defs/locKey"
+        },
+        "def": {
+          "$ref": "#/$defs/locKey"
+        },
+        "maxHp": {
+          "$ref": "#/$defs/locKey"
+        },
+        "aspd": {
+          "$ref": "#/$defs/locKey"
+        },
+        "crit": {
+          "$ref": "#/$defs/locKey"
+        },
+        "dodge": {
+          "$ref": "#/$defs/locKey"
+        },
+        "pen": {
+          "$ref": "#/$defs/locKey"
+        },
+        "lifesteal": {
           "$ref": "#/$defs/locKey"
         }
       }

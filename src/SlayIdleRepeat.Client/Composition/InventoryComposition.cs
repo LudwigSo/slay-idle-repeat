@@ -61,7 +61,11 @@ public static class InventoryComposition
         var content = composed.Client.Content.Current;
         var strings = new LocaleStringCatalogue(content, composed.Capabilities.PlatformInfo.Locale);
 
+        // The same power source Home reads, over the same content: the figure under the hero on the
+        // Gear screen is the figure on Home's power pill, and the projected one is measured by the
+        // same calculator with one slot swapped.
         return new ComposedInventoryScreen(
-            new InventoryPresenter(composed.Client.GameHost, strings, content, player));
+            new InventoryPresenter(
+                composed.Client.GameHost, strings, content, player, new HeroPowerReadout(content)));
     }
 }
