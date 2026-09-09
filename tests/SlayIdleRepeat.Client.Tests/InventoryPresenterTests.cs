@@ -646,7 +646,8 @@ public sealed class InventoryPresenterTests
         var offenders =
             from property in typeof(InventoryPresenter).GetProperties()
             where property.Name.Contains("Expand", StringComparison.Ordinal) ||
-                  property.Name.Contains("Purchase", StringComparison.Ordinal)
+                  property.Name.Contains("Purchase", StringComparison.Ordinal) ||
+                  property.Name.Contains("Upgrade", StringComparison.Ordinal)
             select property.Name;
 
         offenders.ShouldBeEmpty(
