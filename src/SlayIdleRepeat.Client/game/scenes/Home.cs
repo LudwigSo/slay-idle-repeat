@@ -72,7 +72,7 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// resume, which is reported rather than guessed at. See <see cref="TheRunToResumeWasNotNamed"/>.
 /// </para>
 /// </remarks>
-public partial class Home : Node3D
+public partial class Home : Node3D, IResumableScreen
 {
     /// <summary>Where this scene lives, for the screen that instantiates it.</summary>
     public const string ScenePath = "res://game/scenes/Home.tscn";

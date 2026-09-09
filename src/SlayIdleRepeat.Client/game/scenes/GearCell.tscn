@@ -6,14 +6,14 @@
 ;
 ; 🔒 A Button whose children all ignore the pointer, drawn through the theme's GearCell face; the
 ; band is written on at render time as a tint and a corner shape over duplicates of that face. Five
-; of these fit a 1080 canvas at 192 with 16 between them, which is 64 dp a cell — above the 48 dp
-; floor with room for two badges each.
+; of these fit the deck's 1024 at 184 with 26 between them — 61 dp a cell, above the 48 dp floor with
+; room for two badges each, and 8 dp of air between neighbours so a thumb does not open the one beside.
 ;
 ; The corner map is fixed so marks never collide: gem top-left, upgrade top-right, lock-or-worn
 ; bottom-left, +N bottom-right. A cell that is worn AND locked shows the lock: the worn fact is on
 ; the slot tile above, the lock fact is nowhere else.
 [node name="GearCell" type="Button"]
-custom_minimum_size = Vector2(192, 192)
+custom_minimum_size = Vector2(184, 184)
 theme_type_variation = &"GearCell"
 text_overrun_behavior = 3
 

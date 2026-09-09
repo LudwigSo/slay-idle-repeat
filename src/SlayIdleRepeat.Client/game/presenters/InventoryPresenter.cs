@@ -7,6 +7,7 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Forge;
 using SlayIdleRepeat.Core.Rules.Inventory;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
@@ -88,10 +89,10 @@ public enum InventoryNoticeKind
     Plain = 4,
 }
 
-/// <summary>One line of an item's stat block: the caption, the figure, and the sign of its comparison.</summary>
-/// <param name="Name">The stat's name, resolved.</param>
+/// <summary>One line of a figure and its comparison: the caption, the figure, and the sign of the comparison.</summary>
+/// <param name="Name">The caption, resolved.</param>
 /// <param name="Value">The figure, written for a player.</param>
-/// <param name="Delta">The comparison against what is worn, written with its arrow and sign, or empty.</param>
+/// <param name="Delta">The comparison, written with its arrow and sign, or empty.</param>
 /// <param name="Sign">The comparison's direction: positive, negative or zero. Zero when there is no comparison.</param>
 public sealed record GearStatLine(string Name, string Value, string Delta, int Sign);
 
@@ -122,6 +123,12 @@ public sealed record GearStatLine(string Name, string Value, string Delta, int S
 /// server now holds.
 /// </para>
 /// <para>
+/// 🔒 <b>Every derived list and figure is rebuilt once per state change, by <see cref="Recompute"/>,
+/// and read from a field.</b> A renderer reads each of them several times per frame, and the stock can
+/// be a thousand items: a getter that scanned the bag would turn each tap into a quadratic sweep.
+/// Every mutator ends by calling it; the one thing a new mutator must not forget is that call.
+/// </para>
+/// <para>
 /// ⚠️ <b>Reforge and retune are not offered.</b> Both commands exist in the vocabulary and both are
 /// deferred — the dispatch table answers <c>ILLEGAL_STATE</c> for either — so a control offering them
 /// would be a control that cannot succeed. Bag space is likewise unpurchasable: capacity is a flat
@@ -144,7 +151,6 @@ public sealed class InventoryPresenter
 
     // ---- captions ------------------------------------------------------------------------------
 
-    private const string TitleNameKey = "loc.inventory.title.name";
     private const string CapacityLabelKey = "loc.inventory.capacity.label";
     private const string HeldLabelKey = "loc.inventory.held.label";
     private const string PowerLabelKey = "loc.inventory.power.label";
@@ -158,6 +164,8 @@ public sealed class InventoryPresenter
     private const string ChapterOriginLabelKey = "loc.inventory.chapter_origin.label";
     private const string EnhanceCostLabelKey = "loc.inventory.enhance_cost.label";
     private const string EnhanceOddsLabelKey = "loc.inventory.enhance_odds.label";
+    private const string EnhanceMercyLabelKey = "loc.inventory.enhance_mercy.label";
+    private const string EnhanceCertainLabelKey = "loc.inventory.enhance_certain.label";
     private const string EnhanceMaxedLabelKey = "loc.inventory.enhance_maxed.label";
     private const string MergeKeeperLabelKey = "loc.inventory.merge_keeper.label";
     private const string MergeInputsLabelKey = "loc.inventory.merge_inputs.label";
@@ -168,12 +176,19 @@ public sealed class InventoryPresenter
     private const string SelectedCountLabelKey = "loc.inventory.selected_count.label";
     private const string QuickPickLabelKey = "loc.inventory.quick_pick.label";
 
+    // ---- sort names -----------------------------------------------------------------------------
+
+    private const string SortPowerNameKey = "loc.inventory.sort.power.name";
+    private const string SortRarityNameKey = "loc.inventory.sort.rarity.name";
+    private const string SortSlotNameKey = "loc.inventory.sort.slot.name";
+    private const string SortQualityNameKey = "loc.inventory.sort.quality.name";
+    private const string SortNewestNameKey = "loc.inventory.sort.newest.name";
+
     // ---- badges ---------------------------------------------------------------------------------
 
     private const string EquippedBadgeKey = "loc.inventory.equipped.badge";
     private const string LockedBadgeKey = "loc.inventory.locked.badge";
     private const string HeldBadgeKey = "loc.inventory.held.badge";
-    private const string UpgradeBadgeKey = "loc.inventory.upgrade.badge";
 
     // ---- actions --------------------------------------------------------------------------------
 
@@ -191,16 +206,17 @@ public sealed class InventoryPresenter
     private const string CancelActionKey = "loc.inventory.cancel.action";
     private const string BackActionKey = "loc.inventory.back.action";
     private const string CloseActionKey = "loc.inventory.close.action";
-    private const string ClearFilterActionKey = "loc.inventory.clear_filter.action";
+    private const string LeaveActionKey = "loc.inventory.leave.action";
+    private const string RetryActionKey = "loc.home.launch.retry.action";
 
     // ---- blocks: the sentence beside a control that is not live --------------------------------
 
     private const string HeldNotEquippableBlockKey = "loc.inventory.held_not_equippable.block";
     private const string LockedNoForgeBlockKey = "loc.inventory.locked_no_forge.block";
     private const string TopBandNoMergeBlockKey = "loc.inventory.top_band_no_merge.block";
+    private const string MergeNoCopiesBlockKey = "loc.inventory.merge_no_copies.block";
     private const string MergeNeedsInputsBlockKey = "loc.inventory.merge_needs_inputs.block";
     private const string MergeConsumesWornBlockKey = "loc.inventory.merge_consumes_worn.block";
-    private const string MergeConsumesBetterRollBlockKey = "loc.inventory.merge_consumes_better_roll.block";
     private const string MergeRerollsAffixesBlockKey = "loc.inventory.merge_rerolls_affixes.block";
     private const string NotEnoughCrownsBlockKey = "loc.inventory.not_enough_crowns.block";
     private const string NotEnoughStonesBlockKey = "loc.inventory.not_enough_stones.block";
@@ -236,9 +252,7 @@ public sealed class InventoryPresenter
     private const string SlotNameKeyPrefix = "loc.gear.slot.";
     private const string FamilyNameKeyPrefix = "loc.gear.family.";
     private const string StatNameKeyPrefix = "loc.gear.stat.";
-    private const string SortNameKeyPrefix = "loc.inventory.sort.";
     private const string NameKeySuffix = ".name";
-    private const string LabelKeySuffix = ".label";
     private const string TabHomeLabelKey = "loc.home.tab.home.label";
     private const string TabGearLabelKey = "loc.home.tab.gear.label";
     private const string TabTalentsLabelKey = "loc.home.tab.talents.label";
@@ -255,6 +269,8 @@ public sealed class InventoryPresenter
     private const string DustToken = "{dust}";
     private const string StonesToken = "{stones}";
     private const string SlotToken = "{slot}";
+    private const string FailedToken = "{failed}";
+    private const string CertainToken = "{certain}";
 
     /// <summary>What a line with nothing to say answers.</summary>
     private const string NothingLeftToSay = "";
@@ -265,7 +281,6 @@ public sealed class InventoryPresenter
     private const string EnhancePrefix = "+";
     private const string PercentSuffix = "%";
     private const string FlatFormat = "0.#";
-    private const string PercentFormat = "0.#";
     private const string GainArrow = "↑";
     private const string LossArrow = "↓";
     private const string LevelArrow = "–";
@@ -273,6 +288,7 @@ public sealed class InventoryPresenter
     private const string LossSign = "−";
     private const string Space = " ";
     private const string OfSeparator = " / ";
+    private const string BecomesSeparator = " → ";
 
     /// <summary>The slot columns as the screen lays them out: body order down the hero's left, weapon and jewels down the right.</summary>
     private static readonly GearSlot[] LeftSlotColumn = [GearSlot.HELMET, GearSlot.ARMOR, GearSlot.BOOTS];
@@ -280,11 +296,19 @@ public sealed class InventoryPresenter
     private static readonly GearSlot[] RightSlotColumn = [GearSlot.WEAPON, GearSlot.RING, GearSlot.AMULET];
 
     /// <summary>The orderings offered, in the order a tap on the sort control cycles them.</summary>
+    /// <remarks>
+    /// QUALITY is in the rules' vocabulary and not in the cycle: a fourth tap is already a long way
+    /// round, and the roll is on every sheet. Its caption is authored all the same, so a caller that
+    /// sets it does not draw a key.
+    /// </remarks>
     private static readonly InventorySortKey[] SortCycle =
         [InventorySortKey.POWER, InventorySortKey.RARITY, InventorySortKey.SLOT, InventorySortKey.NEWEST];
 
     /// <summary>The bands the quick-pick gems in select mode add wholesale. Never the top two: nobody bulk-salvages a Legendary.</summary>
     private static readonly Rarity[] QuickPickBands = [Rarity.C, Rarity.B, Rarity.A];
+
+    private static readonly IReadOnlyDictionary<GearSlot, GearInstanceId> NoLoadout =
+        new Dictionary<GearSlot, GearInstanceId>();
 
     private readonly IGameHost _gameHost;
     private readonly LocaleStringCatalogue _strings;
@@ -296,18 +320,23 @@ public sealed class InventoryPresenter
     private InventoryView? _view;
     private GearInstanceId? _inspected;
     private readonly List<GearInstanceId> _mergePicks = [];
-    private readonly HashSet<GearInstanceId> _selected = [];
     private readonly List<GearInstanceId> _selectionOrder = [];
     private bool _submissionInFlight;
 
-    // The lists the grid and the sheet draw, rebuilt once per state change by Recompute rather than
-    // on every read: a renderer asks for each of them several times per frame.
+    // Everything below is derived, and rebuilt by Recompute once per state change.
     private IReadOnlyList<InventoryItemView> _visible = [];
     private IReadOnlyList<InventoryItemView> _visibleHeld = [];
     private IReadOnlyList<InventoryItemView> _selectedViews = [];
     private IReadOnlyList<InventoryItemView> _mergeCandidates = [];
     private IReadOnlyList<InventoryItemView> _mergePickViews = [];
     private IReadOnlyList<string> _inspectedAffixes = [];
+    private HashSet<GearInstanceId> _selected = [];
+    private HashSet<GearInstanceId> _storedIds = [];
+    private Dictionary<GearSlot, InventoryItemView> _wornBySlot = [];
+    private Dictionary<MergeIdentity, int> _mergeableCopies = [];
+    private InventoryItemView? _inspectedView;
+    private double? _heroPower;
+    private double? _projectedHeroPower;
 
     /// <summary>Builds the screen's driver.</summary>
     /// <param name="gameHost">The host every read and submission goes through.</param>
@@ -339,6 +368,9 @@ public sealed class InventoryPresenter
 
     /// <summary>How far the read has got.</summary>
     public InventoryStage Stage { get; private set; } = InventoryStage.NotYetRead;
+
+    /// <summary>Whether the read has settled into a state the screen can act on.</summary>
+    public bool Settled => Stage is InventoryStage.Ready or InventoryStage.Empty;
 
     /// <summary>Whether a submission is outstanding. Every control is disabled while one is.</summary>
     public bool Busy => _submissionInFlight;
@@ -373,8 +405,21 @@ public sealed class InventoryPresenter
     /// <summary>The player's Merge Dust — what stands in for a missing fusion input.</summary>
     public long MergeDust => Balance(CurrencyId.MERGE_DUST);
 
+    /// <summary>The player's Crowns, written the way the top bar writes a wallet.</summary>
+    public string CrownsText => Money(Crowns);
+
+    /// <summary>The player's Enhance Stones, written the way the top bar writes a wallet.</summary>
+    public string EnhanceStonesText => Money(EnhanceStones);
+
+    /// <summary>The player's Merge Dust, written the way the top bar writes a wallet.</summary>
+    public string MergeDustText => Money(MergeDust);
+
     /// <summary>The hero's power as worn, or <c>null</c> while unread or unmeasurable.</summary>
-    public double? HeroPower => _row is null ? null : _power.Read(_row, null).PowerIndex;
+    public double? HeroPower => _heroPower;
+
+    /// <summary>The hero's power line under the diorama: the caption and the figure, or empty while there is none.</summary>
+    public string HeroPowerText =>
+        _heroPower is { } power ? _strings.Resolve(HeroPowerLabelKey) + Space + Money((long)Math.Round(power)) : NothingLeftToSay;
 
     /// <summary>
     /// The hero's power if the open item were worn instead of what is in its slot, or <c>null</c> when
@@ -386,23 +431,17 @@ public sealed class InventoryPresenter
     /// is the one comparison a player actually decides by, and a projection that guessed it from the
     /// item's own power would be wrong whenever a set bonus or a cap was in play.
     /// </remarks>
-    public double? ProjectedHeroPower
-    {
-        get
-        {
-            if (_row is null || Inspected is not { IsEquipped: false } item || !IsStored(item))
-            {
-                return null;
-            }
+    public double? ProjectedHeroPower => _projectedHeroPower;
 
-            var gear = new Dictionary<GearSlot, GearInstanceId>(_row.Loadout?.Gear ?? new Dictionary<GearSlot, GearInstanceId>())
-            {
-                [item.Slot] = item.InstanceId,
-            };
-
-            return _power.Read(_row with { Loadout = new LoadoutSnapshot(gear) }, null).PowerIndex;
-        }
-    }
+    /// <summary>The hero's power now and with the open item on, as one line — or null when there is no such projection.</summary>
+    public GearStatLine? ProjectedHeroPowerLine =>
+        _heroPower is { } now && _projectedHeroPower is { } after
+            ? new GearStatLine(
+                _strings.Resolve(HeroPowerLabelKey),
+                Money((long)Math.Round(now)) + BecomesSeparator + Money((long)Math.Round(after)),
+                NothingLeftToSay,
+                Math.Sign(Math.Round(after) - Math.Round(now)))
+            : null;
 
     // ============================================================================ the slots
 
@@ -413,22 +452,20 @@ public sealed class InventoryPresenter
     public IReadOnlyList<GearSlot> RightSlots => RightSlotColumn;
 
     /// <summary>The item worn in a slot, or <c>null</c> for an empty one.</summary>
-    public InventoryItemView? Worn(GearSlot slot) => Stored.FirstOrDefault(item => item.IsEquipped && item.Slot == slot);
+    public InventoryItemView? Worn(GearSlot slot) => _wornBySlot.TryGetValue(slot, out var worn) ? worn : null;
 
     /// <summary>Whether the bag holds something that would out-power what a slot wears — the one badge worth a dot.</summary>
     /// <remarks>
     /// Power alone, and the sheet is where the per-stat truth is: an item can out-power the worn one
     /// and still trade a stat the player values. The badge invites a look; it does not equip.
     /// </remarks>
-    public bool UpgradeAvailable(GearSlot slot)
-    {
-        var worn = Worn(slot);
-
-        return Stored.Any(item =>
-            item.Slot == slot && !item.IsEquipped && (worn is null || item.Power > worn.Power));
-    }
+    public bool UpgradeAvailable(GearSlot slot) => Stored.Any(item => item.Slot == slot && IsBetterThanWorn(item));
 
     /// <summary>Whether an item out-powers what is worn in its slot — the same fact, asked of the item.</summary>
+    /// <remarks>
+    /// Compared on the whole numbers the sheet writes, so the badge and the sheet's delta can never
+    /// disagree about the same pair by a fraction the player is not shown.
+    /// </remarks>
     public bool IsBetterThanWorn(InventoryItemView item)
     {
         ArgumentNullException.ThrowIfNull(item);
@@ -440,7 +477,7 @@ public sealed class InventoryPresenter
 
         var worn = Worn(item.Slot);
 
-        return worn is null || item.Power > worn.Power;
+        return worn is null || Math.Round(item.Power) > Math.Round(worn.Power);
     }
 
     // ============================================================================ the grid
@@ -460,17 +497,34 @@ public sealed class InventoryPresenter
     /// <summary>The held items the grid draws below the stock, under the same filter.</summary>
     public IReadOnlyList<InventoryItemView> VisibleHeld => _visibleHeld;
 
-    /// <summary>Narrows the grid to one slot. Tapping a worn slot also opens what it wears.</summary>
+    /// <summary>Whether the slot tiles answer a tap: only while browsing a settled stock.</summary>
+    public bool SlotsLive => Settled && Mode == InventoryMode.Browse && !Busy;
+
+    /// <summary>
+    /// Narrows the grid to one slot; a second tap on the slot the grid is already narrowed to opens
+    /// what it wears.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 One effect per tap. The badge on a tile invites a look at what the BAG holds for that slot,
+    /// so the first tap shows exactly that, with the chip naming the filter. The worn item is one more
+    /// tap away, on the same tile — and it is in the narrowed grid too, wearing its mark.
+    /// </remarks>
     /// <param name="slot">The slot tapped.</param>
     public void TapSlot(GearSlot slot)
     {
-        SlotFilter = slot;
-
-        if (Mode == InventoryMode.Browse && Worn(slot) is { } worn)
+        if (!SlotsLive)
         {
-            Open(worn);
+            return;
         }
 
+        if (SlotFilter == slot && Worn(slot) is { } worn)
+        {
+            Open(worn);
+
+            return;
+        }
+
+        SlotFilter = slot;
         Recompute();
     }
 
@@ -481,21 +535,35 @@ public sealed class InventoryPresenter
         Recompute();
     }
 
-    /// <summary>Moves the grid to the next ordering in the cycle and re-reads the stock in it.</summary>
-    /// <param name="ct">Cancelled when the application shuts down.</param>
-    public Task CycleOrderAsync(CancellationToken ct)
+    /// <summary>Moves the grid to the next ordering in the cycle, re-projecting the row already read.</summary>
+    /// <remarks>
+    /// 🔒 No round trip. The ordering is the projection's, and the projection runs over the row this
+    /// screen already holds — a host read for a sort would spend a loading state on nothing and could
+    /// throw a good stock away on a transient fault.
+    /// </remarks>
+    public void CycleOrder()
     {
         var at = Array.IndexOf(SortCycle, Order);
 
         Order = SortCycle[(at + 1) % SortCycle.Length];
 
-        return _row is null ? Task.CompletedTask : StartAsync(ct);
+        if (_row is { } row)
+        {
+            Project(row);
+        }
     }
 
     /// <summary>The sort control's caption: the word "Sort" and the ordering's own name.</summary>
-    public string SortText =>
-        _strings.Resolve(SortLabelKey) + Space +
-        _strings.Resolve(SortNameKeyPrefix + Order.ToString().ToLowerInvariant() + NameKeySuffix);
+    public string SortText => _strings.Resolve(SortLabelKey) + Space + _strings.Resolve(Order switch
+    {
+        InventorySortKey.POWER => SortPowerNameKey,
+        InventorySortKey.RARITY => SortRarityNameKey,
+        InventorySortKey.SLOT => SortSlotNameKey,
+        InventorySortKey.QUALITY => SortQualityNameKey,
+        InventorySortKey.NEWEST => SortNewestNameKey,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(Order), Order, "this ordering has no caption. Author one before the control can show it."),
+    });
 
     /// <summary>The removable chip naming the slot the grid is narrowed to, or empty.</summary>
     public string SlotFilterText => SlotFilter is { } slot ? SlotName(slot) : NothingLeftToSay;
@@ -513,9 +581,9 @@ public sealed class InventoryPresenter
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        return item.Locked || item.Merge.OutputRarity is null
+        return item.Locked || item.Merge.OutputRarity is null || !_mergeableCopies.TryGetValue(item.Merge.Identity, out var copies)
             ? 0
-            : Stored.Count(other => other.Merge.Key == item.Merge.Key && !other.Locked);
+            : copies;
     }
 
     // ============================================================================ the sheet
@@ -524,12 +592,9 @@ public sealed class InventoryPresenter
     public GearSheetPage Sheet { get; private set; } = GearSheetPage.Closed;
 
     /// <summary>The item the sheet is about, re-resolved against the latest read so it is never stale.</summary>
-    public InventoryItemView? Inspected =>
-        _inspected is { } id
-            ? Stored.Concat(Held).FirstOrDefault(item => item.InstanceId == id)
-            : null;
+    public InventoryItemView? Inspected => _inspectedView;
 
-    /// <summary>Opens the sheet on one item.</summary>
+    /// <summary>Opens the sheet on one item — or, in select mode, picks it.</summary>
     /// <param name="item">The item tapped.</param>
     public void Open(InventoryItemView item)
     {
@@ -560,31 +625,31 @@ public sealed class InventoryPresenter
     /// <summary>Turns the sheet to the enhance page.</summary>
     public void ShowEnhance()
     {
-        if (Inspected is { Enhance: not null } && IsStored(Inspected))
+        if (CanShowEnhance)
         {
             Sheet = GearSheetPage.Enhance;
         }
     }
 
-    /// <summary>Turns the sheet to the merge page, with the two inputs picked for the player.</summary>
+    /// <summary>Turns the sheet to the merge page, with the inputs picked for the player.</summary>
+    /// <remarks>
+    /// 🔒 Only UNWORN copies are picked on the player's behalf. A worn copy is still a candidate — it
+    /// can be tapped in — but a fusion that quietly undressed the hero is the one every reference game
+    /// gets complained about, so it is never the screen's own choice.
+    /// </remarks>
     public void ShowMerge()
     {
-        if (Inspected is not { } keeper || !MergeIsConceivable(keeper))
+        if (!CanShowMerge || _view is null)
         {
             return;
         }
 
         Sheet = GearSheetPage.Merge;
         _mergePicks.Clear();
-        Recompute();
-
-        // 🔒 Only UNWORN copies are picked on the player's behalf. A worn copy is still a candidate —
-        // it can be tapped in — but a fusion that quietly undressed the hero is the one every reference
-        // game gets complained about, so it is never the screen's own choice.
         _mergePicks.AddRange(
-            MergeCandidates
+            _mergeCandidates
                 .Where(candidate => !candidate.IsEquipped)
-                .Take(_view!.MergeInputCount - 1)
+                .Take(_view.MergeInputCount - 1)
                 .Select(candidate => candidate.InstanceId));
         Recompute();
     }
@@ -609,22 +674,26 @@ public sealed class InventoryPresenter
               _strings.Resolve(QualityLabelKey) + Space + Percent(item.Quality)
             : NothingLeftToSay;
 
-    /// <summary>The open item's power, written to the whole number — a power is a rank, not a measurement.</summary>
-    public string InspectedPowerText => Inspected is { } item ? Whole(item.Power) : NothingLeftToSay;
-
-    /// <summary>The open item's power against the worn item's, with its arrow and sign, or empty when there is nothing to compare.</summary>
-    public string InspectedPowerDelta
+    /// <summary>The open item's power against the worn item's: the caption, the figure, and the comparison with its sign.</summary>
+    /// <remarks>Written to whole numbers — a power is a rank, not a measurement.</remarks>
+    public GearStatLine? InspectedPowerLine
     {
         get
         {
-            if (Inspected is not { IsEquipped: false } item || !IsStored(item))
+            if (Inspected is not { } item)
             {
-                return NothingLeftToSay;
+                return null;
             }
 
-            var worn = Worn(item.Slot);
+            var comparable = !item.IsEquipped && IsStored(item);
+            var worn = comparable ? Worn(item.Slot) : null;
+            var delta = comparable ? Math.Round(item.Power) - Math.Round(worn?.Power ?? 0.0) : 0.0;
 
-            return DeltaText(Math.Round(item.Power - (worn?.Power ?? 0.0)), isPercent: false);
+            return new GearStatLine(
+                _strings.Resolve(PowerLabelKey),
+                Whole(item.Power),
+                comparable ? DeltaText(delta, isPercent: false) : NothingLeftToSay,
+                comparable ? Math.Sign(delta) : 0);
         }
     }
 
@@ -656,7 +725,7 @@ public sealed class InventoryPresenter
         }
     }
 
-    /// <summary>The open item's affixes, each written as its name and its roll.</summary>
+    /// <summary>The open item's affixes, each written as its name and its roll, signed by what the stat wants.</summary>
     public IReadOnlyList<string> InspectedAffixes => _inspectedAffixes;
 
     /// <summary>The set line: the set the open item counts towards and how many pieces are worn, or empty below SS.</summary>
@@ -674,16 +743,15 @@ public sealed class InventoryPresenter
             var name = active is not null ? _strings.Resolve(active.NameKey) : NothingLeftToSay;
 
             return _strings.Resolve(SetLabelKey) + Space + name + OfSeparator +
-                   _strings.Resolve(SetPiecesLabelKey)
-                       .Replace(CountToken, Count(pieces), StringComparison.Ordinal) +
-                   Space + string.Join(OfSeparator, _view.SetBreakpoints.Select(pieces => Count(pieces)));
+                   _strings.Resolve(SetPiecesLabelKey).Replace(CountToken, Count(pieces), StringComparison.Ordinal) +
+                   Space + string.Join(OfSeparator, _view.SetBreakpoints.Select(breakpoint => Count(breakpoint)));
         }
     }
 
-    /// <summary>The enhancement progress: the rung over the ceiling.</summary>
+    /// <summary>The enhancement progress: the word and the rung over the ceiling.</summary>
     public string InspectedEnhanceText =>
         Inspected is { } item
-            ? EnhancePrefix + Count(item.EnhanceLevel) + OfSeparator + EnhancePrefix + Count(MaxEnhanceLevel)
+            ? EnhanceText + Space + EnhancePrefix + Count(item.EnhanceLevel) + OfSeparator + EnhancePrefix + Count(MaxEnhanceLevel)
             : NothingLeftToSay;
 
     /// <summary>The badges on the open item, resolved: worn, locked, held — whichever apply.</summary>
@@ -728,8 +796,13 @@ public sealed class InventoryPresenter
     /// <summary>Whether the enhance page can be opened: the item is stored and not at the ceiling.</summary>
     public bool CanShowEnhance => Inspected is { Enhance: not null } item && IsStored(item);
 
-    /// <summary>Whether the merge page can be opened: the item is stored, unlocked, and below the top band.</summary>
-    public bool CanShowMerge => Inspected is { } item && MergeIsConceivable(item);
+    /// <summary>
+    /// Whether the merge page can be opened: the item is stored, unlocked, below the top band, and the
+    /// bag holds at least one other copy — dust can stand in for the third input, never the second.
+    /// </summary>
+    public bool CanShowMerge =>
+        _view is not null && Inspected is { } item && MergeIsConceivable(item) &&
+        MergeableCopies(item) >= _view.MergeInputCount - 1;
 
     /// <summary>Whether the open item can go into a salvage batch: stored and unlocked.</summary>
     public bool CanSalvageInspected => Inspected is { Locked: false } item && IsStored(item);
@@ -737,7 +810,7 @@ public sealed class InventoryPresenter
     /// <summary>Whether the lock can be toggled: only a stored item has a lock the rules will move.</summary>
     public bool CanToggleLock => CanSubmit && Inspected is { } item && IsStored(item);
 
-    /// <summary>The sentence beside a details action that is not live, or empty when every action is.</summary>
+    /// <summary>The sentence beside the details actions that are not live, or empty when every action is.</summary>
     public string InspectedBlockText
     {
         get
@@ -762,13 +835,17 @@ public sealed class InventoryPresenter
                 return _strings.Resolve(TopBandNoMergeBlockKey);
             }
 
+            if (!CanShowMerge)
+            {
+                return _strings.Resolve(MergeNoCopiesBlockKey);
+            }
+
             return NothingLeftToSay;
         }
     }
 
     /// <summary>The lock control's caption: the verb that would change the item's state.</summary>
-    public string LockActionText =>
-        _strings.Resolve(Inspected is { Locked: true } ? UnlockActionKey : LockActionKey);
+    public string LockActionText => _strings.Resolve(Inspected is { Locked: true } ? UnlockActionKey : LockActionKey);
 
     // ---- the enhance page ----------------------------------------------------------------------
 
@@ -803,13 +880,13 @@ public sealed class InventoryPresenter
     /// <summary>The rung the attempt would reach over the ceiling, or the line that says the item is maxed.</summary>
     public string EnhanceTargetText =>
         Inspected is { Enhance: { } preview }
-            ? EnhancePrefix + Count(preview.NextLevel) + OfSeparator + EnhancePrefix + Count(MaxEnhanceLevel)
+            ? EnhanceText + Space + EnhancePrefix + Count(preview.NextLevel) + OfSeparator + EnhancePrefix + Count(MaxEnhanceLevel)
             : _strings.Resolve(EnhanceMaxedLabelKey);
 
     /// <summary>The stones the attempt costs against the stones held.</summary>
     public string EnhanceCostText =>
         Inspected is { Enhance: { } preview }
-            ? _strings.Resolve(EnhanceCostLabelKey) + Space + Count(preview.StoneCost) + OverSeparator + Count(EnhanceStones)
+            ? _strings.Resolve(EnhanceCostLabelKey) + Space + Money(preview.StoneCost) + OverSeparator + Money(EnhanceStones)
             : NothingLeftToSay;
 
     /// <summary>The odds the attempt lands, mercy included — always a real number, never a hue.</summary>
@@ -817,6 +894,35 @@ public sealed class InventoryPresenter
         Inspected is { Enhance: { } preview }
             ? _strings.Resolve(EnhanceOddsLabelKey) + Space + Percent(preview.SuccessRate)
             : NothingLeftToSay;
+
+    /// <summary>
+    /// The mercy floor as a number: how many attempts have failed in a row, and how many more make
+    /// the next one certain — or that it is certain already.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <c>24</c> §11 makes every luck floor a real number on the screen. The odds line says how
+    /// likely; this says where the guarantee is. Empty only when the rule never reaches certainty for
+    /// this rung, which the authored slope never leaves it at.
+    /// </remarks>
+    public string EnhanceMercyText
+    {
+        get
+        {
+            if (Inspected is not { Enhance: { } preview })
+            {
+                return NothingLeftToSay;
+            }
+
+            return preview.FailuresUntilCertain switch
+            {
+                null => NothingLeftToSay,
+                0 => _strings.Resolve(EnhanceCertainLabelKey),
+                int more => _strings.Resolve(EnhanceMercyLabelKey)
+                    .Replace(FailedToken, Count(preview.ConsecutiveFailures), StringComparison.Ordinal)
+                    .Replace(CertainToken, Count(more), StringComparison.Ordinal),
+            };
+        }
+    }
 
     /// <summary>Whether the attempt can be paid for.</summary>
     public bool EnhanceAffordable => Inspected is { Enhance: { } preview } && EnhanceStones >= preview.StoneCost;
@@ -835,10 +941,9 @@ public sealed class InventoryPresenter
     /// weaker roll before the better one.
     /// </summary>
     /// <remarks>
-    /// 🔒 Worn and better-rolled copies are never picked first and never silently. A fusion keeps the
-    /// keeper's identity and re-rolls its affixes, so what is consumed is gone — the ordering spends
-    /// the copies the player will miss least, and <see cref="MergeWarnings"/> says so when a pick
-    /// reaches past them.
+    /// The ordering spends the copies the player will miss least. The fusion keeps the best quality
+    /// among its inputs whichever is the keeper, so a better-rolled copy is not lost by being consumed
+    /// — what is lost is its affixes, and <see cref="MergeWarnings"/> says so.
     /// </remarks>
     public IReadOnlyList<InventoryItemView> MergeCandidates => _mergeCandidates;
 
@@ -859,7 +964,7 @@ public sealed class InventoryPresenter
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        if (Sheet != GearSheetPage.Merge || _view is null || !MergeCandidates.Any(c => c.InstanceId == item.InstanceId))
+        if (Sheet != GearSheetPage.Merge || _view is null || !_mergeCandidates.Any(c => c.InstanceId == item.InstanceId))
         {
             return;
         }
@@ -879,19 +984,18 @@ public sealed class InventoryPresenter
 
     /// <summary>Whether Merge Dust has to stand in for a missing input — one short of the three, and only one.</summary>
     public bool MergeNeedsDust =>
-        _view is not null && Inspected is { Merge.DustSubstituteCost: not null } &&
-        MergePicks.Count == _view.MergeInputCount - 2;
+        _view is not null && Inspected is { Merge.DustSubstituteCost: not null } && MergeInputsMissing == 1;
 
     /// <summary>The Crowns the fusion costs against the Crowns held.</summary>
     public string MergeCostText =>
         Inspected is { } keeper
-            ? _strings.Resolve(MergeCostLabelKey) + Space + Count(keeper.Merge.CrownCost) + OverSeparator + Count(Crowns)
+            ? _strings.Resolve(MergeCostLabelKey) + Space + Money(keeper.Merge.CrownCost) + OverSeparator + Money(Crowns)
             : NothingLeftToSay;
 
     /// <summary>The Merge Dust a substitute input costs against the dust held, or empty when no substitute is needed.</summary>
-    public string MergeDustText =>
+    public string MergeDustCostText =>
         MergeNeedsDust && Inspected is { Merge.DustSubstituteCost: { } dust }
-            ? _strings.Resolve(MergeDustLabelKey) + Space + Count(dust) + OverSeparator + Count(MergeDust)
+            ? _strings.Resolve(MergeDustLabelKey) + Space + Money(dust) + OverSeparator + Money(MergeDust)
             : NothingLeftToSay;
 
     /// <summary>What the fusion would make: the next band's name, the family, and the rung it keeps.</summary>
@@ -902,8 +1006,8 @@ public sealed class InventoryPresenter
 
     /// <summary>Whether every input is picked and every price is payable.</summary>
     public bool CanMerge =>
-        CanSubmit && _view is not null && Inspected is { } keeper && MergeIsConceivable(keeper) &&
-        KeeperAndPicks + (MergeNeedsDust ? 1 : 0) == _view.MergeInputCount &&
+        CanSubmit && Inspected is { } keeper && MergeIsConceivable(keeper) &&
+        MergeInputsMissing - (MergeNeedsDust ? 1 : 0) == 0 &&
         Crowns >= keeper.Merge.CrownCost &&
         (!MergeNeedsDust || MergeDust >= keeper.Merge.DustSubstituteCost);
 
@@ -912,7 +1016,7 @@ public sealed class InventoryPresenter
     {
         get
         {
-            if (_view is null || Inspected is not { } keeper)
+            if (Inspected is not { } keeper)
             {
                 return [];
             }
@@ -920,7 +1024,7 @@ public sealed class InventoryPresenter
             var warnings = new List<string>();
             var picks = MergePicks;
 
-            if (KeeperAndPicks + (MergeNeedsDust ? 1 : 0) < _view.MergeInputCount)
+            if (MergeInputsMissing - (MergeNeedsDust ? 1 : 0) > 0)
             {
                 warnings.Add(_strings.Resolve(MergeNeedsInputsBlockKey));
             }
@@ -940,11 +1044,6 @@ public sealed class InventoryPresenter
                 warnings.Add(_strings.Resolve(MergeConsumesWornBlockKey));
             }
 
-            if (picks.Any(pick => pick.Quality > keeper.Quality))
-            {
-                warnings.Add(_strings.Resolve(MergeConsumesBetterRollBlockKey));
-            }
-
             if (keeper.Affixes.Count > 0 || picks.Any(pick => pick.Affixes.Count > 0))
             {
                 warnings.Add(_strings.Resolve(MergeRerollsAffixesBlockKey));
@@ -957,9 +1056,16 @@ public sealed class InventoryPresenter
     // ============================================================================ select mode
 
     /// <summary>Puts the grid into select mode, where a tap picks an item for salvage.</summary>
+    /// <remarks>
+    /// The slot filter is cleared on the way in: its chip stands down with the toolbar, and a filter
+    /// nothing on screen names must not decide what a band quick-pick sweeps.
+    /// </remarks>
     public void EnterSelectMode()
     {
-        CloseSheet();
+        Sheet = GearSheetPage.Closed;
+        _inspected = null;
+        _mergePicks.Clear();
+        SlotFilter = null;
         Mode = InventoryMode.Select;
         Recompute();
     }
@@ -969,7 +1075,8 @@ public sealed class InventoryPresenter
     {
         Mode = InventoryMode.Browse;
         SalvageConfirmPending = false;
-        ClearSelection();
+        _selectionOrder.Clear();
+        Recompute();
     }
 
     /// <summary>Whether an item may go into the batch: stored, unlocked and not worn.</summary>
@@ -1005,13 +1112,8 @@ public sealed class InventoryPresenter
             return;
         }
 
-        if (_selected.Remove(item.InstanceId))
+        if (!_selectionOrder.Remove(item.InstanceId))
         {
-            _selectionOrder.Remove(item.InstanceId);
-        }
-        else
-        {
-            _selected.Add(item.InstanceId);
             _selectionOrder.Add(item.InstanceId);
         }
 
@@ -1021,20 +1123,24 @@ public sealed class InventoryPresenter
     /// <summary>The bands a quick-pick gem exists for.</summary>
     public IReadOnlyList<Rarity> QuickPickRarities => QuickPickBands;
 
-    /// <summary>Adds every selectable item of one band in the visible grid to the batch.</summary>
+    /// <summary>Adds every selectable item of one band in the bag to the batch.</summary>
     /// <param name="rarity">The band.</param>
     public void SelectBand(Rarity rarity)
     {
-        foreach (var item in Visible.Where(item => item.Rarity == rarity && IsSelectable(item) && !IsSelected(item)))
+        foreach (var item in Stored)
         {
-            ToggleSelected(item);
+            if (item.Rarity == rarity && IsSelectable(item) && !_selected.Contains(item.InstanceId))
+            {
+                _selectionOrder.Add(item.InstanceId);
+            }
         }
+
+        Recompute();
     }
 
     /// <summary>Empties the batch.</summary>
     public void ClearSelection()
     {
-        _selected.Clear();
         _selectionOrder.Clear();
         Recompute();
     }
@@ -1043,20 +1149,20 @@ public sealed class InventoryPresenter
     public IReadOnlyList<InventoryItemView> Selected => _selectedViews;
 
     /// <summary>How many items are in the batch.</summary>
-    public int SelectedCount => Selected.Count;
+    public int SelectedCount => _selectedViews.Count;
 
     /// <summary>The Merge Dust the batch would pay.</summary>
-    public long SelectedDust => Selected.Sum(item => item.Salvage.Dust);
+    public long SelectedDust => _selectedViews.Sum(item => item.Salvage.Dust);
 
     /// <summary>The Enhance Stones the batch would refund.</summary>
-    public long SelectedStones => Selected.Sum(item => item.Salvage.Stones);
+    public long SelectedStones => _selectedViews.Sum(item => item.Salvage.Stones);
 
     /// <summary>The batch's summary: how many picked, and what they would pay.</summary>
     public string SalvageSummaryText =>
         _strings.Resolve(SelectedCountLabelKey).Replace(CountToken, Count(SelectedCount), StringComparison.Ordinal) +
         OfSeparator + _strings.Resolve(SalvageReturnsLabelKey)
-            .Replace(DustToken, Count(SelectedDust), StringComparison.Ordinal)
-            .Replace(StonesToken, Count(SelectedStones), StringComparison.Ordinal);
+            .Replace(DustToken, Money(SelectedDust), StringComparison.Ordinal)
+            .Replace(StonesToken, Money(SelectedStones), StringComparison.Ordinal);
 
     /// <summary>Whether the confirmation is up: the batch is named and awaits the second tap.</summary>
     public bool SalvageConfirmPending { get; private set; }
@@ -1083,8 +1189,7 @@ public sealed class InventoryPresenter
             return;
         }
 
-        ClearSelection();
-        _selected.Add(item.InstanceId);
+        _selectionOrder.Clear();
         _selectionOrder.Add(item.InstanceId);
         SalvageConfirmPending = true;
         Recompute();
@@ -1106,7 +1211,7 @@ public sealed class InventoryPresenter
     {
         get
         {
-            var batch = Selected;
+            var batch = _selectedViews;
             var warnings = new List<string>();
 
             if (batch.Count == 0)
@@ -1125,16 +1230,14 @@ public sealed class InventoryPresenter
 
             if (epic > 0)
             {
-                warnings.Add(_strings.Resolve(SalvageIncludesEpicBlockKey)
-                    .Replace(CountToken, Count(epic), StringComparison.Ordinal));
+                warnings.Add(_strings.Resolve(SalvageIncludesEpicBlockKey).Replace(CountToken, Count(epic), StringComparison.Ordinal));
             }
 
             var enhanced = batch.Count(item => item.EnhanceLevel > 0);
 
             if (enhanced > 0)
             {
-                warnings.Add(_strings.Resolve(SalvageIncludesEnhancedBlockKey)
-                    .Replace(CountToken, Count(enhanced), StringComparison.Ordinal));
+                warnings.Add(_strings.Resolve(SalvageIncludesEnhancedBlockKey).Replace(CountToken, Count(enhanced), StringComparison.Ordinal));
             }
 
             return warnings;
@@ -1145,9 +1248,6 @@ public sealed class InventoryPresenter
     public bool CanSalvage => CanSubmit && SalvageConfirmPending && SelectedCount > 0;
 
     // ============================================================================ captions
-
-    /// <summary>The screen's heading, resolved.</summary>
-    public string Title => _strings.Resolve(TitleNameKey);
 
     /// <summary>The caption the bag's occupancy is drawn beside, resolved.</summary>
     public string CapacityLabel => _strings.Resolve(CapacityLabelKey);
@@ -1165,12 +1265,6 @@ public sealed class InventoryPresenter
     /// <summary>The heading over the overflow band, resolved. Empty when nothing is held.</summary>
     public string HeldLabel => VisibleHeld.Count == 0 ? NothingLeftToSay : _strings.Resolve(HeldLabelKey);
 
-    /// <summary>The caption beside the hero's power figure.</summary>
-    public string HeroPowerLabel => _strings.Resolve(HeroPowerLabelKey);
-
-    /// <summary>The caption beside an item's power figure.</summary>
-    public string PowerLabel => _strings.Resolve(PowerLabelKey);
-
     /// <summary>The caption over an item's affixes.</summary>
     public string AffixesLabel => _strings.Resolve(AffixesLabelKey);
 
@@ -1183,8 +1277,8 @@ public sealed class InventoryPresenter
     /// <summary>The caption over the quick-pick gems.</summary>
     public string QuickPickLabel => _strings.Resolve(QuickPickLabelKey);
 
-    /// <summary>What an empty slot tile says.</summary>
-    public string EmptySlotText => _strings.Resolve(EmptySlotLabelKey);
+    /// <summary>What an empty slot tile says — and nothing at all while the read is out or failed.</summary>
+    public string EmptySlotText => Settled ? _strings.Resolve(EmptySlotLabelKey) : NothingLeftToSay;
 
     /// <summary>The mark on the item worn in a slot, resolved.</summary>
     public string EquippedBadge => _strings.Resolve(EquippedBadgeKey);
@@ -1194,12 +1288,6 @@ public sealed class InventoryPresenter
 
     /// <summary>The mark on an item the bag is holding, resolved.</summary>
     public string HeldBadge => _strings.Resolve(HeldBadgeKey);
-
-    /// <summary>The mark on a slot whose bag holds something better, resolved.</summary>
-    public string UpgradeBadge => _strings.Resolve(UpgradeBadgeKey);
-
-    /// <summary>The sentence on a held item's card saying why it cannot be worn, resolved.</summary>
-    public string HeldNotEquippableText => _strings.Resolve(HeldNotEquippableBlockKey);
 
     /// <summary>The equip control's caption, resolved.</summary>
     public string EquipText => _strings.Resolve(EquipActionKey);
@@ -1225,7 +1313,7 @@ public sealed class InventoryPresenter
     /// <summary>The control that confirms a salvage, resolved.</summary>
     public string SalvageConfirmText => _strings.Resolve(SalvageConfirmActionKey);
 
-    /// <summary>The control that enters select mode, resolved.</summary>
+    /// <summary>The control that enters select mode, resolved — it names the outcome, a salvage.</summary>
     public string SelectText => _strings.Resolve(SelectActionKey);
 
     /// <summary>The control that backs out of a page or a mode, resolved.</summary>
@@ -1234,11 +1322,14 @@ public sealed class InventoryPresenter
     /// <summary>The control that turns the sheet back a page, resolved.</summary>
     public string BackText => _strings.Resolve(BackActionKey);
 
-    /// <summary>The way back off the screen, resolved.</summary>
+    /// <summary>The control that closes the sheet, resolved.</summary>
     public string CloseText => _strings.Resolve(CloseActionKey);
 
-    /// <summary>The control that widens a narrowed grid, resolved.</summary>
-    public string ClearFilterText => _strings.Resolve(ClearFilterActionKey);
+    /// <summary>The way back off the screen, resolved — it names where it goes.</summary>
+    public string LeaveText => _strings.Resolve(LeaveActionKey);
+
+    /// <summary>The control that reads again after a read that did not answer, resolved.</summary>
+    public string RetryText => _strings.Resolve(RetryActionKey);
 
     /// <summary>The line for a destination this build has no screen for, borrowed from Home.</summary>
     public string NotOpenYetNotice => _strings.Resolve(NotOpenYetStatusKey);
@@ -1258,20 +1349,16 @@ public sealed class InventoryPresenter
     });
 
     /// <summary>A slot's name, resolved.</summary>
-    public string SlotName(GearSlot slot) =>
-        _strings.Resolve(SlotNameKeyPrefix + slot.ToString().ToLowerInvariant() + NameKeySuffix);
+    public string SlotName(GearSlot slot) => Named(SlotNameKeyPrefix, slot.ToString());
 
     /// <summary>A family's name, resolved.</summary>
-    public string FamilyName(GearFamily family) =>
-        _strings.Resolve(FamilyNameKeyPrefix + family.ToString().ToLowerInvariant() + NameKeySuffix);
+    public string FamilyName(GearFamily family) => Named(FamilyNameKeyPrefix, family.ToString());
 
     /// <summary>A band's name, resolved.</summary>
-    public string RarityName(Rarity rarity) =>
-        _strings.Resolve(RarityNameKeyPrefix + rarity.ToString().ToLowerInvariant() + NameKeySuffix);
+    public string RarityName(Rarity rarity) => Named(RarityNameKeyPrefix, rarity.ToString());
 
     /// <summary>A stat's name, resolved.</summary>
-    public string StatName(string stat) =>
-        _strings.Resolve(StatNameKeyPrefix + (stat ?? string.Empty).ToLowerInvariant() + NameKeySuffix);
+    public string StatName(string stat) => Named(StatNameKeyPrefix, stat ?? string.Empty);
 
     /// <summary>What an item is called: its band and its family, and its rung when it has one.</summary>
     public string ItemTitle(InventoryItemView item)
@@ -1292,6 +1379,9 @@ public sealed class InventoryPresenter
         _ => _strings.Resolve(UnavailableStatusKey),
     };
 
+    /// <summary>Whether the screen offers to read again: only after a read that did not answer.</summary>
+    public bool CanRetry => Stage == InventoryStage.ReadUnavailable && !Busy;
+
     /// <summary>The line about the last command the host answered, resolved — empty until one has.</summary>
     public string RejectionText => HostFaulted
         ? _strings.Resolve(HostUnavailableStatusKey)
@@ -1304,17 +1394,27 @@ public sealed class InventoryPresenter
             _ => _strings.Resolve(RefusedStatusKey),
         };
 
-    /// <summary>The one line the last successful command left behind, or empty.</summary>
+    /// <summary>
+    /// The one line the last command left behind — what it did, or why it did nothing — or empty.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 One channel for every answer. A refusal and a host fault land here too, as a
+    /// <see cref="InventoryNoticeKind.Setback"/>, so a screen that shows the notice shows every
+    /// answer, and <see cref="ClearNotice"/> takes the whole answer down — the reason with it. A
+    /// reason that outlived its notice was re-announced on every redraw.
+    /// </remarks>
     public string Notice { get; private set; } = NothingLeftToSay;
 
     /// <summary>What the notice is about, for the accent it is drawn in.</summary>
     public InventoryNoticeKind NoticeKind { get; private set; } = InventoryNoticeKind.None;
 
-    /// <summary>Takes the notice down.</summary>
+    /// <summary>Takes the notice down, and the refusal it carried with it.</summary>
     public void ClearNotice()
     {
         Notice = NothingLeftToSay;
         NoticeKind = InventoryNoticeKind.None;
+        RulesRejection = null;
+        HostFaulted = false;
     }
 
     /// <summary>Puts up the line for a destination this build has no screen for.</summary>
@@ -1355,11 +1455,19 @@ public sealed class InventoryPresenter
             return;
         }
 
+        Project(player);
+    }
+
+    /// <summary>Projects one row in the current order and settles the screen on it.</summary>
+    private void Project(PlayerSnapshot player)
+    {
         try
         {
+            var view = InventoryView.Project(player, _content, Order);
+
             _row = player;
-            _view = InventoryView.Project(player, _content, Order);
-            Stage = Stored.Count + Held.Count == 0 ? InventoryStage.Empty : InventoryStage.Ready;
+            _view = view;
+            Stage = view.Stored.Count + view.Held.Count == 0 ? InventoryStage.Empty : InventoryStage.Ready;
         }
         catch (ContentException)
         {
@@ -1392,22 +1500,19 @@ public sealed class InventoryPresenter
     /// <summary>Forgets every identity a fresh read no longer holds, so nothing points at a freed item.</summary>
     private void Prune()
     {
-        var known = Stored.Concat(Held).Select(item => item.InstanceId).ToHashSet();
+        var known = new HashSet<GearInstanceId>(Stored.Concat(Held).Select(item => item.InstanceId));
 
         if (_inspected is { } inspected && !known.Contains(inspected))
         {
-            CloseSheet();
+            Sheet = GearSheetPage.Closed;
+            _inspected = null;
+            _mergePicks.Clear();
         }
 
         _mergePicks.RemoveAll(id => !known.Contains(id));
+        _selectionOrder.RemoveAll(id => !known.Contains(id));
 
-        foreach (var gone in _selectionOrder.Where(id => !known.Contains(id)).ToArray())
-        {
-            _selected.Remove(gone);
-            _selectionOrder.Remove(gone);
-        }
-
-        if (_selected.Count == 0)
+        if (_selectionOrder.Count == 0)
         {
             SalvageConfirmPending = false;
         }
@@ -1415,25 +1520,49 @@ public sealed class InventoryPresenter
         Recompute();
     }
 
-    /// <summary>Rebuilds every derived list from the state as it now stands.</summary>
+    /// <summary>Rebuilds every derived list and figure from the state as it now stands.</summary>
     private void Recompute()
     {
-        _visible = SlotFilter is { } slot ? Stored.Where(item => item.Slot == slot).ToArray() : Stored;
+        var stored = Stored;
+        var byId = new Dictionary<GearInstanceId, InventoryItemView>(stored.Count);
+        var worn = new Dictionary<GearSlot, InventoryItemView>();
+        var copies = new Dictionary<MergeIdentity, int>();
+
+        foreach (var item in stored)
+        {
+            byId[item.InstanceId] = item;
+
+            if (item.IsEquipped)
+            {
+                worn[item.Slot] = item;
+            }
+
+            if (!item.Locked && item.Merge.OutputRarity is not null)
+            {
+                copies[item.Merge.Identity] = copies.TryGetValue(item.Merge.Identity, out var held) ? held + 1 : 1;
+            }
+        }
+
+        _storedIds = new HashSet<GearInstanceId>(byId.Keys);
+        _wornBySlot = worn;
+        _mergeableCopies = copies;
+
+        _visible = SlotFilter is { } slot ? stored.Where(item => item.Slot == slot).ToArray() : stored;
         _visibleHeld = SlotFilter is { } heldSlot ? Held.Where(item => item.Slot == heldSlot).ToArray() : Held;
 
-        var byId = Stored.ToDictionary(item => item.InstanceId);
+        _selected = new HashSet<GearInstanceId>(_selectionOrder);
+        _selectedViews = _selectionOrder.Where(byId.ContainsKey).Select(id => byId[id]).ToArray();
 
-        _selectedViews = _selectionOrder
-            .Where(byId.ContainsKey)
-            .Select(id => byId[id])
-            .ToArray();
+        _inspectedView = _inspected is { } id
+            ? (byId.TryGetValue(id, out var inBag) ? inBag : Held.FirstOrDefault(item => item.InstanceId == id))
+            : null;
 
-        var keeper = Inspected;
+        var keeper = _inspectedView;
 
         _mergeCandidates = keeper is null
             ? []
-            : Stored
-                .Where(item => item.Merge.Key == keeper.Merge.Key &&
+            : stored
+                .Where(item => item.Merge.Identity == keeper.Merge.Identity &&
                                item.InstanceId != keeper.InstanceId &&
                                !item.Locked)
                 .OrderBy(item => item.IsEquipped ? 1 : 0)
@@ -1446,8 +1575,26 @@ public sealed class InventoryPresenter
         _inspectedAffixes = keeper is null
             ? []
             : keeper.Affixes
-                .Select(affix => _strings.Resolve(affix.NameKey) + Space + Signed(affix.Value, affix.IsPercent))
+                .Select(affix => _strings.Resolve(affix.NameKey) + Space + Signed(affix.Value, affix.IsPercent, affix.Favourable))
                 .ToArray();
+
+        _heroPower = _row is null ? null : _power.Read(_row, null).PowerIndex;
+        _projectedHeroPower = ProjectHeroPower(keeper);
+    }
+
+    private double? ProjectHeroPower(InventoryItemView? keeper)
+    {
+        if (_row is null || keeper is not { IsEquipped: false } || !_storedIds.Contains(keeper.InstanceId))
+        {
+            return null;
+        }
+
+        var gear = new Dictionary<GearSlot, GearInstanceId>(_row.Loadout?.Gear ?? NoLoadout)
+        {
+            [keeper.Slot] = keeper.InstanceId,
+        };
+
+        return _power.Read(_row with { Loadout = new LoadoutSnapshot(gear) }, null).PowerIndex;
     }
 
     // ============================================================================ the commands
@@ -1526,17 +1673,23 @@ public sealed class InventoryPresenter
             return Task.FromResult(InventorySubmission.RefusedNotAvailable);
         }
 
+        // Named without its rung: the sentence says which rung it reached, and "+4 is now +5" reads
+        // as two items.
+        var name = ItemTitle(item.Rarity, item.Family, 0);
+
         return SubmitAsync(
             new EnhanceCommand(item.InstanceId),
             events =>
             {
-                var landed = events.OfType<CurrencyChanged>()
-                    .Any(change => change.Reason == EnhanceLandedReason);
+                var landed = events.OfType<CurrencyChanged>().Any(change => change.Reason == EnhanceLandedReason);
 
                 return landed
-                    ? (Say(EnhanceLandedStatusKey, item).Replace(LevelToken, Count(preview.NextLevel), StringComparison.Ordinal),
+                    ? (_strings.Resolve(EnhanceLandedStatusKey)
+                            .Replace(ItemToken, name, StringComparison.Ordinal)
+                            .Replace(LevelToken, Count(preview.NextLevel), StringComparison.Ordinal),
                         InventoryNoticeKind.Gain)
-                    : (Say(EnhanceFailedStatusKey, item), InventoryNoticeKind.Setback);
+                    : (_strings.Resolve(EnhanceFailedStatusKey).Replace(ItemToken, name, StringComparison.Ordinal),
+                        InventoryNoticeKind.Setback);
             },
             ct);
     }
@@ -1577,8 +1730,7 @@ public sealed class InventoryPresenter
             return Task.FromResult(InventorySubmission.RefusedNotAvailable);
         }
 
-        var batch = Selected;
-        var ids = batch.Select(item => item.InstanceId).ToArray();
+        var ids = _selectedViews.Select(item => item.InstanceId).ToArray();
 
         return SubmitAsync(
             new SalvageCommand(ids),
@@ -1590,16 +1742,18 @@ public sealed class InventoryPresenter
 
                 return (_strings.Resolve(SalvagedStatusKey)
                         .Replace(CountToken, Count(ids.Length), StringComparison.Ordinal)
-                        .Replace(DustToken, Count(dust), StringComparison.Ordinal)
-                        .Replace(StonesToken, Count(stones), StringComparison.Ordinal),
+                        .Replace(DustToken, Money(dust), StringComparison.Ordinal)
+                        .Replace(StonesToken, Money(stones), StringComparison.Ordinal),
                     InventoryNoticeKind.Gain);
             },
             ct,
             afterwards: () =>
             {
                 SalvageConfirmPending = false;
-                ClearSelection();
-                CloseSheet();
+                _selectionOrder.Clear();
+                Sheet = GearSheetPage.Closed;
+                _inspected = null;
+                _mergePicks.Clear();
                 Mode = InventoryMode.Browse;
             });
     }
@@ -1633,8 +1787,8 @@ public sealed class InventoryPresenter
 
             if (outcome.Rejection is not null)
             {
-                Notice = NothingLeftToSay;
-                NoticeKind = InventoryNoticeKind.None;
+                Notice = RejectionText;
+                NoticeKind = InventoryNoticeKind.Setback;
 
                 return InventorySubmission.Rejected;
             }
@@ -1654,6 +1808,8 @@ public sealed class InventoryPresenter
         {
             HostFaulted = true;
             RulesRejection = null;
+            Notice = RejectionText;
+            NoticeKind = InventoryNoticeKind.Setback;
 
             return InventorySubmission.HostUnavailable;
         }
@@ -1667,15 +1823,15 @@ public sealed class InventoryPresenter
 
     // ============================================================================ helpers
 
-    private bool CanSubmit => Stage is InventoryStage.Ready or InventoryStage.Empty && !_submissionInFlight;
+    private bool CanSubmit => Settled && !_submissionInFlight;
 
-    private bool IsStored(InventoryItemView item) => Stored.Any(stored => stored.InstanceId == item.InstanceId);
-
-    /// <summary>The fusion's inputs so far: the keeper in the first place, then whatever is picked under it.</summary>
-    private int KeeperAndPicks => 1 + MergePicks.Count;
+    private bool IsStored(InventoryItemView item) => _storedIds.Contains(item.InstanceId);
 
     private bool MergeIsConceivable(InventoryItemView item) =>
         IsStored(item) && !item.Locked && item.Merge.OutputRarity is not null;
+
+    /// <summary>How many of the fusion's inputs are still unpicked, the keeper counted as the first.</summary>
+    private int MergeInputsMissing => _view is null ? 0 : Math.Max(0, _view.MergeInputCount - 1 - _mergePickViews.Count);
 
     private long Balance(CurrencyId currency) =>
         _row?.Wallet is { } wallet && wallet.TryGetValue(currency, out var balance) ? balance : 0;
@@ -1692,18 +1848,24 @@ public sealed class InventoryPresenter
             .Replace(ItemToken, ItemTitle(item), StringComparison.Ordinal)
             .Replace(SlotToken, SlotName(item.Slot), StringComparison.Ordinal);
 
+    /// <summary>One loc-key spelling for every enum-named vocabulary: the prefix, the token in lower case, the name suffix.</summary>
+    private string Named(string prefix, string token) => _strings.Resolve(prefix + token.ToLowerInvariant() + NameKeySuffix);
+
     /// <summary>
     /// A count as a player reads it. Never abbreviated: a bag holds at most four figures and the
     /// thousands rule has nothing to act on at this ceiling.
     /// </summary>
     private static string Count(long value) => value.ToString(CultureInfo.InvariantCulture);
 
+    /// <summary>A wallet figure or a price, written as every currency on the HUD is: exact to ten thousand, shortened past it.</summary>
+    private static string Money(long value) => PlayerNumber.Abbreviated(value);
+
     private static string Flat(double value) => value.ToString(FlatFormat, CultureInfo.InvariantCulture);
 
     private static string Whole(double value) => Math.Round(value).ToString(FlatFormat, CultureInfo.InvariantCulture);
 
     private static string Percent(double share) =>
-        (share * 100.0).ToString(PercentFormat, CultureInfo.InvariantCulture) + PercentSuffix;
+        (share * 100.0).ToString(FlatFormat, CultureInfo.InvariantCulture) + PercentSuffix;
 
     /// <summary>
     /// 🔴 Percent and flat are formatted differently because they are different quantities. A crit
@@ -1712,9 +1874,16 @@ public sealed class InventoryPresenter
     /// </summary>
     private static string Figure(double value, bool isPercent) => isPercent ? Percent(value) : Flat(value);
 
-    private static string Signed(double value, bool isPercent)
+    /// <summary>A comparison's magnitude with its sign by direction: a gain is a plus.</summary>
+    private static string Signed(double value, bool isPercent) => Signed(value, isPercent, value > 0);
+
+    /// <summary>
+    /// A roll's magnitude with its sign by BENEFIT: the damage-reduction affix is authored negative
+    /// because a player wants that stat low, and it reads as a plus.
+    /// </summary>
+    private static string Signed(double value, bool isPercent, bool favourable)
     {
-        var sign = value > 0 ? GainSign : value < 0 ? LossSign : string.Empty;
+        var sign = value == 0 ? string.Empty : favourable ? GainSign : LossSign;
 
         return sign + Figure(Math.Abs(value), isPercent);
     }

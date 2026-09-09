@@ -1,12 +1,10 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/Inventory.cs" id="1_inventory"]
 [ext_resource type="PackedScene" path="res://game/scenes/Hero.tscn" id="2_hero"]
 [ext_resource type="Theme" path="res://game/theme/SlayTheme.tres" id="3_theme"]
 [ext_resource type="PackedScene" path="res://game/scenes/TabBar.tscn" id="4_tabbar"]
-[ext_resource type="Texture2D" path="res://game/art/icons/hud_crowns.svg" id="5_crowns"]
-[ext_resource type="Texture2D" path="res://game/art/icons/hud_enhance_stones.svg" id="6_stones"]
-[ext_resource type="Texture2D" path="res://game/art/icons/hud_merge_dust.svg" id="7_dust"]
+[ext_resource type="PackedScene" path="res://game/scenes/WalletChip.tscn" id="5_chip"]
 
 [sub_resource type="QuadMesh" id="QuadMesh_ground"]
 size = Vector2(24, 42)
@@ -92,115 +90,44 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 18
 
+; The way back, captioned with where it goes. No heading beside it: the lit Gear tab names the
+; screen, as the lit Home tab names Home, and a heading had no room between this and three wallets in
+; either language.
 [node name="BackButton" type="Button" parent="Ui/Screen/Bands/TopBar/Row"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(144, 144)
+custom_minimum_size = Vector2(216, 144)
 layout_mode = 2
 size_flags_vertical = 4
 theme_type_variation = &"ChromeButton"
 text_overrun_behavior = 3
 
-[node name="TitleLabel" type="Label" parent="Ui/Screen/Bands/TopBar/Row"]
-unique_name_in_owner = true
+[node name="Spacer" type="Control" parent="Ui/Screen/Bands/TopBar/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 4
 mouse_filter = 2
-theme_type_variation = &"HudTitle"
-text_overrun_behavior = 3
 
-; Three wallet chips: figures, not controls. A chip is a PanelContainer rather than a ResourcePill
-; because nothing here opens a resource sheet, and a Button that answered a tap with nothing would
-; be a dead control on the one bar a player reads before every forge operation.
+; Three wallet chips — figures, not controls — one scene instanced three times, differing by the
+; exported glyph, the way Home instances ResourcePill.
 [node name="Wallet" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar/Row"]
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
 theme_override_constants/separation = 12
 
-[node name="CrownsChip" type="PanelContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet"]
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"WalletChip"
-
-[node name="Row" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet/CrownsChip"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 8
-
-[node name="Icon" type="TextureRect" parent="Ui/Screen/Bands/TopBar/Row/Wallet/CrownsChip/Row"]
-custom_minimum_size = Vector2(42, 42)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("5_crowns")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="CrownsValue" type="Label" parent="Ui/Screen/Bands/TopBar/Row/Wallet/CrownsChip/Row"]
+[node name="CrownsChip" parent="Ui/Screen/Bands/TopBar/Row/Wallet" instance=ExtResource("5_chip")]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(114, 0)
 layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-theme_type_variation = &"PillValue"
-text_overrun_behavior = 3
+Glyph = 2
 
-[node name="StonesChip" type="PanelContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet"]
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"WalletChip"
-
-[node name="Row" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet/StonesChip"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 8
-
-[node name="Icon" type="TextureRect" parent="Ui/Screen/Bands/TopBar/Row/Wallet/StonesChip/Row"]
-custom_minimum_size = Vector2(42, 42)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("6_stones")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="StonesValue" type="Label" parent="Ui/Screen/Bands/TopBar/Row/Wallet/StonesChip/Row"]
+[node name="StonesChip" parent="Ui/Screen/Bands/TopBar/Row/Wallet" instance=ExtResource("5_chip")]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(114, 0)
 layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-theme_type_variation = &"PillValue"
-text_overrun_behavior = 3
+Glyph = 8
 
-[node name="DustChip" type="PanelContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet"]
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"WalletChip"
-
-[node name="Row" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet/DustChip"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 8
-
-[node name="Icon" type="TextureRect" parent="Ui/Screen/Bands/TopBar/Row/Wallet/DustChip/Row"]
-custom_minimum_size = Vector2(42, 42)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-texture = ExtResource("7_dust")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="DustValue" type="Label" parent="Ui/Screen/Bands/TopBar/Row/Wallet/DustChip/Row"]
+[node name="DustChip" parent="Ui/Screen/Bands/TopBar/Row/Wallet" instance=ExtResource("5_chip")]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(114, 0)
 layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-theme_type_variation = &"PillValue"
-text_overrun_behavior = 3
+Glyph = 9
 
 ; ----------------------------------------------------------------------------- the hero band
 ;
@@ -323,12 +250,13 @@ theme_override_constants/separation = 16
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 24
 
 [node name="SortButton" type="Button" parent="Ui/Screen/Bands/GearDeck/Margins/Column/Toolbar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(216, 144)
 layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"ChromeButton"
 text_overrun_behavior = 3
 
@@ -340,10 +268,13 @@ layout_mode = 2
 theme_type_variation = &"ChromeButton"
 text_overrun_behavior = 3
 
+; A floor under the occupancy's width — "Bag 1000/1000" at this size — because a trimming label
+; beside an expanding button is otherwise squeezed to its ellipsis and the bag's fill goes unsaid.
 [node name="CapacityLabel" type="Label" parent="Ui/Screen/Bands/GearDeck/Margins/Column/Toolbar"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(250, 0)
 layout_mode = 2
-size_flags_horizontal = 3
+size_flags_horizontal = 8
 size_flags_vertical = 4
 mouse_filter = 2
 theme_type_variation = &"HudCaption"
@@ -352,7 +283,7 @@ text_overrun_behavior = 3
 
 [node name="SelectButton" type="Button" parent="Ui/Screen/Bands/GearDeck/Margins/Column/Toolbar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(144, 144)
+custom_minimum_size = Vector2(216, 144)
 layout_mode = 2
 theme_type_variation = &"ChromeButton"
 text_overrun_behavior = 3
@@ -364,7 +295,7 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 24
 
 [node name="QuickPickLabel" type="Label" parent="Ui/Screen/Bands/GearDeck/Margins/Column/QuickRow"]
 unique_name_in_owner = true
@@ -379,7 +310,7 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 24
 
 [node name="GridScroll" type="ScrollContainer" parent="Ui/Screen/Bands/GearDeck/Margins/Column"]
 unique_name_in_owner = true
@@ -397,8 +328,8 @@ theme_override_constants/separation = 20
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/h_separation = 16
-theme_override_constants/v_separation = 16
+theme_override_constants/h_separation = 26
+theme_override_constants/v_separation = 26
 columns = 5
 
 [node name="HeldLabel" type="Label" parent="Ui/Screen/Bands/GearDeck/Margins/Column/GridScroll/GridColumn"]
@@ -413,8 +344,8 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/h_separation = 16
-theme_override_constants/v_separation = 16
+theme_override_constants/h_separation = 26
+theme_override_constants/v_separation = 26
 columns = 5
 
 ; Both status lines live inside the scroll: the empty and filtered-empty states have no grid to
@@ -428,6 +359,17 @@ mouse_filter = 2
 theme_type_variation = &"HudCaption"
 horizontal_alignment = 1
 autowrap_mode = 3
+
+; The one state with no other way out: a read that did not answer offers to read again, here, under
+; its own sentence. Hidden in every other state.
+[node name="RetryButton" type="Button" parent="Ui/Screen/Bands/GearDeck/Margins/Column/GridScroll/GridColumn"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"QuietButton"
+text_overrun_behavior = 3
 
 [node name="RejectionLabel" type="Label" parent="Ui/Screen/Bands/GearDeck/Margins/Column/GridScroll/GridColumn"]
 unique_name_in_owner = true
@@ -451,6 +393,7 @@ theme_override_constants/separation = 18
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.4
 size_flags_vertical = 4
 mouse_filter = 2
 theme_type_variation = &"HudCaption"
@@ -458,17 +401,20 @@ autowrap_mode = 3
 
 [node name="SelectCancelButton" type="Button" parent="Ui/Screen/Bands/GearDeck/Margins/Column/SelectBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(252, 144)
+custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.8
 theme_type_variation = &"QuietButton"
-text_overrun_behavior = 3
+autowrap_mode = 3
 
 [node name="SalvageButton" type="Button" parent="Ui/Screen/Bands/GearDeck/Margins/Column/SelectBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(264, 144)
+custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"DangerButton"
-text_overrun_behavior = 3
+autowrap_mode = 3
 
 ; --------------------------------------------------------------------------------- the tabs
 ;
@@ -681,7 +627,7 @@ autowrap_mode = 3
 
 [node name="LockButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Header"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(144, 144)
+custom_minimum_size = Vector2(216, 144)
 layout_mode = 2
 size_flags_vertical = 4
 theme_type_variation = &"ChromeButton"
@@ -781,13 +727,6 @@ mouse_filter = 2
 theme_type_variation = &"HudValueSmall"
 text_overrun_behavior = 3
 
-[node name="DetailsBlock" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage"]
-unique_name_in_owner = true
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"HudCaption"
-autowrap_mode = 3
-
 [node name="StatRows" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -856,7 +795,8 @@ mouse_filter = 2
 theme_type_variation = &"HudValueSmall"
 autowrap_mode = 3
 
-[node name="EnhanceBlock" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/EnhancePage"]
+; `24` §11: the floor as a real number — how many failed in a row, how many more make it certain.
+[node name="EnhanceMercy" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/EnhancePage"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
@@ -895,7 +835,7 @@ vertical_scroll_mode = 0
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 26
 
 [node name="MergeResult" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/MergePage"]
 unique_name_in_owner = true
@@ -947,6 +887,14 @@ layout_mode = 2
 theme_type_variation = &"PrimaryButton"
 text_overrun_behavior = 3
 
+; The reason the buttons under it are dead, beside them rather than at the top of a scrolling page.
+[node name="DetailsBlock" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/DetailsActions"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
 [node name="ForgeRow" type="HBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/DetailsActions"]
 layout_mode = 2
 mouse_filter = 2
@@ -958,7 +906,7 @@ custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"QuietButton"
-text_overrun_behavior = 3
+autowrap_mode = 3
 
 [node name="MergeButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/DetailsActions/ForgeRow"]
 unique_name_in_owner = true
@@ -966,7 +914,7 @@ custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"QuietButton"
-text_overrun_behavior = 3
+autowrap_mode = 3
 
 [node name="SheetSalvageButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/DetailsActions/ForgeRow"]
 unique_name_in_owner = true
@@ -974,7 +922,15 @@ custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"QuietButton"
-text_overrun_behavior = 3
+autowrap_mode = 3
+
+[node name="EnhanceBlock" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
 
 [node name="EnhanceActions" type="HBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer"]
 unique_name_in_owner = true
@@ -1027,6 +983,20 @@ text_overrun_behavior = 3
 ; centred modal is what the genre reserves for those. It lists what the batch pays and what in it a
 ; player might regret, and the red button answers. Sized by its content — no fixed height — so a
 ; batch with nothing to warn about gets a short card and one with three warnings a taller one.
+; A second scrim, drawn above the sheet and below the card: the first one only covers what is drawn
+; before it, and the sheet's footer would otherwise stay live under the confirmation.
+[node name="ConfirmScrim" type="Button" parent="Ui/Screen"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"GearScrim"
+text_overrun_behavior = 3
+
 [node name="Confirm" type="PanelContainer" parent="Ui/Screen"]
 unique_name_in_owner = true
 visible = false
@@ -1074,10 +1044,12 @@ theme_override_constants/separation = 18
 
 [node name="ConfirmCancelButton" type="Button" parent="Ui/Screen/Confirm/ConfirmColumn/ConfirmActions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(252, 144)
+custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.8
 theme_type_variation = &"QuietButton"
-text_overrun_behavior = 3
+autowrap_mode = 3
 
 [node name="ConfirmSalvageButton" type="Button" parent="Ui/Screen/Confirm/ConfirmColumn/ConfirmActions"]
 unique_name_in_owner = true
@@ -1085,4 +1057,4 @@ custom_minimum_size = Vector2(0, 144)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"DangerButton"
-text_overrun_behavior = 3
+autowrap_mode = 3

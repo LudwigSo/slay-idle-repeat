@@ -91,7 +91,6 @@ internal static class RunDecisionContent
     private static readonly ContentVersion FixtureStamp =
         ContentVersion.FromHex(new string('d', ContentVersion.HexLength));
 
-    internal const string InventoryTitleNameKey = "loc.inventory.title.name";
     internal const string InventoryCapacityLabelKey = "loc.inventory.capacity.label";
     internal const string InventoryHeldLabelKey = "loc.inventory.held.label";
     internal const string InventoryEquippedBadgeKey = "loc.inventory.equipped.badge";
@@ -168,12 +167,13 @@ internal static class RunDecisionContent
     /// </remarks>
     internal static IReadOnlyList<string> InventoryKeys { get; } = ReadInventoryDocumentKeys();
 
-    /// <summary>The tab captions and the not-open-yet line the Gear screen borrows from Home.</summary>
+    /// <summary>The tab captions, the retry word, the not-open-yet line and the band names the Gear screen borrows.</summary>
     internal static IReadOnlyList<string> InventoryBorrowedKeys { get; } =
     [
         "loc.home.tab.home.label", "loc.home.tab.gear.label", "loc.home.tab.talents.label",
         "loc.home.tab.collection.label", "loc.home.tab.shop.label", "loc.home.not_open_yet.status",
         "loc.rarity.c.name", "loc.rarity.b.name", "loc.rarity.a.name", "loc.rarity.s.name", "loc.rarity.ss.name",
+        "loc.home.launch.retry.action",
     ];
 
     private static IReadOnlyList<string> ReadInventoryDocumentKeys()

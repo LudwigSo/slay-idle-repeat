@@ -25,10 +25,17 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// tile, a cell and a gem take — so that rarity is never carried by hue alone.
 /// </para>
 /// <para>
-/// 🔒 <b>The grid is rebuilt only when its membership changes.</b> A tap that picks an item for a
-/// batch or turns a page changes the presenter's state and re-renders the screen, and a bag of a
-/// thousand items rebuilt on every such tap would stutter under a thumb. The cells are kept and
-/// re-marked when the same items are still in the same order, and rebuilt otherwise.
+/// 🔒 <b>The grid is rebuilt only when its membership changes, and a kept cell always presses with the
+/// item it now draws.</b> A tap that picks an item for a batch or turns a page re-renders the screen,
+/// and a bag of a thousand items rebuilt on every such tap would stutter under a thumb. The cells are
+/// kept and re-marked when the same items are still in the same order; a press looks the item up by
+/// its cell at the moment of the tap rather than through a closure taken when the cell was built —
+/// the closure was how an unlocked item stayed untappable until the grid happened to be rebuilt.
+/// </para>
+/// <para>
+/// 🔒 <b>The painted faces are built once per band and shared.</b> A band's tint over the theme's face
+/// is the same stylebox for every cell that wears it, so re-marking a thousand cells duplicates
+/// nothing; the ten textures the cells wear are loaded once on the way in.
 /// </para>
 /// <para>
 /// ⚠️ Both motions on this screen are skippable and the screen is complete without them: the notice
@@ -42,7 +49,7 @@ public partial class Inventory : Node3D
     /// <summary>Where this scene lives, for the screen that instantiates it.</summary>
     public const string ScenePath = "res://game/scenes/Inventory.tscn";
 
-    /// <summary>The one line a headless run's screen state is read off.</summary>
+    /// <summary>The one line a headless run's screen state is read off — printed once the read has settled.</summary>
     private const string InventoryMarker = "SIR_INVENTORY_READY";
 
     /// <summary>The one line every tab this build has no screen for prints, as Home prints its own.</summary>
@@ -60,22 +67,23 @@ public partial class Inventory : Node3D
     /// <summary>How long the notice takes to fade in when motion is not reduced.</summary>
     private const double NoticeFadeSeconds = 0.18;
 
-    private const string MarginTopConstant = "margin_top";
-    private const string MarginBottomConstant = "margin_bottom";
-    private const string FontColourOverride = "font_color";
-    private const string PanelStyle = "panel";
-    private const string ModulateAlphaProperty = "modulate:a";
-
-    /// <summary>What follows the slot's name on the filter chip: the multiplication sign, which every shipped face has.</summary>
-    private const string FilterClearMark = "  ×";
     /// <summary>The two figure columns of a stat row, in canvas units — room for "1234.5" and "↑ +12.5%".</summary>
     private const float StatValueWidth = 190f;
     private const float StatDeltaWidth = 250f;
 
+    private const string MarginTopConstant = "margin_top";
+    private const string MarginBottomConstant = "margin_bottom";
+    private const string SeparationConstant = "separation";
+    private const string FontColourOverride = "font_color";
+    private const string PanelStyle = "panel";
+    private const string ModulateAlphaProperty = "modulate:a";
     private const string CaptionVariation = "HudCaption";
     private const string ValueVariation = "HudValueSmall";
     private const string LineVariation = "GearCaption";
     private const string ChipVariation = "ChromeButton";
+
+    /// <summary>What follows the slot's name on the filter chip: the multiplication sign, which every shipped face has.</summary>
+    private const string FilterClearMark = "  ×";
 
     /// <summary>The four faces a button draws, each of which a band's tint is written onto.</summary>
     private static readonly StringName[] ButtonFaces = ["normal", "hover", "pressed", "disabled"];
@@ -97,10 +105,9 @@ public partial class Inventory : Node3D
     private const string BandsPath = "%Bands";
     private const string TopBarPath = "%TopBar";
     private const string BackButtonPath = "%BackButton";
-    private const string TitleLabelPath = "%TitleLabel";
-    private const string CrownsValuePath = "%CrownsValue";
-    private const string StonesValuePath = "%StonesValue";
-    private const string DustValuePath = "%DustValue";
+    private const string CrownsChipPath = "%CrownsChip";
+    private const string StonesChipPath = "%StonesChip";
+    private const string DustChipPath = "%DustChip";
     private const string LeftSlotsPath = "%LeftSlots";
     private const string RightSlotsPath = "%RightSlots";
     private const string HeroPowerLabelPath = "%HeroPowerLabel";
@@ -111,11 +118,11 @@ public partial class Inventory : Node3D
     private const string FilterButtonPath = "%FilterButton";
     private const string CapacityLabelPath = "%CapacityLabel";
     private const string SelectButtonPath = "%SelectButton";
-    private const string GridScrollPath = "%GridScroll";
     private const string StoredGridPath = "%StoredGrid";
     private const string HeldLabelPath = "%HeldLabel";
     private const string HeldGridPath = "%HeldGrid";
     private const string StatusLabelPath = "%StatusLabel";
+    private const string RetryButtonPath = "%RetryButton";
     private const string RejectionLabelPath = "%RejectionLabel";
     private const string SelectBarPath = "%SelectBar";
     private const string QuickPickLabelPath = "%QuickPickLabel";
@@ -126,11 +133,9 @@ public partial class Inventory : Node3D
     private const string TabMarginsPath = "%Margins";
     private const string TabBarPath = "%TabBar";
     private const string ScrimPath = "%Scrim";
+    private const string ConfirmScrimPath = "%ConfirmScrim";
     private const string SheetPath = "%Sheet";
     private const string SheetMarginsPath = "%SheetMargins";
-    private const string DetailsActionsPath = "%DetailsActions";
-    private const string EnhanceActionsPath = "%EnhanceActions";
-    private const string MergeActionsPath = "%MergeActions";
     private const string SheetGemPath = "%SheetGem";
     private const string SheetGemGlyphPath = "%SheetGemGlyph";
     private const string SheetTitlePath = "%SheetTitle";
@@ -139,6 +144,7 @@ public partial class Inventory : Node3D
     private const string SheetCaptionPath = "%SheetCaption";
     private const string SheetBadgesPath = "%SheetBadges";
     private const string DetailsPagePath = "%DetailsPage";
+    private const string DetailsActionsPath = "%DetailsActions";
     private const string PowerCaptionPath = "%PowerCaption";
     private const string PowerValuePath = "%PowerValue";
     private const string PowerDeltaPath = "%PowerDelta";
@@ -156,14 +162,17 @@ public partial class Inventory : Node3D
     private const string MergeButtonPath = "%MergeButton";
     private const string SheetSalvageButtonPath = "%SheetSalvageButton";
     private const string EnhancePagePath = "%EnhancePage";
+    private const string EnhanceActionsPath = "%EnhanceActions";
     private const string EnhanceTargetPath = "%EnhanceTarget";
     private const string EnhanceStatRowsPath = "%EnhanceStatRows";
     private const string EnhanceCostPath = "%EnhanceCost";
     private const string EnhanceOddsPath = "%EnhanceOdds";
+    private const string EnhanceMercyPath = "%EnhanceMercy";
     private const string EnhanceBlockPath = "%EnhanceBlock";
     private const string EnhanceBackButtonPath = "%EnhanceBackButton";
     private const string EnhanceOnceButtonPath = "%EnhanceOnceButton";
     private const string MergePagePath = "%MergePage";
+    private const string MergeActionsPath = "%MergeActions";
     private const string MergeKeeperCaptionPath = "%MergeKeeperCaption";
     private const string MergeInputsCaptionPath = "%MergeInputsCaption";
     private const string MergeCandidatesPath = "%MergeCandidates";
@@ -188,10 +197,9 @@ public partial class Inventory : Node3D
     private Control? _bands;
     private MarginContainer? _topBar;
     private Button? _backButton;
-    private Label? _titleLabel;
-    private Label? _crownsValue;
-    private Label? _stonesValue;
-    private Label? _dustValue;
+    private WalletChip? _crownsChip;
+    private WalletChip? _stonesChip;
+    private WalletChip? _dustChip;
     private VBoxContainer? _leftSlots;
     private VBoxContainer? _rightSlots;
     private Label? _heroPowerLabel;
@@ -202,11 +210,11 @@ public partial class Inventory : Node3D
     private Button? _filterButton;
     private Label? _capacityLabel;
     private Button? _selectButton;
-    private ScrollContainer? _gridScroll;
     private GridContainer? _storedGrid;
     private Label? _heldLabel;
     private GridContainer? _heldGrid;
     private Label? _statusLabel;
+    private Button? _retryButton;
     private Label? _rejectionLabel;
     private Control? _selectBar;
     private Label? _quickPickLabel;
@@ -217,11 +225,9 @@ public partial class Inventory : Node3D
     private MarginContainer? _tabMargins;
     private TabBar? _tabBar;
     private Button? _scrim;
+    private Button? _confirmScrim;
     private Control? _sheet;
     private MarginContainer? _sheetMargins;
-    private Control? _detailsActions;
-    private Control? _enhanceActions;
-    private Control? _mergeActions;
     private PanelContainer? _sheetGem;
     private Label? _sheetGemGlyph;
     private Label? _sheetTitle;
@@ -230,6 +236,7 @@ public partial class Inventory : Node3D
     private Label? _sheetCaption;
     private HBoxContainer? _sheetBadges;
     private Control? _detailsPage;
+    private Control? _detailsActions;
     private Label? _powerCaption;
     private Label? _powerValue;
     private Label? _powerDelta;
@@ -247,14 +254,17 @@ public partial class Inventory : Node3D
     private Button? _mergeButton;
     private Button? _sheetSalvageButton;
     private Control? _enhancePage;
+    private Control? _enhanceActions;
     private Label? _enhanceTarget;
     private VBoxContainer? _enhanceStatRows;
     private Label? _enhanceCost;
     private Label? _enhanceOdds;
+    private Label? _enhanceMercy;
     private Label? _enhanceBlock;
     private Button? _enhanceBackButton;
     private Button? _enhanceOnceButton;
     private Control? _mergePage;
+    private Control? _mergeActions;
     private Label? _mergeKeeperCaption;
     private Label? _mergeInputsCaption;
     private HBoxContainer? _mergeCandidates;
@@ -274,16 +284,22 @@ public partial class Inventory : Node3D
     private PackedScene? _slotTileScene;
     private PackedScene? _gearCellScene;
 
-    private readonly Dictionary<GearSlot, Button> _slotTiles = [];
-    private readonly List<(Button Cell, InventoryItemView Item)> _storedCells = [];
-    private readonly List<(Button Cell, InventoryItemView Item)> _heldCells = [];
-    private readonly List<(Button Cell, InventoryItemView Item)> _mergeCells = [];
+    private readonly Dictionary<GearSlot, Texture2D> _slotGlyphs = [];
+    private readonly Dictionary<GearMark, Texture2D> _markGlyphs = [];
+    private readonly Dictionary<(Rarity Rarity, bool Muted, StringName Face), StyleBoxFlat> _paintedFaces = [];
+    private readonly Dictionary<Rarity, StyleBoxFlat> _paintedGems = [];
+
+    private readonly Dictionary<GearSlot, SlotTileNodes> _slotTiles = [];
+    private readonly List<CellNodes> _storedCells = [];
+    private readonly List<CellNodes> _heldCells = [];
+    private readonly List<CellNodes> _mergeCells = [];
     private readonly List<Button> _quickPickButtons = [];
     private readonly List<Button> _controls = [];
 
     private string _shownNotice = "";
     private int _noticeToken;
     private Tween? _noticeFade;
+    private bool _readyReported;
 
     /// <summary>Binds the screen to its driver and the screen it returns to.</summary>
     /// <param name="presenter">Drives this screen.</param>
@@ -308,10 +324,9 @@ public partial class Inventory : Node3D
         _bands = GetNode<Control>(BandsPath);
         _topBar = GetNode<MarginContainer>(TopBarPath);
         _backButton = GetNode<Button>(BackButtonPath);
-        _titleLabel = GetNode<Label>(TitleLabelPath);
-        _crownsValue = GetNode<Label>(CrownsValuePath);
-        _stonesValue = GetNode<Label>(StonesValuePath);
-        _dustValue = GetNode<Label>(DustValuePath);
+        _crownsChip = GetNode<WalletChip>(CrownsChipPath);
+        _stonesChip = GetNode<WalletChip>(StonesChipPath);
+        _dustChip = GetNode<WalletChip>(DustChipPath);
         _leftSlots = GetNode<VBoxContainer>(LeftSlotsPath);
         _rightSlots = GetNode<VBoxContainer>(RightSlotsPath);
         _heroPowerLabel = GetNode<Label>(HeroPowerLabelPath);
@@ -322,11 +337,11 @@ public partial class Inventory : Node3D
         _filterButton = GetNode<Button>(FilterButtonPath);
         _capacityLabel = GetNode<Label>(CapacityLabelPath);
         _selectButton = GetNode<Button>(SelectButtonPath);
-        _gridScroll = GetNode<ScrollContainer>(GridScrollPath);
         _storedGrid = GetNode<GridContainer>(StoredGridPath);
         _heldLabel = GetNode<Label>(HeldLabelPath);
         _heldGrid = GetNode<GridContainer>(HeldGridPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
+        _retryButton = GetNode<Button>(RetryButtonPath);
         _rejectionLabel = GetNode<Label>(RejectionLabelPath);
         _selectBar = GetNode<Control>(SelectBarPath);
         _quickPickLabel = GetNode<Label>(QuickPickLabelPath);
@@ -337,11 +352,9 @@ public partial class Inventory : Node3D
         _tabMargins = GetNode<MarginContainer>(TabMarginsPath);
         _tabBar = GetNode<TabBar>(TabBarPath);
         _scrim = GetNode<Button>(ScrimPath);
+        _confirmScrim = GetNode<Button>(ConfirmScrimPath);
         _sheet = GetNode<Control>(SheetPath);
         _sheetMargins = GetNode<MarginContainer>(SheetMarginsPath);
-        _detailsActions = GetNode<Control>(DetailsActionsPath);
-        _enhanceActions = GetNode<Control>(EnhanceActionsPath);
-        _mergeActions = GetNode<Control>(MergeActionsPath);
         _sheetGem = GetNode<PanelContainer>(SheetGemPath);
         _sheetGemGlyph = GetNode<Label>(SheetGemGlyphPath);
         _sheetTitle = GetNode<Label>(SheetTitlePath);
@@ -350,6 +363,7 @@ public partial class Inventory : Node3D
         _sheetCaption = GetNode<Label>(SheetCaptionPath);
         _sheetBadges = GetNode<HBoxContainer>(SheetBadgesPath);
         _detailsPage = GetNode<Control>(DetailsPagePath);
+        _detailsActions = GetNode<Control>(DetailsActionsPath);
         _powerCaption = GetNode<Label>(PowerCaptionPath);
         _powerValue = GetNode<Label>(PowerValuePath);
         _powerDelta = GetNode<Label>(PowerDeltaPath);
@@ -367,14 +381,17 @@ public partial class Inventory : Node3D
         _mergeButton = GetNode<Button>(MergeButtonPath);
         _sheetSalvageButton = GetNode<Button>(SheetSalvageButtonPath);
         _enhancePage = GetNode<Control>(EnhancePagePath);
+        _enhanceActions = GetNode<Control>(EnhanceActionsPath);
         _enhanceTarget = GetNode<Label>(EnhanceTargetPath);
         _enhanceStatRows = GetNode<VBoxContainer>(EnhanceStatRowsPath);
         _enhanceCost = GetNode<Label>(EnhanceCostPath);
         _enhanceOdds = GetNode<Label>(EnhanceOddsPath);
+        _enhanceMercy = GetNode<Label>(EnhanceMercyPath);
         _enhanceBlock = GetNode<Label>(EnhanceBlockPath);
         _enhanceBackButton = GetNode<Button>(EnhanceBackButtonPath);
         _enhanceOnceButton = GetNode<Button>(EnhanceOnceButtonPath);
         _mergePage = GetNode<Control>(MergePagePath);
+        _mergeActions = GetNode<Control>(MergeActionsPath);
         _mergeKeeperCaption = GetNode<Label>(MergeKeeperCaptionPath);
         _mergeInputsCaption = GetNode<Label>(MergeInputsCaptionPath);
         _mergeCandidates = GetNode<HBoxContainer>(MergeCandidatesPath);
@@ -394,15 +411,19 @@ public partial class Inventory : Node3D
         _slotTileScene = GD.Load<PackedScene>(SlotTileScenePath);
         _gearCellScene = GD.Load<PackedScene>(GearCellScenePath);
 
+        LoadGlyphs();
+
         Wire(_backButton, OnBackPressed);
         Wire(_sortButton, OnSortPressed);
         Wire(_filterButton, OnFilterPressed);
         Wire(_selectButton, OnSelectPressed);
+        Wire(_retryButton, OnRetryPressed);
         Wire(_selectCancelButton, OnSelectCancelPressed);
         Wire(_salvageButton, OnSalvageRequested);
         Wire(_scrim, OnScrimPressed);
+        Wire(_confirmScrim, OnConfirmCancelPressed);
         Wire(_lockButton, OnLockPressed);
-        Wire(_sheetCloseButton, OnSheetClosePressed);
+        Wire(_sheetCloseButton, OnScrimPressed);
         Wire(_equipButton, OnEquipPressed);
         Wire(_enhanceButton, OnEnhancePagePressed);
         Wire(_mergeButton, OnMergePagePressed);
@@ -456,7 +477,21 @@ public partial class Inventory : Node3D
         _controls.Add(button);
     }
 
-    /// <summary>The top safe inset lands inside the top bar and the bottom one under the tab row, as on Home.</summary>
+    /// <summary>The ten glyphs the cells and tiles wear, loaded once rather than per cell per redraw.</summary>
+    private void LoadGlyphs()
+    {
+        foreach (var slot in Enum.GetValues<GearSlot>())
+        {
+            _slotGlyphs[slot] = GD.Load<Texture2D>(IconCatalogue.PathOf(slot));
+        }
+
+        foreach (var mark in Enum.GetValues<GearMark>())
+        {
+            _markGlyphs[mark] = GD.Load<Texture2D>(IconCatalogue.PathOf(mark));
+        }
+    }
+
+    /// <summary>The top safe inset lands inside the top bar and the bottom one under the tab row and the sheet, as on Home.</summary>
     private void ApplySafeArea()
     {
         if (SafeAreaInsets.Resolve(GetViewport().GetVisibleRect().Size) is not { } insets)
@@ -490,15 +525,22 @@ public partial class Inventory : Node3D
     private Button BuildSlotTile(GearSlot slot)
     {
         var tile = _slotTileScene!.Instantiate<Button>();
+        var nodes = new SlotTileNodes(
+            tile,
+            tile.GetNode<Label>(CaptionPath),
+            tile.GetNode<PanelContainer>(GemPath),
+            tile.GetNode<Label>(GemGlyphPath),
+            tile.GetNode<Label>(PlusPath),
+            tile.GetNode<TextureRect>(MarkPath));
 
-        tile.GetNode<TextureRect>(GlyphPath).Texture = GD.Load<Texture2D>(IconCatalogue.PathOf(slot));
-        tile.GetNode<TextureRect>(MarkPath).Texture = GD.Load<Texture2D>(IconCatalogue.PathOf(GearMark.Upgrade));
+        tile.GetNode<TextureRect>(GlyphPath).Texture = _slotGlyphs[slot];
+        nodes.Mark.Texture = _markGlyphs[GearMark.Upgrade];
 
         var tapped = slot;
 
         tile.Pressed += () => OnSlotPressed(tapped);
 
-        _slotTiles[slot] = tile;
+        _slotTiles[slot] = nodes;
         _controls.Add(tile);
 
         return tile;
@@ -516,7 +558,7 @@ public partial class Inventory : Node3D
         {
             var button = new Button
             {
-                CustomMinimumSize = new Vector2(144, 144),
+                CustomMinimumSize = new Vector2(HomeLayout.MinimumTouchTarget, HomeLayout.MinimumTouchTarget),
                 ThemeTypeVariation = ChipVariation,
                 Text = Band(rarity).Symbol,
                 TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
@@ -564,95 +606,80 @@ public partial class Inventory : Node3D
         RenderTabs(presenter);
 
         // Every control goes quiet while a command is out, so a second tap has nothing to land on.
-        foreach (var control in _controls)
+        if (presenter.Busy)
         {
-            if (IsInstanceValid(control) && presenter.Busy)
+            foreach (var control in _controls)
             {
-                control.Disabled = true;
+                if (IsInstanceValid(control))
+                {
+                    control.Disabled = true;
+                }
             }
         }
 
-        GD.Print(InventoryMarker);
+        // Once: the marker means the read has settled, so a harness that waits for it snapshots a
+        // stock and not a loading line.
+        if (!_readyReported && presenter.Stage != InventoryStage.NotYetRead)
+        {
+            _readyReported = true;
+            GD.Print(InventoryMarker);
+        }
     }
 
     private void RenderTopBar(InventoryPresenter presenter)
     {
-        Write(_titleLabel, presenter.Title);
-        Write(_backButton, presenter.CloseText);
-        Write(_crownsValue, PlayerNumber.Abbreviated(presenter.Crowns));
-        Write(_stonesValue, PlayerNumber.Abbreviated(presenter.EnhanceStones));
-        Write(_dustValue, PlayerNumber.Abbreviated(presenter.MergeDust));
-
-        if (_backButton is not null)
-        {
-            _backButton.Disabled = presenter.Busy;
-        }
+        Write(_backButton, presenter.LeaveText);
+        _crownsChip?.Show(presenter.CrownsText);
+        _stonesChip?.Show(presenter.EnhanceStonesText);
+        _dustChip?.Show(presenter.MergeDustText);
+        Enable(_backButton, !presenter.Busy);
     }
 
     private void RenderSlots(InventoryPresenter presenter)
     {
         foreach (var (slot, tile) in _slotTiles)
         {
-            if (!IsInstanceValid(tile))
+            if (!IsInstanceValid(tile.Button))
             {
                 continue;
             }
 
             var worn = presenter.Worn(slot);
-            var gem = tile.GetNode<PanelContainer>(GemPath);
-            var plus = tile.GetNode<Label>(PlusPath);
-            var mark = tile.GetNode<TextureRect>(MarkPath);
-            var caption = tile.GetNode<Label>(CaptionPath);
 
-            tile.Disabled = presenter.Busy;
+            Enable(tile.Button, presenter.SlotsLive);
 
             if (worn is null)
             {
-                ClearFace(tile);
-                caption.Text = presenter.EmptySlotText;
-                gem.Visible = false;
-                plus.Visible = false;
+                ClearFace(tile.Button);
+                tile.Caption.Text = presenter.EmptySlotText;
+                tile.Gem.Visible = false;
+                tile.Plus.Visible = false;
             }
             else
             {
-                PaintFace(tile, worn.Rarity, muted: false);
-                caption.Text = presenter.FamilyName(worn.Family);
-                PaintGem(gem, tile.GetNode<Label>(GemGlyphPath), worn.Rarity);
-                gem.Visible = true;
-                plus.Text = InventoryPresenter.EnhanceBadge(worn);
-                plus.Visible = plus.Text.Length > 0;
+                PaintFace(tile.Button, worn.Rarity, muted: false);
+                tile.Caption.Text = presenter.FamilyName(worn.Family);
+                PaintGem(tile.Gem, tile.GemGlyph, worn.Rarity);
+                tile.Gem.Visible = true;
+                WriteOrHide(tile.Plus, InventoryPresenter.EnhanceBadge(worn));
             }
 
-            mark.Visible = presenter.UpgradeAvailable(slot);
+            tile.Mark.Visible = presenter.UpgradeAvailable(slot);
         }
 
-        Write(_heroPowerLabel, presenter.HeroPower is { } power
-            ? presenter.HeroPowerLabel + " " + PlayerNumber.Abbreviated((long)Math.Round(power))
-            : "");
+        Write(_heroPowerLabel, presenter.HeroPowerText);
     }
 
     private void RenderToolbar(InventoryPresenter presenter)
     {
         Write(_sortButton, presenter.SortText);
         Write(_capacityLabel, presenter.CapacityLabel + " " + presenter.CapacityValue);
-        Write(_selectButton, presenter.Mode == InventoryMode.Select ? presenter.CancelText : presenter.SelectText);
-
-        if (_filterButton is not null)
-        {
-            _filterButton.Text = presenter.SlotFilterText + FilterClearMark;
-            _filterButton.Visible = presenter.SlotFilter is not null;
-            _filterButton.Disabled = presenter.Busy;
-        }
-
-        if (_sortButton is not null)
-        {
-            _sortButton.Disabled = presenter.Busy;
-        }
-
-        if (_selectButton is not null)
-        {
-            _selectButton.Disabled = presenter.Busy || presenter.Stage is not (InventoryStage.Ready or InventoryStage.Empty);
-        }
+        Write(_selectButton, presenter.SelectText);
+        Write(_filterButton, presenter.SlotFilterText + FilterClearMark);
+        Show(_filterButton, presenter.SlotFilter is not null);
+        Enable(_filterButton, !presenter.Busy);
+        Enable(_sortButton, !presenter.Busy && presenter.Settled);
+        Enable(_selectButton, !presenter.Busy && presenter.Settled);
     }
 
     private void RenderGrid(InventoryPresenter presenter)
@@ -665,58 +692,41 @@ public partial class Inventory : Node3D
         RebuildIfChanged(_storedGrid, _storedCells, presenter.Visible, OnCellPressed);
         RebuildIfChanged(_heldGrid, _heldCells, presenter.VisibleHeld, OnCellPressed);
 
-        foreach (var (cell, item) in _storedCells)
+        foreach (var cell in _storedCells)
         {
-            MarkCell(presenter, cell, item, held: false);
+            MarkCell(presenter, cell, held: false);
         }
 
-        foreach (var (cell, item) in _heldCells)
+        foreach (var cell in _heldCells)
         {
-            MarkCell(presenter, cell, item, held: true);
+            MarkCell(presenter, cell, held: true);
         }
 
-        Write(_heldLabel, presenter.HeldLabel);
-
-        if (_heldLabel is not null)
-        {
-            _heldLabel.Visible = _heldLabel.Text.Length > 0;
-        }
-
-        Write(_statusLabel, presenter.StatusText);
-        Write(_rejectionLabel, presenter.RejectionText);
-
-        if (_statusLabel is not null)
-        {
-            _statusLabel.Visible = _statusLabel.Text.Length > 0;
-        }
-
-        if (_rejectionLabel is not null)
-        {
-            _rejectionLabel.Visible = _rejectionLabel.Text.Length > 0;
-            _rejectionLabel.AddThemeColorOverride(FontColourOverride, HomeAccents.Of(_bands, LossRole));
-        }
+        WriteOrHide(_heldLabel, presenter.HeldLabel);
+        WriteOrHide(_statusLabel, presenter.StatusText);
+        Write(_retryButton, presenter.RetryText);
+        Show(_retryButton, presenter.CanRetry);
+        WriteOrHide(_rejectionLabel, presenter.RejectionText);
+        _rejectionLabel?.AddThemeColorOverride(FontColourOverride, HomeAccents.Of(_bands, LossRole));
     }
 
     /// <summary>Rebuilds a grid's cells only when the items it draws are no longer the same items in the same order.</summary>
     private void RebuildIfChanged(
-        Container grid,
-        List<(Button Cell, InventoryItemView Item)> cells,
-        IReadOnlyList<InventoryItemView> items,
-        Action<InventoryItemView> pressed)
+        Container grid, List<CellNodes> cells, IReadOnlyList<InventoryItemView> items, Action<CellNodes> pressed)
     {
         if (SameMembership(cells, items))
         {
             for (var index = 0; index < items.Count; index++)
             {
-                cells[index] = (cells[index].Cell, items[index]);
+                cells[index].Item = items[index];
             }
 
             return;
         }
 
-        foreach (var (cell, _) in cells)
+        foreach (var cell in cells)
         {
-            _controls.Remove(cell);
+            _controls.Remove(cell.Button);
         }
 
         cells.Clear();
@@ -731,22 +741,35 @@ public partial class Inventory : Node3D
 
         foreach (var item in items)
         {
-            var cell = _gearCellScene.Instantiate<Button>();
-            var captured = item;
+            var button = _gearCellScene.Instantiate<Button>();
+            var cell = new CellNodes(
+                button,
+                button.GetNode<TextureRect>(GlyphPath),
+                button.GetNode<PanelContainer>(GemPath),
+                button.GetNode<Label>(GemGlyphPath),
+                button.GetNode<Label>(PlusPath),
+                button.GetNode<TextureRect>(MarkPath),
+                button.GetNode<TextureRect>(UpgradePath),
+                button.GetNode<TextureRect>(CheckPath))
+            {
+                Item = item,
+            };
 
-            cell.GetNode<TextureRect>(GlyphPath).Texture = GD.Load<Texture2D>(IconCatalogue.PathOf(item.Slot));
-            cell.GetNode<TextureRect>(UpgradePath).Texture = GD.Load<Texture2D>(IconCatalogue.PathOf(GearMark.Upgrade));
-            cell.GetNode<TextureRect>(CheckPath).Texture = GD.Load<Texture2D>(IconCatalogue.PathOf(GearMark.Selected));
-            cell.Pressed += () => pressed(captured);
+            cell.Glyph.Texture = _slotGlyphs[item.Slot];
+            cell.Upgrade.Texture = _markGlyphs[GearMark.Upgrade];
+            cell.Check.Texture = _markGlyphs[GearMark.Selected];
 
-            grid.AddChild(cell);
-            cells.Add((cell, item));
-            _controls.Add(cell);
+            // The press resolves the cell's CURRENT item, not the one it was built with: a kept cell
+            // outlives several reads, and the item it draws moves on with each.
+            button.Pressed += () => pressed(cell);
+
+            grid.AddChild(button);
+            cells.Add(cell);
+            _controls.Add(button);
         }
     }
 
-    private static bool SameMembership(
-        List<(Button Cell, InventoryItemView Item)> cells, IReadOnlyList<InventoryItemView> items)
+    private static bool SameMembership(List<CellNodes> cells, IReadOnlyList<InventoryItemView> items)
     {
         if (cells.Count != items.Count)
         {
@@ -755,7 +778,7 @@ public partial class Inventory : Node3D
 
         for (var index = 0; index < items.Count; index++)
         {
-            if (cells[index].Item.InstanceId != items[index].InstanceId || !IsInstanceValid(cells[index].Cell))
+            if (cells[index].Item.InstanceId != items[index].InstanceId || !IsInstanceValid(cells[index].Button))
             {
                 return false;
             }
@@ -765,13 +788,14 @@ public partial class Inventory : Node3D
     }
 
     /// <summary>Writes one cell's band, badges and marks from the item as it now stands.</summary>
-    private void MarkCell(InventoryPresenter presenter, Button cell, InventoryItemView item, bool held)
+    private void MarkCell(InventoryPresenter presenter, CellNodes cell, bool held)
     {
-        if (!IsInstanceValid(cell))
+        if (!IsInstanceValid(cell.Button))
         {
             return;
         }
 
+        var item = cell.Item;
         var selecting = presenter.Mode == InventoryMode.Select;
         var selectable = presenter.IsSelectable(item);
 
@@ -779,44 +803,38 @@ public partial class Inventory : Node3D
         // band: the gem still says what it is, and the face says it is not a target right now.
         if (selecting && !selectable)
         {
-            ClearFace(cell);
+            ClearFace(cell.Button);
         }
         else
         {
-            PaintFace(cell, item.Rarity, muted: held);
+            PaintFace(cell.Button, item.Rarity, muted: held);
         }
 
-        PaintGem(cell.GetNode<PanelContainer>(GemPath), cell.GetNode<Label>(GemGlyphPath), item.Rarity);
-
-        var plus = cell.GetNode<Label>(PlusPath);
-
-        plus.Text = InventoryPresenter.EnhanceBadge(item);
-        plus.Visible = plus.Text.Length > 0;
-
-        var mark = cell.GetNode<TextureRect>(MarkPath);
+        PaintGem(cell.Gem, cell.GemGlyph, item.Rarity);
+        WriteOrHide(cell.Plus, InventoryPresenter.EnhanceBadge(item));
 
         if (item.Locked)
         {
-            mark.Texture = GD.Load<Texture2D>(IconCatalogue.PathOf(GearMark.Lock));
-            mark.Visible = true;
+            cell.Mark.Texture = _markGlyphs[GearMark.Lock];
+            cell.Mark.Visible = true;
         }
         else if (item.IsEquipped)
         {
-            mark.Texture = GD.Load<Texture2D>(IconCatalogue.PathOf(GearMark.Worn));
-            mark.Visible = true;
+            cell.Mark.Texture = _markGlyphs[GearMark.Worn];
+            cell.Mark.Visible = true;
         }
         else
         {
-            mark.Visible = false;
+            cell.Mark.Visible = false;
         }
 
-        cell.GetNode<TextureRect>(UpgradePath).Visible = !selecting && presenter.IsBetterThanWorn(item);
-        cell.GetNode<TextureRect>(CheckPath).Visible = selecting && presenter.IsSelected(item);
+        cell.Upgrade.Visible = !selecting && presenter.IsBetterThanWorn(item);
+        cell.Check.Visible = selecting && presenter.IsSelected(item);
 
         // In select mode an item that cannot join the batch is a dead target and is drawn as one; in
         // browse mode every cell opens its sheet, held ones included, because the sheet is where a
         // held item's reason lives.
-        cell.Disabled = presenter.Busy || (selecting && !selectable);
+        Enable(cell.Button, !presenter.Busy && !(selecting && !selectable));
     }
 
     private void RenderSelectBar(InventoryPresenter presenter)
@@ -838,16 +856,8 @@ public partial class Inventory : Node3D
         Write(_salvageSummary, presenter.SalvageSummaryText);
         Write(_selectCancelButton, presenter.CancelText);
         Write(_salvageButton, presenter.SalvageText);
-
-        if (_salvageButton is not null)
-        {
-            _salvageButton.Disabled = presenter.Busy || presenter.SelectedCount == 0;
-        }
-
-        if (_selectCancelButton is not null)
-        {
-            _selectCancelButton.Disabled = presenter.Busy;
-        }
+        Enable(_salvageButton, !presenter.Busy && presenter.SelectedCount > 0);
+        Enable(_selectCancelButton, !presenter.Busy);
 
         for (var index = 0; index < _quickPickButtons.Count && index < presenter.QuickPickRarities.Count; index++)
         {
@@ -856,7 +866,7 @@ public partial class Inventory : Node3D
             if (IsInstanceValid(button))
             {
                 PaintFace(button, presenter.QuickPickRarities[index], muted: false);
-                button.Disabled = presenter.Busy;
+                Enable(button, !presenter.Busy);
             }
         }
     }
@@ -865,16 +875,9 @@ public partial class Inventory : Node3D
     {
         var open = presenter.Sheet != GearSheetPage.Closed && presenter.Inspected is not null;
 
-        if (_sheet is not null)
-        {
-            _sheet.Visible = open;
-        }
-
-        if (_scrim is not null)
-        {
-            _scrim.Visible = open || presenter.SalvageConfirmPending;
-            _scrim.Disabled = presenter.Busy;
-        }
+        Show(_sheet, open);
+        Show(_scrim, open);
+        Enable(_scrim, !presenter.Busy);
 
         if (!open || presenter.Inspected is not { } item)
         {
@@ -890,32 +893,17 @@ public partial class Inventory : Node3D
         Write(_sheetCaption, presenter.InspectedCaption);
         Write(_lockButton, presenter.LockActionText);
         Write(_sheetCloseButton, presenter.CloseText);
+        Show(_lockButton, presenter.CanToggleLock || item.Locked);
+        Enable(_lockButton, presenter.CanToggleLock);
+        Enable(_sheetCloseButton, !presenter.Busy);
 
-        if (_lockButton is not null)
-        {
-            _lockButton.Visible = presenter.CanToggleLock || item.Locked;
-            _lockButton.Disabled = !presenter.CanToggleLock;
-        }
-
-        if (_sheetCloseButton is not null)
-        {
-            _sheetCloseButton.Disabled = presenter.Busy;
-        }
-
-        if (_sheetBadges is not null)
-        {
-            Clear(_sheetBadges);
-
-            foreach (var badge in presenter.InspectedBadges)
-            {
-                _sheetBadges.AddChild(Line(badge, CaptionVariation, HomeAccents.Of(_bands, LockRole), wrap: false));
-            }
-        }
+        Fill(_sheetBadges, presenter.InspectedBadges, badge => Line(badge, CaptionVariation, HomeAccents.Of(_bands, LockRole), wrap: false));
 
         Show(_detailsPage, presenter.Sheet == GearSheetPage.Details);
         Show(_detailsActions, presenter.Sheet == GearSheetPage.Details);
         Show(_enhancePage, presenter.Sheet == GearSheetPage.Enhance);
         Show(_enhanceActions, presenter.Sheet == GearSheetPage.Enhance);
+        Show(_enhanceBlock, presenter.Sheet == GearSheetPage.Enhance && presenter.EnhanceBlockText.Length > 0);
         Show(_mergePage, presenter.Sheet == GearSheetPage.Merge);
         Show(_mergeActions, presenter.Sheet == GearSheetPage.Merge);
 
@@ -940,126 +928,64 @@ public partial class Inventory : Node3D
 
     private void RenderDetails(InventoryPresenter presenter, InventoryItemView item)
     {
-        Write(_powerCaption, presenter.PowerLabel);
-        Write(_powerValue, presenter.InspectedPowerText);
-        Write(_powerDelta, presenter.InspectedPowerDelta);
-        Tint(_powerDelta, Math.Sign(presenter.InspectedPowerDelta.StartsWith('↑') ? 1 : presenter.InspectedPowerDelta.StartsWith('↓') ? -1 : 0));
-
-        var projected = presenter.ProjectedHeroPower;
-
-        if (_heroPowerRow is not null)
+        if (presenter.InspectedPowerLine is { } power)
         {
-            _heroPowerRow.Visible = projected is not null && presenter.HeroPower is not null;
+            Write(_powerCaption, power.Name);
+            Write(_powerValue, power.Value);
+            Write(_powerDelta, power.Delta);
+            Tint(_powerDelta, power.Sign);
         }
 
-        if (projected is { } after && presenter.HeroPower is { } now)
+        var projected = presenter.ProjectedHeroPowerLine;
+
+        Show(_heroPowerRow, projected is not null);
+
+        if (projected is not null)
         {
-            Write(_heroPowerCaption, presenter.HeroPowerLabel);
-            Write(_heroPowerValue, PlayerNumber.Abbreviated((long)Math.Round(now)) + " → " + PlayerNumber.Abbreviated((long)Math.Round(after)));
-            Tint(_heroPowerValue, Math.Sign(after - now));
+            Write(_heroPowerCaption, projected.Name);
+            Write(_heroPowerValue, projected.Value);
+            Tint(_heroPowerValue, projected.Sign);
         }
 
-        if (_statRows is not null)
-        {
-            Clear(_statRows);
+        Fill(_statRows, presenter.InspectedStats, StatRow);
 
-            foreach (var line in presenter.InspectedStats)
-            {
-                _statRows.AddChild(StatRow(line));
-            }
-        }
+        var affixes = presenter.InspectedAffixes;
 
-        if (_affixRows is not null && _affixesCaption is not null)
-        {
-            Clear(_affixRows);
+        Write(_affixesCaption, presenter.AffixesLabel);
+        Show(_affixesCaption, affixes.Count > 0);
+        Fill(_affixRows, affixes, affix => Line(affix, ValueVariation, null, wrap: true));
 
-            var affixes = presenter.InspectedAffixes;
+        WriteOrHide(_setLine, presenter.InspectedSetText);
+        Write(_enhanceLine, presenter.InspectedEnhanceText);
+        WriteOrHide(_detailsBlock, presenter.InspectedBlockText);
+        _detailsBlock?.AddThemeColorOverride(FontColourOverride, HomeAccents.Of(_bands, LockRole));
 
-            _affixesCaption.Text = presenter.AffixesLabel;
-            _affixesCaption.Visible = affixes.Count > 0;
-
-            foreach (var affix in affixes)
-            {
-                _affixRows.AddChild(Line(affix, ValueVariation, null, wrap: true));
-            }
-        }
-
-        Write(_setLine, presenter.InspectedSetText);
-
-        if (_setLine is not null)
-        {
-            _setLine.Visible = _setLine.Text.Length > 0;
-        }
-
-        Write(_enhanceLine, presenter.EnhanceText + " " + presenter.InspectedEnhanceText);
-        Write(_detailsBlock, presenter.InspectedBlockText);
-
-        if (_detailsBlock is not null)
-        {
-            _detailsBlock.Visible = _detailsBlock.Text.Length > 0;
-            _detailsBlock.AddThemeColorOverride(FontColourOverride, HomeAccents.Of(_bands, LockRole));
-        }
-
-        if (_equipButton is not null)
-        {
-            _equipButton.Text = item.IsEquipped ? presenter.UnequipText : presenter.EquipText;
-            _equipButton.Disabled = !(item.IsEquipped ? presenter.CanUnequip : presenter.CanEquip);
-        }
+        Write(_equipButton, item.IsEquipped ? presenter.UnequipText : presenter.EquipText);
+        Enable(_equipButton, item.IsEquipped ? presenter.CanUnequip : presenter.CanEquip);
 
         Write(_enhanceButton, presenter.EnhanceText);
         Write(_mergeButton, presenter.MergeText);
         Write(_sheetSalvageButton, presenter.SalvageText);
-
-        if (_enhanceButton is not null)
-        {
-            _enhanceButton.Disabled = presenter.Busy || !presenter.CanShowEnhance;
-        }
-
-        if (_mergeButton is not null)
-        {
-            _mergeButton.Disabled = presenter.Busy || !presenter.CanShowMerge;
-        }
-
-        if (_sheetSalvageButton is not null)
-        {
-            _sheetSalvageButton.Disabled = presenter.Busy || !presenter.CanSalvageInspected;
-        }
+        Enable(_enhanceButton, !presenter.Busy && presenter.CanShowEnhance);
+        Enable(_mergeButton, !presenter.Busy && presenter.CanShowMerge);
+        Enable(_sheetSalvageButton, !presenter.Busy && presenter.CanSalvageInspected);
     }
 
     private void RenderEnhance(InventoryPresenter presenter)
     {
-        Write(_enhanceTarget, presenter.EnhanceText + " " + presenter.EnhanceTargetText);
+        Write(_enhanceTarget, presenter.EnhanceTargetText);
         Write(_enhanceCost, presenter.EnhanceCostText);
         Write(_enhanceOdds, presenter.EnhanceOddsText);
+        WriteOrHide(_enhanceMercy, presenter.EnhanceMercyText);
         Write(_enhanceBlock, presenter.EnhanceBlockText);
+        _enhanceBlock?.AddThemeColorOverride(FontColourOverride, HomeAccents.Of(_bands, LossRole));
         Write(_enhanceBackButton, presenter.BackText);
         Write(_enhanceOnceButton, presenter.EnhanceOnceText);
 
-        if (_enhanceBlock is not null)
-        {
-            _enhanceBlock.Visible = _enhanceBlock.Text.Length > 0;
-            _enhanceBlock.AddThemeColorOverride(FontColourOverride, HomeAccents.Of(_bands, LossRole));
-        }
+        Fill(_enhanceStatRows, presenter.EnhanceStats, StatRow);
 
-        if (_enhanceStatRows is not null)
-        {
-            Clear(_enhanceStatRows);
-
-            foreach (var line in presenter.EnhanceStats)
-            {
-                _enhanceStatRows.AddChild(StatRow(line));
-            }
-        }
-
-        if (_enhanceOnceButton is not null)
-        {
-            _enhanceOnceButton.Disabled = !presenter.CanEnhance;
-        }
-
-        if (_enhanceBackButton is not null)
-        {
-            _enhanceBackButton.Disabled = presenter.Busy;
-        }
+        Enable(_enhanceOnceButton, presenter.CanEnhance);
+        Enable(_enhanceBackButton, !presenter.Busy);
     }
 
     private void RenderMerge(InventoryPresenter presenter)
@@ -1068,75 +994,46 @@ public partial class Inventory : Node3D
         Write(_mergeInputsCaption, presenter.MergeInputsLabel);
         Write(_mergeResult, presenter.MergeResultText);
         Write(_mergeCost, presenter.MergeCostText);
-        Write(_mergeDust, presenter.MergeDustText);
+        WriteOrHide(_mergeDust, presenter.MergeDustCostText);
         Write(_mergeBackButton, presenter.BackText);
         Write(_mergeConfirmButton, presenter.MergeConfirmText);
-
-        if (_mergeDust is not null)
-        {
-            _mergeDust.Visible = _mergeDust.Text.Length > 0;
-        }
 
         if (_mergeCandidates is not null)
         {
             RebuildIfChanged(_mergeCandidates, _mergeCells, presenter.MergeCandidates, OnMergeCandidatePressed);
 
-            foreach (var (cell, candidate) in _mergeCells)
+            foreach (var cell in _mergeCells)
             {
-                if (!IsInstanceValid(cell))
+                if (!IsInstanceValid(cell.Button))
                 {
                     continue;
                 }
 
+                var candidate = cell.Item;
                 var picked = presenter.IsMergePick(candidate);
 
-                PaintFace(cell, candidate.Rarity, muted: !picked);
-                PaintGem(cell.GetNode<PanelContainer>(GemPath), cell.GetNode<Label>(GemGlyphPath), candidate.Rarity);
-
-                var plus = cell.GetNode<Label>(PlusPath);
-
-                plus.Text = InventoryPresenter.EnhanceBadge(candidate);
-                plus.Visible = plus.Text.Length > 0;
-
-                var mark = cell.GetNode<TextureRect>(MarkPath);
-
-                mark.Texture = GD.Load<Texture2D>(IconCatalogue.PathOf(GearMark.Worn));
-                mark.Visible = candidate.IsEquipped;
-                cell.GetNode<TextureRect>(UpgradePath).Visible = false;
-                cell.GetNode<TextureRect>(CheckPath).Visible = picked;
-                cell.Disabled = presenter.Busy;
+                PaintFace(cell.Button, candidate.Rarity, muted: !picked);
+                PaintGem(cell.Gem, cell.GemGlyph, candidate.Rarity);
+                WriteOrHide(cell.Plus, InventoryPresenter.EnhanceBadge(candidate));
+                cell.Mark.Texture = _markGlyphs[GearMark.Worn];
+                cell.Mark.Visible = candidate.IsEquipped;
+                cell.Upgrade.Visible = false;
+                cell.Check.Visible = picked;
+                Enable(cell.Button, !presenter.Busy);
             }
         }
 
-        if (_mergeWarnings is not null)
-        {
-            Clear(_mergeWarnings);
+        Fill(_mergeWarnings, presenter.MergeWarnings, warning => Line(warning, CaptionVariation, HomeAccents.Of(_bands, LockRole), wrap: true));
 
-            foreach (var warning in presenter.MergeWarnings)
-            {
-                _mergeWarnings.AddChild(Line(warning, CaptionVariation, HomeAccents.Of(_bands, LockRole), wrap: true));
-            }
-        }
-
-        if (_mergeConfirmButton is not null)
-        {
-            _mergeConfirmButton.Disabled = !presenter.CanMerge;
-        }
-
-        if (_mergeBackButton is not null)
-        {
-            _mergeBackButton.Disabled = presenter.Busy;
-        }
+        Enable(_mergeConfirmButton, presenter.CanMerge);
+        Enable(_mergeBackButton, !presenter.Busy);
     }
 
     private void RenderConfirm(InventoryPresenter presenter)
     {
-        if (_confirm is null)
-        {
-            return;
-        }
-
-        _confirm.Visible = presenter.SalvageConfirmPending;
+        Show(_confirm, presenter.SalvageConfirmPending);
+        Show(_confirmScrim, presenter.SalvageConfirmPending);
+        Enable(_confirmScrim, !presenter.Busy);
 
         if (!presenter.SalvageConfirmPending)
         {
@@ -1148,25 +1045,10 @@ public partial class Inventory : Node3D
         Write(_confirmCancelButton, presenter.CancelText);
         Write(_confirmSalvageButton, presenter.SalvageConfirmText);
 
-        if (_confirmWarnings is not null)
-        {
-            Clear(_confirmWarnings);
+        Fill(_confirmWarnings, presenter.SalvageWarnings, warning => Line(warning, CaptionVariation, HomeAccents.Of(_bands, LockRole), wrap: true));
 
-            foreach (var warning in presenter.SalvageWarnings)
-            {
-                _confirmWarnings.AddChild(Line(warning, CaptionVariation, HomeAccents.Of(_bands, LockRole), wrap: true));
-            }
-        }
-
-        if (_confirmSalvageButton is not null)
-        {
-            _confirmSalvageButton.Disabled = !presenter.CanSalvage;
-        }
-
-        if (_confirmCancelButton is not null)
-        {
-            _confirmCancelButton.Disabled = presenter.Busy;
-        }
+        Enable(_confirmSalvageButton, presenter.CanSalvage);
+        Enable(_confirmCancelButton, !presenter.Busy);
     }
 
     private void RenderTabs(InventoryPresenter presenter) =>
@@ -1177,12 +1059,7 @@ public partial class Inventory : Node3D
     /// <summary>Puts the presenter's line over the diorama when it changes, and takes it away after a moment.</summary>
     private void RenderNotice(InventoryPresenter presenter)
     {
-        var line = presenter.NoticeKind == InventoryNoticeKind.None
-            ? presenter.RejectionText
-            : presenter.Notice;
-        var kind = presenter.NoticeKind == InventoryNoticeKind.None && line.Length > 0
-            ? InventoryNoticeKind.Setback
-            : presenter.NoticeKind;
+        var line = presenter.Notice;
 
         if (line.Length == 0 || line == _shownNotice)
         {
@@ -1190,7 +1067,7 @@ public partial class Inventory : Node3D
         }
 
         _shownNotice = line;
-        Acknowledge(line, kind);
+        Acknowledge(line, presenter.NoticeKind);
     }
 
     private void Acknowledge(string line, InventoryNoticeKind kind)
@@ -1242,12 +1119,18 @@ public partial class Inventory : Node3D
 
         timer.Timeout += () =>
         {
-            if (token == _noticeToken)
+            if (token != _noticeToken)
             {
-                Withdraw();
-                _presenter?.ClearNotice();
-                _shownNotice = "";
+                return;
             }
+
+            Withdraw();
+            _shownNotice = "";
+
+            // The presenter forgets the answer with the line: a refusal that outlived its notice was
+            // re-announced on every redraw.
+            _presenter?.ClearNotice();
+            Render();
         };
     }
 
@@ -1300,19 +1183,23 @@ public partial class Inventory : Node3D
         Render();
     }
 
-    private void OnCellPressed(InventoryItemView item)
+    private void OnCellPressed(CellNodes cell)
     {
-        _presenter?.Open(item);
+        _presenter?.Open(cell.Item);
         Render();
     }
 
-    private void OnMergeCandidatePressed(InventoryItemView item)
+    private void OnMergeCandidatePressed(CellNodes cell)
     {
-        _presenter?.ToggleMergePick(item);
+        _presenter?.ToggleMergePick(cell.Item);
         Render();
     }
 
-    private void OnSortPressed() => _ = SubmitAsync(presenter => presenter.CycleOrderAsync(_lifetime));
+    private void OnSortPressed()
+    {
+        _presenter?.CycleOrder();
+        Render();
+    }
 
     private void OnFilterPressed()
     {
@@ -1320,22 +1207,11 @@ public partial class Inventory : Node3D
         Render();
     }
 
+    private void OnRetryPressed() => _ = StartAsync();
+
     private void OnSelectPressed()
     {
-        if (_presenter is not { } presenter)
-        {
-            return;
-        }
-
-        if (presenter.Mode == InventoryMode.Select)
-        {
-            presenter.LeaveSelectMode();
-        }
-        else
-        {
-            presenter.EnterSelectMode();
-        }
-
+        _presenter?.EnterSelectMode();
         Render();
     }
 
@@ -1357,26 +1233,8 @@ public partial class Inventory : Node3D
         Render();
     }
 
+    /// <summary>The scrim and the sheet's own close control do the same thing: close the sheet.</summary>
     private void OnScrimPressed()
-    {
-        if (_presenter is not { } presenter)
-        {
-            return;
-        }
-
-        if (presenter.SalvageConfirmPending)
-        {
-            presenter.CancelSalvage();
-        }
-        else
-        {
-            presenter.CloseSheet();
-        }
-
-        Render();
-    }
-
-    private void OnSheetClosePressed()
     {
         _presenter?.CloseSheet();
         Render();
@@ -1455,32 +1313,50 @@ public partial class Inventory : Node3D
     /// <remarks>
     /// 🔒 The band's colour is blended INTO the theme's face rather than replacing it, so a Mythic cell
     /// is still a dark cell with a violet edge and not a violet block a glyph cannot be read on. Muted
-    /// faces — a held item, a cell that cannot join a batch, an unpicked candidate — take a fainter blend.
+    /// faces — a held item, an unpicked candidate — take a fainter blend. Each (band, muted, face)
+    /// stylebox is built once and shared by every control that wears it.
     /// </remarks>
     private void PaintFace(Button button, Rarity rarity, bool muted)
     {
-        var (role, _, corners) = Band(rarity);
-        var accent = HomeAccents.Of(_bands, role);
-
         foreach (var face in ButtonFaces)
         {
-            if (button.GetThemeStylebox(face) is not StyleBoxFlat original || original.Duplicate() is not StyleBoxFlat painted)
+            if (PaintedFace(button, rarity, muted, face) is { } painted)
             {
-                continue;
+                button.AddThemeStyleboxOverride(face, painted);
             }
-
-            painted.BorderColor = muted ? accent.Lerp(original.BorderColor, 0.55f) : accent;
-            painted.BgColor = accent.Lerp(original.BgColor, muted ? 0.9f : 0.78f);
-            painted.CornerRadiusTopLeft = corners.X;
-            painted.CornerRadiusTopRight = corners.Y;
-            painted.CornerRadiusBottomRight = corners.Z;
-            painted.CornerRadiusBottomLeft = corners.W;
-
-            button.AddThemeStyleboxOverride(face, painted);
         }
     }
 
-    /// <summary>Takes a band's paint off a tile, so an emptied slot draws the theme's own face again.</summary>
+    private StyleBoxFlat? PaintedFace(Button button, Rarity rarity, bool muted, StringName face)
+    {
+        if (_paintedFaces.TryGetValue((rarity, muted, face), out var cached))
+        {
+            return cached;
+        }
+
+        // The theme's own face is the template, read through the control before any override lands
+        // on it — the button's variation decides which face, the band decides the tint.
+        if (button.GetThemeStylebox(face) is not StyleBoxFlat original || original.Duplicate() is not StyleBoxFlat painted)
+        {
+            return null;
+        }
+
+        var (role, _, corners) = Band(rarity);
+        var accent = HomeAccents.Of(_bands, role);
+
+        painted.BorderColor = muted ? accent.Lerp(original.BorderColor, 0.55f) : accent;
+        painted.BgColor = accent.Lerp(original.BgColor, muted ? 0.9f : 0.78f);
+        painted.CornerRadiusTopLeft = corners.X;
+        painted.CornerRadiusTopRight = corners.Y;
+        painted.CornerRadiusBottomRight = corners.Z;
+        painted.CornerRadiusBottomLeft = corners.W;
+
+        _paintedFaces[(rarity, muted, face)] = painted;
+
+        return painted;
+    }
+
+    /// <summary>Takes a band's paint off a button, so it draws the theme's own face again.</summary>
     private static void ClearFace(Button button)
     {
         foreach (var face in ButtonFaces)
@@ -1500,16 +1376,22 @@ public partial class Inventory : Node3D
 
         glyph.Text = symbol;
 
-        if (gem.GetThemeStylebox(PanelStyle) is not StyleBoxFlat face || face.Duplicate() is not StyleBoxFlat band)
+        if (!_paintedGems.TryGetValue(rarity, out var band))
         {
-            return;
-        }
+            if (gem.GetThemeStylebox(PanelStyle) is not StyleBoxFlat face || face.Duplicate() is not StyleBoxFlat painted)
+            {
+                return;
+            }
 
-        band.BgColor = HomeAccents.Of(_bands, role);
-        band.CornerRadiusTopLeft = corners.X;
-        band.CornerRadiusTopRight = corners.Y;
-        band.CornerRadiusBottomRight = corners.Z;
-        band.CornerRadiusBottomLeft = corners.W;
+            painted.BgColor = HomeAccents.Of(_bands, role);
+            painted.CornerRadiusTopLeft = corners.X;
+            painted.CornerRadiusTopRight = corners.Y;
+            painted.CornerRadiusBottomRight = corners.Z;
+            painted.CornerRadiusBottomLeft = corners.W;
+
+            band = painted;
+            _paintedGems[rarity] = band;
+        }
 
         gem.AddThemeStyleboxOverride(PanelStyle, band);
     }
@@ -1518,6 +1400,7 @@ public partial class Inventory : Node3D
     /// Each band's theme role, its letter, and its corner SHAPE — five shapes, so a player who reads
     /// none of the hues apart still tells the bands: square, round, leaf, drop, lozenge.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">A band this screen was never taught — it is not painted as another.</exception>
     private static (string Role, string Symbol, Vector4I Corners) Band(Rarity rarity) => rarity switch
     {
         Rarity.C => (RarityRolePrefix + "c", "C", new Vector4I(6, 6, 6, 6)),
@@ -1525,7 +1408,8 @@ public partial class Inventory : Node3D
         Rarity.A => (RarityRolePrefix + "a", "A", new Vector4I(48, 6, 48, 6)),
         Rarity.S => (RarityRolePrefix + "s", "S", new Vector4I(6, 6, 48, 48)),
         Rarity.SS => (RarityRolePrefix + "ss", "SS", new Vector4I(30, 60, 30, 60)),
-        _ => (RarityRolePrefix + "c", "?", new Vector4I(18, 18, 18, 18)),
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(rarity), rarity, "this band has no role, letter or shape here; teach the screen the band before it draws it."),
     };
 
     /// <summary>One stat line: the name, the figure, and the comparison in its accent.</summary>
@@ -1533,7 +1417,7 @@ public partial class Inventory : Node3D
     {
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
 
-        row.AddThemeConstantOverride("separation", 18);
+        row.AddThemeConstantOverride(SeparationConstant, 18);
 
         var name = Line(line.Name, LineVariation, null, wrap: true);
 
@@ -1603,8 +1487,23 @@ public partial class Inventory : Node3D
             return;
         }
 
-        label.AddThemeColorOverride(
-            FontColourOverride, HomeAccents.Of(_bands, sign > 0 ? HomeAccents.Gain : LossRole));
+        label.AddThemeColorOverride(FontColourOverride, HomeAccents.Of(_bands, sign > 0 ? HomeAccents.Gain : LossRole));
+    }
+
+    /// <summary>Empties a container and refills it, one control per item.</summary>
+    private static void Fill<T>(Node? container, IReadOnlyList<T> items, Func<T, Control> build)
+    {
+        if (container is null || !IsInstanceValid(container))
+        {
+            return;
+        }
+
+        Clear(container);
+
+        foreach (var item in items)
+        {
+            container.AddChild(build(item));
+        }
     }
 
     private static void Show(Control? control, bool visible)
@@ -1612,6 +1511,14 @@ public partial class Inventory : Node3D
         if (control is not null && IsInstanceValid(control))
         {
             control.Visible = visible;
+        }
+    }
+
+    private static void Enable(Button? button, bool enabled)
+    {
+        if (button is not null && IsInstanceValid(button))
+        {
+            button.Disabled = !enabled;
         }
     }
 
@@ -1628,6 +1535,16 @@ public partial class Inventory : Node3D
         if (button is not null && IsInstanceValid(button))
         {
             button.Text = text;
+        }
+    }
+
+    /// <summary>Writes a line, and hides the label when there is nothing to say: an empty label still claims its height.</summary>
+    private static void WriteOrHide(Label? label, string text)
+    {
+        if (label is not null && IsInstanceValid(label))
+        {
+            label.Text = text;
+            label.Visible = text.Length > 0;
         }
     }
 
@@ -1654,5 +1571,24 @@ public partial class Inventory : Node3D
         }
 
         tween = null;
+    }
+
+    /// <summary>One slot tile's nodes, resolved once when the tile is built.</summary>
+    private sealed record SlotTileNodes(
+        Button Button, Label Caption, PanelContainer Gem, Label GemGlyph, Label Plus, TextureRect Mark);
+
+    /// <summary>One cell's nodes, resolved once when the cell is built, and the item it currently draws.</summary>
+    private sealed record CellNodes(
+        Button Button,
+        TextureRect Glyph,
+        PanelContainer Gem,
+        Label GemGlyph,
+        Label Plus,
+        TextureRect Mark,
+        TextureRect Upgrade,
+        TextureRect Check)
+    {
+        /// <summary>The item this cell draws now — reassigned on every read the cell survives.</summary>
+        public InventoryItemView Item { get; set; } = null!;
     }
 }

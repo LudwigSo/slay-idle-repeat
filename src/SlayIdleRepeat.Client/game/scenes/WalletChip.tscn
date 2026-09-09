@@ -1,0 +1,38 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/WalletChip.cs" id="1_chip"]
+
+; One wallet in the Gear screen's top bar: an icon and a figure, three instances. A PanelContainer and
+; not a ResourcePill because nothing here opens a resource sheet, and a Button that answered a tap
+; with nothing would be a dead control on the one bar a player reads before every forge operation.
+;
+; The glyph is IconCatalogue's path for the exported resource, never a texture assigned here, for the
+; reason ResourcePill.tscn gives: the catalogue is the one table that pairs a wallet with its file.
+[node name="WalletChip" type="PanelContainer"]
+mouse_filter = 2
+theme_type_variation = &"WalletChip"
+script = ExtResource("1_chip")
+
+[node name="Row" type="HBoxContainer" parent="."]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Icon" type="TextureRect" parent="Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+; A floor under the figure's width, so the row cannot squeeze it to an ellipsis: 999.9k at this size.
+[node name="Value" type="Label" parent="Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(114, 0)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"PillValue"
+text_overrun_behavior = 3

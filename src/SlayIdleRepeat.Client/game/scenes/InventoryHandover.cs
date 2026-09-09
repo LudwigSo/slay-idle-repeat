@@ -43,7 +43,7 @@ public static class InventoryHandover
             return false;
         }
 
-        inventory.Drive(screen.Inventory, from, lifetime);
+        inventory.Drive(screen.Inventory, from, lifetime, screen.ReducedMotion);
 
         from.GetParent().AddChild(inventory);
         ScreenStage.Hide(from);
@@ -60,14 +60,15 @@ public static class InventoryHandover
         ArgumentNullException.ThrowIfNull(screen);
         ArgumentNullException.ThrowIfNull(to);
 
-        // 🔒 Home is RESUMED rather than merely shown, and the difference is the read. The Gear screen
-        // exists to change the loadout, and Home's power pill and hero caption are drawn from the profile
-        // row as it stood when Home last read it — so a player who equips a better blade and comes back
-        // would find the pill still quoting the old figure. Resume re-reads; Show would not. Any other
-        // screen this is entered from is shown as it was, which is the contract it was left with.
-        if (to is Home home)
+        // 🔒 A screen that can be resumed is RESUMED rather than merely shown, and the difference is the
+        // read. The Gear screen exists to change the loadout, and Home's power pill and hero caption are
+        // drawn from the profile row as it stood when Home last read it — so a player who equips a better
+        // blade and comes back would find the pill still quoting the old figure. Resume re-reads; Show
+        // would not. Asked of the capability rather than of the type, so the next screen that opens the
+        // bag gets the same treatment by implementing it, not by editing this file.
+        if (to is IResumableScreen resumable)
         {
-            home.Resume();
+            resumable.Resume();
         }
         else
         {

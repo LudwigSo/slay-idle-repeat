@@ -71,6 +71,7 @@ internal static class GearMerge
         }
 
         var first = inputs[0];
+        var identity = MergeIdentity.Of(first);
 
         for (var i = 1; i < inputs.Count; i++)
         {
@@ -84,17 +85,21 @@ internal static class GearMerge
                 }
             }
 
-            if (!string.Equals(first.DefId, other.DefId, StringComparison.Ordinal))
+            // Field by field rather than one equality, because the refusal names WHICH field differs
+            // — but the fields are MergeIdentity's, so the rule and the screen's grouping cannot drift.
+            var otherIdentity = MergeIdentity.Of(other);
+
+            if (!string.Equals(identity.DefId, otherIdentity.DefId, StringComparison.Ordinal))
             {
                 return MergeRefusal.MISMATCHED_ITEM;
             }
 
-            if (first.Rarity != other.Rarity)
+            if (identity.Rarity != otherIdentity.Rarity)
             {
                 return MergeRefusal.MISMATCHED_RARITY;
             }
 
-            if (first.EnhanceLevel != other.EnhanceLevel)
+            if (identity.EnhanceLevel != otherIdentity.EnhanceLevel)
             {
                 return MergeRefusal.MISMATCHED_ENHANCE_LEVEL;
             }

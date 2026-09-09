@@ -129,7 +129,7 @@ public static class HomeComposition
                 player),
             new ChapterSelectPresenter(composed.Client.GameHost, strings, content, player),
             run => BoardComposition.CreateBoardScreen(composed, player, run),
-            () => InventoryComposition.CreateInventoryScreen(composed, player),
+            () => InventoryComposition.CreateInventoryScreen(composed, player, reducedMotion),
             reducedMotion);
     }
 }

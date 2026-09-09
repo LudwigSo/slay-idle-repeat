@@ -16,6 +16,7 @@ public sealed class InventorySceneRuleTests
     private const string InventoryScene = "src/SlayIdleRepeat.Client/game/scenes/Inventory.tscn";
     private const string SlotTileScene = "src/SlayIdleRepeat.Client/game/scenes/SlotTile.tscn";
     private const string GearCellScene = "src/SlayIdleRepeat.Client/game/scenes/GearCell.tscn";
+    private const string WalletChipScene = "src/SlayIdleRepeat.Client/game/scenes/WalletChip.tscn";
     private const string Theme = "src/SlayIdleRepeat.Client/game/theme/SlayTheme.tres";
 
     private const string Identity = "Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)";
@@ -48,6 +49,10 @@ public sealed class InventorySceneRuleTests
 
     /// <summary>The sheet's three footers, one per page, each of which carries exactly one primary action.</summary>
     private static readonly string[] SheetFooters = ["DetailsActions", "EnhanceActions", "MergeActions"];
+
+    private static readonly Regex WalletGlyph = new(
+        @"^\[node name=""(?<name>[A-Za-z]+)"" parent=""[^""]+"" instance=ExtResource\(""[^""]+""\)\]\r?\n(?:[^\[\r\n].*\r?\n)*?Glyph = (?<glyph>[0-9]+)",
+        RegexOptions.Multiline | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     private static readonly Regex Texture2DResource = new(
         @"^\[ext_resource type=""Texture2D"".*?path=""(?<path>res://[^""]+)""",
@@ -219,15 +224,31 @@ public sealed class InventorySceneRuleTests
 
     // ------------------------------------------------------------------- the textures
 
-    [Fact]
-    public void Every_texture_the_scene_loads_is_a_catalogued_icon()
-    {
-        var loaded = Texture2DResource.Matches(SceneText.Read(InventoryScene)).Select(m => m.Groups["path"].Value).ToArray();
+    /// <summary>
+    /// 🔒 The scene authors no texture at all. Every glyph it draws is resolved through the catalogue at
+    /// run time — the wallet chips by their exported <c>Glyph</c>, the tiles and cells by slot and mark —
+    /// so a swapped pair is caught by IconCatalogueTests rather than drawn.
+    /// </summary>
+    [Theory]
+    [InlineData(InventoryScene)]
+    [InlineData(SlotTileScene)]
+    [InlineData(GearCellScene)]
+    [InlineData(WalletChipScene)]
+    public void The_scene_authors_no_texture_of_its_own(string scene) =>
+        Texture2DResource.Matches(SceneText.Read(scene)).Select(m => m.Groups["path"].Value).ShouldBeEmpty(
+            "a texture bound in the scene bypasses the catalogue, which is the one table a test holds a glyph's file against.");
 
-        loaded.ShouldNotBeEmpty("the wallet chips load no icon at all, so the rule below is stated over nothing.");
-        loaded.ShouldAllBe(
-            path => IconCatalogue.All.Contains(path),
-            "a texture path the catalogue does not list is one IconCatalogueTests does not check.");
+    [Fact]
+    public void The_three_wallet_chips_name_the_three_wallets_the_forge_spends()
+    {
+        var chips = WalletGlyph.Matches(SceneText.Read(InventoryScene))
+            .ToDictionary(m => m.Groups["name"].Value, m => (HudIcon)int.Parse(m.Groups["glyph"].Value, System.Globalization.CultureInfo.InvariantCulture), StringComparer.Ordinal);
+
+        chips.Count.ShouldBe(3, "three wallets: Crowns for a fusion, Enhance Stones for a rung, Merge Dust for a missing input.");
+        chips["CrownsChip"].ShouldBe(HudIcon.Crowns);
+        chips["StonesChip"].ShouldBe(HudIcon.EnhanceStones);
+        chips["DustChip"].ShouldBe(HudIcon.MergeDust);
+        chips.Values.ShouldAllBe(glyph => IconCatalogue.All.Contains(IconCatalogue.PathOf(glyph)));
     }
 
     [Fact]
@@ -257,6 +278,7 @@ public sealed class InventorySceneRuleTests
     [InlineData(InventoryScene)]
     [InlineData(SlotTileScene)]
     [InlineData(GearCellScene)]
+    [InlineData(WalletChipScene)]
     public void Every_control_that_draws_text_says_what_it_does_when_the_text_does_not_fit(string scene)
     {
         var controls = CaptionedControl.Matches(SceneText.Read(scene))
@@ -307,7 +329,7 @@ public sealed class InventorySceneRuleTests
         var short_ = AnyNode.Matches(SceneText.Read(InventoryScene))
             .Where(m => m.Groups["type"].Value == "Button")
             .Select(m => (Name: m.Groups["name"].Value, Block: m.Groups["block"].Value))
-            .Where(b => !b.Name.Equals("Scrim", StringComparison.Ordinal))
+            .Where(b => !b.Name.EndsWith("Scrim", StringComparison.Ordinal))
             .Where(b =>
             {
                 var size = RootMinimumSize.Match(b.Block);

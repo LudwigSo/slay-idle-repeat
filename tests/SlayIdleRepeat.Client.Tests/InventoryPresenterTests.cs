@@ -117,13 +117,20 @@ public sealed class InventoryPresenterTests
         presenter.RejectionText.ShouldBe(
             RunDecisionContent.EnglishValueOf(RunDecisionContent.InventoryRefusedFundsStatusKey),
             "a wallet refusal has a next step the generic line does not name.");
-        presenter.Notice.ShouldBeEmpty("a refused command did nothing worth announcing.");
+        presenter.Notice.ShouldBe(presenter.RejectionText, "a refusal is announced through the one channel every answer takes.");
+        presenter.NoticeKind.ShouldBe(InventoryNoticeKind.Setback);
+
+        presenter.ClearNotice();
+
+        presenter.Notice.ShouldBeEmpty();
+        presenter.RejectionText.ShouldBeEmpty(
+            "the reason goes down with its notice; a reason that outlived it was re-announced on every redraw.");
     }
 
     // ---- the slots and the grid ----------------------------------------------------------------
 
     [Fact]
-    public async Task Tapping_a_worn_slot_opens_what_it_wears_and_narrows_the_grid_to_that_slot()
+    public async Task Tapping_a_slot_narrows_the_grid_to_it_and_a_second_tap_opens_what_it_wears()
     {
         var presenter = Build(RecordingGameHost.Finding(Forge(), null));
 
@@ -131,16 +138,25 @@ public sealed class InventoryPresenterTests
 
         presenter.TapSlot(GearSlot.HELMET);
 
-        presenter.Sheet.ShouldBe(GearSheetPage.Details);
-        presenter.Inspected!.InstanceId.ShouldBe(WornHood);
+        presenter.Sheet.ShouldBe(GearSheetPage.Closed, "one effect per tap: the first shows what the bag holds for the slot.");
         presenter.SlotFilter.ShouldBe(GearSlot.HELMET);
         presenter.Visible.ShouldAllBe(item => item.Slot == GearSlot.HELMET);
         presenter.Visible.Count.ShouldBe(2, "the worn hood and the spare, and nothing from another slot.");
+
+        presenter.TapSlot(GearSlot.HELMET);
+
+        presenter.Sheet.ShouldBe(GearSheetPage.Details);
+        presenter.Inspected!.InstanceId.ShouldBe(WornHood);
+        presenter.SlotFilter.ShouldBe(GearSlot.HELMET, "the sheet opens over the narrowed grid, not instead of it.");
 
         presenter.TapSlot(GearSlot.RING);
 
         presenter.Sheet.ShouldBe(GearSheetPage.Details, "an empty slot narrows the grid and leaves the sheet as it was.");
         presenter.Visible.ShouldBeEmpty();
+
+        presenter.TapSlot(GearSlot.RING);
+
+        presenter.Inspected.InstanceId.ShouldBe(WornHood, "a second tap on an empty slot has nothing to open.");
         presenter.StatusText.ShouldBe(
             RunDecisionContent.EnglishValueOf("loc.inventory.filter_empty.status"),
             "an empty filtered grid says why it is empty rather than looking unrendered.");
@@ -167,7 +183,7 @@ public sealed class InventoryPresenterTests
     }
 
     [Fact]
-    public async Task Cycling_the_order_reads_the_stock_again_in_the_new_order()
+    public async Task Cycling_the_order_re_projects_the_row_already_read_rather_than_reading_again()
     {
         var host = RecordingGameHost.Finding(Forge(), null);
         var presenter = Build(host);
@@ -176,10 +192,19 @@ public sealed class InventoryPresenterTests
 
         presenter.Order.ShouldBe(InventorySortKey.POWER, "power first is the question a player brings to the bag.");
 
-        await presenter.CycleOrderAsync(CancellationToken.None);
+        presenter.CycleOrder();
 
         presenter.Order.ShouldBe(InventorySortKey.RARITY);
-        host.ReadCallCount.ShouldBe(2, "the ordering is the projection's, so a new order is a new read.");
+        presenter.Visible[0].InstanceId.ShouldBe(SpareHood, "the one Epic leads a rarity-first grid.");
+        host.ReadCallCount.ShouldBe(
+            1, "the ordering is the projection's and the projection runs over the row in hand; a round trip " +
+               "for a sort spends a loading state on nothing and can throw a good stock away on a fault.");
+        presenter.CycleOrder();
+        presenter.CycleOrder();
+        presenter.CycleOrder();
+
+        presenter.Order.ShouldBe(InventorySortKey.POWER, "four orderings in the cycle, and it comes back round.");
+        host.ReadCallCount.ShouldBe(1);
     }
 
     [Fact]
@@ -199,9 +224,14 @@ public sealed class InventoryPresenterTests
         asked.Gear[GearSlot.HELMET].ShouldBe(SpareHood, "the open item takes its own slot…");
         asked.Gear[GearSlot.WEAPON].ShouldBe(WornBlade, "…and every other slot keeps what it wears.");
 
+        presenter.ProjectedHeroPowerLine.ShouldNotBeNull().Value.ShouldNotBeNullOrWhiteSpace();
+        presenter.HeroPowerText.ShouldNotBeNullOrWhiteSpace("the worn figure is captioned and drawn over the diorama.");
+        presenter.EmptySlotText.ShouldNotBeNullOrWhiteSpace();
+
         presenter.Open(Item(presenter, WornHood));
 
         presenter.ProjectedHeroPower.ShouldBeNull("the worn item projects nothing: it is already the figure shown.");
+        presenter.ProjectedHeroPowerLine.ShouldBeNull();
     }
 
     // ---- enhance --------------------------------------------------------------------------------
@@ -274,9 +304,10 @@ public sealed class InventoryPresenterTests
             "unworn before worn, then the weaker roll first; the locked copy is not a candidate at all.");
         presenter.MergePicks.Select(p => p.InstanceId).ShouldBe([WeakCopy, BetterCopy]);
         presenter.MergeNeedsDust.ShouldBeFalse();
-        presenter.MergeWarnings.ShouldContain(
-            RunDecisionContent.EnglishValueOf("loc.inventory.merge_consumes_better_roll.block"),
-            "the second pick rolled better than the keeper, and the player is told before the tap.");
+        presenter.MergeWarnings.ShouldBeEmpty(
+            "two unworn, affixless copies and a paid price: nothing to warn about. In particular no warning " +
+            "about the better roll — the fused item keeps the HIGHEST quality among its inputs, so a better " +
+            "copy under the fusion is a gain, not a loss.");
         presenter.CanMerge.ShouldBeTrue();
 
         var outcome = await presenter.MergeInspectedAsync(CancellationToken.None);
@@ -321,7 +352,7 @@ public sealed class InventoryPresenterTests
 
         presenter.MergePicks.Count.ShouldBe(1, "the premise: one copy at hand besides the keeper.");
         presenter.MergeNeedsDust.ShouldBeTrue();
-        presenter.MergeDustText.ShouldNotBeEmpty();
+        presenter.MergeDustCostText.ShouldNotBeEmpty();
         presenter.CanMerge.ShouldBe(canMerge);
 
         if (!canMerge)
@@ -336,6 +367,32 @@ public sealed class InventoryPresenterTests
         await presenter.MergeInspectedAsync(CancellationToken.None);
 
         host.SubmitCommand.ShouldBe(new MergeCommand([Keeper, WeakCopy], dustSubstituted: true));
+    }
+
+    [Fact]
+    public async Task An_item_with_no_other_copy_cannot_open_the_merge_page()
+    {
+        var presenter = Build(RecordingGameHost.Finding(Forge(copies: 0), null));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Open(Item(presenter, SpareHood));
+
+        presenter.MergeableCopies(presenter.Inspected!).ShouldBe(1, "the premise: the Epic hood is the only one of its kind.");
+        presenter.CanShowMerge.ShouldBeFalse("dust stands in for the third input, never the second.");
+        presenter.InspectedBlockText.ShouldBe(
+            RunDecisionContent.EnglishValueOf("loc.inventory.merge_no_copies.block"),
+            "the control is dead and the sentence beside it says why.");
+
+        presenter.ShowMerge();
+
+        presenter.Sheet.ShouldBe(GearSheetPage.Details, "a page that could only ever refuse is not opened.");
+
+        presenter.Open(Item(presenter, Keeper));
+
+        presenter.MergeableCopies(presenter.Inspected!).ShouldBe(2, "the keeper and the worn blade; the locked copy never counts.");
+        presenter.CanShowMerge.ShouldBeTrue("one other copy is enough to open the page — dust can stand in for the third.");
+        presenter.InspectedBlockText.ShouldBeEmpty();
     }
 
     [Fact]
@@ -534,17 +591,22 @@ public sealed class InventoryPresenterTests
         presenter.Open(Item(presenter, SpareHood));
 
         presenter.InspectedTitle.ShouldBe(presenter.RarityName(Rarity.A) + " " + presenter.FamilyName(GearFamily.HOOD));
-        presenter.InspectedPowerDelta.ShouldStartWith(
+
+        var power = presenter.InspectedPowerLine.ShouldNotBeNull();
+
+        power.Delta.ShouldStartWith(
             "↑ +", Case.Sensitive, "an Epic against a Common is a gain, and the arrow and the sign both say so.");
+        power.Sign.ShouldBe(1);
+        power.Value.ShouldNotContain(".", Case.Sensitive, "power is drawn as a whole number, as the HUD draws it.");
         presenter.InspectedStats.Count.ShouldBe(2);
         presenter.InspectedStats.ShouldAllBe(line => line.Sign > 0 && line.Delta.StartsWith("↑ +", StringComparison.Ordinal));
-        presenter.InspectedEnhanceText.ShouldBe("+0 / +" + presenter.MaxEnhanceLevel);
+        presenter.InspectedEnhanceText.ShouldBe(presenter.EnhanceText + " +0 / +" + presenter.MaxEnhanceLevel, "the rung is captioned, and the ceiling stands beside it.");
         presenter.InspectedBadges.ShouldBeEmpty("the spare is neither worn, locked nor held.");
 
         presenter.Open(Item(presenter, WornHood));
 
         presenter.InspectedBadges.ShouldBe([presenter.EquippedBadge]);
-        presenter.InspectedPowerDelta.ShouldBeEmpty("the worn item has nothing to compare against.");
+        presenter.InspectedPowerLine.ShouldNotBeNull().Delta.ShouldBeEmpty("the worn item has nothing to compare against.");
         presenter.CanUnequip.ShouldBeTrue();
         presenter.CanEquip.ShouldBeFalse();
     }
@@ -556,14 +618,12 @@ public sealed class InventoryPresenterTests
 
         var captions = new List<string>
         {
-            presenter.Title, presenter.CapacityLabel, presenter.EquippedBadge, presenter.LockedBadge,
-            presenter.HeldBadge, presenter.UpgradeBadge, presenter.EquipText, presenter.UnequipText,
-            presenter.EnhanceText, presenter.EnhanceOnceText, presenter.MergeText, presenter.MergeConfirmText,
-            presenter.SalvageText, presenter.SalvageConfirmText, presenter.SelectText, presenter.CancelText,
-            presenter.BackText, presenter.CloseText, presenter.ClearFilterText, presenter.HeldNotEquippableText,
-            presenter.HeroPowerLabel, presenter.PowerLabel, presenter.AffixesLabel, presenter.MergeKeeperLabel,
-            presenter.MergeInputsLabel, presenter.QuickPickLabel, presenter.EmptySlotText, presenter.SortText,
-            presenter.NotOpenYetNotice, presenter.LockActionText,
+            presenter.CapacityLabel, presenter.EquippedBadge, presenter.LockedBadge, presenter.HeldBadge,
+            presenter.EquipText, presenter.UnequipText, presenter.EnhanceText, presenter.EnhanceOnceText,
+            presenter.MergeText, presenter.MergeConfirmText, presenter.SalvageText, presenter.SalvageConfirmText,
+            presenter.SelectText, presenter.CancelText, presenter.BackText, presenter.CloseText, presenter.LeaveText,
+            presenter.RetryText, presenter.AffixesLabel, presenter.MergeKeeperLabel, presenter.MergeInputsLabel,
+            presenter.QuickPickLabel, presenter.SortText, presenter.NotOpenYetNotice, presenter.LockActionText,
         };
 
         captions.AddRange(Enum.GetValues<HomeTab>().Select(presenter.TabLabel));

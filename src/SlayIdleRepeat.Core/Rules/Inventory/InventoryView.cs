@@ -1,4 +1,3 @@
-using System.Globalization;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Gear;
 using SlayIdleRepeat.Core.Model.Gear;
@@ -64,9 +63,13 @@ namespace SlayIdleRepeat.Core.Rules.Inventory;
 /// </remarks>
 public sealed class InventoryView
 {
-    private const string MergeKeySeparator = "|";
-
     private const long NoCost = 0;
+
+    /// <summary>
+    /// How far the mercy horizon is searched. The authored slope makes any rung certain well inside
+    /// this, and a horizon past it is reported as none rather than searched for ever.
+    /// </summary>
+    private const int MercyHorizon = 1000;
 
     private InventoryView(
         int capacity,
@@ -328,7 +331,9 @@ public sealed class InventoryView
                 definition.DisplayNameKey,
                 roll.Value,
                 IsPercent: definition.WritesAStat &&
-                           GearStatKinds.IsShare(definition.Stat!.Value, definition.Op!.Value));
+                           GearStatKinds.IsShare(definition.Stat!.Value, definition.Op!.Value),
+                Favourable: !definition.WritesAStat ||
+                            GearStatKinds.IsFavourable(definition.Stat!.Value, roll.Value));
         }
 
         return Array.AsReadOnly(views);
@@ -388,8 +393,40 @@ public sealed class InventoryView
                 GearEnhancement.NoLuckyBonus,
                 tables.Forge,
                 tables.Mercy),
+            item.EnhanceFailures,
+            FailuresUntilCertain(tables, item),
             InventorySorting.PowerOf(tables.Par, tables.Drops, tables.Forge, item, next),
             Stats(tables, item, next));
+    }
+
+    /// <summary>
+    /// How many more failed attempts, from where the item stands, make the next attempt certain — or
+    /// <c>null</c> when the mercy rule never reaches certainty for this rung.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Walked through the same <c>GearEnhancement.EffectiveRate</c> the handler draws against, one
+    /// failure at a time, rather than solved from the slope: the rule has a cap and a slope and may gain
+    /// a shape later, and a closed form here would be a second copy of it. <c>24</c> §11 makes every
+    /// floor a real number on the screen; this is the enhance floor's number.
+    /// </remarks>
+    private static int? FailuresUntilCertain(Tables tables, GearInstance item)
+    {
+        for (var more = 0; more <= MercyHorizon; more++)
+        {
+            var rate = GearEnhancement.EffectiveRate(
+                item.EnhanceLevel,
+                item.EnhanceFailures + more,
+                GearEnhancement.NoLuckyBonus,
+                tables.Forge,
+                tables.Mercy);
+
+            if (rate >= 1.0)
+            {
+                return more;
+            }
+        }
+
+        return null;
     }
 
     private static SalvagePreview Salvage(Tables tables, GearInstance item)
@@ -399,25 +436,13 @@ public sealed class InventoryView
         return new SalvagePreview(dust, stones);
     }
 
-    /// <summary>
-    /// The item's merge identity and what fusing three of it would cost and make.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 The key is the definition, the band and the enhancement level and nothing else — the three
-    /// fields <c>GearMerge.Refusal</c> compares pairwise. Quality, chapter of origin, affixes and the
-    /// lock are deliberately NOT in it: two items differing only in those merge, and a key that included
-    /// them would tell a player holding three identical blades that they hold none.
-    /// </remarks>
+    /// <summary>The item's merge identity and what fusing three of it would cost and make.</summary>
     private static MergePreview Merge(Tables tables, GearInstance item)
     {
         var output = LuckService.MergeOutputBand(item.Rarity);
 
         return new MergePreview(
-            string.Join(
-                MergeKeySeparator,
-                item.DefId,
-                item.Rarity.ToString(),
-                item.EnhanceLevel.ToString(CultureInfo.InvariantCulture)),
+            MergeIdentity.Of(item),
             output,
             output is { } band ? tables.Forge.MergeCrownCost(band) : NoCost,
             output is null ? null : tables.Forge.MergeDustSubstituteCost(item.Rarity));
@@ -481,7 +506,12 @@ public sealed record GearStatView(string Stat, double Value, bool IsPercent);
 /// <param name="NameKey">The locale key the pool authors as its display name.</param>
 /// <param name="Value">The rolled value, rounded. Negative for the damage-reduction affix, by design.</param>
 /// <param name="IsPercent">Whether the roll is a share — written as a percentage — rather than an amount.</param>
-public sealed record GearAffixView(string AffixId, string NameKey, double Value, bool IsPercent);
+/// <param name="Favourable">
+/// Whether the roll moves its stat the way a player wants: a positive roll onto a stat to raise, or a
+/// negative roll onto one to lower. What a screen signs by — a benefit written with the loss glyph is
+/// the failure this exists to rule out.
+/// </param>
+public sealed record GearAffixView(string AffixId, string NameKey, double Value, bool IsPercent, bool Favourable);
 
 /// <summary>One stat of a side-by-side comparison — <c>08</c> §5's green/red arrow, as data.</summary>
 /// <remarks>
@@ -505,12 +535,19 @@ public sealed record GearStatDeltaView(
 /// <param name="NextLevel">The rung it would reach.</param>
 /// <param name="StoneCost">The Enhance Stones charged, landed or not.</param>
 /// <param name="SuccessRate">The chance it lands, mercy included — the rate the handler draws against.</param>
+/// <param name="ConsecutiveFailures">How many attempts in a row have failed on this item — what the mercy is earned by.</param>
+/// <param name="FailuresUntilCertain">
+/// How many MORE failures make the next attempt certain, or <c>null</c> when the rule never reaches
+/// certainty for this rung. Zero means the next attempt is already certain.
+/// </param>
 /// <param name="NextPower">The item's power at <paramref name="NextLevel"/>.</param>
 /// <param name="NextStats">Its two stats at <paramref name="NextLevel"/>, in the same order as the item's own.</param>
 public sealed record EnhancePreview(
     int NextLevel,
     long StoneCost,
     double SuccessRate,
+    int ConsecutiveFailures,
+    int? FailuresUntilCertain,
     double NextPower,
     IReadOnlyList<GearStatView> NextStats);
 
@@ -520,14 +557,14 @@ public sealed record EnhancePreview(
 public sealed record SalvagePreview(long Dust, long Stones);
 
 /// <summary>An item's merge identity and the fusion it can be an input to.</summary>
-/// <param name="Key">Equal for two items exactly when <c>MERGE</c> would accept them together.</param>
+/// <param name="Identity">Equal for two items exactly when <c>MERGE</c> would accept them together.</param>
 /// <param name="OutputRarity">The band a fusion lands on, or <c>null</c> at the top of the ladder.</param>
 /// <param name="CrownCost">The Crowns a fusion onto <paramref name="OutputRarity"/> costs. Zero when there is none.</param>
 /// <param name="DustSubstituteCost">
 /// The Merge Dust that stands in for the third input when only two items are at hand, or <c>null</c>
 /// when no fusion exists to substitute into.
 /// </param>
-public sealed record MergePreview(string Key, Rarity? OutputRarity, long CrownCost, long? DustSubstituteCost);
+public sealed record MergePreview(MergeIdentity Identity, Rarity? OutputRarity, long CrownCost, long? DustSubstituteCost);
 
 /// <summary>One set the worn gear is building.</summary>
 /// <param name="Set">The set, by the axis that identifies it.</param>

@@ -2,13 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/inventory.schema.json",
   "title": "content/inventory/inventory.json",
-  "description": "S16 — the loc keys the Gear screen renders. What is fixed here is that the screen heads the stock, captions the bag's occupancy and the overflow band, names the six slots and the hero's power, offers the sort orderings, marks the item worn in a slot and the locked and held ones, offers equip, unequip, lock, enhance, merge and salvage with a confirmation on the two destructive ones, carries one sentence per reason a control is not live, and one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object, so the absences are enforced rather than merely observed. 🔒 There is no member for reforge or retune, because both commands are deferred and a caption offering one would be a control that cannot succeed. 🔒 There is no member for buying bag space: 08 §5's errata makes capacity a flat 1000 and the ruling that set it declined to add EXPAND_INVENTORY to 14 §2.3's vocabulary, so nothing can move the ceiling and nothing may offer to. And no member carries a MAGNITUDE — every figure is read at render time and drawn beside these captions; a line that needs one carries a runtime parameter in braces.",
+  "description": "S16 — the loc keys the Gear screen renders. What is fixed here is that the screen captions the bag's occupancy and the overflow band, names the six slots and the hero's power, offers the sort orderings, marks the item worn in a slot and the locked and held ones, offers equip, unequip, lock, enhance, merge and salvage with a confirmation on the two destructive ones, carries one sentence per reason a control is not live, states the enhance mercy floor as a number, and carries one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object, so the absences are enforced rather than merely observed. 🔒 There is no `name` group: the screen has no heading of its own. 🔒 There is no member for reforge or retune, because both commands are deferred and a caption offering one would be a control that cannot succeed. 🔒 There is no member for buying bag space: 08 §5's errata makes capacity a flat 1000 and the ruling that set it declined to add EXPAND_INVENTORY to 14 §2.3's vocabulary, so nothing can move the ceiling and nothing may offer to. And no member carries a MAGNITUDE — every figure is read at render time and drawn beside these captions; a line that needs one carries a runtime parameter in braces.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "$schema",
     "_doc",
-    "name",
     "label",
     "sort",
     "badge",
@@ -34,30 +33,17 @@
       "type": "string",
       "minLength": 1
     },
-    "name": {
-      "description": "The screen's own heading.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "title"
-      ],
-      "properties": {
-        "title": {
-          "$ref": "#/$defs/locKey"
-        }
-      }
-    },
     "label": {
-      "description": "🔒 Captions only. `capacity` is the words the bag's occupancy is drawn BESIDE; `heroPower` and `power` caption figures the rules compute; `setPieces`, `salvageReturns` and `selectedCount` carry runtime parameters the presenter fills. `held` heads the overflow band, which exists because a drop arriving at a full stock is held rather than refused.",
+      "description": "🔒 Captions only. `capacity` is the words the bag's occupancy is drawn BESIDE; `heroPower` and `power` caption figures the rules compute; `enhanceMercy`, `setPieces`, `salvageReturns` and `selectedCount` carry runtime parameters the presenter fills. `held` heads the overflow band, which exists because a drop arriving at a full stock is held rather than refused.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "capacity",
         "held",
         "power",
-        "sort",
         "heroPower",
         "emptySlot",
+        "sort",
         "affixes",
         "set",
         "setPieces",
@@ -65,6 +51,8 @@
         "chapterOrigin",
         "enhanceCost",
         "enhanceOdds",
+        "enhanceMercy",
+        "enhanceCertain",
         "enhanceMaxed",
         "mergeKeeper",
         "mergeInputs",
@@ -85,13 +73,13 @@
         "power": {
           "$ref": "#/$defs/locKey"
         },
-        "sort": {
-          "$ref": "#/$defs/locKey"
-        },
         "heroPower": {
           "$ref": "#/$defs/locKey"
         },
         "emptySlot": {
+          "$ref": "#/$defs/locKey"
+        },
+        "sort": {
           "$ref": "#/$defs/locKey"
         },
         "affixes": {
@@ -113,6 +101,12 @@
           "$ref": "#/$defs/locKey"
         },
         "enhanceOdds": {
+          "$ref": "#/$defs/locKey"
+        },
+        "enhanceMercy": {
+          "$ref": "#/$defs/locKey"
+        },
+        "enhanceCertain": {
           "$ref": "#/$defs/locKey"
         },
         "enhanceMaxed": {
@@ -145,13 +139,14 @@
       }
     },
     "sort": {
-      "description": "The four orderings the sort control cycles, by the rules' own key names in lower case. QUALITY is a rules ordering the screen does not offer.",
+      "description": "The five orderings the rules declare, by their own key names in lower case. The control cycles power, rarity, slot and newest; quality is authored so a caller that sets it does not draw a key.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "power",
         "rarity",
         "slot",
+        "quality",
         "newest"
       ],
       "properties": {
@@ -164,20 +159,22 @@
         "slot": {
           "$ref": "#/$defs/locKey"
         },
+        "quality": {
+          "$ref": "#/$defs/locKey"
+        },
         "newest": {
           "$ref": "#/$defs/locKey"
         }
       }
     },
     "badge": {
-      "description": "The marks on an item: worn, locked, held, and the slot badge that says the bag holds something stronger. Words rather than icons alone, because a coloured shape by itself would carry the fact by appearance only.",
+      "description": "The marks on an item: worn, locked, held. Words rather than icons alone, because a coloured shape by itself would carry the fact by appearance only.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "equipped",
         "locked",
-        "held",
-        "upgrade"
+        "held"
       ],
       "properties": {
         "equipped": {
@@ -188,19 +185,17 @@
         },
         "held": {
           "$ref": "#/$defs/locKey"
-        },
-        "upgrade": {
-          "$ref": "#/$defs/locKey"
         }
       }
     },
     "action": {
-      "description": "Every control the screen offers. `equip`/`unequip`/`lock`/`unlock` submit one command each; `enhance` and `merge` open a page and `enhanceOnce` and `mergeConfirm` submit from it; `salvage` asks and `salvageConfirm` submits; `select` enters the batch mode, `cancel` leaves it, `back` turns the sheet a page back, `close` leaves the screen, `clearFilter` widens the grid.",
+      "description": "Every control the screen offers. `equip`/`unequip`/`lock`/`unlock` submit one command each; `enhance` and `merge` open a page and `enhanceOnce` and `mergeConfirm` submit from it; `salvage` asks and `salvageConfirm` submits; `select` enters the batch mode and names its outcome, `cancel` leaves it, `back` turns the sheet a page back, `close` closes the sheet, `leave` goes back to Home.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "equip",
         "close",
+        "leave",
         "unequip",
         "enhance",
         "enhanceOnce",
@@ -212,14 +207,16 @@
         "unlock",
         "select",
         "cancel",
-        "back",
-        "clearFilter"
+        "back"
       ],
       "properties": {
         "equip": {
           "$ref": "#/$defs/locKey"
         },
         "close": {
+          "$ref": "#/$defs/locKey"
+        },
+        "leave": {
           "$ref": "#/$defs/locKey"
         },
         "unequip": {
@@ -257,23 +254,20 @@
         },
         "back": {
           "$ref": "#/$defs/locKey"
-        },
-        "clearFilter": {
-          "$ref": "#/$defs/locKey"
         }
       }
     },
     "block": {
-      "description": "One sentence per reason a control is not live or a player should read before pressing it: an item held in overflow, a locked item, the top band, a fusion missing inputs or a price, a fusion or a batch that would consume something worth keeping.",
+      "description": "One sentence per reason a control is not live or a player should read before pressing it: an item held in overflow, a locked item, the top band, an item with no copy to merge with, a fusion missing inputs or a price, a fusion or a batch that would consume something worth keeping.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "heldNotEquippable",
         "lockedNoForge",
         "topBandNoMerge",
+        "mergeNoCopies",
         "mergeNeedsInputs",
         "mergeConsumesWorn",
-        "mergeConsumesBetterRoll",
         "mergeRerollsAffixes",
         "notEnoughCrowns",
         "notEnoughStones",
@@ -292,13 +286,13 @@
         "topBandNoMerge": {
           "$ref": "#/$defs/locKey"
         },
+        "mergeNoCopies": {
+          "$ref": "#/$defs/locKey"
+        },
         "mergeNeedsInputs": {
           "$ref": "#/$defs/locKey"
         },
         "mergeConsumesWorn": {
-          "$ref": "#/$defs/locKey"
-        },
-        "mergeConsumesBetterRoll": {
           "$ref": "#/$defs/locKey"
         },
         "mergeRerollsAffixes": {

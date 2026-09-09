@@ -267,6 +267,52 @@ public sealed class InventoryViewTests
             Inventories.Drops.Affix(roll.AffixId).DisplayNameKey,
             "the name is the pool's, not a spelling the projection invents from the id.");
         affix.IsPercent.ShouldBeTrue("a STAT_ADD_PCT roll is a share whatever stat it adds onto.");
+        affix.Favourable.ShouldBeTrue("more attack speed is what a player wants.");
+    }
+
+    // The damage-reduction affix is authored negative because damage taken is a multiplier a player
+    // wants LOW; a flat crit roll is a share because crit chance is one. Both facts are the stat's, and
+    // a sheet reading the raw sign or the op alone gets one of the two wrong.
+    [Theory]
+    [InlineData("AFX_DAMAGE_REDUCTION", -0.05, GearFamily.LEATHERS, true, true)]
+    [InlineData("AFX_CRIT_CHANCE", 0.04, GearFamily.BLADE, true, true)]
+    [InlineData("AFX_CRIT_CHANCE", -0.04, GearFamily.BLADE, true, false)]
+    public void An_affix_is_signed_by_what_its_stat_wants_and_written_in_its_stats_unit(
+        string affixId, double value, GearFamily family, bool percent, bool favourable)
+    {
+        var rolled = Inventories.Item(
+            "rolled", family, Rarity.B, affixes: [new GearAffixRoll(affixId, value)]);
+        var view = InventoryView.Project(WithCandidates(rolled), Content);
+
+        var affix = view.Stored.Single(item => item.InstanceId == rolled.InstanceId).Affixes.Single();
+
+        affix.IsPercent.ShouldBe(percent);
+        affix.Favourable.ShouldBe(favourable, "the sign a screen draws is the benefit, not the raw value.");
+    }
+
+    // `24` §11: every floor is a real number on the screen. Walked through the handler's own rate, so a
+    // rung inside the certain band is certain now and a rung with a slope reaches certainty in a
+    // countable number of failures.
+    [Fact]
+    public void The_enhance_preview_counts_the_failures_until_the_next_attempt_is_certain()
+    {
+        var certain = Inventories.Item("certain", GearFamily.BLADE, Rarity.C, enhanceLevel: 0);
+        var chancy = Inventories.Item("chancy", GearFamily.BLADE, Rarity.C, enhanceLevel: 12, enhanceFailures: 2);
+        var view = InventoryView.Project(WithCandidates(certain, chancy), Content);
+
+        var sure = view.Stored.Single(item => item.InstanceId == certain.InstanceId).Enhance!;
+        var risky = view.Stored.Single(item => item.InstanceId == chancy.InstanceId).Enhance!;
+
+        sure.FailuresUntilCertain.ShouldBe(0, "the first rungs are authored certain, so there is nothing to wait for.");
+        risky.ConsecutiveFailures.ShouldBe(2);
+
+        var horizon = risky.FailuresUntilCertain.ShouldNotBeNull("the authored slope reaches the cap.");
+
+        horizon.ShouldBeGreaterThan(0);
+        GearEnhancement.EffectiveRate(12, 2 + horizon, GearEnhancement.NoLuckyBonus, Inventories.Forge, Forges.Mercy)
+            .ShouldBeGreaterThanOrEqualTo(1.0, "after that many more failures the handler's own rate is certain…");
+        GearEnhancement.EffectiveRate(12, 2 + horizon - 1, GearEnhancement.NoLuckyBonus, Inventories.Forge, Forges.Mercy)
+            .ShouldBeLessThan(1.0, "…and one fewer is not, so the count is exact.");
     }
 
     // ------------------------------------------------------------------------------------------
@@ -354,7 +400,7 @@ public sealed class InventoryViewTests
         var third = Inventories.Item("third", GearFamily.BLADE, Rarity.A);
 
         var view = InventoryView.Project(WithCandidates(keeper, other, third), Content);
-        var keys = view.Stored.ToDictionary(item => item.InstanceId, item => item.Merge.Key);
+        var keys = view.Stored.ToDictionary(item => item.InstanceId, item => item.Merge.Identity);
 
         (GearMerge.Refusal([keeper, other, third], dustSubstituted: false, Inventories.Forge) is null)
             .ShouldBe(fuses, "the premise of this row: " + why);

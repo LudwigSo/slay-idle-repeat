@@ -15,15 +15,27 @@ public sealed class ComposedInventoryScreen
     /// <summary>Holds the presenter the inventory screen renders.</summary>
     /// <param name="inventory">Drives the Inventory screen.</param>
     /// <exception cref="ArgumentNullException"><paramref name="inventory"/> is null.</exception>
-    public ComposedInventoryScreen(InventoryPresenter inventory)
+    /// <param name="reducedMotion">Whether the screen's one motion, the notice's fade, is skipped.</param>
+    public ComposedInventoryScreen(InventoryPresenter inventory, bool reducedMotion)
     {
         ArgumentNullException.ThrowIfNull(inventory);
 
         Inventory = inventory;
+        ReducedMotion = reducedMotion;
     }
 
     /// <summary>Drives the Inventory screen.</summary>
     public InventoryPresenter Inventory { get; }
+
+    /// <summary>
+    /// Whether the screen's motion is skipped.
+    /// </summary>
+    /// <remarks>
+    /// Carried here the way <c>ComposedHomeScreen.ReducedMotion</c> is, and for the same reason: the
+    /// setting has to reach every screen through composition, or the one screen that forgot draws the
+    /// fade the player turned off. The same gap as Home's applies — no settings screen writes it yet.
+    /// </remarks>
+    public bool ReducedMotion { get; }
 }
 
 /// <summary>
@@ -53,8 +65,9 @@ public static class InventoryComposition
     /// <param name="composed">The graph the application root built and holds.</param>
     /// <param name="player">The profile the boot opened.</param>
     /// <exception cref="ArgumentNullException"><paramref name="composed"/> is null.</exception>
+    /// <param name="reducedMotion">Whether the screen's motion is skipped.</param>
     public static ComposedInventoryScreen CreateInventoryScreen(
-        ComposedGodotClient composed, PlayerId player)
+        ComposedGodotClient composed, PlayerId player, bool reducedMotion = false)
     {
         ArgumentNullException.ThrowIfNull(composed);
 
@@ -66,6 +79,7 @@ public static class InventoryComposition
         // same calculator with one slot swapped.
         return new ComposedInventoryScreen(
             new InventoryPresenter(
-                composed.Client.GameHost, strings, content, player, new HeroPowerReadout(content)));
+                composed.Client.GameHost, strings, content, player, new HeroPowerReadout(content)),
+            reducedMotion);
     }
 }

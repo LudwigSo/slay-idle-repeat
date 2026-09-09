@@ -1,16 +1,13 @@
 {
   "$schema": "../../schema/inventory.schema.json",
-  "_doc": "S16 — the strings the Gear screen shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences treats a key referenced only from C# as an orphan, which is fatal. The screen is the hero and the six slots above, the bag below, and the Forge's three operations — merge, enhance, salvage — plus the lock, in a sheet that opens on an item. Every group carries CAPTIONS only: the bag's occupancy, every stat and its comparison, every item's power, every price, every chance and every payout are numbers read at render time off Core's InventoryView and drawn beside these words, never written into them — a magnitude inside a translated string cannot be tuned and would be wrong in two languages at once. Where a line does carry a number it carries a runtime parameter — {item}, {level}, {count}, {dust}, {stones}, {slot} — replaced by the presenter. `sort` names the four orderings the sort control cycles; QUALITY exists in the rules and is not offered, so it is not named. `slot`, `family` and `stat` are the vocabulary no gear definition authors a display name for: content/gear/gear.json deliberately claims no loc key, so the words a player reads for a slot, a family and the eight stats gear can carry are named here, by the one screen that reads them. Deliberately absent, each because it is unreachable rather than forgotten: reforge and retune are deferred commands that answer ILLEGAL_STATE, so no caption offers them; and there is no key for buying bag space, because 08 §5's errata made capacity a flat 1000 and the same ruling declined to add EXPAND_INVENTORY to 14 §2.3's vocabulary — nothing can move the ceiling, so nothing may offer to. The tab captions and the not-open-yet line are Home's keys, borrowed rather than re-authored so the bar reads the same on both screens; they stay named in content/home/home.json.",
-  "name": {
-    "title": "loc.inventory.title.name"
-  },
+  "_doc": "S16 — the strings the Gear screen shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences treats a key referenced only from C# as an orphan, which is fatal. The screen is the hero and the six slots above, the bag below, and the Forge's three operations — merge, enhance, salvage — plus the lock, in a sheet that opens on an item. It has no heading of its own: the lit Gear tab names it, as the lit Home tab names Home, and a heading in the top bar had no room beside three wallets in either language. Every group carries CAPTIONS only: the bag's occupancy, every stat and its comparison, every item's power, every price, every chance, every payout and the mercy floor are numbers read at render time off Core's InventoryView and drawn beside these words, never written into them — a magnitude inside a translated string cannot be tuned and would be wrong in two languages at once. Where a line does carry a number it carries a runtime parameter — {item}, {level}, {count}, {dust}, {stones}, {slot}, {failed}, {certain} — replaced by the presenter. `sort` names the five orderings the rules declare; the control cycles four of them and QUALITY is authored so a caller that sets it does not draw a key. `slot`, `family` and `stat` are the vocabulary no gear definition authors a display name for: content/gear/gear.json deliberately claims no loc key, so the words a player reads for a slot, a family and the eight stats gear can carry are named here, by the one screen that reads them. Deliberately absent, each because it is unreachable rather than forgotten: reforge and retune are deferred commands that answer ILLEGAL_STATE, so no caption offers them; and there is no key for buying bag space, because 08 §5's errata made capacity a flat 1000 and the same ruling declined to add EXPAND_INVENTORY to 14 §2.3's vocabulary — nothing can move the ceiling, so nothing may offer to. The tab captions, the retry word and the not-open-yet line are Home's keys, borrowed rather than re-authored so the two screens read the same; they stay named in content/home/home.json.",
   "label": {
     "capacity": "loc.inventory.capacity.label",
     "held": "loc.inventory.held.label",
     "power": "loc.inventory.power.label",
-    "sort": "loc.inventory.sort.label",
     "heroPower": "loc.inventory.hero_power.label",
     "emptySlot": "loc.inventory.empty_slot.label",
+    "sort": "loc.inventory.sort.label",
     "affixes": "loc.inventory.affixes.label",
     "set": "loc.inventory.set.label",
     "setPieces": "loc.inventory.set_pieces.label",
@@ -18,6 +15,8 @@
     "chapterOrigin": "loc.inventory.chapter_origin.label",
     "enhanceCost": "loc.inventory.enhance_cost.label",
     "enhanceOdds": "loc.inventory.enhance_odds.label",
+    "enhanceMercy": "loc.inventory.enhance_mercy.label",
+    "enhanceCertain": "loc.inventory.enhance_certain.label",
     "enhanceMaxed": "loc.inventory.enhance_maxed.label",
     "mergeKeeper": "loc.inventory.merge_keeper.label",
     "mergeInputs": "loc.inventory.merge_inputs.label",
@@ -32,17 +31,18 @@
     "power": "loc.inventory.sort.power.name",
     "rarity": "loc.inventory.sort.rarity.name",
     "slot": "loc.inventory.sort.slot.name",
+    "quality": "loc.inventory.sort.quality.name",
     "newest": "loc.inventory.sort.newest.name"
   },
   "badge": {
     "equipped": "loc.inventory.equipped.badge",
     "locked": "loc.inventory.locked.badge",
-    "held": "loc.inventory.held.badge",
-    "upgrade": "loc.inventory.upgrade.badge"
+    "held": "loc.inventory.held.badge"
   },
   "action": {
     "equip": "loc.inventory.equip.action",
     "close": "loc.inventory.close.action",
+    "leave": "loc.inventory.leave.action",
     "unequip": "loc.inventory.unequip.action",
     "enhance": "loc.inventory.enhance.action",
     "enhanceOnce": "loc.inventory.enhance_once.action",
@@ -54,16 +54,15 @@
     "unlock": "loc.inventory.unlock.action",
     "select": "loc.inventory.select.action",
     "cancel": "loc.inventory.cancel.action",
-    "back": "loc.inventory.back.action",
-    "clearFilter": "loc.inventory.clear_filter.action"
+    "back": "loc.inventory.back.action"
   },
   "block": {
     "heldNotEquippable": "loc.inventory.held_not_equippable.block",
     "lockedNoForge": "loc.inventory.locked_no_forge.block",
     "topBandNoMerge": "loc.inventory.top_band_no_merge.block",
+    "mergeNoCopies": "loc.inventory.merge_no_copies.block",
     "mergeNeedsInputs": "loc.inventory.merge_needs_inputs.block",
     "mergeConsumesWorn": "loc.inventory.merge_consumes_worn.block",
-    "mergeConsumesBetterRoll": "loc.inventory.merge_consumes_better_roll.block",
     "mergeRerollsAffixes": "loc.inventory.merge_rerolls_affixes.block",
     "notEnoughCrowns": "loc.inventory.not_enough_crowns.block",
     "notEnoughStones": "loc.inventory.not_enough_stones.block",
