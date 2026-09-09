@@ -609,8 +609,8 @@ public sealed class InventoryPresenter
               _strings.Resolve(QualityLabelKey) + Space + Percent(item.Quality)
             : NothingLeftToSay;
 
-    /// <summary>The open item's power, written.</summary>
-    public string InspectedPowerText => Inspected is { } item ? Flat(item.Power) : NothingLeftToSay;
+    /// <summary>The open item's power, written to the whole number — a power is a rank, not a measurement.</summary>
+    public string InspectedPowerText => Inspected is { } item ? Whole(item.Power) : NothingLeftToSay;
 
     /// <summary>The open item's power against the worn item's, with its arrow and sign, or empty when there is nothing to compare.</summary>
     public string InspectedPowerDelta
@@ -624,7 +624,7 @@ public sealed class InventoryPresenter
 
             var worn = Worn(item.Slot);
 
-            return DeltaText(item.Power - (worn?.Power ?? 0.0), isPercent: false);
+            return DeltaText(Math.Round(item.Power - (worn?.Power ?? 0.0)), isPercent: false);
         }
     }
 
@@ -1699,6 +1699,8 @@ public sealed class InventoryPresenter
     private static string Count(long value) => value.ToString(CultureInfo.InvariantCulture);
 
     private static string Flat(double value) => value.ToString(FlatFormat, CultureInfo.InvariantCulture);
+
+    private static string Whole(double value) => Math.Round(value).ToString(FlatFormat, CultureInfo.InvariantCulture);
 
     private static string Percent(double share) =>
         (share * 100.0).ToString(PercentFormat, CultureInfo.InvariantCulture) + PercentSuffix;
