@@ -1,0 +1,130 @@
+[gd_scene format=3]
+
+; One item in the bag grid, and one candidate on the merge page: a square tap target carrying the
+; slot's glyph, the band's gem, the +N, and one mark in each free corner — lock or worn bottom-left,
+; better-than-worn top-right — plus the selection tick that covers the glyph in select mode.
+;
+; 🔒 A Button whose children all ignore the pointer, drawn through the theme's GearCell face; the
+; band is written on at render time as a tint and a corner shape over duplicates of that face. Five
+; of these fit a 1080 canvas at 192 with 16 between them, which is 64 dp a cell — above the 48 dp
+; floor with room for two badges each.
+;
+; The corner map is fixed so marks never collide: gem top-left, upgrade top-right, lock-or-worn
+; bottom-left, +N bottom-right. A cell that is worn AND locked shows the lock: the worn fact is on
+; the slot tile above, the lock fact is nowhere else.
+[node name="GearCell" type="Button"]
+custom_minimum_size = Vector2(192, 192)
+theme_type_variation = &"GearCell"
+text_overrun_behavior = 3
+
+[node name="Glyph" type="TextureRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -46.0
+offset_top = -46.0
+offset_right = 46.0
+offset_bottom = 46.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Gem" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 1
+anchors_preset = 0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 52.0
+offset_bottom = 52.0
+mouse_filter = 2
+theme_type_variation = &"GearGem"
+
+[node name="GemGlyph" type="Label" parent="Gem"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"GearGemGlyph"
+horizontal_alignment = 1
+vertical_alignment = 1
+text_overrun_behavior = 3
+
+[node name="Plus" type="Label" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -84.0
+offset_top = -44.0
+offset_right = -10.0
+offset_bottom = -8.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_type_variation = &"GearBadge"
+horizontal_alignment = 2
+text_overrun_behavior = 3
+
+[node name="Mark" type="TextureRect" parent="."]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = -52.0
+offset_right = 52.0
+offset_bottom = -8.0
+grow_vertical = 0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Upgrade" type="TextureRect" parent="."]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -52.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = 52.0
+grow_horizontal = 0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Check" type="TextureRect" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -54.0
+offset_top = -54.0
+offset_right = 54.0
+offset_bottom = 54.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5

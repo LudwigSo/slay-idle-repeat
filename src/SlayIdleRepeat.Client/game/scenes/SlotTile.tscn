@@ -1,0 +1,113 @@
+[gd_scene format=3]
+
+; One equipment slot beside the hero on the Gear screen: a tap target the size of a thumb, a slot
+; glyph, and — once something is worn — the band's gem, the +N, and the mark that says the bag holds
+; something stronger. Six instances, built by Inventory.cs from this one scene, because the six differ
+; only in which slot they are.
+;
+; 🔒 The tile is a Button and everything in it ignores the pointer, so the press lands on the tile
+; whatever part of it a finger finds. Its face is the theme's SlotTile; the band's tint and corner
+; SHAPE are written onto duplicates of that face at render time, from the SlayAccents rarity roles, so
+; a colour-blind player still reads the band off the shape and the letter in the gem.
+;
+; 180 canvas units square: 60 dp, a full thumb, and six of them stack three high inside the hero
+; band at 9:16 with room to spare.
+[node name="SlotTile" type="Button"]
+custom_minimum_size = Vector2(180, 180)
+theme_type_variation = &"SlotTile"
+text_overrun_behavior = 3
+
+[node name="Body" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 16.0
+offset_right = -12.0
+offset_bottom = -12.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Glyph" type="TextureRect" parent="Body"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(84, 84)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+; The family worn, or the word for an empty slot. Trimmed rather than wrapped: the tile is a fixed
+; square and a German family name a third longer must not grow it.
+[node name="Caption" type="Label" parent="Body"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"GearBadge"
+horizontal_alignment = 1
+text_overrun_behavior = 3
+
+[node name="Gem" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 1
+anchors_preset = 0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 52.0
+offset_bottom = 52.0
+mouse_filter = 2
+theme_type_variation = &"GearGem"
+
+[node name="GemGlyph" type="Label" parent="Gem"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"GearGemGlyph"
+horizontal_alignment = 1
+vertical_alignment = 1
+text_overrun_behavior = 3
+
+[node name="Plus" type="Label" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -80.0
+offset_top = -44.0
+offset_right = -10.0
+offset_bottom = -8.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_type_variation = &"GearBadge"
+horizontal_alignment = 2
+text_overrun_behavior = 3
+
+; The one badge worth a dot: the bag holds something that out-powers what this slot wears. An arrow
+; in a disc — a shape, not only a hue — and it invites a look rather than equipping anything.
+[node name="Mark" type="TextureRect" parent="."]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -54.0
+offset_top = 6.0
+offset_right = -6.0
+offset_bottom = 54.0
+grow_horizontal = 0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5

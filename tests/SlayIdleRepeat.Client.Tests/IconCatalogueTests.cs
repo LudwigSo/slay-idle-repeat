@@ -66,6 +66,8 @@ public sealed class IconCatalogueTests
     [InlineData(HudIcon.Power, "hud_power.svg")]
     [InlineData(HudIcon.Chapter, "hud_chapter.svg")]
     [InlineData(HudIcon.Hp, "hud_hp.svg")]
+    [InlineData(HudIcon.EnhanceStones, "hud_enhance_stones.svg")]
+    [InlineData(HudIcon.MergeDust, "hud_merge_dust.svg")]
     public void PathOf_names_the_authored_file_for_each_icon(HudIcon icon, string fileName) =>
         IconCatalogue.PathOf(icon).ShouldBe(
             IconCatalogue.Directory + fileName,

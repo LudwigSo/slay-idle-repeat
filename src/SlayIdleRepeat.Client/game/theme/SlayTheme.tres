@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=32 format=3]
+[gd_resource type="Theme" load_steps=43 format=3]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hud_tile"]
 content_margin_left = 36.0
@@ -505,6 +505,208 @@ corner_radius_bottom_right = 36
 corner_radius_bottom_left = 36
 corner_detail = 12
 
+; ------------------------------------------------------------------- the Gear screen (S16)
+;
+; A slot tile and a bag cell are BUTTONS with a dark, quiet face: the rarity of what they hold is
+; written on at render time as a border tint and a corner SHAPE, from the SlayAccents rarity roles
+; below — never as a second stylebox per band, which would be five copies of one face to drift.
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gear_tile_rest"]
+content_margin_left = 12.0
+content_margin_top = 12.0
+content_margin_right = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.11, 0.09, 0.18, 0.92)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.27, 0.21, 0.41, 1)
+corner_radius_top_left = 30
+corner_radius_top_right = 30
+corner_radius_bottom_right = 30
+corner_radius_bottom_left = 30
+corner_detail = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gear_tile_down"]
+content_margin_left = 12.0
+content_margin_top = 18.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+bg_color = Color(0.2, 0.15, 0.32, 0.96)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.4, 0.32, 0.58, 1)
+corner_radius_top_left = 30
+corner_radius_top_right = 30
+corner_radius_bottom_right = 30
+corner_radius_bottom_left = 30
+corner_detail = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gear_tile_off"]
+content_margin_left = 12.0
+content_margin_top = 12.0
+content_margin_right = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.09, 0.08, 0.13, 0.7)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.2, 0.19, 0.26, 1)
+corner_radius_top_left = 30
+corner_radius_top_right = 30
+corner_radius_bottom_right = 30
+corner_radius_bottom_left = 30
+corner_detail = 12
+
+; The lower half's ground: the deck the bag sits on, meeting the hero band with a rounded top edge
+; and running under the tab dock with a square bottom one.
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gear_deck"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.063, 0.043, 0.11, 0.96)
+border_width_left = 0
+border_width_top = 8
+border_width_right = 0
+border_width_bottom = 0
+border_color = Color(0.27, 0.21, 0.41, 1)
+corner_radius_top_left = 48
+corner_radius_top_right = 48
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+corner_detail = 12
+
+; The item sheet: a bottom sheet with the deck's face, a heavier top edge to grab, and a shadow so it
+; reads as sitting above the grid rather than being part of it.
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gear_sheet"]
+content_margin_left = 36.0
+content_margin_top = 30.0
+content_margin_right = 36.0
+content_margin_bottom = 30.0
+bg_color = Color(0.1, 0.075, 0.17, 1)
+border_width_left = 0
+border_width_top = 8
+border_width_right = 0
+border_width_bottom = 0
+border_color = Color(0.4, 0.32, 0.58, 1)
+corner_radius_top_left = 54
+corner_radius_top_right = 54
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+corner_detail = 12
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 24
+shadow_offset = Vector2(0, -8)
+
+; The confirmation over a destructive action: centred, with the stage card's grey-violet face and
+; the ember on its leading edge, the same shape the stage card uses to say "read this".
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gear_modal"]
+content_margin_left = 42.0
+content_margin_top = 36.0
+content_margin_right = 42.0
+content_margin_bottom = 36.0
+bg_color = Color(0.14, 0.1, 0.24, 1)
+border_width_left = 24
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.878431, 0.294118, 0.196078, 1)
+corner_radius_top_left = 39
+corner_radius_top_right = 39
+corner_radius_bottom_right = 39
+corner_radius_bottom_left = 39
+corner_detail = 12
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 24
+shadow_offset = Vector2(0, 8)
+
+; What lies over the screen while a sheet or a confirmation is up. A Button rather than a Panel, so a
+; tap on it closes the sheet — but drawn flat, with no pressed offset, because it is not a control
+; the player is meant to notice.
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gear_scrim"]
+bg_color = Color(0.02, 0.01, 0.05, 0.62)
+
+; The rarity gem: a small square whose corners the renderer reshapes per band and whose fill it tints.
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gear_gem"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0.6039, 0.6471, 0.6941, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.1, 0.1, 0.13, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+corner_detail = 8
+
+; A wallet chip in the top bar: the resource pill's face without the press, because it is a figure
+; and not a control.
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wallet_chip"]
+content_margin_left = 18.0
+content_margin_top = 8.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+bg_color = Color(0.05, 0.035, 0.09, 0.72)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.27, 0.21, 0.41, 1)
+corner_radius_top_left = 99
+corner_radius_top_right = 99
+corner_radius_bottom_right = 99
+corner_radius_bottom_left = 99
+corner_detail = 12
+
+; The destructive button. Deliberately NOT the action ember: that is Start Run's, and a salvage that
+; looked like the primary action would be tapped like one. A darker, cooler crimson with a heavy
+; outline, the pressed offset every button here has, and the same face when disabled as every other.
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_danger_rest"]
+content_margin_left = 40.0
+content_margin_top = 24.0
+content_margin_right = 40.0
+content_margin_bottom = 24.0
+bg_color = Color(0.6, 0.14, 0.2, 1)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.36, 0.07, 0.12, 1)
+corner_radius_top_left = 63
+corner_radius_top_right = 63
+corner_radius_bottom_right = 63
+corner_radius_bottom_left = 63
+corner_detail = 12
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 16
+shadow_offset = Vector2(0, 8)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_danger_down"]
+content_margin_left = 40.0
+content_margin_top = 34.0
+content_margin_right = 40.0
+content_margin_bottom = 14.0
+bg_color = Color(0.4, 0.09, 0.14, 1)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.36, 0.07, 0.12, 1)
+corner_radius_top_left = 63
+corner_radius_top_right = 63
+corner_radius_bottom_right = 63
+corner_radius_bottom_left = 63
+corner_detail = 12
+
 [resource]
 ActionButton/base_type = &"Button"
 ActionButton/colors/font_color = Color(0.99, 0.96, 0.94, 1)
@@ -638,6 +840,72 @@ PillCaption/font_sizes/font_size = 27
 PillValue/base_type = &"HudValueSmall"
 PillValue/colors/font_color = Color(0.93, 0.93, 0.96, 1)
 PillValue/font_sizes/font_size = 33
+DangerButton/base_type = &"Button"
+DangerButton/colors/font_color = Color(0.99, 0.96, 0.94, 1)
+DangerButton/colors/font_disabled_color = Color(0.66, 0.67, 0.73, 1)
+DangerButton/colors/font_focus_color = Color(0.99, 0.96, 0.94, 1)
+DangerButton/colors/font_hover_color = Color(0.99, 0.96, 0.94, 1)
+DangerButton/colors/font_pressed_color = Color(0.99, 0.96, 0.94, 1)
+DangerButton/font_sizes/font_size = 44
+DangerButton/styles/disabled = SubResource("StyleBoxFlat_primary_off")
+DangerButton/styles/focus = SubResource("StyleBoxEmpty_focus")
+DangerButton/styles/hover = SubResource("StyleBoxFlat_danger_rest")
+DangerButton/styles/normal = SubResource("StyleBoxFlat_danger_rest")
+DangerButton/styles/pressed = SubResource("StyleBoxFlat_danger_down")
+GearBadge/base_type = &"HudCaption"
+GearBadge/colors/font_color = Color(0.93, 0.93, 0.96, 1)
+GearBadge/colors/font_outline_color = Color(0.05, 0.035, 0.09, 0.9)
+GearBadge/constants/outline_size = 6
+GearBadge/font_sizes/font_size = 27
+GearCaption/base_type = &"HudCaption"
+GearCaption/font_sizes/font_size = 30
+GearCell/base_type = &"Button"
+GearCell/colors/font_color = Color(0.93, 0.93, 0.96, 1)
+GearCell/font_sizes/font_size = 27
+GearCell/styles/disabled = SubResource("StyleBoxFlat_gear_tile_off")
+GearCell/styles/focus = SubResource("StyleBoxEmpty_chrome_focus")
+GearCell/styles/hover = SubResource("StyleBoxFlat_gear_tile_rest")
+GearCell/styles/normal = SubResource("StyleBoxFlat_gear_tile_rest")
+GearCell/styles/pressed = SubResource("StyleBoxFlat_gear_tile_down")
+GearDeck/base_type = &"PanelContainer"
+GearDeck/styles/panel = SubResource("StyleBoxFlat_gear_deck")
+GearGem/base_type = &"PanelContainer"
+GearGem/styles/panel = SubResource("StyleBoxFlat_gear_gem")
+GearGemGlyph/base_type = &"Label"
+GearGemGlyph/colors/font_color = Color(0.07, 0.07, 0.09, 1)
+GearGemGlyph/font_sizes/font_size = 30
+GearModal/base_type = &"PanelContainer"
+GearModal/styles/panel = SubResource("StyleBoxFlat_gear_modal")
+GearScrim/base_type = &"Button"
+GearScrim/styles/disabled = SubResource("StyleBoxFlat_gear_scrim")
+GearScrim/styles/focus = SubResource("StyleBoxFlat_gear_scrim")
+GearScrim/styles/hover = SubResource("StyleBoxFlat_gear_scrim")
+GearScrim/styles/normal = SubResource("StyleBoxFlat_gear_scrim")
+GearScrim/styles/pressed = SubResource("StyleBoxFlat_gear_scrim")
+GearSheet/base_type = &"PanelContainer"
+GearSheet/styles/panel = SubResource("StyleBoxFlat_gear_sheet")
+GearTitle/base_type = &"HudValueSmall"
+GearTitle/font_sizes/font_size = 48
+GearValue/base_type = &"HudValue"
+GearValue/font_sizes/font_size = 56
+SlotTile/base_type = &"Button"
+SlotTile/colors/font_color = Color(0.93, 0.93, 0.96, 1)
+SlotTile/colors/font_disabled_color = Color(0.66, 0.67, 0.73, 1)
+SlotTile/font_sizes/font_size = 27
+SlotTile/styles/disabled = SubResource("StyleBoxFlat_gear_tile_off")
+SlotTile/styles/focus = SubResource("StyleBoxEmpty_chrome_focus")
+SlotTile/styles/hover = SubResource("StyleBoxFlat_gear_tile_rest")
+SlotTile/styles/normal = SubResource("StyleBoxFlat_gear_tile_rest")
+SlotTile/styles/pressed = SubResource("StyleBoxFlat_gear_tile_down")
+WalletChip/base_type = &"PanelContainer"
+WalletChip/styles/panel = SubResource("StyleBoxFlat_wallet_chip")
 SlayAccents/colors/action_accent = Color(0.878431, 0.294118, 0.196078, 1)
 SlayAccents/colors/energy_accent = Color(0.352941, 0.662745, 0.901961, 1)
 SlayAccents/colors/gain_accent = Color(0.254902, 0.760784, 0.580392, 1)
+SlayAccents/colors/loss_accent = Color(0.94, 0.47, 0.43, 1)
+SlayAccents/colors/lock_accent = Color(0.949, 0.757, 0.306, 1)
+SlayAccents/colors/rarity_c = Color(0.603922, 0.647059, 0.694118, 1)
+SlayAccents/colors/rarity_b = Color(0.298039, 0.686275, 0.313725, 1)
+SlayAccents/colors/rarity_a = Color(0.231373, 0.509804, 0.964706, 1)
+SlayAccents/colors/rarity_s = Color(0.960784, 0.650980, 0.137255, 1)
+SlayAccents/colors/rarity_ss = Color(0.756863, 0.231373, 0.909804, 1)

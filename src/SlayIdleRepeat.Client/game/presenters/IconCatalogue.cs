@@ -26,6 +26,12 @@ public enum HudIcon
 
     /// <summary>The hero's hit points inside a run.</summary>
     Hp,
+
+    /// <summary>The Enhance Stones wallet — what an enhancement is priced in.</summary>
+    EnhanceStones,
+
+    /// <summary>The Merge Dust wallet — what stands in for a missing fusion input.</summary>
+    MergeDust,
 }
 
 /// <summary>
@@ -50,9 +56,10 @@ public static partial class IconCatalogue
 
     private const string SvgExtension = ".svg";
 
-    private static readonly string[] Catalogued = Enum.GetValues<HudIcon>().Select(PathOf).ToArray();
+    private static readonly string[] Catalogued =
+        Enum.GetValues<HudIcon>().Select(PathOf).Concat(GearPaths()).ToArray();
 
-    /// <summary>Every texture path the Home scene may load.</summary>
+    /// <summary>Every texture path a HUD scene — Home, or the Gear screen — may load.</summary>
     public static IReadOnlyList<string> All => Catalogued;
 
     /// <summary>The resource path of <paramref name="icon"/>'s file.</summary>
@@ -70,6 +77,8 @@ public static partial class IconCatalogue
         HudIcon.Power => "hud_power",
         HudIcon.Chapter => "hud_chapter",
         HudIcon.Hp => "hud_hp",
+        HudIcon.EnhanceStones => "hud_enhance_stones",
+        HudIcon.MergeDust => "hud_merge_dust",
         _ => throw new ArgumentOutOfRangeException(
             nameof(icon), icon, "this glyph has no file named for it; add its row here before a scene loads it."),
     };

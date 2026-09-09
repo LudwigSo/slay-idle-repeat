@@ -1,80 +1,12 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/Inventory.cs" id="1_inventory"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_primary_rest"]
-content_margin_left = 40.0
-content_margin_top = 24.0
-content_margin_right = 40.0
-content_margin_bottom = 24.0
-bg_color = Color(0.24, 0.26, 0.33, 1)
-border_width_left = 8
-border_width_top = 8
-border_width_right = 8
-border_width_bottom = 8
-border_color = Color(0.55, 0.58, 0.68, 1)
-corner_radius_top_left = 63
-corner_radius_top_right = 63
-corner_radius_bottom_right = 63
-corner_radius_bottom_left = 63
-corner_detail = 12
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 16
-shadow_offset = Vector2(0, 8)
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_primary_hover"]
-content_margin_left = 40.0
-content_margin_top = 24.0
-content_margin_right = 40.0
-content_margin_bottom = 24.0
-bg_color = Color(0.3, 0.33, 0.41, 1)
-border_width_left = 8
-border_width_top = 8
-border_width_right = 8
-border_width_bottom = 8
-border_color = Color(0.55, 0.58, 0.68, 1)
-corner_radius_top_left = 63
-corner_radius_top_right = 63
-corner_radius_bottom_right = 63
-corner_radius_bottom_left = 63
-corner_detail = 12
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 16
-shadow_offset = Vector2(0, 8)
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_primary_down"]
-content_margin_left = 40.0
-content_margin_top = 34.0
-content_margin_right = 40.0
-content_margin_bottom = 14.0
-bg_color = Color(0.1, 0.11, 0.15, 1)
-border_width_left = 8
-border_width_top = 8
-border_width_right = 8
-border_width_bottom = 8
-border_color = Color(0.55, 0.58, 0.68, 1)
-corner_radius_top_left = 63
-corner_radius_top_right = 63
-corner_radius_bottom_right = 63
-corner_radius_bottom_left = 63
-corner_detail = 12
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_primary_off"]
-content_margin_left = 40.0
-content_margin_top = 24.0
-content_margin_right = 40.0
-content_margin_bottom = 24.0
-bg_color = Color(0.13, 0.13, 0.16, 1)
-border_width_left = 8
-border_width_top = 8
-border_width_right = 8
-border_width_bottom = 8
-border_color = Color(0.38, 0.4, 0.46, 1)
-corner_radius_top_left = 63
-corner_radius_top_right = 63
-corner_radius_bottom_right = 63
-corner_radius_bottom_left = 63
-corner_detail = 12
+[ext_resource type="PackedScene" path="res://game/scenes/Hero.tscn" id="2_hero"]
+[ext_resource type="Theme" path="res://game/theme/SlayTheme.tres" id="3_theme"]
+[ext_resource type="PackedScene" path="res://game/scenes/TabBar.tscn" id="4_tabbar"]
+[ext_resource type="Texture2D" path="res://game/art/icons/hud_crowns.svg" id="5_crowns"]
+[ext_resource type="Texture2D" path="res://game/art/icons/hud_enhance_stones.svg" id="6_stones"]
+[ext_resource type="Texture2D" path="res://game/art/icons/hud_merge_dust.svg" id="7_dust"]
 
 [sub_resource type="QuadMesh" id="QuadMesh_ground"]
 size = Vector2(24, 42)
@@ -83,6 +15,15 @@ size = Vector2(24, 42)
 shading_mode = 0
 albedo_color = Color(0.07, 0.07, 0.09, 1)
 
+; S16 — the Gear screen. Two halves, as the brief draws them: the hero with the six slots around it
+; above, the bag below, and the Forge's operations in a sheet that rises over both. Every number the
+; screen draws is InventoryPresenter's; this file states where things sit and which theme variation
+; each wears, and its script forwards presses.
+;
+; Four bands, two of which flex. The top bar and the tab dock are pinned to Home's heights so the
+; chrome does not jump between the two screens the tab bar connects; the hero band and the deck share
+; what is left at 0.9 : 1.1 — the hero is drawn SMALL, as asked, and the bag is what the player came
+; to work on. At 9:16 that is roughly 690 and 840; at 9:20 both grow.
 [node name="Inventory" type="Node3D"]
 script = ExtResource("1_inventory")
 
@@ -100,17 +41,29 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
 mesh = SubResource("QuadMesh_ground")
 material_override = SubResource("StandardMaterial3D_ground")
 
+; This screen's framing of the hero, and this screen's alone — Hero.tscn keeps its model at identity
+; for exactly this reason. Less than half of Home's 1.32, turned the same 22 degrees toward the key light,
+; and lifted so the whole figure sits in the upper band between the two slot columns — head under
+; the top bar, feet above the deck's edge at 9:16. The camera does not move.
+[node name="Hero" parent="World" instance=ExtResource("2_hero")]
+unique_name_in_owner = true
+transform = Transform3D(0.5563, 0, -0.2248, 0, 0.6, 0, 0.2248, 0, 0.5563, 0, 0.5, 0)
+
 [node name="Ui" type="CanvasLayer" parent="."]
 unique_name_in_owner = true
 
+; 🔴 mouse_filter = 2 on the overlay root, for the reason Home.tscn records at length: a Control
+; anchored to the whole viewport defaults to STOP and would swallow every tap the bands did not take.
 [node name="Screen" type="Control" parent="Ui"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("3_theme")
 
-[node name="SafeArea" type="MarginContainer" parent="Ui/Screen"]
+[node name="Bands" type="VBoxContainer" parent="Ui/Screen"]
 unique_name_in_owner = true
 anchors_preset = 15
 anchor_right = 1.0
@@ -118,103 +71,1018 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 64
-theme_override_constants/margin_top = 128
-theme_override_constants/margin_right = 64
-theme_override_constants/margin_bottom = 128
+theme_override_constants/separation = 0
 
-[node name="Column" type="VBoxContainer" parent="Ui/Screen/SafeArea"]
+; ------------------------------------------------------------------------------- the top bar
+;
+; The way back, the heading, and the three wallets the Forge is priced in. The top safe inset lands
+; inside this band, as it does on Home.
+[node name="TopBar" type="MarginContainer" parent="Ui/Screen/Bands"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 192)
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 32
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 0
 
-[node name="TitleLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 72
-autowrap_mode = 3
-
-[node name="CapacityRow" type="HBoxContainer" parent="Ui/Screen/SafeArea/Column"]
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 18
 
-[node name="CapacityLabel" type="Label" parent="Ui/Screen/SafeArea/Column/CapacityRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 40
-autowrap_mode = 3
-
-[node name="CapacityValue" type="Label" parent="Ui/Screen/SafeArea/Column/CapacityRow"]
+[node name="BackButton" type="Button" parent="Ui/Screen/Bands/TopBar/Row"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 40
+size_flags_vertical = 4
+theme_type_variation = &"ChromeButton"
+text_overrun_behavior = 3
+
+[node name="TitleLabel" type="Label" parent="Ui/Screen/Bands/TopBar/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"HudTitle"
+text_overrun_behavior = 3
+
+; Three wallet chips: figures, not controls. A chip is a PanelContainer rather than a ResourcePill
+; because nothing here opens a resource sheet, and a Button that answered a tap with nothing would
+; be a dead control on the one bar a player reads before every forge operation.
+[node name="Wallet" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar/Row"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="CrownsChip" type="PanelContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet"]
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"WalletChip"
+
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet/CrownsChip"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Icon" type="TextureRect" parent="Ui/Screen/Bands/TopBar/Row/Wallet/CrownsChip/Row"]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("5_crowns")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CrownsValue" type="Label" parent="Ui/Screen/Bands/TopBar/Row/Wallet/CrownsChip/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(114, 0)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"PillValue"
+text_overrun_behavior = 3
+
+[node name="StonesChip" type="PanelContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet"]
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"WalletChip"
+
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet/StonesChip"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Icon" type="TextureRect" parent="Ui/Screen/Bands/TopBar/Row/Wallet/StonesChip/Row"]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("6_stones")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StonesValue" type="Label" parent="Ui/Screen/Bands/TopBar/Row/Wallet/StonesChip/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(114, 0)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"PillValue"
+text_overrun_behavior = 3
+
+[node name="DustChip" type="PanelContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet"]
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"WalletChip"
+
+[node name="Row" type="HBoxContainer" parent="Ui/Screen/Bands/TopBar/Row/Wallet/DustChip"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Icon" type="TextureRect" parent="Ui/Screen/Bands/TopBar/Row/Wallet/DustChip/Row"]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("7_dust")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="DustValue" type="Label" parent="Ui/Screen/Bands/TopBar/Row/Wallet/DustChip/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(114, 0)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"PillValue"
+text_overrun_behavior = 3
+
+; ----------------------------------------------------------------------------- the hero band
+;
+; Paints nothing of its own; the diorama shows through. Two columns of three slot tiles, built by
+; the script from SlotTile.tscn, hang off the left and right edges, centred on the band's height;
+; the hero's power line sits at the bottom centre, and the notice line rises over it.
+[node name="HeroBand" type="Control" parent="Ui/Screen/Bands"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 0.9
+mouse_filter = 2
+
+[node name="LeftSlots" type="VBoxContainer" parent="Ui/Screen/Bands/HeroBand"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 30.0
+offset_top = -294.0
+offset_right = 210.0
+offset_bottom = 294.0
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="RightSlots" type="VBoxContainer" parent="Ui/Screen/Bands/HeroBand"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -210.0
+offset_top = -294.0
+offset_right = -30.0
+offset_bottom = 294.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+alignment = 1
+
+; The hero's power, outlined because what is behind it is the diorama — the same treatment Home's
+; name block takes for the same reason.
+[node name="HeroPowerLabel" type="Label" parent="Ui/Screen/Bands/HeroBand"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 240.0
+offset_top = -84.0
+offset_right = -240.0
+offset_bottom = -18.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_type_variation = &"HeroSubtitle"
+horizontal_alignment = 1
 vertical_alignment = 1
+text_overrun_behavior = 3
+
+; The one line every command answers with, and the one a destination this build has no screen for
+; answers a tap with. Over the diorama's middle rather than at the band's foot, so it stays above
+; the sheet's top edge when a command is answered with the sheet open; hidden until something says
+; something, and never a pointer target: it is a sentence, not a control.
+[node name="NoticeLabel" type="Label" parent="Ui/Screen/Bands/HeroBand"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 14
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = 228.0
+offset_top = -78.0
+offset_right = -228.0
+offset_bottom = 78.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_type_variation = &"HeroSubtitle"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+; ---------------------------------------------------------------------------------- the deck
+;
+; The lower half: a toolbar, the grid, and — in select mode — the batch bar. 28 of side padding
+; leaves exactly 1024 for five 192 cells and four 16 gaps.
+[node name="GearDeck" type="PanelContainer" parent="Ui/Screen/Bands"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.1
+theme_type_variation = &"GearDeck"
+
+[node name="Margins" type="MarginContainer" parent="Ui/Screen/Bands/GearDeck"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 12
+
+[node name="Column" type="VBoxContainer" parent="Ui/Screen/Bands/GearDeck/Margins"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+; The sort control cycles the four orderings; the filter chip appears when a slot narrows the grid
+; and clears it; the occupancy sits at the far end beside the select-mode control. Every control is
+; a 144 target.
+[node name="Toolbar" type="HBoxContainer" parent="Ui/Screen/Bands/GearDeck/Margins/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="SortButton" type="Button" parent="Ui/Screen/Bands/GearDeck/Margins/Column/Toolbar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(216, 144)
+layout_mode = 2
+theme_type_variation = &"ChromeButton"
+text_overrun_behavior = 3
+
+[node name="FilterButton" type="Button" parent="Ui/Screen/Bands/GearDeck/Margins/Column/Toolbar"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(228, 144)
+layout_mode = 2
+theme_type_variation = &"ChromeButton"
+text_overrun_behavior = 3
+
+[node name="CapacityLabel" type="Label" parent="Ui/Screen/Bands/GearDeck/Margins/Column/Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
-[node name="GridScroll" type="ScrollContainer" parent="Ui/Screen/SafeArea/Column"]
+[node name="SelectButton" type="Button" parent="Ui/Screen/Bands/GearDeck/Margins/Column/Toolbar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(144, 144)
+layout_mode = 2
+theme_type_variation = &"ChromeButton"
+text_overrun_behavior = 3
+
+; Select mode's toolbar, in the toolbar's place: the sort, the filter and the occupancy stand down
+; while a batch is picked, and the quick-pick gems take their row — so the grid keeps its height.
+[node name="QuickRow" type="HBoxContainer" parent="Ui/Screen/Bands/GearDeck/Margins/Column"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="QuickPickLabel" type="Label" parent="Ui/Screen/Bands/GearDeck/Margins/Column/QuickRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"GearCaption"
+autowrap_mode = 3
+
+[node name="QuickPicks" type="HBoxContainer" parent="Ui/Screen/Bands/GearDeck/Margins/Column/QuickRow"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="GridScroll" type="ScrollContainer" parent="Ui/Screen/Bands/GearDeck/Margins/Column"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="ScrollColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/GridScroll"]
+[node name="GridColumn" type="VBoxContainer" parent="Ui/Screen/Bands/GearDeck/Margins/Column/GridScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 20
 
-[node name="ItemColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/GridScroll/ScrollColumn"]
+[node name="StoredGrid" type="GridContainer" parent="Ui/Screen/Bands/GearDeck/Margins/Column/GridScroll/GridColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 24
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
+columns = 5
 
-[node name="HeldLabel" type="Label" parent="Ui/Screen/SafeArea/Column/GridScroll/ScrollColumn"]
+[node name="HeldLabel" type="Label" parent="Ui/Screen/Bands/GearDeck/Margins/Column/GridScroll/GridColumn"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
-theme_override_font_sizes/font_size = 40
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
 autowrap_mode = 3
 
-[node name="HeldColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column/GridScroll/ScrollColumn"]
+[node name="HeldGrid" type="GridContainer" parent="Ui/Screen/Bands/GearDeck/Margins/Column/GridScroll/GridColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 24
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
+columns = 5
 
-[node name="StatusLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+; Both status lines live inside the scroll: the empty and filtered-empty states have no grid to
+; scroll past, and a refusal is drawn under the last row where the player's eye already is — and
+; repeated as the notice over the hero, which no scroll position can hide.
+[node name="StatusLabel" type="Label" parent="Ui/Screen/Bands/GearDeck/Margins/Column/GridScroll/GridColumn"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 44
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="RejectionLabel" type="Label" parent="Ui/Screen/SafeArea/Column"]
+[node name="RejectionLabel" type="Label" parent="Ui/Screen/Bands/GearDeck/Margins/Column/GridScroll/GridColumn"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.94, 0.62, 0.58, 1)
-theme_override_font_sizes/font_size = 44
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="ActionColumn" type="VBoxContainer" parent="Ui/Screen/SafeArea/Column"]
-layout_mode = 2
-theme_override_constants/separation = 24
-
-[node name="CloseButton" type="Button" parent="Ui/Screen/SafeArea/Column/ActionColumn"]
+; Select mode's own bar, one row under the grid: the batch's count and payout take the slack and
+; the two buttons keep their widths, so the last thing before the thumb is the decision.
+[node name="SelectBar" type="HBoxContainer" parent="Ui/Screen/Bands/GearDeck/Margins/Column"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 340)
+visible = false
 layout_mode = 2
-theme_override_font_sizes/font_size = 80
-theme_override_styles/normal = SubResource("StyleBoxFlat_primary_rest")
-theme_override_styles/hover = SubResource("StyleBoxFlat_primary_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_primary_down")
-theme_override_styles/disabled = SubResource("StyleBoxFlat_primary_off")
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="SalvageSummary" type="Label" parent="Ui/Screen/Bands/GearDeck/Margins/Column/SelectBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
 autowrap_mode = 3
+
+[node name="SelectCancelButton" type="Button" parent="Ui/Screen/Bands/GearDeck/Margins/Column/SelectBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(252, 144)
+layout_mode = 2
+theme_type_variation = &"QuietButton"
+text_overrun_behavior = 3
+
+[node name="SalvageButton" type="Button" parent="Ui/Screen/Bands/GearDeck/Margins/Column/SelectBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(264, 144)
+layout_mode = 2
+theme_type_variation = &"DangerButton"
+text_overrun_behavior = 3
+
+; --------------------------------------------------------------------------------- the tabs
+;
+; Home's five, in Home's order, so the bar is the same bar on both screens; the Gear tab is the one
+; this screen IS and goes nowhere, Home returns, and the other three answer with the notice line.
+[node name="TabDock" type="PanelContainer" parent="Ui/Screen/Bands"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 198)
+layout_mode = 2
+theme_type_variation = &"TabDeck"
+
+[node name="Margins" type="MarginContainer" parent="Ui/Screen/Bands/TabDock"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/margin_bottom = 0
+
+[node name="TabBar" parent="Ui/Screen/Bands/TabDock/Margins" instance=ExtResource("4_tabbar")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Home" type="Button" parent="Ui/Screen/Bands/TabDock/Margins/TabBar"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+theme_type_variation = &"TabButton"
+autowrap_mode = 3
+
+[node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Home"]
+visible = false
+custom_minimum_size = Vector2(27, 27)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 12.0
+offset_right = -33.0
+offset_bottom = 39.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"TabDot"
+
+[node name="Gear" type="Button" parent="Ui/Screen/Bands/TabDock/Margins/TabBar"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+theme_type_variation = &"TabButton"
+autowrap_mode = 3
+
+[node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Gear"]
+visible = false
+custom_minimum_size = Vector2(27, 27)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 12.0
+offset_right = -33.0
+offset_bottom = 39.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"TabDot"
+
+[node name="Talents" type="Button" parent="Ui/Screen/Bands/TabDock/Margins/TabBar"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+theme_type_variation = &"TabButton"
+autowrap_mode = 3
+
+[node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Talents"]
+visible = false
+custom_minimum_size = Vector2(27, 27)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 12.0
+offset_right = -33.0
+offset_bottom = 39.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"TabDot"
+
+[node name="Collection" type="Button" parent="Ui/Screen/Bands/TabDock/Margins/TabBar"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+theme_type_variation = &"TabButton"
+autowrap_mode = 3
+
+[node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Collection"]
+visible = false
+custom_minimum_size = Vector2(27, 27)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 12.0
+offset_right = -33.0
+offset_bottom = 39.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"TabDot"
+
+[node name="Shop" type="Button" parent="Ui/Screen/Bands/TabDock/Margins/TabBar"]
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+theme_type_variation = &"TabButton"
+autowrap_mode = 3
+
+[node name="Dot" type="Panel" parent="Ui/Screen/Bands/TabDock/Margins/TabBar/Shop"]
+visible = false
+custom_minimum_size = Vector2(27, 27)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 12.0
+offset_right = -33.0
+offset_bottom = 39.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"TabDot"
+
+; -------------------------------------------------------------------------------- the sheet
+;
+; Everything from here down is drawn OVER the bands: the scrim, the item sheet and the confirmation.
+; All three start hidden. The scrim is a flat Button so a tap beside the sheet closes it; the sheet
+; rises from the bottom edge to about 62 % of the canvas, leaving the hero and the slot columns
+; visible above it, which is the point of a bottom sheet over a full modal.
+[node name="Scrim" type="Button" parent="Ui/Screen"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"GearScrim"
+text_overrun_behavior = 3
+
+[node name="Sheet" type="PanelContainer" parent="Ui/Screen"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -1190.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_type_variation = &"GearSheet"
+
+; The bottom safe inset lands inside this margin: the footer's buttons rise above a gesture bar
+; rather than under it.
+[node name="SheetMargins" type="MarginContainer" parent="Ui/Screen/Sheet"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_bottom = 0
+
+[node name="SheetColumn" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="Header" type="HBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="SheetGem" type="PanelContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"GearGem"
+
+[node name="SheetGemGlyph" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Header/SheetGem"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"GearGemGlyph"
+horizontal_alignment = 1
+vertical_alignment = 1
+text_overrun_behavior = 3
+
+[node name="SheetTitle" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"GearTitle"
+autowrap_mode = 3
+
+[node name="LockButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(144, 144)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"ChromeButton"
+text_overrun_behavior = 3
+
+[node name="SheetCloseButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(144, 144)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"ChromeButton"
+text_overrun_behavior = 3
+
+[node name="SheetCaption" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="SheetBadges" type="HBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="SheetScroll" type="ScrollContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="SheetPages" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+; ---- page one: the item ---------------------------------------------------------------------
+[node name="DetailsPage" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="PowerRow" type="HBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="PowerCaption" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage/PowerRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"GearCaption"
+text_overrun_behavior = 3
+
+[node name="PowerValue" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage/PowerRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"GearValue"
+text_overrun_behavior = 3
+
+[node name="PowerDelta" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage/PowerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"HudValueSmall"
+text_overrun_behavior = 3
+
+[node name="HeroPowerRow" type="HBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="HeroPowerCaption" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage/HeroPowerRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(330, 0)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"GearCaption"
+text_overrun_behavior = 3
+
+[node name="HeroPowerValue" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage/HeroPowerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"HudValueSmall"
+text_overrun_behavior = 3
+
+[node name="DetailsBlock" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="StatRows" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="AffixesCaption" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"GearCaption"
+text_overrun_behavior = 3
+
+[node name="AffixRows" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="SetLine" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="EnhanceLine" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/DetailsPage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+text_overrun_behavior = 3
+
+; ---- page two: the anvil --------------------------------------------------------------------
+[node name="EnhancePage" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="EnhanceTarget" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/EnhancePage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"GearTitle"
+text_overrun_behavior = 3
+
+[node name="EnhanceStatRows" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/EnhancePage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="EnhanceCost" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/EnhancePage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudValueSmall"
+autowrap_mode = 3
+
+[node name="EnhanceOdds" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/EnhancePage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudValueSmall"
+autowrap_mode = 3
+
+[node name="EnhanceBlock" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/EnhancePage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+; ---- page three: the fusion -----------------------------------------------------------------
+[node name="MergePage" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="MergeKeeperCaption" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/MergePage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"GearCaption"
+text_overrun_behavior = 3
+
+[node name="MergeInputsCaption" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/MergePage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"GearCaption"
+text_overrun_behavior = 3
+
+; The copies a fusion could take, as cells: tapping one picks it or drops it. Scrolls sideways when
+; a player holds more copies than fit a row.
+[node name="MergeScroll" type="ScrollContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/MergePage"]
+layout_mode = 2
+vertical_scroll_mode = 0
+
+[node name="MergeCandidates" type="HBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/MergePage/MergeScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="MergeResult" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/MergePage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudValueSmall"
+autowrap_mode = 3
+
+[node name="MergeCost" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/MergePage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="MergeDust" type="Label" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/MergePage"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudCaption"
+autowrap_mode = 3
+
+[node name="MergeWarnings" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/SheetScroll/SheetPages/MergePage"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+; ---- the footer: each page's actions, outside the scroll so the primary action is always on
+; screen whatever the page's height. One group is visible at a time, the page's own.
+[node name="Footer" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="DetailsActions" type="VBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+; One primary action on the page — put on or take off — and three quiet ones under it. Salvage is
+; quiet here rather than red: it only ASKS, and the red is on the button that answers.
+[node name="EquipButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/DetailsActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+text_overrun_behavior = 3
+
+[node name="ForgeRow" type="HBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/DetailsActions"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="EnhanceButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/DetailsActions/ForgeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"QuietButton"
+text_overrun_behavior = 3
+
+[node name="MergeButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/DetailsActions/ForgeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"QuietButton"
+text_overrun_behavior = 3
+
+[node name="SheetSalvageButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/DetailsActions/ForgeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"QuietButton"
+text_overrun_behavior = 3
+
+[node name="EnhanceActions" type="HBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="EnhanceBackButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/EnhanceActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 144)
+layout_mode = 2
+theme_type_variation = &"QuietButton"
+text_overrun_behavior = 3
+
+[node name="EnhanceOnceButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/EnhanceActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PrimaryButton"
+text_overrun_behavior = 3
+
+[node name="MergeActions" type="HBoxContainer" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="MergeBackButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/MergeActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 144)
+layout_mode = 2
+theme_type_variation = &"QuietButton"
+text_overrun_behavior = 3
+
+[node name="MergeConfirmButton" type="Button" parent="Ui/Screen/Sheet/SheetMargins/SheetColumn/Footer/MergeActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PrimaryButton"
+text_overrun_behavior = 3
+
+
+; ------------------------------------------------------------------------- the confirmation
+;
+; Centred rather than a sheet, because it is the one irreversible decision on the screen and a
+; centred modal is what the genre reserves for those. It lists what the batch pays and what in it a
+; player might regret, and the red button answers. Sized by its content — no fixed height — so a
+; batch with nothing to warn about gets a short card and one with three warnings a taller one.
+[node name="Confirm" type="PanelContainer" parent="Ui/Screen"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -480.0
+offset_right = 480.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"GearModal"
+
+[node name="ConfirmColumn" type="VBoxContainer" parent="Ui/Screen/Confirm"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="ConfirmTitle" type="Label" parent="Ui/Screen/Confirm/ConfirmColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"GearTitle"
+autowrap_mode = 3
+
+[node name="ConfirmSummary" type="Label" parent="Ui/Screen/Confirm/ConfirmColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudValueSmall"
+autowrap_mode = 3
+
+[node name="ConfirmWarnings" type="VBoxContainer" parent="Ui/Screen/Confirm/ConfirmColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="ConfirmActions" type="HBoxContainer" parent="Ui/Screen/Confirm/ConfirmColumn"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="ConfirmCancelButton" type="Button" parent="Ui/Screen/Confirm/ConfirmColumn/ConfirmActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(252, 144)
+layout_mode = 2
+theme_type_variation = &"QuietButton"
+text_overrun_behavior = 3
+
+[node name="ConfirmSalvageButton" type="Button" parent="Ui/Screen/Confirm/ConfirmColumn/ConfirmActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"DangerButton"
+text_overrun_behavior = 3
